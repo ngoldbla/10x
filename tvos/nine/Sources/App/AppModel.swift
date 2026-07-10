@@ -1,0 +1,226 @@
+// AppModel.swift — the one @MainActor view model behind both screens.
+// Owns the current game, prefs, streaks and the autosave slot; every value
+// persists through CouchStored (debounced JSON under Application Support,
+// streaks mirrored to iCloud KVS).
+//
+// Note: the engine sources compile inside this app target (see project.yml),
+// so engine types are used directly — no `import NineEngine`.
+import SwiftUI
+import Observation
+import CouchKit
+
+// MARK: - Persisted value types
+
+/// Accent tints offered in prefs. Muted, glass-safe hues; never pure red or
+/// green (colorblind-safe rule: errors pair a coral underline with a dot).
+enum AccentChoice: String, Codable, Sendable, CaseIterable {
+    case glacier, ember, meadow, lilac
+
+    var title: String {
+        switch self {
+        case .glacier: return "Glacier"
+        case .ember: return "Ember"
+        case .meadow: return "Meadow"
+        case .lilac: return "Lilac"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .glacier: return Color(red: 0.56, green: 0.78, blue: 0.92)
+        case .ember: return Color(red: 0.96, green: 0.71, blue: 0.51)
+        case .meadow: return Color(red: 0.62, green: 0.86, blue: 0.70)
+        case .lilac: return Color(red: 0.76, green: 0.70, blue: 0.94)
+        }
+    }
+}
+
+struct NinePrefs: Codable, Sendable, Equatable {
+    /// Off is the statement (PRD §3).
+    var showTimer = false
+    var errorHighlight = true
+    var accent: AccentChoice = .glacier
+}
+
+/// What kind of board is (or was) being played.
+enum GameKind: Codable, Sendable, Equatable, Hashable {
+    case daily(day: Int)
+    case free(Difficulty)
+}
+
+/// The single autosave slot: one in-progress board at a time.
+struct SaveSlot: Codable, Sendable, Equatable {
+    var game: NineGame?
+    var kind: GameKind?
+
+    init(game: NineGame? = nil, kind: GameKind? = nil) {
+        self.game = game
+        self.kind = kind
+    }
+}
+
+// MARK: - Model
+
+@MainActor @Observable
+final class AppModel {
+    enum Screen: Equatable { case home, game }
+
+    // Observable state.
+    private(set) var screen: Screen = .home
+    private(set) var game: NineGame?
+    private(set) var kind: GameKind?
+    /// Set the instant the last correct digit lands; drives the luminance
+    /// wave and the calm completion chip.
+    private(set) var solvedAt: Date?
+    /// A puzzle is being composed off-main (Sharp can take a few seconds).
+    private(set) var composing: GameKind?
+
+    var prefs: NinePrefs {
+        didSet { prefsStore.wrappedValue = prefs }
+    }
+    private(set) var streak: StreakState {
+        didSet { streakStore.wrappedValue = streak }
+    }
+    private(set) var saved: SaveSlot {
+        didSet { saveStore.wrappedValue = saved }
+    }
+
+    // Persistence (streaks are precious → cloud-synced).
+    @ObservationIgnored private let prefsStore =
+        CouchStored(wrappedValue: NinePrefs(), "nine.prefs")
+    @ObservationIgnored private let streakStore =
+        CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
+    @ObservationIgnored private let saveStore =
+        CouchStored(wrappedValue: SaveSlot(), "nine.save")
+
+    init() {
+        prefs = prefsStore.wrappedValue
+        streak = streakStore.wrappedValue
+        saved = saveStore.wrappedValue
+    }
+
+    // MARK: - Derived
+
+    var todayOrdinal: Int { DailySeed.dayOrdinal(for: Date()) }
+
+    var todaySolved: Bool { streak.hasCompleted(day: todayOrdinal) }
+
+    /// The saved board, when it is today's daily.
+    var savedDaily: NineGame? {
+        guard case .daily(let day)? = saved.kind, day == todayOrdinal else { return nil }
+        return saved.game
+    }
+
+    /// The saved board, when it is a free-play game (drives the Continue card).
+    var savedFree: (game: NineGame, difficulty: Difficulty)? {
+        guard case .free(let difficulty)? = saved.kind, let game = saved.game else { return nil }
+        return (game, difficulty)
+    }
+
+    var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
+
+    // MARK: - Starting games
+
+    func openToday() {
+        let day = todayOrdinal
+        if let inProgress = savedDaily {
+            resume(inProgress, kind: .daily(day: day))
+        } else {
+            compose(kind: .daily(day: day), seed: DailySeed.seed(for: Date()), difficulty: .steady)
+        }
+    }
+
+    func continueSaved() {
+        guard let game = saved.game, let kind = saved.kind else { return }
+        resume(game, kind: kind)
+    }
+
+    func startFree(_ difficulty: Difficulty) {
+        compose(kind: .free(difficulty), seed: .random(in: UInt64.min...UInt64.max), difficulty: difficulty)
+    }
+
+    private func resume(_ game: NineGame, kind: GameKind) {
+        var g = game
+        g.timer.start(at: Date())
+        self.game = g
+        self.kind = kind
+        self.solvedAt = nil
+        self.screen = .game
+    }
+
+    private func compose(kind: GameKind, seed: UInt64, difficulty: Difficulty) {
+        guard composing == nil else { return }
+        composing = kind
+        Task.detached(priority: .userInitiated) {
+            // Pure, Sendable, deterministic — safe off the main actor.
+            let puzzle = PuzzleGenerator.generate(seed: seed, difficulty: difficulty)
+            await MainActor.run {
+                self.composing = nil
+                self.resume(NineGame(puzzle: puzzle), kind: kind)
+                self.persistProgress()
+            }
+        }
+    }
+
+    // MARK: - Play actions (GameScreen calls these)
+
+    func place(_ digit: Int, at cell: Int) {
+        guard solvedAt == nil, var g = game else { return }
+        guard g.place(digit, at: cell) else { return }
+        game = g
+        if g.isSolved {
+            finishSolve()
+        } else {
+            persistProgress()
+        }
+    }
+
+    func togglePencil(_ digit: Int, at cell: Int) {
+        guard solvedAt == nil, var g = game else { return }
+        guard g.togglePencil(digit, at: cell) else { return }
+        game = g
+        persistProgress()
+    }
+
+    @discardableResult
+    func undoMove() -> NineMove? {
+        guard solvedAt == nil, var g = game else { return nil }
+        guard let move = g.undo() else { return nil }
+        game = g
+        persistProgress()
+        return move
+    }
+
+    func goHome() {
+        if solvedAt == nil, var g = game {
+            g.timer.pause(at: Date())
+            game = g
+            persistProgress()
+        }
+        try? saveStore.flushNow()
+        try? streakStore.flushNow()
+        // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
+        // visually stable through the crossfade; the next start replaces them.
+        screen = .home
+    }
+
+    // MARK: - Internals
+
+    private func finishSolve() {
+        guard var g = game else { return }
+        g.timer.pause(at: Date())
+        game = g
+        solvedAt = Date()
+        if case .daily(let day)? = kind {
+            streak.recordCompletion(day: day)
+            try? streakStore.flushNow()
+        }
+        saved = SaveSlot() // the board is done; free the slot
+        try? saveStore.flushNow()
+    }
+
+    private func persistProgress() {
+        guard let game, let kind else { return }
+        saved = SaveSlot(game: game, kind: kind)
+    }
+}

@@ -1,0 +1,24 @@
+name: Blockhead
+options:
+  bundleIdPrefix: com.couchsuite
+  deploymentTarget:
+    tvOS: "18.0"
+packages:
+  CouchKit:
+    path: ../couchkit
+targets:
+  Blockhead:
+    type: application
+    platform: tvOS
+    sources: [Sources/App, Sources/Engine]
+    dependencies:
+      - package: CouchKit
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.blockhead
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Blockhead
+        UIUserInterfaceStyle: Dark
