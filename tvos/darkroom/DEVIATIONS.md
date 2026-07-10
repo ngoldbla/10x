@@ -55,3 +55,8 @@ Sanctioned cuts and pragmatic interpretations, logged per suite rules.
 12. **Deployment target tvOS 18** per the suite build templates (README says
     tvOS 26; CouchKit's glass shim handles both — `.glassEffect` on 26+,
     ultra-thin material below).
+13. **`CouchStored` used directly, not as `@CouchStored`.** The `@Observable`
+    macro rejects property wrappers on stored properties, so `AppModel` holds
+    `CouchStored` instances as plain `let`s and reads/writes `wrappedValue`.
+    Same storage, same debounce, same cloud sync (`streak` passes
+    `cloudSynced: true`).

@@ -111,7 +111,7 @@ final class AppModel {
                 if puzzle.band == slot.targetBand { break }
             }
 
-            guard let pick = DailyRoll.select(from: candidates.map(\.puzzle), target: slot.targetBand),
+            guard let pick = DailyRoll.select(from: candidates.map { $0.puzzle }, target: slot.targetBand),
                   let chosen = candidates.first(where: { $0.puzzle.id == pick.id })
             else { continue }
 
