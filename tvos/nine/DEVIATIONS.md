@@ -38,6 +38,17 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   10k for a nightly lane.
 - **Prefs sheet focus:** `.couchRemote` detaches while the GlassSheet is up
   so tvOS focus can reach the sheet's buttons (COUCHKIT-ASKS.md #3).
+- **Prefs on four-way remotes:** `.playPauseLongPress` is only emitted by the
+  8-way GameController reader, so four-way remotes could never reach the
+  sheet. Added rule: *hold-click on a cell you can't write in* (a given or a
+  filled cell) opens prefs; hold-click on a writable empty cell is the pencil
+  rose, as specced. One gesture, two honest meanings.
+- **Play/pause long-press double-fire guard:** RemoteKit attaches
+  `onPlayPauseCommand` unconditionally, so a long press may *also* leak a
+  plain `.playPause` (= undo) before `.playPauseLongPress` arrives. The
+  screen keeps the last undone move for 1.2 s and rolls it forward again
+  when the long-press lands — the player never loses a move to opening
+  prefs. (See COUCHKIT-ASKS.md for the kit-level fix.)
 - **Sharp generation ("healing pass"):** maximal symmetric digging often
   overshoots past X-wing. Instead of discarding those attempts, the generator
   restores dug orbits one at a time until the full chain solves, then demands

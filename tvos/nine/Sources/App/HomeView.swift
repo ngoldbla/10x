@@ -53,7 +53,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var todayStatus: some View {
-        if isComposing(kindMatches: { if case .daily = $0 { return true }; return false }) {
+        if isComposingDaily {
             statusLabel("Composing…", symbol: "sparkles")
         } else if model.todaySolved {
             statusLabel("Solved", symbol: "checkmark.circle.fill")
@@ -111,7 +111,7 @@ struct HomeView: View {
             VStack(spacing: 20) {
                 MiniBoard(difficulty: difficulty, accent: model.prefs.accent.color)
                     .frame(width: 132, height: 132)
-                if isComposing(kindMatches: { $0 == .free(difficulty) }) {
+                if model.composing == .free(difficulty) {
                     statusLabel("Composing…", symbol: "sparkles")
                 } else {
                     Text(difficulty.title)
@@ -134,9 +134,9 @@ struct HomeView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func isComposing(kindMatches: (GameKind) -> Bool) -> Bool {
-        guard let composing = model.composing else { return false }
-        return kindMatches(composing)
+    private var isComposingDaily: Bool {
+        if case .daily? = model.composing { return true }
+        return false
     }
 }
 

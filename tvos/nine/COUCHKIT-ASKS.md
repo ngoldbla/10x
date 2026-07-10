@@ -19,7 +19,17 @@
    digital click (GCMicroGamepad `buttonA` pressed during the touch), apps
    would not need this heuristic.
 
-3. **`ChromeVisibility` + `GlassSheet` focus hand-off (documentation ask).**
+3. **Play/pause long-press double-fire.** `.onPlayPauseCommand` is attached
+   unconditionally, and the 8-way reader separately times `buttonX` for
+   `.playPauseLongPress`. A long press therefore likely delivers *both* a
+   `.playPause` and, ~0.6 s later, a `.playPauseLongPress`. For Nine,
+   play/pause-tap is undo, so opening prefs silently costs the player a move.
+   Nine works around it by re-applying the last undo when a long-press lands
+   within 1.2 s. Ask: suppress the `.playPause` emission when the reader is
+   active and the press exceeds the long-press threshold (emit on release,
+   not on press).
+
+4. **`ChromeVisibility` + `GlassSheet` focus hand-off (documentation ask).**
    With `.couchRemote` attached at a screen's root, the root stays focusable
    and consumes move commands, so a `GlassSheet`'s buttons can never gain
    focus. Nine works around it by detaching `.couchRemote` while its sheet is
