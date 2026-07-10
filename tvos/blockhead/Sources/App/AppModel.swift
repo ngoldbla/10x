@@ -55,6 +55,8 @@ final class AppModel {
     /// Stage focus: 0 = tonight (marquee), 1 = party, 2 = archive.
     private(set) var stageSelection = 0
     private(set) var archiveSelection = 0
+    /// Prefs focus: 0…2 = timer options, 3 = reduce-flash.
+    private(set) var prefsSelection = 1
 
     private(set) var run: EpisodeRun?
     private(set) var lastOutcome: QuestionOutcome?
@@ -137,6 +139,8 @@ final class AppModel {
 
     // MARK: Prefs
 
+    static let timerOptions = [8, 12, 20]
+
     func setTimerSeconds(_ seconds: Int) {
         timerSeconds = seconds
         timerStore.wrappedValue = seconds
@@ -150,12 +154,45 @@ final class AppModel {
     // MARK: Stage
 
     func handleStage(_ gesture: CouchGesture) {
-        guard !showPrefs else { return }
+        guard !showPrefs else {
+            handlePrefs(gesture)
+            return
+        }
         switch gesture {
         case .swipe(let direction): moveStageSelection(direction)
         case .click: activateStageSelection()
-        case .playPauseLongPress, .holdBegan: showPrefs = true
+        case .playPauseLongPress, .holdBegan: openPrefs()
         default: break
+        }
+    }
+
+    private func openPrefs() {
+        prefsSelection = Self.timerOptions.firstIndex(of: timerSeconds) ?? 1
+        showPrefs = true
+    }
+
+    /// The sheet is driven through the same RemoteKit path as every menu
+    /// (the stage's `.couchRemote` surface keeps focus; see DEVIATIONS #5).
+    private func handlePrefs(_ gesture: CouchGesture) {
+        switch gesture {
+        case .swipe(.left):
+            if (1...2).contains(prefsSelection) { prefsSelection -= 1 }
+        case .swipe(.right):
+            if prefsSelection < 2 { prefsSelection += 1 }
+        case .swipe(.down):
+            prefsSelection = 3
+        case .swipe(.up):
+            if prefsSelection == 3 { prefsSelection = 1 }
+        case .click:
+            if prefsSelection == 3 {
+                toggleReduceFlash()
+            } else {
+                setTimerSeconds(Self.timerOptions[prefsSelection])
+            }
+        case .back, .playPauseLongPress:
+            showPrefs = false
+        default:
+            break
         }
     }
 
