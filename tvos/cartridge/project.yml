@@ -1,0 +1,24 @@
+name: Cartridge
+options:
+  bundleIdPrefix: com.couchsuite
+  deploymentTarget:
+    tvOS: "18.0"
+packages:
+  CouchKit:
+    path: ../couchkit
+targets:
+  Cartridge:
+    type: application
+    platform: tvOS
+    sources: [Sources/App, Sources/Engine]
+    dependencies:
+      - package: CouchKit
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.cartridge
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Cartridge
+        NSPhotoLibraryUsageDescription: Cartridge turns your photos into game sprites and backdrops. Photos never leave this Apple TV.

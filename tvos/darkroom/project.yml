@@ -1,0 +1,24 @@
+name: Darkroom
+options:
+  bundleIdPrefix: com.couchsuite
+  deploymentTarget:
+    tvOS: "18.0"
+packages:
+  CouchKit:
+    path: ../couchkit
+targets:
+  Darkroom:
+    type: application
+    platform: tvOS
+    sources: [Sources/App, Sources/Engine]
+    dependencies:
+      - package: CouchKit
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.darkroom
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Darkroom
+        NSPhotoLibraryUsageDescription: Darkroom turns your photos into picross puzzles you develop by solving. Photos never leave this Apple TV.
