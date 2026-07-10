@@ -199,10 +199,9 @@ final class AppModel {
         }
         try? saveStore.flushNow()
         try? streakStore.flushNow()
+        // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
+        // visually stable through the crossfade; the next start replaces them.
         screen = .home
-        game = nil
-        kind = nil
-        solvedAt = nil
     }
 
     // MARK: - Internals

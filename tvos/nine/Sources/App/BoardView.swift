@@ -1,0 +1,160 @@
+// BoardView.swift — the 81-cell grid, drawn in a single Canvas on one glass
+// plane (PRD §4.2). Box borders are luminance steps, never hard lines.
+// Givens in rounded semibold, entries in the accent tint, errors get a coral
+// underline paired with a dot marker (colorblind-safe). Completion rolls a
+// luminance wave across the grid.
+import SwiftUI
+import CouchKit
+
+/// Shared geometry so GameScreen can position the flick rose over a cell.
+enum BoardMetrics {
+    static let side: CGFloat = 900
+    static let cell: CGFloat = side / 9
+
+    /// Center of a cell in board-local coordinates.
+    static func center(of cell: Int) -> CGPoint {
+        let row = CGFloat(cell / 9)
+        let col = CGFloat(cell % 9)
+        return CGPoint(x: (col + 0.5) * Self.cell, y: (row + 0.5) * Self.cell)
+    }
+}
+
+struct BoardView: View {
+    let game: NineGame
+    let cursor: Int
+    let accent: Color
+    let showErrors: Bool
+    let solvedAt: Date?
+    /// Dim the board content a touch while the rose is open, so the petals
+    /// (true glass, lensing the board) are the brightest thing on screen.
+    let roseOpen: Bool
+
+    private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil)) { timeline in
+            Canvas { context, size in
+                draw(in: &context, size: size, now: timeline.date)
+            }
+        }
+        .frame(width: BoardMetrics.side, height: BoardMetrics.side)
+        .padding(28)
+        .couchGlass(in: RoundedRectangle(cornerRadius: 36, style: .continuous))
+        .opacity(roseOpen ? 0.82 : 1.0)
+        .animation(.couchFast, value: roseOpen)
+    }
+
+    // MARK: - Drawing
+
+    private func draw(in context: inout GraphicsContext, size: CGSize, now: Date) {
+        let cell = BoardMetrics.cell
+
+        // 1. Box luminance steps: alternating boxes get a slightly brighter
+        //    wash — the step itself reads as the border.
+        for boxRow in 0..<3 {
+            for boxCol in 0..<3 {
+                let bright = (boxRow + boxCol) % 2 == 0
+                let rect = CGRect(
+                    x: CGFloat(boxCol) * 3 * cell,
+                    y: CGFloat(boxRow) * 3 * cell,
+                    width: 3 * cell,
+                    height: 3 * cell
+                )
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: 6),
+                    with: .color(.white.opacity(bright ? 0.055 : 0.02))
+                )
+            }
+        }
+
+        // 2. Hairline cell separators (soft, uniform).
+        var lines = Path()
+        for i in 1..<9 {
+            let offset = CGFloat(i) * cell
+            lines.move(to: CGPoint(x: offset, y: 0))
+            lines.addLine(to: CGPoint(x: offset, y: size.height))
+            lines.move(to: CGPoint(x: 0, y: offset))
+            lines.addLine(to: CGPoint(x: size.width, y: offset))
+        }
+        context.stroke(lines, with: .color(.white.opacity(0.05)), lineWidth: 1)
+
+        // 3. Cursor.
+        if solvedAt == nil {
+            let row = cursor / 9, col = cursor % 9
+            let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                .insetBy(dx: 4, dy: 4)
+            let path = Path(roundedRect: rect, cornerRadius: 14)
+            context.fill(path, with: .color(accent.opacity(0.16)))
+            context.stroke(path, with: .color(accent.opacity(0.9)), lineWidth: 3)
+        }
+
+        // 4. Digits, pencil marks, error markers.
+        let wave = waveProgress(now: now)
+        for index in 0..<81 {
+            let row = index / 9, col = index % 9
+            let center = BoardMetrics.center(of: index)
+            let digit = game.entry(at: index)
+
+            if digit != 0 {
+                let isGiven = game.isGiven(index)
+                var color = isGiven ? CouchPalette.paper : accent
+                let isError = showErrors && game.isError(at: index)
+                if isError { color = Self.coral }
+
+                // Completion wave: a diagonal luminance crest.
+                if let wave {
+                    let phase = Double(row + col) / 16.0
+                    let boost = max(0, 1 - abs(wave - phase) * 4.5)
+                    if boost > 0 {
+                        color = .white.opacity(0.6 + 0.4 * boost)
+                    }
+                }
+
+                context.draw(
+                    Text("\(digit)")
+                        .font(.system(size: 56, weight: isGiven ? .semibold : .medium, design: .rounded))
+                        .foregroundStyle(color),
+                    at: center
+                )
+
+                if isError {
+                    // Coral underline…
+                    let underline = CGRect(
+                        x: center.x - cell * 0.24, y: center.y + cell * 0.30,
+                        width: cell * 0.48, height: 4
+                    )
+                    context.fill(Path(roundedRect: underline, cornerRadius: 2), with: .color(Self.coral))
+                    // …paired with a dot marker so color is never the sole signal.
+                    let dot = CGRect(
+                        x: center.x + cell * 0.30, y: center.y - cell * 0.38,
+                        width: 10, height: 10
+                    )
+                    context.fill(Path(ellipseIn: dot), with: .color(Self.coral))
+                }
+            } else {
+                // Corner notes: a mini 3×3 keypad of pencil digits.
+                for mark in game.pencilDigits(at: index) {
+                    let mc = CGFloat((mark - 1) % 3), mr = CGFloat((mark - 1) / 3)
+                    let point = CGPoint(
+                        x: center.x + (mc - 1) * cell * 0.28,
+                        y: center.y + (mr - 1) * cell * 0.28
+                    )
+                    context.draw(
+                        Text("\(mark)")
+                            .font(.system(size: 22, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.55)),
+                        at: point
+                    )
+                }
+            }
+        }
+    }
+
+    /// 0…1 progress of the completion wave, nil when idle / finished.
+    private func waveProgress(now: Date) -> Double? {
+        guard let solvedAt else { return nil }
+        let t = now.timeIntervalSince(solvedAt)
+        guard t >= 0, t < 2.6 else { return nil }
+        return t / 2.6
+    }
+}

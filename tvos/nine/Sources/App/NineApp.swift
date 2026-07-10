@@ -28,7 +28,7 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.couchAmbient, value: model.screen)
+        .animation(.couchFast, value: model.screen) // navigation is a response, not weather
     }
 }
 
