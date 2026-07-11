@@ -4,7 +4,7 @@
 // `CuratedPhoto` values, and call `load()`. When the library is unauthorized
 // or empty, every query silently returns DemoArt-backed photos instead, so
 // each app works — and demos beautifully — with zero permissions.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 import CouchCore
 #if canImport(CoreGraphics)

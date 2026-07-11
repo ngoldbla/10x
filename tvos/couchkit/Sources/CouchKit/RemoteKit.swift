@@ -9,7 +9,7 @@
 //     touch and classifies the stroke with CouchCore's flick math. If no
 //     analog data is available it fails soft: apps still get 4-way swipes
 //     and `RemoteKit.capability` reports `.fourWay`.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 import CouchCore
 #if canImport(GameController)
@@ -175,8 +175,11 @@ final class MicroGamepadFlickReader {
         observer = NotificationCenter.default.addObserver(
             forName: .GCControllerDidBecomeCurrent, object: nil, queue: .main
         ) { [weak self] note in
+            // Registered with `queue: .main`, so this closure runs on the main
+            // thread; the notification payload never actually crosses isolation.
+            nonisolated(unsafe) let controller = note.object as? GCController
             MainActor.assumeIsolated {
-                self?.configure(note.object as? GCController)
+                self?.configure(controller)
             }
         }
     }

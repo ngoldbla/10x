@@ -113,6 +113,16 @@ public enum AsciiRenderer {
         @inline(__always) func color(_ x: Int, _ y: Int) -> RGB {
             field.colors[max(0, min(rows - 1, y)) * cols + max(0, min(cols - 1, x))]
         }
+        @inline(__always) func soften(
+            _ c: UInt8, _ n: UInt8, _ s: UInt8, _ w: UInt8, _ e: UInt8
+        ) -> UInt8 {
+            var total = Int(c) * 4
+            total += Int(n)
+            total += Int(s)
+            total += Int(w)
+            total += Int(e)
+            return UInt8(total / 8)
+        }
         var cells = [Cell]()
         cells.reserveCapacity(field.colors.count)
         for y in 0..<rows {
@@ -121,9 +131,9 @@ public enum AsciiRenderer {
                 let n = color(x, y - 1), s = color(x, y + 1)
                 let w = color(x - 1, y), e = color(x + 1, y)
                 let soft = RGB(
-                    UInt8((Int(c.r) * 4 + Int(n.r) + Int(s.r) + Int(w.r) + Int(e.r)) / 8),
-                    UInt8((Int(c.g) * 4 + Int(n.g) + Int(s.g) + Int(w.g) + Int(e.g)) / 8),
-                    UInt8((Int(c.b) * 4 + Int(n.b) + Int(s.b) + Int(w.b) + Int(e.b)) / 8)
+                    soften(c.r, n.r, s.r, w.r, e.r),
+                    soften(c.g, n.g, s.g, w.g, e.g),
+                    soften(c.b, n.b, s.b, w.b, e.b)
                 )
                 cells.append(Cell(symbol: " ", foreground: soft, background: soft))
             }
