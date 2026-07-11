@@ -1,7 +1,7 @@
 // The CouchUI component set (PRD §5.1). All chrome is transient glass:
 // it appears on remote touch and recedes after ~3s of stillness, driven by
 // a shared `ChromeVisibility` that RemoteKit pokes on every gesture.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 import CouchCore
 import Observation

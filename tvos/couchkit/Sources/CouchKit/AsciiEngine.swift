@@ -6,7 +6,7 @@
 // upscales to 4K for free, cell art has no detail beyond its grid anyway,
 // and glyph rasterization at 3840×2160 quadruples CPU time for zero visible
 // gain at a 3-meter viewing distance.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 import CouchCore
 #if canImport(CoreGraphics)

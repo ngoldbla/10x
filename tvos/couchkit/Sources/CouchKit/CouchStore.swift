@@ -4,7 +4,7 @@
 // debounced so gameplay can hammer a value without hammering the disk.
 // tvOS local storage is purgeable, so anything precious (streaks, progress)
 // should pass `cloudSynced: true` to mirror into NSUbiquitousKeyValueStore.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 import CouchCore
 
@@ -99,10 +99,9 @@ public final class CouchStored<Value: Codable & Sendable>: @unchecked Sendable {
         flushTask = Task.detached(priority: .utility) { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
-            self.lock.lock()
-            let due = self.debouncer.shouldFlush(at: Date())
-            let snapshot = self.value
-            self.lock.unlock()
+            let (due, snapshot) = self.lock.withLock {
+                (self.debouncer.shouldFlush(at: Date()), self.value)
+            }
             if due { try? self.persist(snapshot) }
         }
     }

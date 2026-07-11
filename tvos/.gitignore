@@ -1,3 +1,7 @@
 .build/
 *.xcodeproj/
 DerivedData/
+# XcodeGen generates each app's Info.plist from its project.yml `properties`.
+*/Info.plist
+# xcodebuild -derivedDataPath output used by the run/verify pipeline.
+*/build/

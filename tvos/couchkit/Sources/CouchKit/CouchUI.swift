@@ -1,7 +1,7 @@
 // CouchUI foundations: typography, palette, accent derivation, springs.
 // Art direction: "Pixels under glass" — dark-first, content full-bleed,
 // chrome transient. No component in this file draws an opaque background.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 @_exported import CouchCore
 

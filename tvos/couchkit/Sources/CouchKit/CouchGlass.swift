@@ -9,7 +9,7 @@
 // On tvOS 26+ we use `.glassEffect(.regular, in:)` and `GlassEffectContainer`.
 // Below 26 (deployment target is tvOS 18) we fall back to
 // `.ultraThinMaterial` plus a subtle stroke — same silhouette, no lensing.
-#if canImport(SwiftUI)
+#if os(tvOS)
 import SwiftUI
 
 extension View {
@@ -22,7 +22,7 @@ extension View {
         } else {
             self
                 .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
         }
     }
 
@@ -40,7 +40,7 @@ extension View {
         } else {
             self
                 .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                .overlay(shape.stroke(Color.white.opacity(0.18), lineWidth: 1))
         }
     }
 }
