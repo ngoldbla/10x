@@ -10,15 +10,28 @@ targets:
   RabbitEars:
     type: application
     platform: tvOS
-    sources: [Sources/App, Sources/Engine]
+    sources:
+      - Sources/App
+      - Sources/Engine
+      - Assets.xcassets
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: CouchKit
     settings:
       base:
         SWIFT_VERSION: "6.0"
         PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.rabbitears
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
+        ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: "Launch Image"
+        CODE_SIGN_STYLE: Automatic
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: Rabbit Ears
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryUsageDescription: Rabbit Ears turns your photos into ambient ASCII and pixel art. Photos never leave this Apple TV.
