@@ -22,6 +22,20 @@ Each app depends on `../couchkit` as a local SwiftPM package — no other depend
 no accounts, no network. All five run fully featured with zero permissions
 (procedural demo art stands in until Photos access is granted where relevant).
 
+## Ship to TestFlight
+
+Each app carries its full TestFlight kit: layered brand-asset icons + Top Shelf
+images (committed, regenerable via `scripts/generate_brand_assets.swift`),
+versioning, privacy manifest, export-compliance flag, and — for Darkroom, Nine,
+and Blockhead — the iCloud key-value entitlement their streak sync needs.
+
+```bash
+echo 'COUCH_TEAM_ID=<your team id>' > signing.env   # gitignored, one-time
+scripts/testflight.sh <app> --upload                 # or: all --upload
+```
+
+See [TESTFLIGHT.md](TESTFLIGHT.md) for the App Store Connect one-time setup.
+
 ## Verify the engines (any platform, no Xcode needed)
 
 ```bash
