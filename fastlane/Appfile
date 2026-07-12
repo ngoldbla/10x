@@ -1,0 +1,3 @@
+# Team is read from the COUCH_TEAM_ID env var (or signing.env) — never hardcoded.
+# app_identifier is supplied per-lane; Sub-project 1 targets rabbit-ears only.
+team_id(ENV["COUCH_TEAM_ID"])

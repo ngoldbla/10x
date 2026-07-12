@@ -40,3 +40,12 @@ signing.env
 .DS_Store
 *.swp
 *~
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+*.mobileprovision
+*.p12
+*.p8
