@@ -1,8 +1,0 @@
-// Development configuration
-// Replace placeholder Supabase values before using hosted auth or backend features.
-API_BASE_URL = http:/$()/localhost:8000
-SUPABASE_URL = https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY = sb_publishable_your_key
-BILLING_TEST_MODE = NO
-PAYMENTS_ENABLED = YES
-SIGNUP_BONUS_ENABLED = YES

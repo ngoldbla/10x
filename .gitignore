@@ -17,6 +17,11 @@ build/
 *.xcworkspace
 !default.xcworkspace
 
+# XcodeGen generates each app's .xcodeproj, Info.plist, and entitlements from
+# its project.yml — none of these are committed.
+*.xcodeproj/
+*/Info.plist
+*/*.entitlements
 
 # Swift Package Manager
 .build/
@@ -24,22 +29,14 @@ build/
 Packages/
 Package.resolved
 
-# Node / Next.js
-node_modules/
-.next/
-out/
-.vercel/
-*.tsbuildinfo
-.env.local
-.env.*.local
+# Build / TestFlight output (scripts/testflight.sh)
+*/build/
+*/dist/
+
+# Local signing configuration (team ID, ASC API key) — never committed.
+signing.env
 
 # macOS
 .DS_Store
 *.swp
 *~
-
-# Local previews and generated release-site artifacts
-output/
-.vercel
-
-.build-codex-integrations-core

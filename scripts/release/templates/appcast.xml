@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>10x Beta Appcast</title>
-    <description>The beta appcast will be generated after the first signed publish.</description>
-    <language>en</language>
-  </channel>
-</rss>

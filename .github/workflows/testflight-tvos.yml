@@ -1,6 +1,6 @@
 # Couch Suite (tvOS) → TestFlight on every merge to main.
 #
-# Wraps the repo's existing, working pipeline (tvos/scripts/testflight.sh):
+# Wraps the repo's existing, working pipeline (scripts/testflight.sh):
 # XcodeGen generate → unsigned archive → ad-hoc re-sign (preserves iCloud KVS) →
 # app-store-connect export/upload. Build number = git commit count (monotonic;
 # derived in-CI, never committed back → no self-trigger loop).
@@ -21,7 +21,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'tvos/**'
+      - 'rabbit-ears/**'
+      - 'darkroom/**'
+      - 'nine/**'
+      - 'blockhead/**'
+      - 'cartridge/**'
+      - 'couchkit/**'
+      - 'scripts/**'
       - '.github/workflows/testflight-tvos.yml'
   workflow_dispatch:
     inputs:
@@ -120,7 +126,6 @@ jobs:
             UPLOAD=''   # dry run: export a signed .ipa, no TestFlight build consumed
           fi
 
-          cd tvos
           scripts/testflight.sh "$APP" $UPLOAD
 
       - name: Clean up API key and ephemeral keychain
