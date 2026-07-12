@@ -122,27 +122,39 @@ See `BUILD.md` for the full simulator run/screenshot loop, and
 - App Store **screenshots/metadata** are only needed for external TestFlight
   groups and App Store release, not for internal TestFlight builds.
 
-## Fastlane (rabbit-ears — Sub-project 1)
+## Fastlane (all five apps)
 
-rabbit-ears can now ship via Fastlane with `match`-managed signing:
+Every Couch Suite app now ships via Fastlane with `match`-managed signing:
 
 ```bash
 set -a && source signing.env && set +a
-fastlane ios beta upload:false   # dry run: signed .ipa in rabbit-ears/dist/
-fastlane ios beta                # build, sign, upload to TestFlight
+fastlane ios beta app:darkroom upload:false   # dry run: signed .ipa in darkroom/dist/
+fastlane ios beta app:darkroom                # build, sign, upload one app to TestFlight
+fastlane ios beta_all                         # build + upload all five apps
 ```
 
+`app:` accepts `rabbit-ears` (default), `darkroom`, `nine`, `blockhead`, or
+`cartridge` (see the `APPS` map in `fastlane/Fastfile`).
+
 Signing assets live encrypted in the private repo `couch-suite-certificates`.
-The distribution certificate was **imported** into `match` (the account was at
-Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
-Store profile named `match AppStore com.couchsuite.rabbitears tvos`. rabbit-ears
-signs the archive directly with that distribution profile (tvOS App Store
-profiles need no registered devices), so the unsigned-archive + ad-hoc re-sign
-dance in `scripts/testflight.sh` is not needed on this path.
+The **team distribution certificate was imported** into `match` (the account was
+at Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
+Store profile per app, named `match AppStore <bundle-id> tvos`. Each app signs its
+archive directly with that distribution profile — tvOS App Store profiles need no
+registered devices, so the unsigned-archive + ad-hoc re-sign dance in
+`scripts/testflight.sh` is **not** needed on this path. The iCloud key-value
+entitlement for Darkroom/Nine/Blockhead is baked in at archive time and verified
+present in the signed binaries.
 
 The `beta` lane always runs `match(readonly: true)` — only the one-time bootstrap
-mints/imports. The other four apps still ship via `scripts/testflight.sh` until
-Sub-project 2 (roll-out to all apps + CI migration). Local runs use the Homebrew
-`fastlane`; CI adopts `bundle exec` in SP2. `MATCH_PASSWORD` is already stored as
-a GitHub secret on the repo; certs-repo commits must use a GitHub noreply email.
+mints/imports. Local runs use the Homebrew `fastlane` (no `bundle exec`); the
+committed `Gemfile` pins the version for the future CI migration. Notes for that
+migration: `MATCH_PASSWORD` is already a GitHub secret on the repo; certs-repo
+commits must use a GitHub **noreply** email (private-email push protection); and
+`match` needs the tvOS platform (`platform: "tvos"`) and the `…tvos` profile name.
+
+**Not yet migrated:** `.github/workflows/testflight-tvos.yml` still ships via
+`scripts/testflight.sh` (the pre-Fastlane path). Both paths work and produce
+equivalent App Store builds; switching CI to `fastlane ios beta_all` is the
+remaining step.
 
