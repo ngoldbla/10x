@@ -121,3 +121,28 @@ See `BUILD.md` for the full simulator run/screenshot loop, and
   images shipped here are the correct fallback and satisfy App Store validation.
 - App Store **screenshots/metadata** are only needed for external TestFlight
   groups and App Store release, not for internal TestFlight builds.
+
+## Fastlane (rabbit-ears — Sub-project 1)
+
+rabbit-ears can now ship via Fastlane with `match`-managed signing:
+
+```bash
+set -a && source signing.env && set +a
+fastlane ios beta upload:false   # dry run: signed .ipa in rabbit-ears/dist/
+fastlane ios beta                # build, sign, upload to TestFlight
+```
+
+Signing assets live encrypted in the private repo `couch-suite-certificates`.
+The distribution certificate was **imported** into `match` (the account was at
+Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
+Store profile named `match AppStore com.couchsuite.rabbitears tvos`. rabbit-ears
+signs the archive directly with that distribution profile (tvOS App Store
+profiles need no registered devices), so the unsigned-archive + ad-hoc re-sign
+dance in `scripts/testflight.sh` is not needed on this path.
+
+The `beta` lane always runs `match(readonly: true)` — only the one-time bootstrap
+mints/imports. The other four apps still ship via `scripts/testflight.sh` until
+Sub-project 2 (roll-out to all apps + CI migration). Local runs use the Homebrew
+`fastlane`; CI adopts `bundle exec` in SP2. `MATCH_PASSWORD` is already stored as
+a GitHub secret on the repo; certs-repo commits must use a GitHub noreply email.
+
