@@ -1,4 +1,4 @@
-git_url("git@github.com:ngoldbla/couch-suite-certificates.git")
+git_url("https://github.com/ngoldbla/couch-suite-certificates.git")
 storage_mode("git")
 type("appstore")
 app_identifier(["com.couchsuite.rabbitears"])
