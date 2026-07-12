@@ -1,4 +1,10 @@
 git_url("https://github.com/ngoldbla/couch-suite-certificates.git")
 storage_mode("git")
 type("appstore")
-app_identifier(["com.couchsuite.rabbitears"])
+app_identifier([
+  "com.couchsuite.rabbitears",
+  "com.couchsuite.darkroom",
+  "com.couchsuite.nine",
+  "com.couchsuite.blockhead",
+  "com.couchsuite.cartridge"
+])
