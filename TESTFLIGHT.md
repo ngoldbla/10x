@@ -121,3 +121,49 @@ See `BUILD.md` for the full simulator run/screenshot loop, and
   images shipped here are the correct fallback and satisfy App Store validation.
 - App Store **screenshots/metadata** are only needed for external TestFlight
   groups and App Store release, not for internal TestFlight builds.
+
+## Fastlane (all five apps)
+
+Every Couch Suite app now ships via Fastlane with `match`-managed signing:
+
+```bash
+set -a && source signing.env && set +a
+fastlane ios beta app:darkroom upload:false   # dry run: signed .ipa in darkroom/dist/
+fastlane ios beta app:darkroom                # build, sign, upload one app to TestFlight
+fastlane ios beta_all                         # build + upload all five apps
+```
+
+`app:` accepts `rabbit-ears` (default), `darkroom`, `nine`, `blockhead`, or
+`cartridge` (see the `APPS` map in `fastlane/Fastfile`).
+
+Signing assets live encrypted in the private repo `couch-suite-certificates`.
+The **team distribution certificate was imported** into `match` (the account was
+at Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
+Store profile per app, named `match AppStore <bundle-id> tvos`. Each app signs its
+archive directly with that distribution profile — tvOS App Store profiles need no
+registered devices, so the unsigned-archive + ad-hoc re-sign dance in
+`scripts/testflight.sh` is **not** needed on this path. The iCloud key-value
+entitlement for Darkroom/Nine/Blockhead is baked in at archive time and verified
+present in the signed binaries.
+
+The `beta` lane always runs `match(readonly: true)` — only the one-time bootstrap
+mints/imports. Local runs use the Homebrew `fastlane` (no `bundle exec`); the
+committed `Gemfile` pins the version for the future CI migration. Notes for that
+migration: `MATCH_PASSWORD` is already a GitHub secret on the repo; certs-repo
+commits must use a GitHub **noreply** email (private-email push protection); and
+`match` needs the tvOS platform (`platform: "tvos"`) and the `…tvos` profile name.
+
+**CI:** `.github/workflows/testflight-tvos.yml` runs `bundle exec fastlane ios
+beta_all` on merge to `main` (or one app via `workflow_dispatch` with `app:`;
+`validate_only: true` = dry run, no upload). It installs a **read-only SSH deploy
+key** (`MATCH_DEPLOY_KEY` secret) to clone the certs repo, then `match(readonly)`
++ `gym` + `pilot`. `setup_ci` manages a temp keychain — no manual cert import.
+
+Required GitHub secrets on `ngoldbla/10x`: `COUCH_TEAM_ID`, `ASC_API_KEY_ID`,
+`ASC_API_ISSUER_ID`, `ASC_API_KEY_P8` (base64 .p8), `MATCH_PASSWORD`,
+`MATCH_DEPLOY_KEY` (private half of a read-only deploy key added to
+`couch-suite-certificates`). The legacy `APPLE_DISTRIBUTION_CERT_P12` /
+`APPLE_CERT_PASSWORD` / `KEYCHAIN_PASSWORD` secrets are no longer used and can be
+removed. `scripts/testflight.sh` is retained as a manual fallback but CI no
+longer calls it.
+

@@ -1,0 +1,4 @@
+# Team is read from the COUCH_TEAM_ID env var (or signing.env) — never hardcoded.
+# app_identifier is supplied per-lane (see the APPS map in the Fastfile), which
+# overrides the Matchfile default; all five Couch Suite apps are covered.
+team_id(ENV["COUCH_TEAM_ID"])
