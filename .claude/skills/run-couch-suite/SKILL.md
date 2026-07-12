@@ -1,11 +1,11 @@
 ---
 name: run-couch-suite
-description: Build, install, and drive any of the five Couch Suite tvOS apps (Rabbit Ears, Darkroom, Nine, Blockhead, Cartridge) on an Apple TV simulator. Use when asked to run, launch, screenshot, or verify a tvos/ app on a simulator.
+description: Build, install, and drive any of the five Couch Suite tvOS apps (Rabbit Ears, Darkroom, Nine, Blockhead, Cartridge) on an Apple TV simulator. Use when asked to run, launch, screenshot, or verify a Couch Suite app on a simulator.
 ---
 
 # Running the Couch Suite on an Apple TV simulator
 
-Five tvOS apps in `tvos/<app>/` share the local `tvos/couchkit` package. Each app
+Five tvOS apps in `<app>/` (repo root) share the local `couchkit` package. Each app
 has a `project.yml` (XcodeGen) — the `.xcodeproj` is generated, never committed.
 
 ## App → scheme → bundle id
@@ -39,7 +39,7 @@ open -a Simulator
 ## Build, install, launch (per app)
 
 ```bash
-cd tvos/<folder>
+cd <folder>
 xcodegen generate
 xcodebuild -scheme <Scheme> \
   -destination 'platform=tvOS Simulator,name=CouchTV' \
@@ -82,8 +82,8 @@ one system permission dialog without needing to tap it.
 ## Verify engines without Xcode
 
 ```bash
-cd tvos/<folder> && swift test        # pure CouchCore logic; runs on any host
-cd tvos/couchkit  && swift test        # 35 tests
+cd <folder> && swift test        # pure CouchCore logic; runs on any host
+cd couchkit  && swift test        # 35 tests
 ```
 
 ## Gotchas already fixed on this branch (don't reintroduce)

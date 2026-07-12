@@ -1,206 +1,84 @@
-# 10x
+# The Couch Suite — five tvOS apps, one shared foundation
 
-An AI-powered iOS app builder for macOS. Describe the app you want, and 10x generates production-quality SwiftUI code, scaffolds an Xcode project, and previews it on the iOS Simulator — all from a conversational interface. The shipped beta artifact is packaged as **10x.app**.
+A family of five small, gorgeous, remote-first Apple TV apps. Each app is deliberately
+feature-limited: one core loop, executed beautifully, full screen, native tvOS 26
+Liquid Glass. Looks and simplicity outrank feature count everywhere.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
-![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange)
-![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-purple)
+## The apps
 
-## How It Works
+| Folder | App | One-liner | Remote-fit |
+|--------|-----|-----------|------------|
+| `rabbit-ears/` | **Rabbit Ears** | Your photo library as a living, conductable ASCII/pixel-art channel | 10/10 |
+| `blockhead/` | **Blockhead** | A nightly game-show ritual where the four swipe directions are the four answers | 9.5/10 |
+| `darkroom/` | **Darkroom** | Picross puzzles compiled from your own photos — solving develops the memory | 9/10 |
+| `cartridge/` | **Cartridge** | Channel-surf a bottomless feed of one-input micro-games starring your photos | 8/10 |
+| `nine/` | **Nine** | Variant sudoku with a 3×3 flick-rose digit entry and a proof-checked puzzle engine | 7.5/10 |
 
-1. **Describe your app** — type what you want to build in natural language
-2. **Plan mode** — the AI researches, asks clarifying questions, and creates a project plan
-3. **Build mode** — the AI writes SwiftUI code using file tools (create, edit, search, etc.)
-4. **Live preview** — the generated app is compiled and launched on the iOS Simulator with a screenshot captured back into the UI
+Plus the shared foundation:
 
-The AI runs a full agentic tool loop client-side: it calls Claude via a thin API proxy, parses `tool_use` blocks, executes file operations locally, and loops until the task is complete.
+| Folder | Package | Role |
+|--------|---------|------|
+| `couchkit/` | **CouchKit** | Shared Swift package: Liquid Glass design system, remote gesture grammar, photo→pixel/ASCII render engine, photo library access, persistence |
 
-## Architecture
+## Shared art direction: “Pixels under glass”
 
-```
-TenXAppApp (@main)
-├── AuthManager                 # Token-based auth (Supabase)
-├── ContentView                 # Tab management (home + per-project tabs)
-│   ├── HomeView                # Project list, creation
-│   └── BuilderView            # Main workspace (3-pane)
-│       ├── FileExplorerSidebar # VS Code-style file tree
-│       ├── ChatPanelView       # Messages, tool steps, inline questions
-│       └── PreviewPanelView    # Simulator preview, plan view
-│
-└── BuilderViewModel (@Observable, state machine)
-    ├── GenerationService       # Claude tool loop orchestration
-    │   ├── BuilderPrompts      # Mode-aware system prompts
-    │   ├── BuilderToolDefs     # Tool schemas for Claude
-    │   └── ToolExecutor        # File I/O, search, run_command
-    ├── XcodePreviewService     # Project scaffolding (XcodeGen)
-    ├── SimulatorPreviewService # Simulator boot, build, screenshot
-    ├── LocalProjectStore       # Local persistence (~tenx/)
-    └── BuilderService          # API client for projects/messages
-```
+Every app follows the same visual thesis, so the suite feels like one brand:
 
-### Key Services
+1. **Content is full-bleed and edge-to-edge.** The art, the board, the game — it owns
+   all 3840×2160 pixels. No letterboxing, no persistent nav bars, no sidebars.
+2. **Chrome is Liquid Glass, floating, and transient.** Controls are small glass
+   islands (`.glassEffect`) that appear on remote touch and recede after ~3s of
+   stillness. The default state of every screen is *zero visible UI*.
+3. **Retro content, modern glass.** The pixel/ASCII aesthetic lives in the content
+   layer only. The interface layer is pure tvOS 26 — glass capsules, lensing,
+   focus-driven specular highlights. Never pixel-art buttons.
+4. **Motion is slow and physical.** Crossfades ≥ 2s in ambient contexts, spring
+   responses < 200ms on focus. Nothing blinks. Nothing bounces twice.
+5. **Dark-first.** All apps assume a dim living room. Backgrounds are true black or
+   deep photo-derived tones; glass elements pick up content color via vibrancy.
 
-| Service | Role |
-|---------|------|
-| **GenerationService** | Owns the Claude tool loop — streams responses, parses tool calls, executes them via ToolExecutor, repeats until done |
-| **ToolExecutor** | Executes file operations (create/edit/read/delete/search) against the real filesystem and maintains an in-memory file tree |
-| **XcodePreviewService** | Writes generated Swift files to disk, creates `project.yml`, runs XcodeGen to produce `.xcodeproj` |
-| **SimulatorPreviewService** | Boots an iPhone simulator, runs `xcodebuild`, installs the app, launches it, captures a screenshot |
-| **LocalProjectStore** | Persists messages, file tree, and project plan to `~/Library/Developer/TenXApp/{project}/tenx/` |
-| **BuilderPrompts** | Generates mode-aware system prompts — plan mode focuses on research/architecture, build mode on SwiftUI code generation |
+## Development model — read this before building
 
-### Data Flow
+Each app is an **independent development thread** built by its own agent in its own
+subfolder. The rules that keep threads independent:
 
-```
-User message → BuilderViewModel.sendMessage()
-  → GenerationService.runGeneration()
-    → POST to Claude proxy (streaming NDJSON)
-    → Parse tool_use blocks
-    → ToolExecutor writes files to disk
-    → Loop until Claude stops or ask_user
-  → Events update ViewModel (@Observable)
-  → SwiftUI re-renders reactively
-  → LocalProjectStore persists state
-```
+- **One folder, one thread.** An app agent may modify only its own folder. Nothing
+  outside it.
+- **CouchKit is a dependency, not a shared playground.** Apps consume CouchKit via a
+  local SwiftPM path dependency (`../couchkit`). App agents must not edit CouchKit.
+  If an app needs a CouchKit change, record it in the app folder's `COUCHKIT-ASKS.md`
+  and build against the current interface in the meantime (copy a shim locally if
+  blocked). The CouchKit thread periodically triages asks.
+- **CouchKit ships first.** Its PRD defines the interface contract each app builds
+  against. Until CouchKit lands, app agents may stub its protocols locally.
+- **Project generation mirrors the parent repo:** each app folder contains a
+  `project.yml` (XcodeGen spec) that produces its `.xcodeproj`. No hand-maintained
+  project files.
+- **Deployment target: tvOS 26.0.** Swift 6, SwiftUI only. No UIKit view controllers
+  except where tvOS APIs require (Top Shelf extension).
 
-## Project Structure
+## Definition of done (all apps)
 
-```
-10x-macos/
-├── TenXAppApp.swift               # @main entry point
-├── ContentView.swift              # Root view, tab management
-├── Config.swift                   # API base URL, Supabase config
-├── Theme.swift                    # Design tokens (colors, spacing, radii)
-│
-├── Models/
-│   ├── BuilderProject.swift       # Project metadata
-│   ├── BuilderStreamEvent.swift   # Stream event parsing
-│   ├── ProjectMode.swift          # .plan | .build
-│   └── AppTab.swift               # Tab state
-│
-├── ViewModels/
-│   ├── AuthManager.swift          # Auth state
-│   └── BuilderViewModel.swift     # Core state machine
-│
-├── Views/
-│   ├── HomeView.swift             # Project list + creation
-│   ├── BuilderView.swift          # Main 3-pane workspace
-│   ├── NewProjectView.swift       # New project wizard
-│   ├── FileExplorerSidebar.swift  # File tree sidebar
-│   ├── Auth/LoginView.swift       # Sign-in screen
-│   ├── Chat/                      # Chat panel views
-│   ├── Preview/                   # Preview + plan views
-│   └── Sidebar/                   # Project list sidebar
-│
-├── Services/
-│   ├── APIClient.swift            # HTTP client (GET/POST/stream)
-│   ├── BuilderService.swift       # Project/message API calls
-│   ├── LocalProjectStore.swift    # Local file persistence
-│   ├── XcodePreviewService.swift  # Xcode project scaffolding
-│   ├── SimulatorPreviewService.swift  # Simulator control
-│   └── Builder/
-│       ├── GenerationService.swift     # Claude tool loop
-│       ├── BuilderPrompts.swift        # System prompts
-│       ├── BuilderToolDefinitions.swift # Tool schemas
-│       └── ToolExecutor.swift          # File tool execution
-│
-└── Assets.xcassets/               # App icon, accent color
-```
+- Launches to its core experience in **≤ 2 seconds** with **zero onboarding screens**
+  (a single system permission prompt is allowed where required, e.g. Photos).
+- Fully operable with a Siri Remote (2nd gen+) alone. Every screen answers: swipe,
+  click, hold, play/pause, back. No text entry anywhere in the MVP.
+- The “screenshot test”: any frame captured at any moment must be attractive enough
+  to be an App Store screenshot. If a state fails this, redesign the state.
+- No settings screen. Preferences that survive the cut live behind a single glass
+  sheet reachable via long-press on play/pause.
+- Honors the per-PRD non-goals. Feature-limited is a requirement, not a compromise.
 
-## Prerequisites
-
-- **macOS 14.0+**
-- **Xcode 16+** (for building the macOS app itself)
-- **Xcode Simulator runtimes** — install at least one iPhone simulator via Xcode > Settings > Platforms
-- **Bundled `xcodegen` binary** — copied from `10x-macos/Resources/xcodegen` into the app/CLI build products and used to generate `.xcodeproj` files for previewed apps
-
-## Getting Started
-
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/your-org/10x.git
-   cd 10x
-   ```
-
-2. Open in Xcode:
-   ```bash
-   open 10x-macos.xcodeproj
-   ```
-
-3. Build and run (`Cmd+R`). The app targets macOS 14+.
-
-4. On first launch, enter your API token on the login screen (or use "Continue without Auth" for local dev).
-
-### Environment
-
-The app reads config from `Config.swift` plus Xcode build settings. Public defaults are placeholders, so replace them before using hosted auth, backend, or updater flows:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `apiBaseURL` | `http://localhost:8000` | Backend API proxy |
-| `supabaseURL` | `https://your-project-ref.supabase.co` | Supabase project URL |
-| `supabaseAnonKey` | `sb_publishable_your_key` | Supabase publishable key |
-| `hostedAppsBaseURL` | `https://apps.example.invalid` | Base URL for hosted app pages |
-| `sparkleFeedURL` | `https://downloads.example.invalid/appcast.xml` | Sparkle appcast feed |
-
-## Release Channels
-
-The repo now includes a direct-download Sparkle distribution pipeline for notarized DMGs outside the Mac App Store:
-
-- Local release tooling lives in `scripts/release/`
-- CI entry workflows live in `.github/workflows/release-beta.yml` and `.github/workflows/release-stable.yml`
-- The shared reusable workflow lives in `.github/workflows/release-channel.yml`
-- Stable downloads publish under `https://downloads.example.invalid/stable`
-- Beta downloads publish under `https://downloads.example.invalid/beta`
-- The canonical Sparkle feed is `https://downloads.example.invalid/appcast.xml`
-- The release workflows publish DMGs, appcasts, release notes, and channel metadata to Vercel behind `downloads.example.invalid`
-- Local publish artifacts default to `build/release/published-site/`
-- All builds use Apple web OAuth for Sign in with Apple, so the app does not ship the native `com.apple.developer.applesignin` entitlement
-
-These release defaults are placeholders for the open-source repo. Replace them with your own domain, Sparkle keypair, Apple signing setup, and hosting configuration before publishing binaries.
-
-See [docs/beta-release.md](./docs/beta-release.md) for the release commands, channel rules, and Apple credential requirements.
-
-## CLI Evals
-
-The repo includes eval sources plus shell wrappers for running real end-to-end evals against the existing builder stack. The wrappers make the terminal flow simpler by listing cases, resolving a usable `10x-evals` binary, and running the default smoke suite without having to remember binary paths.
-
-Quick start:
-
-```bash
-./scripts/evals list
-./scripts/evals smoke
-./scripts/evals smoke --case habit_tracker_build
-```
-
-See [evals/README.md](./evals/README.md) for the current benchmark apps, binary resolution behavior, suite format, and artifact locations.
-
-## Generated Project Layout
-
-When a user creates an app, 10x writes files to:
+## Folder layout
 
 ```
-~/Library/Developer/TenXApp/{project-slug}/
-├── ios/
-│   └── {TargetName}/
-│       ├── App.swift
-│       ├── ContentView.swift
-│       ├── Views/
-│       ├── Models/
-│       └── ...
-├── project.yml           # XcodeGen spec
-├── {TargetName}.xcodeproj/  # Generated by XcodeGen
-└── DerivedData/          # Local build artifacts
+.                        ← repo root
+├── README.md            ← this file
+├── couchkit/            ← shared package (PRD.md, then Sources/)
+├── rabbit-ears/         ← each app: PRD.md, then project.yml + Sources/
+├── darkroom/
+├── nine/
+├── blockhead/
+├── cartridge/
+└── scripts/             ← testflight.sh, generate_brand_assets.swift
 ```
-
-## Tech Stack
-
-- **Swift 5.9** / **SwiftUI** — SwiftUI-first app with a small set of Swift package dependencies
-- **Claude API** (via proxy) — agentic tool loop with streaming
-- **XcodeGen** — generates Xcode projects from YAML specs
-- **xcodebuild + simctl** — builds and previews on iOS Simulator
-- **Supabase** — authentication (token-based MVP)
-
-## License
-
-Licensed under PolyForm Noncommercial 1.0.0. See [LICENSE](./LICENSE).
