@@ -153,8 +153,17 @@ migration: `MATCH_PASSWORD` is already a GitHub secret on the repo; certs-repo
 commits must use a GitHub **noreply** email (private-email push protection); and
 `match` needs the tvOS platform (`platform: "tvos"`) and the `…tvos` profile name.
 
-**Not yet migrated:** `.github/workflows/testflight-tvos.yml` still ships via
-`scripts/testflight.sh` (the pre-Fastlane path). Both paths work and produce
-equivalent App Store builds; switching CI to `fastlane ios beta_all` is the
-remaining step.
+**CI:** `.github/workflows/testflight-tvos.yml` runs `bundle exec fastlane ios
+beta_all` on merge to `main` (or one app via `workflow_dispatch` with `app:`;
+`validate_only: true` = dry run, no upload). It installs a **read-only SSH deploy
+key** (`MATCH_DEPLOY_KEY` secret) to clone the certs repo, then `match(readonly)`
++ `gym` + `pilot`. `setup_ci` manages a temp keychain — no manual cert import.
+
+Required GitHub secrets on `ngoldbla/10x`: `COUCH_TEAM_ID`, `ASC_API_KEY_ID`,
+`ASC_API_ISSUER_ID`, `ASC_API_KEY_P8` (base64 .p8), `MATCH_PASSWORD`,
+`MATCH_DEPLOY_KEY` (private half of a read-only deploy key added to
+`couch-suite-certificates`). The legacy `APPLE_DISTRIBUTION_CERT_P12` /
+`APPLE_CERT_PASSWORD` / `KEYCHAIN_PASSWORD` secrets are no longer used and can be
+removed. `scripts/testflight.sh` is retained as a manual fallback but CI no
+longer calls it.
 
