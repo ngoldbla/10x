@@ -6,10 +6,10 @@
 //
 //   ⚠️ If Liquid Glass API names differ in your SDK, fix them HERE only.
 //
-// On tvOS 26+ we use `.glassEffect(.regular, in:)` and `GlassEffectContainer`.
+// On tvOS/iOS 26+ we use `.glassEffect(.regular, in:)` and `GlassEffectContainer`.
 // Below 26 (deployment target is tvOS 18) we fall back to
 // `.ultraThinMaterial` plus a subtle stroke — same silhouette, no lensing.
-#if os(tvOS)
+#if os(tvOS) || os(iOS)
 import SwiftUI
 
 extension View {
@@ -17,7 +17,7 @@ extension View {
     /// Use instead of any direct material/glass call.
     @ViewBuilder
     public func couchGlass(in shape: some Shape) -> some View {
-        if #available(tvOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, *) {
             self.glassEffect(.regular, in: shape)
         } else {
             self
@@ -35,7 +35,7 @@ extension View {
     /// tvOS 26 the glass responds to focus with specular movement.
     @ViewBuilder
     public func couchGlassInteractive(in shape: some Shape) -> some View {
-        if #available(tvOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, *) {
             self.glassEffect(.regular.interactive(), in: shape)
         } else {
             self
@@ -58,7 +58,7 @@ public struct CouchGlassContainer<Content: View>: View {
     }
 
     public var body: some View {
-        if #available(tvOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, *) {
             GlassEffectContainer(spacing: spacing) {
                 content
             }

@@ -12,6 +12,7 @@
 import SwiftUI
 import CouchKit
 
+#if os(tvOS)
 struct GameScreen: View {
     let model: AppModel
 
@@ -320,6 +321,9 @@ struct GameScreen: View {
     }
 }
 
+#endif
+
+/// Undo feedback shared by the TV and touch game screens.
 struct UndoToastState: Equatable {
     let id = UUID()
     let text: String

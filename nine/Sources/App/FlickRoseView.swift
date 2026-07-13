@@ -62,11 +62,14 @@ struct FlickRoseView: View {
     let completedDigits: Set<Int>
     /// Show the d-pad focus ring (always on — the click path's preview).
     let showsFocusRing: Bool
+    /// Multiplier on every petal metric. 1.0 is the TV rose; the touch rose
+    /// passes something near 0.45 so petals sit finger-sized over the board.
+    var scale: CGFloat = 1.0
 
     @State private var bloomed = false
 
-    private var petalSize: CGFloat { state.pencil ? 88 : 116 }
-    private var spacing: CGFloat { state.pencil ? 96 : 126 }
+    private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
+    private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
 
     var body: some View {
         CouchGlassContainer(spacing: 12) {
@@ -91,13 +94,13 @@ struct FlickRoseView: View {
         let shimmering = state.shimmerDigits.contains(digit)
 
         return Text("\(digit)")
-            .font(.system(size: state.pencil ? 38 : 52, weight: .semibold, design: .rounded))
+            .font(.system(size: (state.pencil ? 38 : 52) * scale, weight: .semibold, design: .rounded))
             .foregroundStyle(complete ? Color.white.opacity(0.28) : Color.primary)
             .frame(width: petalSize, height: petalSize)
             .couchGlassInteractive(in: Circle())
             .overlay {
                 Circle()
-                    .strokeBorder(accent.opacity(focused ? 0.95 : 0), lineWidth: 4)
+                    .strokeBorder(accent.opacity(focused ? 0.95 : 0), lineWidth: max(2, 4 * scale))
             }
             .scaleEffect(focused ? 1.1 : 1.0)
             .modifier(ShimmerPulse(active: shimmering, accent: accent))

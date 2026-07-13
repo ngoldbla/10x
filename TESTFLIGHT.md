@@ -65,9 +65,14 @@ In [App Store Connect](https://appstoreconnect.apple.com) → Apps → **+ New A
 |---|---|---|---|
 | Rabbit Ears | tvOS | `com.couchsuite.rabbitears` | Rabbit Ears — Ambient Pixel TV |
 | Darkroom | tvOS | `com.couchsuite.darkroom` | Darkroom — Photo Picross |
-| Nine | tvOS | `com.couchsuite.nine` | Nine — Couch Sudoku |
+| Nine | tvOS + iOS | `com.couchsuite.nine` | Nine — Couch Sudoku |
 | Blockhead | tvOS | `com.couchsuite.blockhead` | Blockhead — Nightly Quiz |
 | Cartridge | tvOS | `com.couchsuite.cartridge` | Cartridge — Photo Micro-Games |
+
+Nine is a **universal app**: one target, one bundle ID, a remote UI on tvOS and
+a touch UI on iPhone/iPad. Its ASC app record carries both platforms (the iOS
+platform was added 2026-07-13); iOS and tvOS builds upload to separate
+TestFlight build trains under the same app.
 
 Notes:
 
@@ -130,13 +135,21 @@ Every Couch Suite app now ships via Fastlane with `match`-managed signing:
 set -a && source signing.env && set +a
 fastlane ios beta app:darkroom upload:false   # dry run: signed .ipa in darkroom/dist/
 fastlane ios beta app:darkroom                # build, sign, upload one app to TestFlight
-fastlane ios beta_all                         # build + upload all five apps
+fastlane ios beta app:nine platform:ios       # the iOS (iPhone/iPad) build of a universal app
+fastlane ios beta_app app:nine                # every platform build for one app (tvOS + iOS)
+fastlane ios beta_all                         # build + upload everything (tvOS ×5, iOS for Nine)
 ```
 
 `app:` accepts `rabbit-ears` (default), `darkroom`, `nine`, `blockhead`, or
-`cartridge` (see the `APPS` map in `fastlane/Fastfile`).
+`cartridge`; `platform:` accepts `tvos` (default) or `ios` (universal apps only —
+see the `APPS` map in `fastlane/Fastfile`).
 
 Signing assets live encrypted in the private repo `couch-suite-certificates`.
+Per-platform profiles are match-named `match AppStore <bundle> tvos` (tvOS) and
+`match AppStore <bundle>` (iOS). Local-run gotcha: this Mac carries stale copies
+of the distribution cert in other keychains that trigger password prompts — put
+fastlane's temp keychain first (`CI=true` + `security list-keychains -d user -s
+fastlane_tmp_keychain login.keychain`) so codesign resolves the match-managed key.
 The **team distribution certificate was imported** into `match` (the account was
 at Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
 Store profile per app, named `match AppStore <bundle-id> tvos`. Each app signs its

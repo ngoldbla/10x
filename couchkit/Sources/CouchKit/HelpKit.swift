@@ -2,7 +2,8 @@
 // of help: a control legend (gesture → action rows) inside a glass card,
 // auto-shown once on first launch and embedded in the prefs sheet thereafter,
 // so no screen ever asks the player to guess what the remote does.
-#if os(tvOS)
+// On iOS the same shapes carry a touch legend and dismiss on tap.
+#if os(tvOS) || os(iOS)
 import SwiftUI
 
 /// One row of the control legend: an SF Symbol for the gesture, the gesture's
@@ -30,16 +31,16 @@ public struct ControlLegend: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 22 * CouchScale.chrome) {
             ForEach(rows) { row in
-                HStack(spacing: 24) {
+                HStack(spacing: 24 * CouchScale.chrome) {
                     Image(systemName: row.symbol)
-                        .font(.system(size: 30, weight: .semibold))
-                        .frame(width: 56)
+                        .font(.system(size: 30 * CouchScale.chrome, weight: .semibold))
+                        .frame(width: 56 * CouchScale.chrome)
                         .foregroundStyle(.secondary)
                     Text(row.gesture)
                         .font(CouchTypography.caption)
-                        .frame(width: 210, alignment: .leading)
+                        .frame(width: 210 * CouchScale.chrome, alignment: .leading)
                     Text(row.action)
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
@@ -77,10 +78,10 @@ public struct HelpOverlay: View {
     }
 
     public var body: some View {
-        ZStack {
+        let card = ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
-            VStack(spacing: 44) {
-                VStack(spacing: 14) {
+            VStack(spacing: 44 * CouchScale.chrome) {
+                VStack(spacing: 14 * CouchScale.chrome) {
                     Text(title)
                         .couchText(CouchTypography.title)
                     Text(tagline)
@@ -89,19 +90,33 @@ public struct HelpOverlay: View {
                         .multilineTextAlignment(.center)
                 }
                 ControlLegend(rows: rows)
-                GlassChip("Click to start", systemImage: "hand.tap")
+                GlassChip(Self.dismissHint, systemImage: "hand.tap")
                     .opacity(0.7)
             }
-            .padding(72)
-            .frame(maxWidth: 1100)
-            .couchGlass(in: RoundedRectangle(cornerRadius: 56, style: .continuous))
+            .padding(72 * CouchScale.chrome)
+            .frame(maxWidth: 1100 * CouchScale.chrome)
+            .couchGlass(in: RoundedRectangle(cornerRadius: 56 * CouchScale.chrome, style: .continuous))
         }
-        .couchRemote(interceptsBack: true) { gesture in
+        #if os(tvOS)
+        card.couchRemote(interceptsBack: true) { gesture in
             switch gesture {
             case .click, .back, .playPause: onDismiss()
             default: break
             }
         }
+        #else
+        card
+            .contentShape(Rectangle())
+            .onTapGesture { onDismiss() }
+        #endif
+    }
+
+    private static var dismissHint: String {
+        #if os(tvOS)
+        "Click to start"
+        #else
+        "Tap to start"
+        #endif
     }
 }
 

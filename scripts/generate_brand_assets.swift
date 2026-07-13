@@ -30,6 +30,9 @@ struct AppSpec {
     let grid: RGB       // middle-layer pixel grid
     let accent: RGB     // glyph '#'
     let secondary: RGB  // glyph '+'
+    // Apps that also ship an iOS build get a flat square AppIcon.appiconset
+    // (single-size 1024, opaque RGB — the App Store rejects alpha).
+    var iosIcon: Bool = false
     let glyph: [String]
 }
 
@@ -75,6 +78,7 @@ let specs: [AppSpec] = [
         backTop: RGB(r: 0.030, g: 0.030, b: 0.090), backBottom: RGB(r: 0.080, g: 0.070, b: 0.180),
         grid: RGB(r: 0.76, g: 0.70, b: 0.94),
         accent: RGB(r: 0.76, g: 0.70, b: 0.94), secondary: RGB(r: 1.0, g: 0.45, b: 0.38),
+        iosIcon: true,
         glyph: [
             "##...##...##",
             "##...##...##",
@@ -304,6 +308,43 @@ func emitLaunchImage(_ s: AppSpec, catalog: URL) {
         dir.appendingPathComponent("Contents.json"))
 }
 
+/// iOS app icon: the flat composition (back + grid + glyph) in an OPAQUE
+/// bitmap — the App Store rejects icons that carry an alpha channel.
+func renderIOSIcon(_ s: AppSpec, size: Int) -> CGContext {
+    let ctx = CGContext(
+        data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    let colors = [s.backTop.cg, s.backBottom.cg] as CFArray
+    let grad = CGGradient(colorsSpace: ctx.colorSpace, colors: colors, locations: [0, 1])!
+    ctx.drawLinearGradient(
+        grad, start: CGPoint(x: 0, y: CGFloat(size)), end: CGPoint(x: 0, y: 0), options: [])
+    let cell = max(8, size / 24)
+    let dot = max(1, cell / 8)
+    ctx.setFillColor(s.grid.alpha(0.08))
+    var y = cell / 2
+    while y < size {
+        var x = cell / 2
+        while x < size {
+            ctx.fill(CGRect(x: x, y: y, width: dot, height: dot))
+            x += cell
+        }
+        y += cell
+    }
+    drawGlyph(s, into: ctx, w: size, h: size, coverage: 0.66, dim: 1.0)
+    return ctx
+}
+
+/// Single-size icon set: Xcode derives every device size from the 1024.
+func emitIOSAppIcon(_ s: AppSpec, catalog: URL) {
+    let dir = catalog.appendingPathComponent("AppIcon.appiconset")
+    writePNG(renderIOSIcon(s, size: 1024), to: dir.appendingPathComponent("AppIcon-1024.png"))
+    write(
+        "{ \"images\" : [ { \"filename\" : \"AppIcon-1024.png\", \"idiom\" : \"universal\", "
+            + "\"platform\" : \"ios\", \"size\" : \"1024x1024\" } ], \(info) }",
+        dir.appendingPathComponent("Contents.json"))
+}
+
 // MARK: - Main
 
 let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0])
@@ -336,5 +377,6 @@ for s in selected {
     emitImageset(s, name: "Top Shelf Image", brand: brand, w: 1920, h: 720, coverage: 0.55)
     emitImageset(s, name: "Top Shelf Image Wide", brand: brand, w: 2320, h: 720, coverage: 0.55)
     emitLaunchImage(s, catalog: catalog)
+    if s.iosIcon { emitIOSAppIcon(s, catalog: catalog) }
     print("✓ \(s.folder)/Assets.xcassets")
 }

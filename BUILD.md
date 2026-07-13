@@ -18,6 +18,10 @@ xcodegen generate
 open RabbitEars.xcodeproj  # select an Apple TV 4K simulator, Cmd+R
 ```
 
+**Nine is universal (tvOS + iOS).** The same target also builds for iPhone/iPad
+simulators — pick one as the run destination and you get the touch UI (tap a
+cell → flick rose; same engine, same saves format). Everything else is tvOS-only.
+
 Each app depends on `../couchkit` as a local SwiftPM package — no other dependencies,
 no accounts, no network. All five run fully featured with zero permissions
 (procedural demo art stands in until Photos access is granted where relevant).

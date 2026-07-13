@@ -1,14 +1,16 @@
 // CouchUI foundations: typography, palette, accent derivation, springs.
 // Art direction: "Pixels under glass" — dark-first, content full-bleed,
 // chrome transient. No component in this file draws an opaque background.
-#if os(tvOS)
+#if os(tvOS) || os(iOS)
 import SwiftUI
 @_exported import CouchCore
 
 // MARK: - Typography
 
-/// The suite type ramp, sized for a 3-meter viewing distance. SF Rounded.
+/// The suite type ramp. SF Rounded everywhere; sizes are per-platform —
+/// tvOS is set for a 3-meter viewing distance, iOS for handheld.
 public enum CouchTypography {
+    #if os(tvOS)
     /// Hero numerals, scores, the one huge word. 96pt heavy.
     public static let display = Font.system(size: 96, weight: .heavy, design: .rounded)
     /// Screen titles and big answers. 64pt bold.
@@ -17,6 +19,26 @@ public enum CouchTypography {
     public static let body = Font.system(size: 38, weight: .medium, design: .rounded)
     /// Chips, dates, footnotes. 29pt semibold (small type needs weight on TV).
     public static let caption = Font.system(size: 29, weight: .semibold, design: .rounded)
+    #else
+    /// Hero numerals, scores, the one huge word.
+    public static let display = Font.system(size: 48, weight: .heavy, design: .rounded)
+    /// Screen titles and big answers.
+    public static let title = Font.system(size: 30, weight: .bold, design: .rounded)
+    /// Everything readable.
+    public static let body = Font.system(size: 17, weight: .medium, design: .rounded)
+    /// Chips, dates, footnotes.
+    public static let caption = Font.system(size: 13, weight: .semibold, design: .rounded)
+    #endif
+}
+
+/// Per-platform chrome scale: paddings, icon sizes and hit targets in shared
+/// components multiply by this instead of forking every literal.
+public enum CouchScale {
+    #if os(tvOS)
+    public static let chrome: CGFloat = 1.0
+    #else
+    public static let chrome: CGFloat = 0.55
+    #endif
 }
 
 extension View {

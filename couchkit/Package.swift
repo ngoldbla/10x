@@ -4,15 +4,18 @@
 // Two targets by design:
 //   • CouchCore — pure Swift + Foundation. Every algorithm lives here so it
 //     builds and tests anywhere (including Linux CI, which has no SwiftUI).
-//   • CouchKit  — the SwiftUI/tvOS layer. Every file is wrapped in
-//     `#if os(tvOS)` so the target compiles to nothing on other platforms
-//     (macOS can import SwiftUI but lacks the tvOS-only remote APIs).
+//   • CouchKit  — the SwiftUI layer. Glass, typography, persistence and help
+//     components compile for tvOS *and* iOS (Nine ships universal); the
+//     remote-input layer (RemoteKit) and TV-only kits stay `#if os(tvOS)`.
+//     Every file carries a platform guard so the target compiles to nothing
+//     elsewhere (macOS can import SwiftUI but lacks these platform APIs).
 import PackageDescription
 
 let package = Package(
     name: "CouchKit",
     platforms: [
-        .tvOS(.v18)
+        .tvOS(.v18),
+        .iOS(.v18)
     ],
     products: [
         .library(name: "CouchKit", targets: ["CouchKit", "CouchCore"])
