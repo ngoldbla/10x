@@ -204,13 +204,27 @@ public struct GlassRing: View {
 /// specular sweep, and a soft shadow lift — so all five apps focus alike.
 public struct FocusHalo: ViewModifier {
     @FocusState private var isFocused: Bool
+    private let claimsDefaultFocus: Bool
 
-    public init() {}
+    public init(claimsDefaultFocus: Bool = false) {
+        self.claimsDefaultFocus = claimsDefaultFocus
+    }
 
     public func body(content: Content) -> some View {
         content
             .focusable()
             .focused($isFocused)
+            .onAppear {
+                // Plain focusable views don't reliably receive default focus
+                // on tvOS at scene launch — remote presses then land nowhere.
+                // The screen's primary tile claims it, like RemoteKit does.
+                guard claimsDefaultFocus else { return }
+                isFocused = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    if !isFocused { isFocused = true }
+                }
+            }
             .scaleEffect(isFocused ? 1.03 : 1.0)
             .overlay {
                 LinearGradient(
@@ -230,8 +244,8 @@ public struct FocusHalo: ViewModifier {
 }
 
 extension View {
-    public func focusHalo() -> some View {
-        modifier(FocusHalo())
+    public func focusHalo(claimsDefaultFocus: Bool = false) -> some View {
+        modifier(FocusHalo(claimsDefaultFocus: claimsDefaultFocus))
     }
 }
 

@@ -31,9 +31,6 @@ struct PartySetupView: View {
                 .opacity(0.65)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handlePartySetup(gesture)
-        }
     }
 }
 
@@ -120,9 +117,6 @@ struct HandoffView: View {
         .padding(.vertical, 80)
         .couchGlass(in: RoundedRectangle(cornerRadius: 60, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handleHandoff(gesture)
-        }
     }
 }
 
@@ -190,9 +184,6 @@ struct PodiumView: View {
                 .opacity(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handlePodium(gesture)
-        }
     }
 
     /// Classic podium arrangement: runner-up left, winner center, rest right.

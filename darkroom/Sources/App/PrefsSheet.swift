@@ -1,10 +1,14 @@
 // Darkroom — the one allowed prefs surface: a glass sheet reached by
-// long-pressing play/pause (suite rule). Two preferences, no more.
+// long-pressing play/pause (suite rule). The manual up top, two
+// preferences, and the photo census.
 import SwiftUI
 import CouchKit
 
 struct PrefsSheet: View {
     @Bindable var model: AppModel
+
+    /// Library census, refetched each time the sheet opens (design §5).
+    @State private var census: (photos: Int, favorites: Int)?
 
     private let speeds: [(name: String, value: Int)] = [
         ("Gentle", 1), ("Standard", 2), ("Swift", 3),
@@ -12,10 +16,14 @@ struct PrefsSheet: View {
 
     var body: some View {
         GlassSheet(isPresented: $model.showPrefs) {
-            VStack(alignment: .leading, spacing: 44) {
+            VStack(alignment: .leading, spacing: 40) {
                 Text("Darkroom")
                     .font(CouchTypography.title)
                     .foregroundStyle(.primary)
+
+                // The sheet doubles as the manual after first launch
+                // (design §6) — the essential four rows only.
+                ControlLegend(rows: Array(AppModel.legendRows.prefix(4)))
 
                 VStack(alignment: .leading, spacing: 20) {
                     Text("Cursor speed")
@@ -66,6 +74,15 @@ struct PrefsSheet: View {
                     .buttonStyle(.plain)
                 }
 
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Photos")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                    Text(censusLine)
+                        .font(CouchTypography.caption)
+                }
+                .task { census = await CouchPhotos.census() }
+
                 Spacer()
 
                 Text("Photos never leave this Apple TV.")
@@ -73,5 +90,10 @@ struct PrefsSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var censusLine: String {
+        guard let census else { return "Counting photos…" }
+        return PhotoStatusLine.text(photos: census.photos, favorites: census.favorites)
     }
 }

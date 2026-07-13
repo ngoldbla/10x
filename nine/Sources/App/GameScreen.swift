@@ -25,6 +25,9 @@ struct GameScreen: View {
     /// also leaked a plain `.playPause` (RemoteKit attaches both handlers)
     /// can be rolled forward again before the prefs sheet opens.
     @State private var lastUndo: (move: NineMove, at: Date)?
+    /// The settings-discoverability chip, flashed on the first board of a
+    /// session (the once-per-launch gate lives on the model).
+    @State private var showHint = false
 
     var body: some View {
         // While the prefs sheet is up, the remote surface detaches so the
@@ -44,12 +47,14 @@ struct GameScreen: View {
             board
                 .overlay(alignment: .topLeading) { timerChip.padding(48) }
                 .overlay(alignment: .bottom) { toastView.padding(.bottom, 24) }
+                .overlay(alignment: .bottom) { hintView.padding(.bottom, 108) }
             completionChip
             GlassSheet(isPresented: $showPrefs) {
                 PrefsSheetContent(model: model)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { flashHint() }
     }
 
     // MARK: - Board + rose
@@ -63,7 +68,9 @@ struct GameScreen: View {
                 accent: model.prefs.accent.color,
                 showErrors: model.prefs.errorHighlight,
                 solvedAt: model.solvedAt,
-                roseOpen: rose != nil
+                roseOpen: rose != nil,
+                previewDigit: previewDigit,
+                previewPencil: rose?.pencil ?? false
             )
             .overlay {
                 if let rose {
@@ -72,7 +79,7 @@ struct GameScreen: View {
                         state: rose,
                         accent: model.prefs.accent.color,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        showsFocusRing: RemoteKit.capability == .fourWay
+                        showsFocusRing: true
                     )
                     .position(
                         x: center.x + 28, // board padding inset
@@ -84,6 +91,14 @@ struct GameScreen: View {
             // Momentary state while a puzzle is composed.
             GlassChip("Composing…", systemImage: "sparkles")
         }
+    }
+
+    /// The digit a click would place right now, ghosted into the selected
+    /// cell. Live on every remote: swipes walk the petals everywhere, and
+    /// even on eight-way remotes the click path needs an honest preview.
+    private var previewDigit: Int? {
+        guard let rose else { return nil }
+        return rose.focusedIndex + 1
     }
 
     // MARK: - Chrome
@@ -103,6 +118,26 @@ struct GameScreen: View {
             GlassChip(toast.text, systemImage: "arrow.uturn.backward")
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .id(toast.id)
+        }
+    }
+
+    @ViewBuilder
+    private var hintView: some View {
+        if showHint {
+            GlassChip("Click a cell for digits · Hold ▶︎ for settings", systemImage: "questionmark.circle")
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    /// Flash the settings-discoverability chip once per launch, on the first
+    /// board only (session-scoped by design — never persisted).
+    private func flashHint() {
+        guard !model.hintFlashed else { return }
+        model.hintFlashed = true
+        withAnimation(.couchFast) { showHint = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 4_200_000_000)
+            withAnimation(.couchAmbient) { showHint = false }
         }
     }
 
@@ -194,12 +229,13 @@ struct GameScreen: View {
             }
             commit(digit: RoseGeometry.digit(for: direction))
         case .swipe(let direction):
-            // Four-way fallback: the d-pad walks the petals. On eight-way
-            // remotes the flick reader owns placement, so swipes are noise.
-            if RemoteKit.capability == .fourWay {
-                state.focusedIndex = RoseGeometry.moveFocus(state.focusedIndex, direction)
-                rose = state
-            }
+            // The d-pad always walks the petals — on every remote. Real Siri
+            // Remotes report eight-way, but the flick classifier drops
+            // ambiguous strokes on the floor, so swiping with a visible
+            // ring + preview is the path players can always trust; a clean
+            // flick still places instantly above.
+            state.focusedIndex = RoseGeometry.moveFocus(state.focusedIndex, direction)
+            rose = state
         case .click:
             commit(digit: state.focusedIndex + 1)
         case .back:

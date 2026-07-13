@@ -78,6 +78,13 @@ final class AppModel {
     var prefs: NinePrefs {
         didSet { prefsStore.wrappedValue = prefs }
     }
+    /// First-run help overlay: flips true (forever) once dismissed.
+    var helpSeen: Bool {
+        didSet { helpSeenStore.wrappedValue = helpSeen }
+    }
+    /// The settings-discoverability chip has flashed this session. Never
+    /// persisted — the gentle reminder returns once per launch by design.
+    @ObservationIgnored var hintFlashed = false
     private(set) var streak: StreakState {
         didSet { streakStore.wrappedValue = streak }
     }
@@ -92,11 +99,14 @@ final class AppModel {
         CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
     @ObservationIgnored private let saveStore =
         CouchStored(wrappedValue: SaveSlot(), "nine.save")
+    @ObservationIgnored private let helpSeenStore =
+        CouchStored(wrappedValue: false, "help.seen")
 
     init() {
         prefs = prefsStore.wrappedValue
         streak = streakStore.wrappedValue
         saved = saveStore.wrappedValue
+        helpSeen = helpSeenStore.wrappedValue
     }
 
     // MARK: - Derived

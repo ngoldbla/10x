@@ -19,6 +19,7 @@ struct BoardView: View {
     @State private var chrome = ChromeVisibility()
     @State private var cursorX = 0
     @State private var cursorY = 0
+    @State private var cursorCentered = false
 
     // Momentum cursor: repeated same-direction swipes accelerate.
     @State private var lastMoveDirection: Direction4?
@@ -55,6 +56,19 @@ struct BoardView: View {
     }
 
     var body: some View {
+        // While the prefs sheet is up, the remote surface detaches so the
+        // tvOS focus engine can walk the sheet's Buttons (Nine's sheet
+        // pattern); Back — GlassSheet's onExitCommand — brings it home.
+        if model.showPrefs {
+            board
+        } else {
+            board.couchRemote(chrome: chrome, eightWay: true, interceptsBack: true) { gesture in
+                handle(gesture)
+            }
+        }
+    }
+
+    private var board: some View {
         ZStack {
             CouchPalette.void.ignoresSafeArea()
 
@@ -71,11 +85,17 @@ struct BoardView: View {
             )
         }
         .overlay { PrefsSheet(model: model) }
-        .couchRemote(chrome: chrome, eightWay: true, interceptsBack: true) { gesture in
-            handle(gesture)
+        // Both fire again when the prefs branch swaps: render the reveal
+        // once, and never recenter the cursor under the player.
+        .task {
+            guard revealPixel == nil else { return }
+            await prepareReveal()
         }
-        .task { await prepareReveal() }
-        .onAppear { centerCursor() }
+        .onAppear {
+            guard !cursorCentered else { return }
+            cursorCentered = true
+            centerCursor()
+        }
     }
 
     // MARK: - Layout
@@ -205,14 +225,6 @@ struct BoardView: View {
     // MARK: - Remote grammar (PRD §4.3)
 
     private func handle(_ gesture: CouchGesture) {
-        if model.showPrefs {
-            // Back (or the same long-press) closes the sheet even when focus
-            // never moved into it.
-            if gesture == .back || gesture == .playPauseLongPress {
-                model.showPrefs = false
-            }
-            return
-        }
         if gesture == .back {
             model.returnToWall()
             return

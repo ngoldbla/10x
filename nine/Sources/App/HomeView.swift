@@ -9,6 +9,25 @@ struct HomeView: View {
     let model: AppModel
 
     var body: some View {
+        ZStack {
+            shelf
+            // First-run manual. The shelf cards use native focus (no
+            // couchRemote surface), so the overlay simply sits on top and
+            // owns the remote while shown; on dismiss the cards regain
+            // focus naturally.
+            if !model.helpSeen {
+                HelpOverlay(
+                    title: "Nine",
+                    tagline: "Couch sudoku.",
+                    rows: NineLegend.full
+                ) {
+                    model.helpSeen = true
+                }
+            }
+        }
+    }
+
+    private var shelf: some View {
         VStack(spacing: 64) {
             header
             HStack(alignment: .top, spacing: 56) {
@@ -37,7 +56,7 @@ struct HomeView: View {
     // MARK: - Today
 
     private var todayCard: some View {
-        ShelfCard(width: 620, height: 360, action: { model.openToday() }) {
+        ShelfCard(width: 620, height: 360, isPrimary: true, action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Today")
                     .couchText(CouchTypography.title)
@@ -140,11 +159,36 @@ struct HomeView: View {
     }
 }
 
+/// The remote grammar, spelled out once. The full set feeds the first-run
+/// HelpOverlay; the compact set tops the prefs sheet, so the sheet doubles
+/// as the manual ever after.
+enum NineLegend {
+    static let full: [LegendRow] = [
+        LegendRow(
+            symbol: "arrow.up.and.down.and.arrow.left.and.right",
+            gesture: "Swipe", action: "Move around the board"
+        ),
+        LegendRow(symbol: "hand.tap", gesture: "Click", action: "Open the digit rose"),
+        LegendRow(
+            symbol: "circle.grid.3x3",
+            gesture: "Swipe + Click (in rose)", action: "Preview, then place"
+        ),
+        LegendRow(symbol: "arrow.up.right", gesture: "Flick (8-way remote)", action: "Place instantly"),
+        LegendRow(symbol: "playpause", gesture: "▶︎", action: "Undo"),
+        LegendRow(symbol: "playpause.fill", gesture: "Hold ▶︎", action: "Settings"),
+        LegendRow(symbol: "arrow.backward", gesture: "Back", action: "Save + home"),
+    ]
+
+    /// The four rows a player actually reaches for, for the prefs sheet.
+    static let compact: [LegendRow] = [full[0], full[1], full[4], full[5]]
+}
+
 /// A floating glass slab with the suite focus treatment. Focusable through
 /// `focusHalo`; a clickpad press fires `action`.
 private struct ShelfCard<Content: View>: View {
     let width: CGFloat
     let height: CGFloat
+    var isPrimary = false
     let action: @MainActor () -> Void
     @ViewBuilder let content: Content
 
@@ -154,7 +198,7 @@ private struct ShelfCard<Content: View>: View {
             .frame(width: width, height: height)
             .couchGlassInteractive(in: RoundedRectangle(cornerRadius: 40, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
-            .focusHalo()
+            .focusHalo(claimsDefaultFocus: isPrimary)
             .onTapGesture { action() }
     }
 }

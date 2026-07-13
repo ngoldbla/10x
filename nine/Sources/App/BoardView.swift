@@ -28,6 +28,13 @@ struct BoardView: View {
     /// Dim the board content a touch while the rose is open, so the petals
     /// (true glass, lensing the board) are the brightest thing on screen.
     let roseOpen: Bool
+    /// While the four-way rose walks petals, the focused digit ghosts into
+    /// the selected cell — see the digit before you commit. Nil on eight-way
+    /// remotes (flicks place instantly, nothing to preview).
+    let previewDigit: Int?
+    /// Preview at pencil scale, in the note's own keypad slot (rose opened
+    /// in pencil mode).
+    let previewPencil: Bool
 
     private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
 
@@ -146,6 +153,36 @@ struct BoardView: View {
                         at: point
                     )
                 }
+            }
+        }
+
+        // 5. Ghost preview: the rose's focused digit rendered in the cursor
+        //    cell — accent-tinted and translucent, clearly a maybe, gone the
+        //    moment the rose closes or the petal focus moves on.
+        if let previewDigit, solvedAt == nil {
+            let center = BoardMetrics.center(of: cursor)
+            if previewPencil {
+                // Pencil previews land where the note itself would: the
+                // digit's slot in the mini 3×3 keypad. A touch more opacity
+                // than the big ghost so the small glyph stays legible.
+                let mc = CGFloat((previewDigit - 1) % 3), mr = CGFloat((previewDigit - 1) / 3)
+                let point = CGPoint(
+                    x: center.x + (mc - 1) * cell * 0.28,
+                    y: center.y + (mr - 1) * cell * 0.28
+                )
+                context.draw(
+                    Text("\(previewDigit)")
+                        .font(.system(size: 26, weight: .medium, design: .rounded))
+                        .foregroundStyle(accent.opacity(0.45)),
+                    at: point
+                )
+            } else {
+                context.draw(
+                    Text("\(previewDigit)")
+                        .font(.system(size: 62, weight: .medium, design: .rounded))
+                        .foregroundStyle(accent.opacity(0.35)),
+                    at: center
+                )
             }
         }
     }

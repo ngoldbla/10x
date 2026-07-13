@@ -16,6 +16,30 @@ struct WallView: View {
     }
 
     var body: some View {
+        // The wall's remote surface detaches whenever another view needs
+        // real focus (Nine's sheet pattern): the first-run help overlay owns
+        // the remote itself, and the prefs sheet walks its Buttons with the
+        // native focus engine — Back there is GlassSheet's onExitCommand.
+        if !model.helpSeen, !model.showPermission {
+            wall.overlay {
+                HelpOverlay(
+                    title: "Darkroom",
+                    tagline: "Solve your photos into pictures.",
+                    rows: AppModel.legendRows
+                ) {
+                    model.dismissHelp()
+                }
+            }
+        } else if model.showPrefs {
+            wall
+        } else {
+            wall.couchRemote(chrome: chrome, eightWay: true) { gesture in
+                handle(gesture)
+            }
+        }
+    }
+
+    private var wall: some View {
         ZStack {
             // The darkroom: black, breathing faintly with the selected plate.
             RadialGradient(
@@ -44,6 +68,13 @@ struct WallView: View {
                     .padding(56)
             }
         }
+        .overlay(alignment: .top) {
+            // The one discoverability chip (design §5): once per session.
+            GlassChip("Hold ▶︎ for settings", systemImage: "gearshape")
+                .opacity(model.settingsHintVisible ? 1 : 0)
+                .animation(.couchAmbient, value: model.settingsHintVisible)
+                .padding(.top, 56)
+        }
         .overlay(alignment: .bottom) {
             Text(model.isLoading
                  ? "Developing tonight's plates…"
@@ -55,25 +86,20 @@ struct WallView: View {
                 .padding(.bottom, 64)
         }
         .overlay { PrefsSheet(model: model) }
-        .couchRemote(chrome: chrome, eightWay: true) { gesture in
-            guard !model.showPrefs else {
-                if gesture == .playPauseLongPress || gesture == .back {
-                    model.showPrefs = false
-                }
-                return
-            }
-            switch gesture {
-            case .swipe(.left):
-                model.selectedPlate = max(0, model.selectedPlate - 1)
-            case .swipe(.right):
-                model.selectedPlate = min(model.plates.count - 1, model.selectedPlate + 1)
-            case .click:
-                model.openSelectedPlate()
-            case .playPauseLongPress:
-                model.showPrefs = true
-            default:
-                break
-            }
+    }
+
+    private func handle(_ gesture: CouchGesture) {
+        switch gesture {
+        case .swipe(.left):
+            model.selectedPlate = max(0, model.selectedPlate - 1)
+        case .swipe(.right):
+            model.selectedPlate = min(model.plates.count - 1, model.selectedPlate + 1)
+        case .click:
+            model.openSelectedPlate()
+        case .playPauseLongPress:
+            model.showPrefs = true
+        default:
+            break
         }
     }
 }

@@ -1,8 +1,9 @@
 // FlickRoseView.swift — the signature moment: a 3×3 glass petal ring that
 // blossoms around the focused cell. Digits map onto the rose like a phone
 // keypad: 1 2 3 / 4 5 6 / 7 8 9 (center = 5 = tap). Completed digits are
-// dimmed. In pencil mode the petals shrink. With a four-way remote the rose
-// stays open: a focus ring walks the petals and click places.
+// dimmed. In pencil mode the petals shrink. The rose stays open while a
+// focus ring walks the petals (swipes, on every remote — the click path's
+// honest preview) and click places; a clean 8-way flick places instantly.
 import SwiftUI
 import CouchKit
 
@@ -59,7 +60,7 @@ struct FlickRoseView: View {
     let state: RoseState
     let accent: Color
     let completedDigits: Set<Int>
-    /// Show the d-pad focus ring (four-way remotes only).
+    /// Show the d-pad focus ring (always on — the click path's preview).
     let showsFocusRing: Bool
 
     @State private var bloomed = false

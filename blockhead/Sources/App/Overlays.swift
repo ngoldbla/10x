@@ -29,7 +29,7 @@ struct PauseCurtain: View {
 
 // MARK: - Prefs (the suite's single glass sheet)
 
-// Driven by the same RemoteKit path as every menu: the stage's remote
+// Driven by the same RemoteKit path as every menu: the root's remote
 // surface keeps focus and forwards gestures, so rows highlight via
 // `model.prefsSelection` (0…2 = timer options, 3 = reduce-flash).
 struct PrefsPanel: View {
@@ -39,6 +39,9 @@ struct PrefsPanel: View {
         VStack(alignment: .leading, spacing: 44) {
             Text("House Rules")
                 .couchText(CouchTypography.title)
+
+            // The sheet doubles as the manual after the first-run overlay.
+            ControlLegend(rows: BlockheadLegend.compact)
 
             VStack(alignment: .leading, spacing: 20) {
                 Text("QUESTION TIMER")

@@ -36,11 +36,15 @@ struct StageView: View {
                     .padding(56)
             }
         }
-        // interceptsBack only while the prefs sheet is up (Back closes it);
-        // at rest the stage defers Back to the system, per the suite rule.
-        .couchRemote(eightWay: true, interceptsBack: model.showPrefs) { gesture in
-            model.handleStage(gesture)
+        .overlay(alignment: .topLeading) {
+            if model.showSettingsHint {
+                GlassChip("Hold ▶︎ for settings", systemImage: "gearshape.fill")
+                    .padding(56)
+                    .transition(.opacity)
+            }
         }
+        .animation(.couchFast, value: model.showSettingsHint)
+        .onAppear { model.flashSettingsHint() }
     }
 }
 
