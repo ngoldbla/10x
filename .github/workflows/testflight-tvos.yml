@@ -1,4 +1,7 @@
-# Couch Suite (tvOS) → TestFlight on every merge to main, via Fastlane + match.
+# Couch Suite → TestFlight on every merge to main, via Fastlane + match.
+# All five apps ship for tvOS; universal apps (Nine) also ship an iOS build.
+# beta_all covers both platforms for every app; per-app dispatch uses beta_app,
+# which ships tvOS plus iOS when the app is universal.
 #
 # Replaces the legacy scripts/testflight.sh + ephemeral-keychain cert import.
 # match(readonly) fetches the shared Apple Distribution cert + per-app tvOS App
@@ -11,7 +14,7 @@
 #   COUCH_TEAM_ID, ASC_API_KEY_ID, ASC_API_ISSUER_ID, ASC_API_KEY_P8 (base64 .p8),
 #   MATCH_PASSWORD, MATCH_DEPLOY_KEY (read-only SSH deploy key for the certs repo).
 # scripts/testflight.sh is retained as a manual fallback but no longer used by CI.
-name: TestFlight (tvOS)
+name: TestFlight (Couch Suite)
 
 on:
   push:
@@ -121,5 +124,5 @@ jobs:
           if [ "$APP" = "all" ]; then
             bundle exec fastlane ios beta_all "$UPLOAD"
           else
-            bundle exec fastlane ios beta app:"$APP" "$UPLOAD"
+            bundle exec fastlane ios beta_app app:"$APP" "$UPLOAD"
           fi

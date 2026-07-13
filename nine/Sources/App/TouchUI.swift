@@ -1,0 +1,498 @@
+// TouchUI.swift — Nine's touch-native layer (iPhone + iPad). Same AppModel,
+// same engine, same board and rose rendering as the TV app; only the input
+// grammar changes:
+//
+//   tap a cell            open the flick rose on that cell
+//   tap a petal           place that digit
+//   flick (in the rose)   place instantly — same 3×3 keypad mapping as tvOS
+//   tap outside the rose  cancel
+//   pencil toggle         rose places corner notes instead
+//   undo button           take back a move (glass toast shows what reverted)
+//   gear                  prefs sheet · chevron: save + home
+#if os(iOS)
+import SwiftUI
+import CouchKit
+
+// MARK: - Home
+
+struct TouchHomeView: View {
+    let model: AppModel
+
+    var body: some View {
+        ZStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    header
+                    todayCard
+                    continueCard
+                    freePlayRow
+                }
+                .padding(20)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity) // center the column on iPad
+            }
+            if !model.helpSeen {
+                HelpOverlay(
+                    title: "Nine",
+                    tagline: "Couch sudoku.",
+                    rows: NineLegend.touch
+                ) {
+                    model.helpSeen = true
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 16) {
+            Text("Nine")
+                .couchText(CouchTypography.title)
+            Spacer()
+            if model.displayedStreak > 0 {
+                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: Today
+
+    private var todayCard: some View {
+        TouchCard(action: { model.openToday() }) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Today")
+                    .couchText(CouchTypography.title)
+                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                todayStatus
+            }
+            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private var todayStatus: some View {
+        if isComposingDaily {
+            statusLabel("Composing…", symbol: "sparkles")
+        } else if model.todaySolved {
+            statusLabel("Solved", symbol: "checkmark.circle.fill")
+        } else if let daily = model.savedDaily {
+            HStack(spacing: 12) {
+                GlassRing(progress: daily.fillFraction, lineWidth: 5)
+                    .frame(width: 34, height: 34)
+                Text("Continue")
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            statusLabel("One a day", symbol: "sun.max")
+        }
+    }
+
+    // MARK: Continue (free play in progress)
+
+    @ViewBuilder
+    private var continueCard: some View {
+        if let (game, difficulty) = model.savedFree {
+            TouchCard(action: { model.continueSaved() }) {
+                HStack(spacing: 16) {
+                    GlassRing(progress: game.fillFraction, lineWidth: 5)
+                        .frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Continue")
+                            .font(CouchTypography.body)
+                        Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%")
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    // MARK: Free play
+
+    private var freePlayRow: some View {
+        HStack(spacing: 14) {
+            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                difficultyCard(difficulty)
+            }
+        }
+    }
+
+    private func difficultyCard(_ difficulty: Difficulty) -> some View {
+        TouchCard(action: { model.startFree(difficulty) }) {
+            VStack(spacing: 12) {
+                MiniBoard(difficulty: difficulty, accent: model.prefs.accent.color)
+                    .frame(width: 64, height: 64)
+                if model.composing == .free(difficulty) {
+                    statusLabel("Composing…", symbol: "sparkles")
+                } else {
+                    Text(difficulty.title)
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 110)
+        }
+    }
+
+    // MARK: Helpers
+
+    private func statusLabel(_ text: String, symbol: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+            Text(text)
+                .font(CouchTypography.caption)
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    private var isComposingDaily: Bool {
+        if case .daily? = model.composing { return true }
+        return false
+    }
+}
+
+/// A tappable glass slab: the touch counterpart of the TV shelf card.
+/// A Button (not a bare tap gesture) so it gets pressed feedback and the
+/// full accessibility treatment for free.
+private struct TouchCard<Content: View>: View {
+    let action: @MainActor () -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Button(action: action) {
+            content
+                .padding(18)
+                .couchGlassInteractive(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+        .buttonStyle(TouchCardStyle())
+    }
+}
+
+private struct TouchCardStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.couchFast, value: configuration.isPressed)
+    }
+}
+
+// MARK: - Game
+
+struct TouchGameScreen: View {
+    let model: AppModel
+
+    @State private var cursor = 40
+    @State private var rose: RoseState?
+    @State private var pencilMode = false
+    @State private var showPrefs = false
+    @State private var toast: UndoToastState?
+    @State private var toastDismissal: Task<Void, Never>?
+
+    var body: some View {
+        GeometryReader { geo in
+            let boardInset: CGFloat = 12
+            let side = max(200, min(geo.size.width - 2 * boardInset - 16,
+                                    geo.size.height - 76 - 2 * boardInset - 16))
+
+            VStack(spacing: 12) {
+                topBar
+                Spacer(minLength: 0)
+                boardArea(side: side, inset: boardInset)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) { toastView.padding(.bottom, 20) }
+            .overlay(alignment: .bottom) { completionChip.padding(.bottom, 64) }
+            .overlay { GlassSheet(isPresented: $showPrefs) { PrefsSheetContent(model: model) } }
+        }
+    }
+
+    // MARK: Chrome
+
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            GlassIconButton(symbol: "chevron.left", label: "Home") { model.goHome() }
+            Spacer()
+            timerChip
+            Spacer()
+            GlassIconButton(
+                symbol: "pencil",
+                label: "Pencil marks",
+                active: pencilMode,
+                accent: model.prefs.accent.color
+            ) {
+                pencilMode.toggle()
+            }
+            GlassIconButton(symbol: "arrow.uturn.backward", label: "Undo") { performUndo() }
+            GlassIconButton(symbol: "gearshape", label: "Settings") { showPrefs = true }
+        }
+        .padding(.top, 8)
+        .padding(.horizontal, 6)
+    }
+
+    @ViewBuilder
+    private var timerChip: some View {
+        if model.prefs.showTimer, let game = model.game, model.solvedAt == nil {
+            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                GlassChip(Self.format(game.timer.elapsed(at: timeline.date)), systemImage: "clock")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var toastView: some View {
+        if let toast {
+            GlassChip(toast.text, systemImage: "arrow.uturn.backward")
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .id(toast.id)
+        }
+    }
+
+    @ViewBuilder
+    private var completionChip: some View {
+        if let solvedAt = model.solvedAt {
+            TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
+                if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
+                    GlassChip(completionText, systemImage: "checkmark")
+                        .transition(.opacity)
+                }
+            }
+        }
+    }
+
+    private var completionText: String {
+        if case .daily? = model.kind, model.displayedStreak > 0 {
+            return "Solved · \(model.displayedStreak) day streak"
+        }
+        return "Solved"
+    }
+
+    // MARK: Board + rose
+
+    @ViewBuilder
+    private func boardArea(side: CGFloat, inset: CGFloat) -> some View {
+        if let game = model.game {
+            BoardView(
+                game: game,
+                cursor: cursor,
+                accent: model.prefs.accent.color,
+                showErrors: model.prefs.errorHighlight,
+                solvedAt: model.solvedAt,
+                roseOpen: rose != nil,
+                previewDigit: nil, // touch petals are direct — nothing to preview
+                previewPencil: false,
+                side: side,
+                inset: inset
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { location in
+                handleBoardTap(at: location, side: side, inset: inset)
+            }
+            .overlay {
+                if let rose, model.solvedAt == nil {
+                    let scale = roseScale(side: side)
+                    // Scrim: any touch beside the rose cancels it — and blocks
+                    // board taps from landing under an open rose.
+                    Color.black.opacity(0.001)
+                        .contentShape(Rectangle())
+                        .onTapGesture { closeRose() }
+                    TouchRose(
+                        state: rose,
+                        accent: model.prefs.accent.color,
+                        completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
+                        scale: scale,
+                        onDigit: { commit(digit: $0) }
+                    )
+                    .position(rosePosition(side: side, inset: inset, scale: scale))
+                }
+            }
+        } else {
+            // Momentary state while a puzzle is composed.
+            GlassChip("Composing…", systemImage: "sparkles")
+                .frame(height: side)
+        }
+    }
+
+    /// Petals sized for fingers: a hair wider than a board cell, whatever the
+    /// board's size on this screen.
+    private func roseScale(side: CGFloat) -> CGFloat {
+        let cell = side / 9
+        return min(0.62, (cell * 1.15) / 116)
+    }
+
+    /// The rose blooms on the selected cell, nudged inward so no petal ever
+    /// leaves the board frame (screen edges would otherwise clip it).
+    private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
+        let center = BoardMetrics.center(of: cursor, side: side)
+        let radius = 126 * scale + (116 * scale) / 2
+        let frameSide = side + 2 * inset
+        let clamp: (CGFloat) -> CGFloat = { value in
+            min(max(value, radius - 6), frameSide - radius + 6)
+        }
+        return CGPoint(x: clamp(center.x + inset), y: clamp(center.y + inset))
+    }
+
+    // MARK: Touch grammar
+
+    private func handleBoardTap(at location: CGPoint, side: CGFloat, inset: CGFloat) {
+        guard model.game != nil, model.solvedAt == nil, rose == nil else { return }
+        let boardPoint = CGPoint(x: location.x - inset, y: location.y - inset)
+        guard let cell = BoardMetrics.cellIndex(at: boardPoint, side: side) else { return }
+        cursor = cell
+        openRose()
+    }
+
+    private func openRose() {
+        guard let game = model.game, !game.isGiven(cursor) else { return }
+        // Notes only make sense in empty cells; a filled cell opens the
+        // normal rose even in pencil mode (same rule as tvOS hold-click).
+        let pencil = pencilMode && game.entry(at: cursor) == 0
+        withAnimation(.couchFast) {
+            rose = RoseState(pencil: pencil)
+        }
+    }
+
+    private func closeRose() {
+        withAnimation(.couchFast) { rose = nil }
+    }
+
+    private func commit(digit: Int) {
+        guard let state = rose else { return }
+        if state.pencil {
+            model.togglePencil(digit, at: cursor)
+        } else {
+            model.place(digit, at: cursor)
+        }
+        closeRose()
+    }
+
+    private func performUndo() {
+        guard let move = model.undoMove() else { return }
+        let text: String
+        switch move.kind {
+        case .place: text = "Undid \(move.digit)"
+        case .erase: text = "Restored \(move.digit)"
+        case .pencil: text = "Undid note \(move.digit)"
+        }
+        let next = UndoToastState(text: text)
+        withAnimation(.couchFast) { toast = next }
+        toastDismissal?.cancel()
+        toastDismissal = Task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.couchAmbient) {
+                if toast?.id == next.id { toast = nil }
+            }
+        }
+    }
+
+    private static func format(_ interval: TimeInterval) -> String {
+        let total = Int(interval)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+// MARK: - Touch rose
+
+/// The flick rose with finger input: tap a petal to place its digit, or
+/// flick from anywhere in the rose toward a petal — the same 3×3 keypad
+/// mapping the Siri Remote uses (RoseGeometry), so the muscle memory
+/// transfers between couch and pocket.
+private struct TouchRose: View {
+    let state: RoseState
+    let accent: Color
+    let completedDigits: Set<Int>
+    let scale: CGFloat
+    let onDigit: @MainActor (Int) -> Void
+
+    private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
+    private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
+
+    var body: some View {
+        FlickRoseView(
+            state: state,
+            accent: accent,
+            completedDigits: completedDigits,
+            showsFocusRing: false,
+            scale: scale
+        )
+        .overlay {
+            // Invisible finger targets aligned with the drawn petals.
+            ZStack {
+                ForEach(1...9, id: \.self) { digit in
+                    let offset = RoseGeometry.offset(forDigit: digit)
+                    Color.clear
+                        .contentShape(Circle())
+                        .frame(width: max(44, petalSize), height: max(44, petalSize))
+                        .onTapGesture { onDigit(digit) }
+                        .offset(x: offset.x * spacing, y: offset.y * spacing)
+                }
+            }
+        }
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { value in
+                    if let direction = Self.flickDirection(value.translation) {
+                        onDigit(RoseGeometry.digit(for: direction))
+                    }
+                }
+        )
+    }
+
+    /// Classify a drag as one of eight directions (screen +y is down; the
+    /// rose keypad thinks in +y up, matching CouchCore's flick math).
+    static func flickDirection(_ translation: CGSize) -> Direction8OrCenter? {
+        let dx = translation.width
+        let dy = -translation.height
+        guard hypot(dx, dy) >= 24 else { return nil }
+        let sector = Int((atan2(dy, dx) / (.pi / 4)).rounded())
+        switch sector {
+        case 0: return .right
+        case 1: return .upRight
+        case 2: return .up
+        case 3: return .upLeft
+        case 4, -4: return .left
+        case -1: return .downRight
+        case -2: return .down
+        case -3: return .downLeft
+        default: return nil
+        }
+    }
+}
+
+// MARK: - Chrome atoms
+
+/// A circular glass icon button sized for fingers (44pt minimum hit target).
+private struct GlassIconButton: View {
+    let symbol: String
+    let label: String
+    var active = false
+    var accent: Color = .white
+    let action: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(active ? AnyShapeStyle(accent) : AnyShapeStyle(.secondary))
+                .frame(width: 44, height: 44)
+                .couchGlassInteractive(in: Circle())
+                .overlay {
+                    Circle().strokeBorder(accent.opacity(active ? 0.8 : 0), lineWidth: 2)
+                }
+        }
+        .buttonStyle(TouchCardStyle())
+        .accessibilityLabel(label)
+    }
+}
+#endif

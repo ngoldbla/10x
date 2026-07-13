@@ -21,14 +21,38 @@ struct RootView: View {
             BreathingVoid()
             switch model.screen {
             case .home:
-                HomeView(model: model)
+                homeScreen
                     .transition(.opacity)
             case .game:
-                GameScreen(model: model)
+                gameScreen
                     .transition(.opacity)
             }
         }
         .animation(.couchFast, value: model.screen) // navigation is a response, not weather
+        #if os(iOS)
+        .preferredColorScheme(.dark) // the void is the brand; never white-room it
+        #endif
+    }
+
+    // One model, two grammars: the TV screens speak remote (RemoteKit), the
+    // touch screens speak fingers. Everything below them — engine, persistence,
+    // board and rose rendering — is shared.
+    @ViewBuilder
+    private var homeScreen: some View {
+        #if os(tvOS)
+        HomeView(model: model)
+        #else
+        TouchHomeView(model: model)
+        #endif
+    }
+
+    @ViewBuilder
+    private var gameScreen: some View {
+        #if os(tvOS)
+        GameScreen(model: model)
+        #else
+        TouchGameScreen(model: model)
+        #endif
     }
 }
 

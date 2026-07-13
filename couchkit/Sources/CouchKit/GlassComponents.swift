@@ -1,7 +1,9 @@
 // The CouchUI component set (PRD §5.1). All chrome is transient glass:
 // it appears on remote touch and recedes after ~3s of stillness, driven by
 // a shared `ChromeVisibility` that RemoteKit pokes on every gesture.
-#if os(tvOS)
+// On iOS the same components render at handheld scale (CouchScale.chrome);
+// focus-engine affordances (FocusHalo) degrade to no-ops there.
+#if os(tvOS) || os(iOS)
 import SwiftUI
 import CouchCore
 import Observation
@@ -87,20 +89,20 @@ public struct GlassPill: View {
     }
 
     public var body: some View {
-        CouchGlassContainer(spacing: 28) {
-            HStack(spacing: 34) {
+        CouchGlassContainer(spacing: 28 * CouchScale.chrome) {
+            HStack(spacing: 34 * CouchScale.chrome) {
                 ForEach(actions) { item in
                     Button(action: item.action) {
                         Label(item.label, systemImage: item.symbol)
                             .labelStyle(.iconOnly)
-                            .font(.system(size: 34, weight: .semibold))
+                            .font(.system(size: 34 * CouchScale.chrome, weight: .semibold))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(item.label)
                 }
             }
-            .padding(.horizontal, 44)
-            .padding(.vertical, 22)
+            .padding(.horizontal, 44 * CouchScale.chrome)
+            .padding(.vertical, 22 * CouchScale.chrome)
             .couchGlass(in: Capsule())
         }
         .modifier(TransientChrome(chrome: chrome))
@@ -120,17 +122,18 @@ public struct GlassChip: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12 * CouchScale.chrome) {
             if let systemImage {
-                Image(systemName: systemImage).font(.system(size: 24, weight: .semibold))
+                Image(systemName: systemImage)
+                    .font(.system(size: 24 * CouchScale.chrome, weight: .semibold))
             }
             Text(text)
                 .font(CouchTypography.caption)
                 .lineLimit(1)
         }
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 28)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 28 * CouchScale.chrome)
+        .padding(.vertical, 14 * CouchScale.chrome)
         .couchGlass(in: Capsule())
     }
 }
@@ -138,8 +141,8 @@ public struct GlassChip: View {
 // MARK: - GlassSheet
 
 /// The one allowed secondary surface: a full-height trailing sheet on glass.
-/// Dismisses on Back. Only one may exist per app (suite rule — enforced by
-/// taste, not code).
+/// Dismisses on Back (tvOS) or a tap on the scrim beside it (iOS). Only one
+/// may exist per app (suite rule — enforced by taste, not code).
 public struct GlassSheet<Content: View>: View {
     @Binding private var isPresented: Bool
     private let content: Content
@@ -151,6 +154,7 @@ public struct GlassSheet<Content: View>: View {
 
     public var body: some View {
         ZStack(alignment: .trailing) {
+            #if os(tvOS)
             if isPresented {
                 content
                     .frame(width: 720)
@@ -163,6 +167,23 @@ public struct GlassSheet<Content: View>: View {
                     .onExitCommand { isPresented = false }
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
+            #else
+            if isPresented {
+                // Scrim: glass panels float over live content, so the board
+                // stays visible but a tap anywhere beside the sheet closes it.
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture { isPresented = false }
+                    .transition(.opacity)
+                content
+                    .padding(22)
+                    .frame(maxWidth: 380, maxHeight: .infinity)
+                    .couchGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .padding(.trailing, 16)
+                    .padding(.vertical, 16)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         .animation(.couchFast, value: isPresented)
@@ -202,6 +223,10 @@ public struct GlassRing: View {
 
 /// The standard focus treatment for full-bleed tiles: scale 1.0 → 1.03, a
 /// specular sweep, and a soft shadow lift — so all five apps focus alike.
+/// tvOS-only in effect: on iOS there is no focus engine to react to, so the
+/// modifier passes content through untouched (touch feedback belongs to the
+/// tappable control itself).
+#if os(tvOS)
 public struct FocusHalo: ViewModifier {
     @FocusState private var isFocused: Bool
     private let claimsDefaultFocus: Bool
@@ -248,6 +273,14 @@ extension View {
         modifier(FocusHalo(claimsDefaultFocus: claimsDefaultFocus))
     }
 }
+#else
+extension View {
+    /// No-op on iOS — keeps shared view code platform-agnostic.
+    public func focusHalo(claimsDefaultFocus: Bool = false) -> some View {
+        self
+    }
+}
+#endif
 
 // MARK: - IdleAttract
 

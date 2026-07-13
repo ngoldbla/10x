@@ -3,13 +3,17 @@ options:
   bundleIdPrefix: com.couchsuite
   deploymentTarget:
     tvOS: "18.0"
+    iOS: "18.0"
 packages:
   CouchKit:
     path: ../couchkit
 targets:
   Nine:
     type: application
-    platform: tvOS
+    # One universal target: the tvOS app and the iOS (iPhone/iPad) app build
+    # from the same sources — RootView picks the remote or touch UI per
+    # platform, and per-SDK settings below pick icons and signing profiles.
+    supportedDestinations: [tvOS, iOS]
     sources:
       - Sources/App
       - Sources/Engine
@@ -24,12 +28,19 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.nine
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
-        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
-        ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: "Launch Image"
+        TARGETED_DEVICE_FAMILY: "1,2,3"
+        # tvOS keeps the layered brand asset; iOS uses the flat square icon.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]": "App Icon & Top Shelf Image"
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]": "App Icon & Top Shelf Image"
+        "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvos*]": "Launch Image"
+        "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvsimulator*]": "Launch Image"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Distribution"
         DEVELOPMENT_TEAM: ${COUCH_TEAM_ID}
-        PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.couchsuite.nine tvos"
+        # match names tvOS profiles with a "tvos" suffix; iOS gets the default.
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=appletvos*]": "match AppStore com.couchsuite.nine tvos"
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "match AppStore com.couchsuite.nine"
     entitlements:
       path: Nine.entitlements
       properties:
@@ -41,3 +52,14 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # iOS-only keys (ignored by tvOS): dark void always, no storyboard —
+        # an empty modern launch screen inherits the black window background.
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight

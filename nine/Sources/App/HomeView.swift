@@ -5,6 +5,7 @@
 import SwiftUI
 import CouchKit
 
+#if os(tvOS)
 struct HomeView: View {
     let model: AppModel
 
@@ -159,6 +160,8 @@ struct HomeView: View {
     }
 }
 
+#endif
+
 /// The remote grammar, spelled out once. The full set feeds the first-run
 /// HelpOverlay; the compact set tops the prefs sheet, so the sheet doubles
 /// as the manual ever after.
@@ -181,8 +184,21 @@ enum NineLegend {
 
     /// The four rows a player actually reaches for, for the prefs sheet.
     static let compact: [LegendRow] = [full[0], full[1], full[4], full[5]]
+
+    /// The touch grammar (iOS/iPadOS): same concepts, finger-native verbs.
+    static let touch: [LegendRow] = [
+        LegendRow(symbol: "hand.tap", gesture: "Tap a cell", action: "Open the digit rose"),
+        LegendRow(symbol: "circle.grid.3x3", gesture: "Tap a petal", action: "Place that digit"),
+        LegendRow(symbol: "arrow.up.right", gesture: "Flick in the rose", action: "Place instantly"),
+        LegendRow(symbol: "pencil", gesture: "Pencil toggle", action: "Corner notes instead"),
+        LegendRow(symbol: "arrow.uturn.backward", gesture: "Undo button", action: "Take back a move"),
+    ]
+
+    /// The rows the touch prefs sheet keeps as its manual.
+    static let touchCompact: [LegendRow] = [touch[0], touch[1], touch[3], touch[4]]
 }
 
+#if os(tvOS)
 /// A floating glass slab with the suite focus treatment. Focusable through
 /// `focusHalo`; a clickpad press fires `action`.
 private struct ShelfCard<Content: View>: View {
@@ -203,9 +219,12 @@ private struct ShelfCard<Content: View>: View {
     }
 }
 
+#endif
+
 /// A difficulty preview: a 9×9 field of dots whose density grows with the
 /// difficulty. Deterministic (CouchHash), so the shelf never flickers.
-private struct MiniBoard: View {
+/// Shared by the TV shelf and the touch home.
+struct MiniBoard: View {
     let difficulty: Difficulty
     let accent: Color
 

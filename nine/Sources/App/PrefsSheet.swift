@@ -15,8 +15,13 @@ struct PrefsSheetContent: View {
 
             // The manual lives here after first run (suite rule: the prefs
             // sheet doubles as the help page).
+            #if os(tvOS)
             ControlLegend(rows: NineLegend.compact)
                 .padding(.bottom, 8)
+            #else
+            ControlLegend(rows: NineLegend.touchCompact)
+                .padding(.bottom, 8)
+            #endif
 
             prefRow(
                 title: "Timer",
@@ -38,9 +43,15 @@ struct PrefsSheetContent: View {
 
             Spacer()
 
+            #if os(tvOS)
             Text("Press Back to return")
                 .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
+            #else
+            Text("Tap outside to return")
+                .font(CouchTypography.caption)
+                .foregroundStyle(.tertiary)
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -51,10 +62,10 @@ struct PrefsSheetContent: View {
             let index = all.firstIndex(of: model.prefs.accent) ?? 0
             model.prefs.accent = all[(index + 1) % all.count]
         } label: {
-            HStack(spacing: 24) {
+            HStack(spacing: 24 * CouchScale.chrome) {
                 Circle()
                     .fill(model.prefs.accent.color)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 36 * CouchScale.chrome, height: 36 * CouchScale.chrome)
                 Text("Accent")
                     .font(CouchTypography.body)
                 Spacer()
@@ -62,8 +73,8 @@ struct PrefsSheetContent: View {
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 18)
+            .padding(.horizontal, 28 * CouchScale.chrome)
+            .padding(.vertical, 18 * CouchScale.chrome)
         }
         .buttonStyle(.plain)
     }
@@ -72,9 +83,9 @@ struct PrefsSheetContent: View {
         title: String, detail: String, symbol: String, action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 24) {
+            HStack(spacing: 24 * CouchScale.chrome) {
                 Image(systemName: symbol)
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.system(size: 34 * CouchScale.chrome, weight: .semibold))
                 Text(title)
                     .font(CouchTypography.body)
                 Spacer()
@@ -82,8 +93,8 @@ struct PrefsSheetContent: View {
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 18)
+            .padding(.horizontal, 28 * CouchScale.chrome)
+            .padding(.vertical, 18 * CouchScale.chrome)
         }
         .buttonStyle(.plain)
     }
