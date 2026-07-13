@@ -26,9 +26,6 @@ struct QuestionMomentView: View {
                     .padding(.bottom, 26)
             }
         }
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handleQuestion(gesture)
-        }
     }
 
     // MARK: Center: prompt + timer ring

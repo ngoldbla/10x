@@ -1,5 +1,5 @@
-// The one view model. All remote gestures funnel here (each screen's
-// `.couchRemote` closure calls a handler), all timing flows through Date()
+// The one view model. All remote gestures funnel here (the root's single
+// `.couchRemote` surface calls `handle`), all timing flows through Date()
 // at this boundary and into the pure engine as injected instants.
 import SwiftUI
 import Observation
@@ -34,6 +34,7 @@ final class AppModel {
 
     private let timerStore = CouchStored(wrappedValue: 12, "prefs.timerSeconds")
     private let flashStore = CouchStored(wrappedValue: false, "prefs.reduceFlash")
+    private let helpSeenStore = CouchStored(wrappedValue: false, "help.seen")
     private let streakStore = CouchStored(
         wrappedValue: StreakState(), "progress.streak", cloudSynced: true)
     private let resultsStore = CouchStored(
@@ -46,6 +47,11 @@ final class AppModel {
     private(set) var moment: Moment = .countdown
     var showPrefs = false
     private(set) var isPaused = false
+    /// First-run help overlay. True until dismissed once, ever.
+    private(set) var showHelp: Bool
+    /// Session-only settings hint; flashes on the stage once per launch.
+    private(set) var showSettingsHint = false
+    private var settingsHintShown = false
 
     private(set) var timerSeconds: Int
     private(set) var reduceFlash: Bool
@@ -84,6 +90,7 @@ final class AppModel {
     init() {
         timerSeconds = timerStore.wrappedValue
         reduceFlash = flashStore.wrappedValue
+        showHelp = !helpSeenStore.wrappedValue
         streak = streakStore.wrappedValue
         results = resultsStore.wrappedValue
         tokens = (0..<6).map { TokenSlot(id: $0, symbolIndex: $0) }
@@ -151,13 +158,49 @@ final class AppModel {
         flashStore.wrappedValue = reduceFlash
     }
 
-    // MARK: Stage
+    // MARK: Help
 
-    func handleStage(_ gesture: CouchGesture) {
+    func dismissHelp() {
+        showHelp = false
+        helpSeenStore.wrappedValue = true
+        flashSettingsHint()
+    }
+
+    /// One flash per session, and never under the help overlay (the stage
+    /// re-triggers via `dismissHelp` on first launch).
+    func flashSettingsHint() {
+        guard !settingsHintShown, !showHelp else { return }
+        settingsHintShown = true
+        showSettingsHint = true
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            self?.showSettingsHint = false
+        }
+    }
+
+    // MARK: Gesture routing
+
+    /// The single entry point for the root's remote surface. Prefs win when
+    /// the sheet is up; otherwise the current route's handler takes it.
+    func handle(_ gesture: CouchGesture) {
         guard !showPrefs else {
             handlePrefs(gesture)
             return
         }
+        switch route {
+        case .stage: handleStage(gesture)
+        case .archive: handleArchive(gesture)
+        case .question, .partyQuestion: handleQuestion(gesture)
+        case .summary: handleSummary(gesture)
+        case .partySetup: handlePartySetup(gesture)
+        case .handoff: handleHandoff(gesture)
+        case .podium: handlePodium(gesture)
+        }
+    }
+
+    // MARK: Stage
+
+    private func handleStage(_ gesture: CouchGesture) {
         switch gesture {
         case .swipe(let direction): moveStageSelection(direction)
         case .click: activateStageSelection()
@@ -172,7 +215,7 @@ final class AppModel {
     }
 
     /// The sheet is driven through the same RemoteKit path as every menu
-    /// (the stage's `.couchRemote` surface keeps focus; see DEVIATIONS #5).
+    /// (the root's `.couchRemote` surface keeps focus; see DEVIATIONS #5).
     private func handlePrefs(_ gesture: CouchGesture) {
         switch gesture {
         case .swipe(.left):
@@ -259,7 +302,7 @@ final class AppModel {
 
     // MARK: Question flow (shared solo/party)
 
-    func handleQuestion(_ gesture: CouchGesture) {
+    private func handleQuestion(_ gesture: CouchGesture) {
         switch gesture {
         case .swipe(let direction): answer(direction)
         case .playPause: togglePause()
@@ -436,7 +479,7 @@ final class AppModel {
     var claimedCount: Int { tokens.filter(\.claimed).count }
     var canStartParty: Bool { PartyMatch.playerRange.contains(claimedCount) }
 
-    func handlePartySetup(_ gesture: CouchGesture) {
+    private func handlePartySetup(_ gesture: CouchGesture) {
         switch gesture {
         case .swipe(let direction):
             moveSetupSelection(direction)
@@ -498,7 +541,7 @@ final class AppModel {
         route = .handoff
     }
 
-    func handleHandoff(_ gesture: CouchGesture) {
+    private func handleHandoff(_ gesture: CouchGesture) {
         switch gesture {
         case .click: beginPartyTurn()
         case .back: exitToStage()
@@ -531,7 +574,7 @@ final class AppModel {
         }
     }
 
-    func handlePodium(_ gesture: CouchGesture) {
+    private func handlePodium(_ gesture: CouchGesture) {
         switch gesture {
         case .click: rematchParty()
         case .back: exitToStage()
@@ -553,7 +596,7 @@ final class AppModel {
         route = .archive
     }
 
-    func handleArchive(_ gesture: CouchGesture) {
+    private func handleArchive(_ gesture: CouchGesture) {
         let entries = archiveEntries
         switch gesture {
         case .swipe(.up):
@@ -571,7 +614,7 @@ final class AppModel {
 
     // MARK: Summary
 
-    func handleSummary(_ gesture: CouchGesture) {
+    private func handleSummary(_ gesture: CouchGesture) {
         switch gesture {
         case .click, .back: exitToStage()
         default: break

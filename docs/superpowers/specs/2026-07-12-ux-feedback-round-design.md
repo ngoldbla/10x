@@ -31,11 +31,15 @@ false only at `.stage` (suite rule: system handles exit at the root); the one
 identity change at the stage boundary is covered by the focus assert.
 
 ### 3. Nine: see the digit before you commit
-While the rose is open on a 4-way remote, the focused petal's digit renders as
-a large ghost glyph (accent color, ~35% opacity) in the selected cell —
-swiping the petals live-previews exactly what a click will place. 8-way flick
-placement stays instant (already single-gesture). `BoardView` gets an optional
-`previewDigit: Int?`.
+While the rose is open, swipes walk the petals with a visible focus ring **on
+every remote** — not just "4-way" ones. (Discovered during verification: real
+Siri Remotes expose a microGamepad, so `RemoteKit.capability` reports
+`.eightWay` on actual hardware and the old ring-and-swipe fallback never ran;
+with the flick classifier deliberately dropping ambiguous strokes, players got
+an unresponsive rose and a blind click that placed the center 5.) The focused
+petal's digit also renders as a ghost glyph (accent, ~35% opacity) in the
+selected cell via a new optional `previewDigit: Int?` on `BoardView`. A clean
+8-way flick still places instantly.
 
 ### 4. Photo curation that degrades gracefully (couchkit)
 Principle: **demo art only when the library has zero usable photos** — never

@@ -9,8 +9,40 @@ struct ChannelView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        // Three states for the one screen. First-run help owns the remote
+        // (HelpOverlay brings its own surface); while the prefs sheet is up
+        // the surface detaches so the tvOS focus engine can walk the sheet's
+        // Buttons (Back, handled by GlassSheet, brings it home); otherwise
+        // the channel grammar rides .couchRemote.
+        Group {
+            if model.showHelp {
+                core.overlay {
+                    HelpOverlay(
+                        title: "Rabbit Ears",
+                        tagline: "Your photos, as living pixel art.",
+                        rows: RabbitEarsLegend.full
+                    ) {
+                        model.dismissHelp()
+                    }
+                }
+            } else if model.showPrefs {
+                core
+            } else {
+                core.couchRemote(chrome: chrome, eightWay: true) { gesture in
+                    model.handle(gesture)
+                }
+            }
+        }
+        .task { await model.start() }
+        .onDisappear { model.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.sceneBecameActive() }
+        }
+    }
+
+    private var core: some View {
         @Bindable var model = model
-        ZStack {
+        return ZStack {
             CouchPalette.void.ignoresSafeArea()
             artLayers
             frozenFrameEdge
@@ -23,16 +55,7 @@ struct ChannelView: View {
                 PrefsSheetContent(model: model)
             }
         }
-        .couchRemote(chrome: chrome, eightWay: true) { gesture in
-            guard !model.showPrefs else { return }
-            model.handle(gesture)
-        }
         .background(CouchPalette.void.ignoresSafeArea())
-        .task { await model.start() }
-        .onDisappear { model.stop() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.sceneBecameActive() }
-        }
     }
 
     // MARK: Art (double-buffered crossfade, z-swapped so landings never flash)
@@ -97,11 +120,16 @@ struct ChannelView: View {
                 GlassChip(connect, systemImage: "icloud")
                     .transition(.opacity)
             }
+            if let settings = model.settingsChip {
+                GlassChip(settings, systemImage: "gearshape")
+                    .transition(.opacity)
+            }
         }
         .padding(.top, 64)
         .animation(.couchFast, value: model.laneChip)
         .animation(.couchFast, value: model.playbackChip)
         .animation(.couchAmbient, value: model.connectChip)
+        .animation(.couchAmbient, value: model.settingsChip)
         .allowsHitTesting(false)
     }
 

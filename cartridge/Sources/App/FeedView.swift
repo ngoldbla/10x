@@ -146,16 +146,39 @@ struct FeedView: View {
     }
 }
 
+// MARK: - Control legend (shared by the first-run overlay and prefs sheet)
+
+/// The remote grammar in legend form. The help overlay shows all of it once;
+/// the prefs sheet embeds the compact everyday subset as the manual after.
+enum CartridgeLegend {
+    static let full: [LegendRow] = [
+        LegendRow(symbol: "arrow.up.and.down", gesture: "Swipe ↑ ↓", action: "Zap channels"),
+        LegendRow(symbol: "circle.circle", gesture: "Click", action: "Play the cartridge"),
+        LegendRow(symbol: "hand.draw", gesture: "Swipe · Click",
+                  action: "In game: do what the label hint says"),
+        LegendRow(symbol: "playpause.fill", gesture: "▶︎", action: "Pause"),
+        LegendRow(symbol: "gearshape", gesture: "Hold ▶︎", action: "Settings"),
+        LegendRow(symbol: "chevron.backward", gesture: "Back", action: "Back to the feed"),
+    ]
+    /// Zap, play, pause, settings — the four that matter mid-session.
+    static let compact: [LegendRow] = [full[0], full[1], full[3], full[4]]
+}
+
 // MARK: - Prefs sheet (the app's single GlassSheet)
 
 struct PrefsSheetView: View {
     @Bindable var model: FeedModel
+    /// Library counts, fetched fresh each time the sheet opens (nil while
+    /// counting) — "My photos" vs "Demo art" should be an informed choice.
+    @State private var census: (photos: Int, favorites: Int)?
 
     var body: some View {
         GlassSheet(isPresented: $model.showPrefs) {
             VStack(alignment: .leading, spacing: 34) {
                 Text("Cartridge")
                     .couchText(CouchTypography.title)
+
+                ControlLegend(rows: CartridgeLegend.compact)
 
                 Text("SPRITES")
                     .font(CouchTypography.caption)
@@ -172,6 +195,11 @@ struct PrefsSheetView: View {
                             }
                         }
                     }
+                }
+                if let census {
+                    Text(PhotoStatusLine.text(photos: census.photos, favorites: census.favorites))
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.tertiary)
                 }
 
                 Text("MOTION")
@@ -191,6 +219,9 @@ struct PrefsSheetView: View {
                 Text("Photos become sprites on this Apple TV only.")
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
+            }
+            .task {
+                census = await CouchPhotos.census()
             }
         }
     }

@@ -28,9 +28,6 @@ struct ArchiveView: View {
                 .opacity(0.55)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handleArchive(gesture)
-        }
     }
 }
 

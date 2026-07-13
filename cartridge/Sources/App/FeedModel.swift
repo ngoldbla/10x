@@ -54,6 +54,11 @@ final class FeedModel {
     var spriteLane: SpriteLane {
         didSet { persistPrefs() }
     }
+    /// First-run help gate, mirrored the same way — the overlay shows while
+    /// this is false and flips it on dismiss.
+    var helpSeen: Bool {
+        didSet { storedHelpSeen = helpSeen }
+    }
 
     // MARK: Persistence
 
@@ -61,6 +66,8 @@ final class FeedModel {
     @CouchStored("cartridge.scorebook") private var storedBook = ScoreBook()
     @ObservationIgnored
     @CouchStored("cartridge.prefs") private var storedPrefs = Prefs()
+    @ObservationIgnored
+    @CouchStored("help.seen") private var storedHelpSeen = false
 
     // MARK: Loop internals
 
@@ -76,10 +83,12 @@ final class FeedModel {
         self.bests = [:]
         self.reduceMotion = false
         self.spriteLane = .photos
+        self.helpSeen = false
         // All stored properties initialized — now hydrate from disk.
         self.bests = storedBook.bests
         self.reduceMotion = storedPrefs.reduceMotion
         self.spriteLane = SpriteLane(rawValue: storedPrefs.spriteLane) ?? .photos
+        self.helpSeen = storedHelpSeen
     }
 
     private func persistPrefs() {

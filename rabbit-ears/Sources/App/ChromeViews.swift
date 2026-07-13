@@ -55,55 +55,100 @@ struct StyleDotsPill: View {
     }
 }
 
+// MARK: - RabbitEarsLegend
+
+/// The app's remote grammar as legend rows (design §6): the full set feeds
+/// the first-run HelpOverlay; the first four feed the prefs sheet, which
+/// doubles as the manual thereafter (the ▶︎ rows are self-evident by the
+/// time you're in the sheet).
+enum RabbitEarsLegend {
+    static let full: [LegendRow] = [
+        LegendRow(symbol: "arrow.left.arrow.right", gesture: "Swipe ← →", action: "Change art style"),
+        LegendRow(symbol: "arrow.up.arrow.down", gesture: "Swipe ↑ ↓", action: "Change channel (memories / on this day / favorites)"),
+        LegendRow(symbol: "hand.tap", gesture: "Click", action: "Freeze the frame"),
+        LegendRow(symbol: "hand.tap.fill", gesture: "Hold", action: "Morph"),
+        LegendRow(symbol: "playpause.fill", gesture: "▶︎", action: "Pause"),
+        LegendRow(symbol: "gearshape", gesture: "Hold ▶︎", action: "Settings"),
+    ]
+
+    static let compact = Array(full.prefix(4))
+}
+
 // MARK: - PrefsSheetContent
 
-/// The single GlassSheet: crossfade speed (3 choices) + start-on-wake.
-/// Reached via play/pause long-press; Back dismisses.
+/// The single GlassSheet: control legend, Photos status + refresh, crossfade
+/// speed (3 choices), start-on-wake. Reached via play/pause long-press; Back
+/// dismisses. Scrolls — the legend made it taller than one screen.
 struct PrefsSheetContent: View {
     let model: ChannelViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 44) {
-            Text("Rabbit Ears")
-                .couchText(CouchTypography.title)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 40) {
+                Text("Rabbit Ears")
+                    .couchText(CouchTypography.title)
 
-            VStack(alignment: .leading, spacing: 20) {
-                Text("CROSSFADE")
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(CrossfadeSpeed.allCases, id: \.self) { speed in
+                ControlLegend(rows: RabbitEarsLegend.compact)
+
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("PHOTOS")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                    Text(photoStatus)
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Button {
-                        model.setSpeed(speed)
+                        Task { await model.refreshPhotos() }
                     } label: {
                         HStack {
-                            Text(speed.displayName)
+                            Text("Refresh photos")
                                 .font(CouchTypography.body)
                             Spacer()
-                            Image(systemName: "checkmark")
+                            Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 30, weight: .semibold))
-                                .opacity(model.prefs.speed == speed ? 1 : 0)
                         }
                     }
                 }
-            }
 
-            Button {
-                model.setStartOnWake(!model.prefs.startOnWake)
-            } label: {
-                HStack {
-                    Text("Start on wake")
-                        .font(CouchTypography.body)
-                    Spacer()
-                    Image(systemName: model.prefs.startOnWake ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 34, weight: .semibold))
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("CROSSFADE")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(CrossfadeSpeed.allCases, id: \.self) { speed in
+                        Button {
+                            model.setSpeed(speed)
+                        } label: {
+                            HStack {
+                                Text(speed.displayName)
+                                    .font(CouchTypography.body)
+                                Spacer()
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 30, weight: .semibold))
+                                    .opacity(model.prefs.speed == speed ? 1 : 0)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    model.setStartOnWake(!model.prefs.startOnWake)
+                } label: {
+                    HStack {
+                        Text("Start on wake")
+                            .font(CouchTypography.body)
+                        Spacer()
+                        Image(systemName: model.prefs.startOnWake ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 34, weight: .semibold))
+                    }
                 }
             }
-
-            Spacer()
-
-            Text("Swipe for styles · Click to freeze · Hold to morph")
-                .font(CouchTypography.caption)
-                .foregroundStyle(.tertiary)
         }
+        .task { await model.refreshCensus() }
+    }
+
+    private var photoStatus: String {
+        guard let census = model.photoCensus else { return "Counting photos…" }
+        return PhotoStatusLine.text(photos: census.photos, favorites: census.favorites)
     }
 }

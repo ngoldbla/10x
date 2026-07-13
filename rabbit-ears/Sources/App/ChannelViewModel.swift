@@ -42,8 +42,14 @@ final class ChannelViewModel {
     private(set) var laneChip: String?
     private(set) var playbackChip: Chip?
     private(set) var connectChip: String?
+    private(set) var settingsChip: String?
     var showPrefs = false
+    /// First-run help overlay (design §6): shown until dismissed once, ever.
+    private(set) var showHelp = false
     private(set) var prefs = ChannelPrefs.default
+    /// Library counts for the prefs sheet's Photos status line; nil until the
+    /// sheet first asks (census is a Photos fetch — don't pay it at launch).
+    private(set) var photoCensus: (photos: Int, favorites: Int)?
 
     var currentFrame: Frame? { stagingIsA ? layerB : layerA }
     private var stagingFrame: Frame? { stagingIsA ? layerA : layerB }
@@ -56,6 +62,8 @@ final class ChannelViewModel {
     @CouchStored("channel-state") private var storedState = ChannelDirector.SavedState.initial
     @ObservationIgnored
     @CouchStored("prefs") private var storedPrefs = ChannelPrefs.default
+    @ObservationIgnored
+    @CouchStored("help.seen") private var helpSeen = false
 
     // MARK: Internals
 
@@ -67,6 +75,7 @@ final class ChannelViewModel {
     @ObservationIgnored private var laneChipTask: Task<Void, Never>?
     @ObservationIgnored private var playbackChipTask: Task<Void, Never>?
     @ObservationIgnored private var shownConnectChip = false
+    @ObservationIgnored private var shownSettingsChip = false
 
     private var now: TimeInterval { Date.timeIntervalSinceReferenceDate }
 
@@ -89,6 +98,13 @@ final class ChannelViewModel {
         }
         if !PhotoAccess.isAuthorized {
             flashConnectChip()
+        }
+        // First launch gets the full overlay; every later session gets the
+        // one-line nudge toward the hidden settings gesture instead.
+        if helpSeen {
+            flashSettingsChip()
+        } else {
+            showHelp = true
         }
     }
 
@@ -142,6 +158,28 @@ final class ChannelViewModel {
     func setStartOnWake(_ enabled: Bool) {
         prefs.startOnWake = enabled
         storedPrefs = prefs
+    }
+
+    /// Prefs "Refresh photos": re-run every lane's pool query, then re-count
+    /// so the status line reflects what just landed.
+    func refreshPhotos() async {
+        await loadPools()
+        await refreshCensus()
+    }
+
+    /// Counts for the Photos status line; the sheet calls this on appear.
+    func refreshCensus() async {
+        photoCensus = await CouchPhotos.census()
+    }
+
+    // MARK: Help
+
+    /// The first-run overlay was clicked away: never again — but still nudge
+    /// toward the settings gesture once this session.
+    func dismissHelp() {
+        showHelp = false
+        helpSeen = true
+        flashSettingsChip()
     }
 
     // MARK: Pools
@@ -315,6 +353,17 @@ final class ChannelViewModel {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             playbackChip = nil
+        }
+    }
+
+    /// Design §5 discoverability: once per session, then never again.
+    private func flashSettingsChip() {
+        guard !shownSettingsChip else { return }
+        shownSettingsChip = true
+        settingsChip = "Hold ▶︎ for settings"
+        Task {
+            try? await Task.sleep(for: .seconds(6))
+            settingsChip = nil
         }
     }
 

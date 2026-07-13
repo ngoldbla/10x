@@ -13,6 +13,11 @@ struct PrefsSheetContent: View {
                 .couchText(CouchTypography.title)
                 .padding(.bottom, 8)
 
+            // The manual lives here after first run (suite rule: the prefs
+            // sheet doubles as the help page).
+            ControlLegend(rows: NineLegend.compact)
+                .padding(.bottom, 8)
+
             prefRow(
                 title: "Timer",
                 detail: model.prefs.showTimer ? "Shown" : "Hidden",

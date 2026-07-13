@@ -32,8 +32,5 @@ struct SummaryView: View {
         .padding(.vertical, 90)
         .couchGlass(in: RoundedRectangle(cornerRadius: 60, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .couchRemote(interceptsBack: true) { gesture in
-            model.handleSummary(gesture)
-        }
     }
 }

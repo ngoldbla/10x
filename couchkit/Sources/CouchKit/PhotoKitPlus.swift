@@ -140,26 +140,28 @@ public enum PhotoAccess {
 /// the library is unauthorized or the fetch comes back empty.
 public enum CouchPhotos {
 
-    /// Photos taken on today's month/day across all years.
+    /// Photos taken on today's month/day across all years, topped up with
+    /// recent photos when the date matches run thin. Demo art only when the
+    /// library has no usable photos at all — a thin *lane* never demos.
     public static func onThisDay(limit: Int = 24) async -> [CuratedPhoto] {
         #if canImport(Photos)
         if isUsable {
             let calendar = Calendar.current
             let today = calendar.dateComponents([.month, .day], from: Date())
-            let photos = fetchAssets(limit: 4000).filter { asset in
+            let matches = fetchAssets(limit: 4000).filter { asset in
                 guard let created = asset.creationDate else { return false }
                 let c = calendar.dateComponents([.month, .day], from: created)
                 return c.month == today.month && c.day == today.day
             }
-            if !photos.isEmpty {
-                return Array(photos.prefix(limit)).map(curated)
-            }
+            let pool = toppedUp(Array(matches.prefix(limit)), limit: limit)
+            if !pool.isEmpty { return pool }
         }
         #endif
         return demoPhotos(limit: limit, seed: 0x0DAE)
     }
 
-    /// Favorites, seeded-shuffled so a session revisits differently each seed.
+    /// Favorites first (seeded-shuffled so a session revisits differently
+    /// each seed), topped up with recent photos when favorites run short.
     public static func randomMemorable(limit: Int = 24, seed: UInt64 = 0) async -> [CuratedPhoto] {
         #if canImport(Photos)
         if isUsable {
@@ -167,21 +169,45 @@ public enum CouchPhotos {
             options.predicate = NSPredicate(format: "favorite == YES")
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             let favorites = fetchAssets(limit: 2000, options: options)
+            var picked = [PHAsset]()
             if !favorites.isEmpty {
                 var planner = SequencePlanner(
                     count: favorites.count,
                     window: min(favorites.count - 1, limit),
                     seed: seed
                 )
-                var picked = [CuratedPhoto]()
                 for _ in 0..<min(limit, favorites.count) {
-                    picked.append(curated(favorites[planner.next()]))
+                    picked.append(favorites[planner.next()])
                 }
-                return picked
             }
+            let pool = toppedUp(picked, limit: limit)
+            if !pool.isEmpty { return pool }
         }
         #endif
         return demoPhotos(limit: limit, seed: seed &+ 0x3E30)
+    }
+
+    /// Library size at a glance, for settings status lines.
+    /// Returns zeros when unauthorized.
+    public static func census() async -> (photos: Int, favorites: Int) {
+        #if canImport(Photos)
+        guard isUsable else { return (0, 0) }
+        let imagePredicate = NSPredicate(
+            format: "mediaType == %d", PHAssetMediaType.image.rawValue
+        )
+        let all = PHFetchOptions()
+        all.predicate = imagePredicate
+        let favs = PHFetchOptions()
+        favs.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            imagePredicate, NSPredicate(format: "favorite == YES"),
+        ])
+        return (
+            PHAsset.fetchAssets(with: all).count,
+            PHAsset.fetchAssets(with: favs).count
+        )
+        #else
+        return (0, 0)
+        #endif
     }
 
     /// The newest photos, newest first.
@@ -264,6 +290,21 @@ public enum CouchPhotos {
             if index + 1 >= limit { stop.pointee = true }
         }
         return assets
+    }
+
+    /// Fill a curated pick list up to `limit` with recent photos the list
+    /// doesn't already contain, preserving the picks' order first.
+    static func toppedUp(_ picked: [PHAsset], limit: Int) -> [CuratedPhoto] {
+        var seen = Set(picked.map(\.localIdentifier))
+        var pool = picked.map(curated)
+        if pool.count < limit {
+            for asset in fetchAssets(limit: limit + seen.count)
+            where seen.insert(asset.localIdentifier).inserted {
+                pool.append(curated(asset))
+                if pool.count >= limit { break }
+            }
+        }
+        return pool
     }
 
     static func curated(_ asset: PHAsset) -> CuratedPhoto {

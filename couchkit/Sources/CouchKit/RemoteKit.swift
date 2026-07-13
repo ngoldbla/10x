@@ -85,6 +85,13 @@ struct CouchRemoteModifier: ViewModifier {
     let onGesture: @MainActor (CouchGesture) -> Void
 
     @State private var holdActive = false
+    // tvOS routes remote commands only to the *focused* view, and this
+    // modifier is usually a screen's sole focusable — if focus parks nowhere
+    // after a screen swap, every click is silently dropped. Claim focus on
+    // appear (immediately, then once more after transition animations can
+    // steal it). Never re-claim continuously: sheets with native focus
+    // Buttons must be able to take focus while a surface stays attached.
+    @FocusState private var focused: Bool
     #if canImport(GameController)
     @State private var flickReader: MicroGamepadFlickReader?
     #endif
@@ -99,6 +106,7 @@ struct CouchRemoteModifier: ViewModifier {
     func body(content: Content) -> some View {
         let base = content
             .focusable()
+            .focused($focused)
             .onMoveCommand { direction in
                 switch direction {
                 case .up: emit(.swipe(.up))
@@ -123,7 +131,14 @@ struct CouchRemoteModifier: ViewModifier {
                     }
                 }
             )
-            .onAppear { startFlickReaderIfNeeded() }
+            .onAppear {
+                startFlickReaderIfNeeded()
+                focused = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    if !focused { focused = true }
+                }
+            }
             .onDisappear { stopFlickReader() }
 
         if interceptsBack {

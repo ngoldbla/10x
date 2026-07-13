@@ -15,8 +15,9 @@ final class SpriteLocker {
     private(set) var backdrops: [CGImage] = []
     private(set) var isReady = false
 
-    /// Rebuild the locker for a day + lane. Falls back to DemoArt whenever
-    /// the library is unauthorized or thin — the app always works.
+    /// Rebuild the locker for a day + lane. `randomMemorable` tops up thin
+    /// favorite pools with recents; DemoArt appears only when the library is
+    /// unauthorized or empty — the app always works.
     func build(day: DayStamp, lane: SpriteLane) async {
         let photos: [CuratedPhoto]
         switch lane {

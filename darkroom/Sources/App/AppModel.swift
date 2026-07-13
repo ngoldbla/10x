@@ -49,6 +49,14 @@ final class AppModel {
     var isLoading = true
     var showPrefs = false
     var showPermission = false
+    /// First-run help (design §6). Defaults true so a returning player never
+    /// sees a flash of the overlay; the stored truth loads with the roll.
+    var helpSeen = true {
+        didSet { helpSeenStore.wrappedValue = helpSeen }
+    }
+    /// The "Hold ▶︎ for settings" chip — flashed once per session on the wall.
+    var settingsHintVisible = false
+    private var settingsHintFlashed = false
     var prefs = Prefs() {
         didSet { prefsStore.wrappedValue = prefs }
     }
@@ -67,6 +75,9 @@ final class AppModel {
     private let prefsStore = CouchStored(
         wrappedValue: Prefs(), "prefs"
     )
+    private let helpSeenStore = CouchStored(
+        wrappedValue: false, "help.seen"
+    )
 
     private var loaded = false
 
@@ -76,6 +87,7 @@ final class AppModel {
         guard !loaded else { return }
         loaded = true
         prefs = prefsStore.wrappedValue
+        helpSeen = helpSeenStore.wrappedValue
 
         let now = Date()
         let today = Streaks.dayNumber(for: now)
@@ -125,6 +137,27 @@ final class AppModel {
             plates[index] = plate
         }
         isLoading = false
+        flashSettingsHintIfNeeded()
+    }
+
+    // MARK: - Help + the settings hint
+
+    /// The overlay was clicked away — remember forever, then surface the one
+    /// discoverability chip the design allows (design §5, §6).
+    func dismissHelp() {
+        helpSeen = true
+        flashSettingsHintIfNeeded()
+    }
+
+    /// Flash "Hold ▶︎ for settings" on the wall: once per session, briefly.
+    func flashSettingsHintIfNeeded() {
+        guard helpSeen, !settingsHintFlashed else { return }
+        settingsHintFlashed = true
+        settingsHintVisible = true
+        Task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            settingsHintVisible = false
+        }
     }
 
     func resolvePermission(granted: Bool) {
@@ -242,4 +275,25 @@ final class AppModel {
         ]
         return words[n] ?? "\(n)"
     }
+}
+
+// MARK: - The legend
+
+extension AppModel {
+    /// The remote grammar in legend form (design §6). The first-run overlay
+    /// shows all six rows; the prefs sheet keeps the first four as a compact
+    /// reminder, so the sheet doubles as the manual thereafter.
+    static let legendRows: [LegendRow] = [
+        LegendRow(symbol: "arrow.up.and.down.and.arrow.left.and.right",
+                  gesture: "Swipe", action: "Choose a plate / move on the board"),
+        LegendRow(symbol: "hand.tap", gesture: "Click",
+                  action: "Develop / fill a square"),
+        LegendRow(symbol: "playpause.fill", gesture: "▶︎", action: "Mark ✕"),
+        LegendRow(symbol: "rays", gesture: "Hold, release",
+                  action: "Hint (the coach ray)"),
+        LegendRow(symbol: "gearshape.fill", gesture: "Hold ▶︎",
+                  action: "Settings"),
+        LegendRow(symbol: "chevron.backward", gesture: "Back",
+                  action: "Back to the wall"),
+    ]
 }
