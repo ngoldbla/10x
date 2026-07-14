@@ -1,14 +1,17 @@
 # Couch Suite → TestFlight on every merge to main, via Fastlane + match.
 # All five apps ship for tvOS; universal apps (Nine) also ship an iOS build.
 # beta_all covers both platforms for every app; per-app dispatch uses beta_app,
-# which ships tvOS plus iOS when the app is universal.
+# which ships tvOS plus iOS when the app is universal. A dispatch with a
+# `platform` input targets a single platform of a single app via the beta lane.
 #
 # Replaces the legacy scripts/testflight.sh + ephemeral-keychain cert import.
 # match(readonly) fetches the shared Apple Distribution cert + per-app tvOS App
 # Store profiles from the private couch-suite-certificates repo (read-only SSH
 # deploy key); gym archives with manual distribution signing (entitlements bake
-# in — no ad-hoc re-sign); pilot uploads. Build number = git commit count
-# (monotonic; computed in-CI, never committed back → no self-trigger loop).
+# in — no ad-hoc re-sign); pilot uploads. Build number = git commit count × 10
+# plus a per-platform offset (iOS +1) so a universal app's platforms never
+# collide on one ASC record (monotonic; computed in-CI, never committed back
+# → no self-trigger loop).
 #
 # Secrets required (see TESTFLIGHT.md):
 #   COUCH_TEAM_ID, ASC_API_KEY_ID, ASC_API_ISSUER_ID, ASC_API_KEY_P8 (base64 .p8),
@@ -34,6 +37,11 @@ on:
       app:
         description: 'App folder to ship (or "all")'
         type: string
+        default: all
+      platform:
+        description: 'Platform to ship (needs a specific app; "ios" only for universal apps)'
+        type: choice
+        options: [all, tvos, ios]
         default: all
       validate_only:
         description: 'Build + sign but do NOT upload (dry run)'
@@ -107,6 +115,7 @@ jobs:
           MATCH_GIT_URL: git@github.com:ngoldbla/couch-suite-certificates.git
           # workflow_dispatch inputs via env (never interpolate untrusted input into the shell).
           INPUT_APP: ${{ github.event.inputs.app }}
+          INPUT_PLATFORM: ${{ github.event.inputs.platform }}
           INPUT_VALIDATE_ONLY: ${{ github.event.inputs.validate_only }}
         run: |
           set -euo pipefail
@@ -116,6 +125,15 @@ jobs:
             all|rabbit-ears|darkroom|nine|blockhead|cartridge) ;;
             *) echo "Refusing unknown app target: $APP"; exit 1 ;;
           esac
+          PLATFORM="${INPUT_PLATFORM:-all}"
+          [ -z "$PLATFORM" ] && PLATFORM=all
+          case "$PLATFORM" in
+            all|tvos|ios) ;;
+            *) echo "Refusing unknown platform: $PLATFORM"; exit 1 ;;
+          esac
+          if [ "$PLATFORM" != "all" ] && [ "$APP" = "all" ]; then
+            echo "A specific platform needs a specific app (got app=all platform=$PLATFORM)"; exit 1
+          fi
           UPLOAD="upload:true"
           [ "${INPUT_VALIDATE_ONLY:-false}" = "true" ] && UPLOAD="upload:false"
 
@@ -123,6 +141,8 @@ jobs:
           # cert into it read-only. No manual cert import needed.
           if [ "$APP" = "all" ]; then
             bundle exec fastlane ios beta_all "$UPLOAD"
-          else
+          elif [ "$PLATFORM" = "all" ]; then
             bundle exec fastlane ios beta_app app:"$APP" "$UPLOAD"
+          else
+            bundle exec fastlane ios beta app:"$APP" platform:"$PLATFORM" "$UPLOAD"
           fi
