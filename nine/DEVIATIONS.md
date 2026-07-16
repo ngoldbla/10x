@@ -57,6 +57,37 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   (seed, difficulty); still proof-checked (uniqueness + bound re-verified on
   the final grid).
 
+## 1.1 — touch-first quality-of-life (iOS)
+
+- **Same-number highlight (default on):** tapping any placed digit washes
+  every cell holding it in the accent — pencil notes of the digit get a halo.
+  Sticky across placements; tap a cell of the same digit to switch off.
+  tvOS parity: parking the cursor on a digit highlights its kind. Toggleable
+  in prefs ("Number highlight").
+- **"One GlassSheet" rule, amended to one per screen:** the game keeps the
+  prefs sheet; the home screen gains a History sheet (points, best times,
+  recent solves, Game Center). Never two at once.
+- **Controls at the bottom by default** on touch (thumb reach; pencil is two
+  taps closer). "Controls: Top" restores the 1.0 layout.
+- **Appearance Auto/Dark/Light (iOS only):** `UIUserInterfaceStyle` removed
+  from Info.plist; the void stays the dark brand, light mode swaps in warm
+  paper. tvOS remains always-dark.
+- **Resume on launch (default on, iOS):** a board in progress opens directly;
+  home is one tap back. Off in prefs restores launch-to-shelf.
+- **New game from the sheet:** in-game difficulty switch (abandons the board,
+  compose runs behind a "Composing…" chip); the home Continue card gains a
+  discard ✕.
+- **Points + history:** engine-level `SolveScore`/`SolveHistory` (tested),
+  capped at 200 records, cloud-synced beside the streak. Daily solves earn a
+  streak bonus (capped at 30 days); sub-5-minute solves a speed bonus.
+- **GameKit:** fire-and-forget leaderboards (points, best streak) and
+  achievements; the app never depends on Game Center being configured or
+  signed in. IDs live in `GameCenter.ID`.
+- **Interactive tutorial:** five beats on a real nearly-finished board
+  (goal → place → pencil → highlight → difficulty guide), each advancing on
+  the actual gesture. Prefs decoding is now field-tolerant so 1.0 settings
+  survive the upgrade.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

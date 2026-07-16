@@ -71,7 +71,11 @@ struct GameScreen: View {
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
                 previewDigit: previewDigit,
-                previewPencil: rose?.pencil ?? false
+                previewPencil: rose?.pencil ?? false,
+                // Same-number highlight, remote grammar: parking the cursor
+                // on a digit lights up all of its kind (notes included).
+                highlightDigit: model.prefs.numberHighlight && game.entry(at: cursor) != 0
+                    ? game.entry(at: cursor) : nil
             )
             .overlay {
                 if let rose {
