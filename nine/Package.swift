@@ -18,5 +18,17 @@ let package = Package(
             dependencies: ["NineEngine"],
             path: "Tests/EngineTests"
         ),
+        // The app↔widget bridge (PRD-3): pure Foundation, no CouchKit, so it
+        // compiles into the widget extension untouched. Tested here against
+        // the Engine originals it deliberately duplicates.
+        .target(
+            name: "NineShared",
+            path: "Sources/Shared"
+        ),
+        .testTarget(
+            name: "NineSharedTests",
+            dependencies: ["NineShared", "NineEngine"],
+            path: "Tests/SharedTests"
+        ),
     ]
 )

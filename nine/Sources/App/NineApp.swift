@@ -14,6 +14,9 @@ struct NineApp: App {
 
 struct RootView: View {
     @State private var model = AppModel()
+    #if os(iOS)
+    @Environment(\.scenePhase) private var scenePhase
+    #endif
 
     var body: some View {
         ZStack {
@@ -34,6 +37,22 @@ struct RootView: View {
         // sunny-couch player can pin light. tvOS remains void-dark always.
         .preferredColorScheme(model.prefs.appearance.colorScheme)
         .onAppear { GameCenter.shared.authenticate() }
+        // Widget taps land on today's daily. openToday() is already safe
+        // mid-composition (compose() guards on `composing`).
+        .onOpenURL { url in
+            guard url.scheme == "nine" else { return }
+            let target = url.host() ?? url.pathComponents.dropFirst().first
+            if target == "daily" {
+                model.openToday()
+            }
+        }
+        // Belt-and-braces publish on backgrounding, so the Home Screen is
+        // fresh the moment the app leaves it.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                WidgetBridge.publish(from: model)
+            }
+        }
         #endif
     }
 

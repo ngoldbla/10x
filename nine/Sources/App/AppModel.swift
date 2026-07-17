@@ -205,6 +205,9 @@ final class AppModel {
         if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
             resume(game, kind: kind)
         }
+        // Post-load publish covers state that changed without the widget
+        // hearing about it (reinstall, iCloud KVS sync, midnight).
+        WidgetBridge.publish(from: self)
         #endif
     }
 
@@ -255,6 +258,9 @@ final class AppModel {
     func discardSaved() {
         saved = SaveSlot()
         try? saveStore.flushNow()
+        #if os(iOS)
+        WidgetBridge.publish(from: self)
+        #endif
     }
 
     private func resume(_ game: NineGame, kind: GameKind) {
@@ -331,6 +337,9 @@ final class AppModel {
         // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
         // visually stable through the crossfade; the next start replaces them.
         screen = .home
+        #if os(iOS)
+        WidgetBridge.publish(from: self)
+        #endif
     }
 
     // MARK: - Internals
@@ -368,12 +377,17 @@ final class AppModel {
         try? saveStore.flushNow()
         #if os(iOS)
         GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        WidgetBridge.publish(from: self)
         #endif
     }
 
     private func persistProgress() {
         guard let game, let kind else { return }
         saved = SaveSlot(game: game, kind: kind)
+        #if os(iOS)
+        // Fires per move; WidgetBridge digest-gates the actual reloads.
+        WidgetBridge.publish(from: self)
+        #endif
     }
 
     #if DEBUG

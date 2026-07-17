@@ -196,3 +196,26 @@ TestFlight builds (testers must be signed into Game Center in Settings).
 Before the public App Store release: upload achievement/leaderboard artwork in
 ASC and include Game Center with the version submission — until then the
 dashboard shows placeholder art, which is fine for beta.
+
+## Widgets (Nine iOS, one-time — REQUIRED BEFORE MERGING PRD-3)
+
+Nine iOS embeds the `NineWidgets` extension (`com.couchsuite.nine.widgets`,
+app group `group.com.couchsuite.nine`). match does not manage capabilities,
+and adding App Groups **invalidates the existing iOS `com.couchsuite.nine`
+profile** — sequence portal → re-mint → merge, or the next nine/iOS CI run
+fails signing (PRD-3 §3a):
+
+1. **Portal (manual):** create app group `group.com.couchsuite.nine`;
+   register App ID `com.couchsuite.nine.widgets` with the App Groups
+   capability and assign the group; enable App Groups on the **iOS**
+   `com.couchsuite.nine` App ID and assign the same group. (tvOS App ID
+   untouched.)
+2. **Re-mint writable match (local, one-time):** `source signing.env &&
+   fastlane match appstore` (Matchfile already lists the widget bundle id) —
+   plus `fastlane match development` if you debug on device. CI stays
+   `readonly: true`.
+3. Merge. The Fastfile fetches both profiles on the nine/iOS leg
+   (`APPS["nine"][:extensions]`) and exports with both provisioning-profile
+   entries; the tvOS leg is unchanged.
+
+Verify with `fastlane beta app:nine platform:ios upload:false`.
