@@ -57,6 +57,36 @@ enum AppearanceChoice: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Where the board parks vertically on iOS (PRD-2). Anchoring to an edge
+/// collects all free space in one contiguous band — room for a system
+/// Picture-in-Picture window to sit without covering the grid. tvOS ignores
+/// this (the enum is platform-neutral only so prefs decode everywhere).
+enum BoardAnchor: String, Codable, Sendable, CaseIterable {
+    case top, center, bottom
+
+    var title: String {
+        switch self {
+        case .top: return "Top"
+        case .center: return "Center"
+        case .bottom: return "Bottom"
+        }
+    }
+}
+
+/// The optional ambient chip parked in the band opposite the board (PRD-2):
+/// a clock, or points + streak. Off is the default and the statement.
+enum AmbientSlot: String, Codable, Sendable, CaseIterable {
+    case none, clock, streak
+
+    var title: String {
+        switch self {
+        case .none: return "Off"
+        case .clock: return "Clock"
+        case .streak: return "Streak"
+        }
+    }
+}
+
 struct NinePrefs: Codable, Sendable, Equatable {
     /// Off is the statement (PRD §3).
     var showTimer = false
@@ -70,6 +100,10 @@ struct NinePrefs: Codable, Sendable, Equatable {
     var appearance: AppearanceChoice = .auto
     /// Launch straight back into a board in progress.
     var resumeOnLaunch = true
+    /// iOS board position; an edge anchor frees one contiguous band for PiP.
+    var boardAnchor: BoardAnchor = .center
+    /// iOS ambient chip in the free band; off by default.
+    var ambientSlot: AmbientSlot = .none
 
     init() {}
 
@@ -85,6 +119,8 @@ struct NinePrefs: Codable, Sendable, Equatable {
         controlsAtBottom = try c.decodeIfPresent(Bool.self, forKey: .controlsAtBottom) ?? true
         appearance = try c.decodeIfPresent(AppearanceChoice.self, forKey: .appearance) ?? .auto
         resumeOnLaunch = try c.decodeIfPresent(Bool.self, forKey: .resumeOnLaunch) ?? true
+        boardAnchor = try c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor) ?? .center
+        ambientSlot = try c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot) ?? .none
     }
 }
 

@@ -269,18 +269,19 @@ struct TouchGameScreen: View {
             let controlsAtBottom = model.prefs.controlsAtBottom
             let side = max(200, min(geo.size.width - 2 * boardInset - 16,
                                     geo.size.height - 76 - 2 * boardInset - 16))
+            let freeSpace = geo.size.height - (side + 2 * boardInset + 16) - 76
 
             VStack(spacing: 12) {
                 if controlsAtBottom {
-                    Spacer(minLength: 0)
+                    band(.top, freeSpace: freeSpace)
                     boardArea(side: side, inset: boardInset)
-                    Spacer(minLength: 0)
+                    band(.bottom, freeSpace: freeSpace)
                     controlBar
                 } else {
                     controlBar
-                    Spacer(minLength: 0)
+                    band(.top, freeSpace: freeSpace)
                     boardArea(side: side, inset: boardInset)
-                    Spacer(minLength: 0)
+                    band(.bottom, freeSpace: freeSpace)
                 }
             }
             .padding(.horizontal, 8)
@@ -328,6 +329,46 @@ struct TouchGameScreen: View {
         }
         .padding(model.prefs.controlsAtBottom ? .bottom : .top, 8)
         .padding(.horizontal, 6)
+    }
+
+    /// One of the two flexible bands around the board (PRD-2). The band on
+    /// the anchored edge collapses — a zero-height element rather than
+    /// nothing, so the VStack's 12pt spacing stays symmetric — and all free
+    /// space collects in the other band, where a system PiP window can park.
+    /// The board anchors to screen edges; the control bar never moves.
+    @ViewBuilder
+    private func band(_ edge: VerticalEdge, freeSpace: CGFloat) -> some View {
+        let anchor = model.prefs.boardAnchor
+        if (anchor == .top && edge == .top) || (anchor == .bottom && edge == .bottom) {
+            Spacer().frame(height: 0)
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay {
+                    if showAmbient(in: edge, freeSpace: freeSpace) {
+                        AmbientSlotView(model: model)
+                    }
+                }
+        }
+    }
+
+    /// The ambient chip lives in the band opposite the anchor — opposite the
+    /// control bar when centered, so turning it on is never a silent no-op —
+    /// and only when the band is tall enough and the composing chip (which
+    /// overlays at .top) is down.
+    private func showAmbient(in edge: VerticalEdge, freeSpace: CGFloat) -> Bool {
+        guard model.prefs.ambientSlot != .none, model.composing == nil else { return false }
+        let anchor = model.prefs.boardAnchor
+        let ambientEdge: VerticalEdge
+        switch anchor {
+        case .top: ambientEdge = .bottom
+        case .bottom: ambientEdge = .top
+        case .center: ambientEdge = model.prefs.controlsAtBottom ? .top : .bottom
+        }
+        guard edge == ambientEdge else { return false }
+        // Centered boards split the free space between both bands.
+        let bandHeight = anchor == .center ? freeSpace / 2 : freeSpace
+        return bandHeight >= 100
     }
 
     /// While a replacement board is composed (New game in the sheet), the
@@ -582,6 +623,42 @@ struct TouchRose: View {
 }
 
 // MARK: - Chrome atoms
+
+/// The one optional ambient element (PRD-2): a dim, non-interactive chip
+/// centered in the free band. Deliberately inert — no transitions, taps pass
+/// through to whatever is behind; the minute tick is a plain text swap and
+/// the streak text only changes on solve, so nothing moves during play.
+private struct AmbientSlotView: View {
+    let model: AppModel
+
+    var body: some View {
+        Group {
+            switch model.prefs.ambientSlot {
+            case .none:
+                EmptyView()
+            case .clock:
+                TimelineView(.everyMinute) { timeline in
+                    GlassChip(
+                        timeline.date.formatted(date: .omitted, time: .shortened),
+                        systemImage: "clock"
+                    )
+                }
+            case .streak:
+                GlassChip(streakText, systemImage: "flame")
+            }
+        }
+        .opacity(0.5)
+        .allowsHitTesting(false)
+    }
+
+    /// Mirrors the home header: each part appears once it's nonzero.
+    private var streakText: String {
+        var parts: [String] = []
+        if model.totalPoints > 0 { parts.append("\(model.totalPoints) pts") }
+        if model.displayedStreak > 0 { parts.append("\(model.displayedStreak) day streak") }
+        return parts.isEmpty ? "No solves yet" : parts.joined(separator: " · ")
+    }
+}
 
 /// A circular glass icon button sized for fingers (44pt minimum hit target).
 struct GlassIconButton: View {

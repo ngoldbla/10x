@@ -62,16 +62,6 @@ struct PrefsSheetContent: View {
 
             #if os(iOS)
             prefRow(
-                title: "Controls",
-                detail: model.prefs.controlsAtBottom ? "Bottom" : "Top",
-                symbol: model.prefs.controlsAtBottom
-                    ? "inset.filled.bottomthird.square"
-                    : "inset.filled.topthird.square"
-            ) {
-                model.prefs.controlsAtBottom.toggle()
-            }
-
-            prefRow(
                 title: "Appearance",
                 detail: model.prefs.appearance.title,
                 symbol: appearanceSymbol
@@ -87,6 +77,43 @@ struct PrefsSheetContent: View {
                 symbol: model.prefs.resumeOnLaunch ? "play.circle.fill" : "play.circle"
             ) {
                 model.prefs.resumeOnLaunch.toggle()
+            }
+
+            // PRD-2: board anchor + ambient slot, grouped with the existing
+            // control-placement pref — all three decide where things sit.
+            Text("Layout")
+                .font(CouchTypography.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 28 * CouchScale.chrome)
+
+            prefRow(
+                title: "Controls",
+                detail: model.prefs.controlsAtBottom ? "Bottom" : "Top",
+                symbol: model.prefs.controlsAtBottom
+                    ? "inset.filled.bottomthird.square"
+                    : "inset.filled.topthird.square"
+            ) {
+                model.prefs.controlsAtBottom.toggle()
+            }
+
+            prefRow(
+                title: "Board position",
+                detail: model.prefs.boardAnchor.title,
+                symbol: boardAnchorSymbol
+            ) {
+                let all = BoardAnchor.allCases
+                let index = all.firstIndex(of: model.prefs.boardAnchor) ?? 0
+                model.prefs.boardAnchor = all[(index + 1) % all.count]
+            }
+
+            prefRow(
+                title: "Ambient display",
+                detail: model.prefs.ambientSlot.title,
+                symbol: ambientSlotSymbol
+            ) {
+                let all = AmbientSlot.allCases
+                let index = all.firstIndex(of: model.prefs.ambientSlot) ?? 0
+                model.prefs.ambientSlot = all[(index + 1) % all.count]
             }
             #endif
 
@@ -117,6 +144,24 @@ struct PrefsSheetContent: View {
         case .auto: return "circle.lefthalf.filled"
         case .dark: return "moon.fill"
         case .light: return "sun.max.fill"
+        }
+    }
+
+    // PRD-2 suggested inset.filled.tophalf.square — that name doesn't exist
+    // in the SF catalog; the square.*half.filled family does.
+    private var boardAnchorSymbol: String {
+        switch model.prefs.boardAnchor {
+        case .top: return "square.tophalf.filled"
+        case .center: return "square.inset.filled"
+        case .bottom: return "square.bottomhalf.filled"
+        }
+    }
+
+    private var ambientSlotSymbol: String {
+        switch model.prefs.ambientSlot {
+        case .none: return "circle.slash"
+        case .clock: return "clock"
+        case .streak: return "flame"
         }
     }
     #endif

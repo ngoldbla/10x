@@ -38,6 +38,12 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   10k for a nightly lane.
 - **Prefs sheet focus:** `.couchRemote` detaches while the GlassSheet is up
   so tvOS focus can reach the sheet's buttons (COUCHKIT-ASKS.md #3).
+- **Board-position symbols (PRD-2 §4):** the PRD's primary picks
+  `inset.filled.tophalf.square` / `inset.filled.bottomhalf.square` don't
+  exist in the SF catalog (checked against the system symbol set). Used the
+  `square.tophalf.filled` / `square.inset.filled` / `square.bottomhalf.filled`
+  family instead — closer to the existing Controls-row icons than the
+  PRD's arrow fallbacks.
 - **Prefs on four-way remotes:** `.playPauseLongPress` is only emitted by the
   8-way GameController reader, so four-way remotes could never reach the
   sheet. Added rule: *hold-click on a cell you can't write in* (a given or a
