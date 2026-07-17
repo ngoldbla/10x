@@ -262,6 +262,12 @@ struct TouchGameScreen: View {
     /// Sticky on purpose — it survives placements so you can chase one
     /// number around the grid; tapping a cell of the same digit clears it.
     @State private var highlightedDigit: Int?
+    /// Afterglow: the haptic score and the gravity-tilt source live in the
+    /// view layer — AppModel is platform-shared logic; this is presentation.
+    @State private var haptics = AfterglowHaptics()
+    @State private var motion = AfterglowMotion()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         GeometryReader { geo in
@@ -299,13 +305,36 @@ struct TouchGameScreen: View {
                 }
             }
         }
+        .onChange(of: model.solvedAt) { _, solved in
+            guard solved != nil else { return }
+            // The haptic score plays even under Reduce Motion (haptics are
+            // not motion; platform convention) — the gyro trophy does not.
+            haptics.playSolveScore()
+            if !reduceMotion { motion.start() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                if model.solvedAt != nil, !reduceMotion { motion.start() }
+            } else {
+                haptics.stop()
+                motion.stop()
+            }
+        }
+        .onDisappear {
+            haptics.stop()
+            motion.stop()
+        }
     }
 
     // MARK: Chrome
 
     private var controlBar: some View {
         HStack(spacing: 10) {
-            GlassIconButton(symbol: "chevron.left", label: "Home") { model.goHome() }
+            GlassIconButton(symbol: "chevron.left", label: "Home") {
+                haptics.stop()
+                motion.stop()
+                model.goHome()
+            }
             Spacer()
             timerChip
             Spacer()
@@ -434,6 +463,10 @@ struct TouchGameScreen: View {
                 previewDigit: nil, // touch petals are direct — nothing to preview
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
+                // Afterglow: the wave detonates from the winning cell, and
+                // after the sweep the gyro steers the trophy sheen.
+                waveOrigin: model.lastPlacedCell,
+                afterglowTilt: { motion.tilt(at: $0) },
                 side: side,
                 inset: inset
             )

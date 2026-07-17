@@ -94,6 +94,23 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   the actual gesture. Prefs decoding is now field-tolerant so 1.0 settings
   survive the upgrade.
 
+## PRD-1 — Afterglow (win celebration)
+
+- **Suite-first frameworks:** Afterglow introduces the suite's first Metal
+  shaders (`Afterglow.metal`, SwiftUI `layerEffect`), first CoreHaptics use
+  (`AfterglowHaptics`, iPhone-gated by `supportsHaptics`) and first
+  CoreMotion use (`AfterglowMotion`, gravity only — no permission, no
+  Info.plist key, not on the required-reason API list; privacy manifest
+  unchanged).
+- **Solved-board render loop now pauses:** pre-Afterglow, BoardView's
+  post-solve `TimelineView` ran at 60fps forever. It now pauses once the
+  celebration settles (tvOS: after the sheen fades, ~6.5s; Reduce Motion:
+  after the wave). The iOS trophy keeps polling the gyro until the screen
+  goes away — that's the feature.
+- **Trophy handoff blend:** the PRD's "blend from sweep over its last 15%"
+  blends position, tilt *and* strength (sweep 0.35 → trophy 0.30) so no
+  visible level jump accompanies the handoff.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

@@ -154,6 +154,9 @@ final class AppModel {
     /// Set the instant the last correct digit lands; drives the luminance
     /// wave and the calm completion chip.
     private(set) var solvedAt: Date?
+    /// The cell of the most recent placement — at `finishSolve()` this is
+    /// the winning cell by definition, and the Afterglow wave's origin.
+    private(set) var lastPlacedCell: Int?
     /// A puzzle is being composed off-main (Sharp can take a few seconds).
     private(set) var composing: GameKind?
 
@@ -260,7 +263,17 @@ final class AppModel {
         self.game = g
         self.kind = kind
         self.solvedAt = nil
+        self.lastPlacedCell = nil
         self.screen = .game
+        #if DEBUG
+        // Simulator rig (never compiled into Release): launching with
+        // --debug-fill brings any board one digit from the win, so the
+        // completion flow is testable on tvOS too, where the long-press-Undo
+        // rig doesn't exist. The final digit is still placed by hand.
+        if ProcessInfo.processInfo.arguments.contains("--debug-fill") {
+            debugFillAlmostAll()
+        }
+        #endif
     }
 
     private func compose(kind: GameKind, seed: UInt64, difficulty: Difficulty) {
@@ -283,6 +296,7 @@ final class AppModel {
         guard solvedAt == nil, var g = game else { return }
         guard g.place(digit, at: cell) else { return }
         game = g
+        lastPlacedCell = cell
         if g.isSolved {
             finishSolve()
         } else {
