@@ -5,6 +5,7 @@ app_identifier([
   "com.couchsuite.rabbitears",
   "com.couchsuite.darkroom",
   "com.couchsuite.nine",
+  "com.couchsuite.nine.widgets",
   "com.couchsuite.blockhead",
   "com.couchsuite.cartridge"
 ])

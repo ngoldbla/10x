@@ -17,11 +17,17 @@ targets:
     sources:
       - Sources/App
       - Sources/Engine
+      - Sources/Shared
       - Assets.xcassets
       - path: PrivacyInfo.xcprivacy
         buildPhase: resources
     dependencies:
       - package: CouchKit
+      # The widget family ships on iOS only; embedding into the tvOS app
+      # would break tvOS signing (PRD-3 §5).
+      - target: NineWidgets
+        embed: true
+        destinationFilters: [iOS]
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -41,6 +47,10 @@ targets:
         # match names tvOS profiles with a "tvos" suffix; iOS gets the default.
         "PROVISIONING_PROFILE_SPECIFIER[sdk=appletvos*]": "match AppStore com.couchsuite.nine tvos"
         "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "match AppStore com.couchsuite.nine"
+        # iOS adds the app group (widget snapshot); the checked-in file keeps
+        # the generated tvOS entitlements byte-identical (PRD-3 §3a).
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Nine-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Nine-iOS.entitlements
     entitlements:
       path: Nine.entitlements
       properties:
@@ -55,6 +65,10 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Widgets deep-link into today's daily via nine://daily.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.couchsuite.nine
+            CFBundleURLSchemes: [nine]
         # iOS-only keys (ignored by tvOS): no storyboard — an empty modern
         # launch screen inherits the window background. Appearance follows
         # the system (or the in-app Appearance pref) since 1.1.
@@ -66,3 +80,45 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+
+  # The Home Screen / Lock Screen widget family (PRD-3). iOS only — never in
+  # the tvOS dependency graph. Reads the app-group snapshot; CouchKit is not
+  # linked (Sources/Shared is pure Foundation).
+  NineWidgets:
+    type: app-extension
+    supportedDestinations: [iOS]
+    deploymentTarget:
+      iOS: "18.0"
+    sources:
+      # xcodegen classifies the .xcprivacy inside Sources/Widgets as a
+      # resource automatically.
+      - Sources/Widgets
+      - Sources/Shared
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.nine.widgets
+        # ASC requires the extension's CFBundleShortVersionString to equal
+        # the app's; CURRENT_PROJECT_VERSION stays in lockstep via the
+        # project-wide xcargs the Fastfile passes.
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: true
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        DEVELOPMENT_TEAM: ${COUCH_TEAM_ID}
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "match AppStore com.couchsuite.nine.widgets"
+    entitlements:
+      path: NineWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.couchsuite.nine
+    info:
+      path: WidgetsInfo.plist
+      properties:
+        CFBundleDisplayName: Nine
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
