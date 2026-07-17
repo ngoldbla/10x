@@ -75,7 +75,10 @@ struct GameScreen: View {
                 // Same-number highlight, remote grammar: parking the cursor
                 // on a digit lights up all of its kind (notes included).
                 highlightDigit: model.prefs.numberHighlight && game.entry(at: cursor) != 0
-                    ? game.entry(at: cursor) : nil
+                    ? game.entry(at: cursor) : nil,
+                // Afterglow: the wave detonates from the winning cell; no
+                // tilt source on tvOS — the sheen settles and the loop stops.
+                waveOrigin: model.lastPlacedCell
             )
             .overlay {
                 if let rose {

@@ -38,6 +38,12 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   10k for a nightly lane.
 - **Prefs sheet focus:** `.couchRemote` detaches while the GlassSheet is up
   so tvOS focus can reach the sheet's buttons (COUCHKIT-ASKS.md #3).
+- **Board-position symbols (PRD-2 §4):** the PRD's primary picks
+  `inset.filled.tophalf.square` / `inset.filled.bottomhalf.square` don't
+  exist in the SF catalog (checked against the system symbol set). Used the
+  `square.tophalf.filled` / `square.inset.filled` / `square.bottomhalf.filled`
+  family instead — closer to the existing Controls-row icons than the
+  PRD's arrow fallbacks.
 - **Prefs on four-way remotes:** `.playPauseLongPress` is only emitted by the
   8-way GameController reader, so four-way remotes could never reach the
   sheet. Added rule: *hold-click on a cell you can't write in* (a given or a
@@ -87,6 +93,23 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   (goal → place → pencil → highlight → difficulty guide), each advancing on
   the actual gesture. Prefs decoding is now field-tolerant so 1.0 settings
   survive the upgrade.
+
+## PRD-1 — Afterglow (win celebration)
+
+- **Suite-first frameworks:** Afterglow introduces the suite's first Metal
+  shaders (`Afterglow.metal`, SwiftUI `layerEffect`), first CoreHaptics use
+  (`AfterglowHaptics`, iPhone-gated by `supportsHaptics`) and first
+  CoreMotion use (`AfterglowMotion`, gravity only — no permission, no
+  Info.plist key, not on the required-reason API list; privacy manifest
+  unchanged).
+- **Solved-board render loop now pauses:** pre-Afterglow, BoardView's
+  post-solve `TimelineView` ran at 60fps forever. It now pauses once the
+  celebration settles (tvOS: after the sheen fades, ~6.5s; Reduce Motion:
+  after the wave). The iOS trophy keeps polling the gyro until the screen
+  goes away — that's the feature.
+- **Trophy handoff blend:** the PRD's "blend from sweep over its last 15%"
+  blends position, tilt *and* strength (sweep 0.35 → trophy 0.30) so no
+  visible level jump accompanies the handoff.
 
 ## Kept
 
