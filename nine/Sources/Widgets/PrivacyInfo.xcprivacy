@@ -9,6 +9,17 @@
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
-	<array/>
+	<array>
+		<!-- Ephemeral cell selection in the app-group UserDefaults
+		     (PRD-3 §4). -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

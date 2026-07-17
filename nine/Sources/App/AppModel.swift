@@ -202,6 +202,10 @@ final class AppModel {
         #if os(iOS)
         // Fewer taps to the board: a launch with a board in progress goes
         // straight back to it. The home chevron is one tap away.
+        // Widget moves made while the app was dead merge in before anything
+        // reads the autosave slot (and before the publish below can write a
+        // stale board over them).
+        ingestSharedDailyBoard()
         if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
             resume(game, kind: kind)
         }
@@ -236,6 +240,10 @@ final class AppModel {
     // MARK: - Starting games
 
     func openToday() {
+        #if os(iOS)
+        // A widget move can be seconds old; merge before resuming.
+        ingestSharedDailyBoard()
+        #endif
         let day = todayOrdinal
         if let inProgress = savedDaily {
             resume(inProgress, kind: .daily(day: day))
@@ -256,9 +264,16 @@ final class AppModel {
     /// Drop the saved in-progress board without playing it (the Continue
     /// card's discard control). The current on-screen game is untouched.
     func discardSaved() {
+        #if os(iOS)
+        let wasDaily = if case .daily? = saved.kind { true } else { false }
+        #endif
         saved = SaveSlot()
         try? saveStore.flushNow()
         #if os(iOS)
+        // A discarded daily must not resurrect from the shared board file.
+        if wasDaily {
+            WidgetBridge.clearDailyBoard(today: todayOrdinal)
+        }
         WidgetBridge.publish(from: self)
         #endif
     }
@@ -389,6 +404,82 @@ final class AppModel {
         WidgetBridge.publish(from: self)
         #endif
     }
+
+    #if os(iOS)
+    // MARK: - Widget board ingestion (PRD-3 §4)
+
+    /// Adopt the shared daily board when the widget moved it forward. Runs
+    /// on launch, on scene activation and before opening today's daily, so
+    /// the app never plays over widget moves. A solve made in the widget is
+    /// recorded here — exactly once — into streak/history/Game Center.
+    func ingestSharedDailyBoard() {
+        // Invariant repair: a solved, already-recorded daily never lives in
+        // the autosave slot (finishSolve frees it). Clear one if found so
+        // resumeOnLaunch/openToday can't land on a finished board.
+        if let game = saved.game, game.isSolved,
+           case .daily(let day)? = saved.kind, streak.hasCompleted(day: day) {
+            saved = SaveSlot()
+            try? saveStore.flushNow()
+        }
+        guard let shared = SharedDailyBoardStore.load(),
+              shared.isCurrent(today: todayOrdinal),
+              shared.revision > WidgetBridge.knownBoardRevision
+        else { return }
+        WidgetBridge.knownBoardRevision = shared.revision
+
+        if let pending = shared.pendingSolve {
+            // Solved entirely in the widget. recordCompletion is idempotent
+            // per day, and pendingSolve is cleared below, so a same-day
+            // re-ingest no-ops.
+            if !streak.hasCompleted(day: shared.dayOrdinal) {
+                streak.recordCompletion(day: shared.dayOrdinal)
+                try? streakStore.flushNow()
+                let record = SolveRecord(
+                    date: pending.solvedAt,
+                    difficulty: .steady, // the daily composes at steady
+                    isDaily: true,
+                    seconds: pending.seconds,
+                    points: SolveScore.points(
+                        difficulty: .steady, isDaily: true,
+                        streak: streak.current, seconds: pending.seconds
+                    )
+                )
+                history.record(record)
+                try? historyStore.flushNow()
+                GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+            }
+            // The board is done; free the slot and clear the pending flag.
+            if case .daily? = saved.kind { saved = SaveSlot() }
+            try? saveStore.flushNow()
+            var cleared = shared
+            cleared.pendingSolve = nil
+            cleared.revision += 1
+            cleared.updatedAt = Date()
+            WidgetBridge.knownBoardRevision = cleared.revision
+            try? SharedDailyBoardStore.save(cleared)
+            // Mid-play on the same daily? Show the finished board calmly.
+            if screen == .game, case .daily(let day)? = kind, day == shared.dayOrdinal {
+                game = shared.game
+                solvedAt = pending.solvedAt
+            }
+        } else if !shared.game.isSolved {
+            // Widget moves flow into the autosave, undo stack included.
+            saved = SaveSlot(game: shared.game, kind: .daily(day: shared.dayOrdinal))
+            try? saveStore.flushNow()
+            if screen == .game, solvedAt == nil,
+               case .daily(let day)? = kind, day == shared.dayOrdinal {
+                var g = shared.game
+                g.timer.start(at: Date())
+                game = g
+            }
+        }
+        // (A solved board with no pendingSolve is already recorded — nothing
+        // to adopt; the autosave slot stays free, per finishSolve.)
+        // Re-publish so the glanceable widgets swap the widget's optimistic
+        // facts for the recorded truth (points included).
+        WidgetBridge.publish(from: self)
+    }
+    #endif
 
     #if DEBUG
     /// Test-only (never compiled into Release): fill every unsolved cell but
