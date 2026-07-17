@@ -82,8 +82,9 @@ targets:
           - UIInterfaceOrientationLandscapeRight
 
   # The Home Screen / Lock Screen widget family (PRD-3). iOS only — never in
-  # the tvOS dependency graph. Reads the app-group snapshot; CouchKit is not
-  # linked (Sources/Shared is pure Foundation).
+  # the tvOS dependency graph. Phase 3b compiles the Engine in (real
+  # `place()` runs in-process; the CouchKit package is linked for CouchCore)
+  # but the widget never runs the generator — extension budget is ~30MB.
   NineWidgets:
     type: app-extension
     supportedDestinations: [iOS]
@@ -94,6 +95,9 @@ targets:
       # resource automatically.
       - Sources/Widgets
       - Sources/Shared
+      - Sources/Engine
+    dependencies:
+      - package: CouchKit
     settings:
       base:
         SWIFT_VERSION: "6.0"

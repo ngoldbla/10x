@@ -23,6 +23,10 @@ let package = Package(
         // the Engine originals it deliberately duplicates.
         .target(
             name: "NineShared",
+            // SharedDailyBoard carries the Engine's NineGame; in the app and
+            // widget targets the Engine compiles in directly, here it's a
+            // module dependency.
+            dependencies: ["NineEngine"],
             path: "Sources/Shared"
         ),
         .testTarget(

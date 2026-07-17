@@ -46,11 +46,17 @@ struct RootView: View {
                 model.openToday()
             }
         }
-        // Belt-and-braces publish on backgrounding, so the Home Screen is
-        // fresh the moment the app leaves it.
+        // Coming forward: merge any widget moves first (PRD-3 §4). Going
+        // back: belt-and-braces publish so the Home Screen is fresh the
+        // moment the app leaves it.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background {
+            switch phase {
+            case .active:
+                model.ingestSharedDailyBoard()
+            case .background:
                 WidgetBridge.publish(from: model)
+            default:
+                break
             }
         }
         #endif
