@@ -121,6 +121,62 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(decoded, game)
     }
 
+    // MARK: - Move log (solve-replay groundwork)
+
+    func testMoveLogRecordsPlacePencilEraseInOrder() {
+        let digit = puzzle.solution[hole]
+        game.togglePencil(3, at: hole)
+        game.place(digit, at: hole)
+        game.erase(at: hole)
+        XCTAssertEqual(game.moveLog, [
+            LoggedMove(kind: .pencil, cell: hole, digit: 3),
+            LoggedMove(kind: .place, cell: hole, digit: digit),
+            LoggedMove(kind: .erase, cell: hole, digit: digit),
+        ])
+    }
+
+    func testUndoAppendsAnEventAndNeverPopsTheLog() {
+        let digit = puzzle.solution[hole]
+        game.place(digit, at: hole)
+        game.undo()
+        game.place(digit, at: hole)
+        XCTAssertEqual(game.moveLog, [
+            LoggedMove(kind: .place, cell: hole, digit: digit),
+            LoggedMove(kind: .undo, cell: hole, digit: digit),
+            LoggedMove(kind: .place, cell: hole, digit: digit),
+        ], "a replay must retrace the true path, corrections included")
+    }
+
+    func testRejectedMovesAndEmptyUndoAreNotLogged() {
+        let given = (0..<81).first { puzzle.puzzle[$0] != 0 }!
+        game.place(5, at: given) // rejected: given cell
+        game.togglePencil(5, at: given) // rejected: given cell
+        game.erase(at: hole) // rejected: already empty
+        game.undo() // rejected: empty stack
+        XCTAssertTrue(game.moveLog.isEmpty)
+    }
+
+    func testMoveLogSurvivesSerializationRoundTrip() throws {
+        game.place(puzzle.solution[hole], at: hole)
+        game.undo()
+        let decoded = try CouchJSON.decode(NineGame.self, from: CouchJSON.encode(game))
+        XCTAssertEqual(decoded.moveLog, game.moveLog)
+    }
+
+    func testLegacySaveWithoutMoveLogDecodesToEmptyLog() throws {
+        // A 1.1-era autosave blob has no `moveLog` key. Decoding must not
+        // throw (CouchStored discards the whole save when it does) and the
+        // log must come back empty.
+        game.place(puzzle.solution[hole], at: hole)
+        let data = try CouchJSON.encode(game)
+        var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        object.removeValue(forKey: "moveLog")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try CouchJSON.decode(NineGame.self, from: legacy)
+        XCTAssertTrue(decoded.moveLog.isEmpty)
+        XCTAssertEqual(decoded.entries, game.entries, "board state restores intact")
+    }
+
     // MARK: - Timer (injectable clock)
 
     func testElapsedTimerWithInjectedClock() {

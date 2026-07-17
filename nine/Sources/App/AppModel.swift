@@ -57,6 +57,36 @@ enum AppearanceChoice: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Where the board parks vertically on iOS (PRD-2). Anchoring to an edge
+/// collects all free space in one contiguous band — room for a system
+/// Picture-in-Picture window to sit without covering the grid. tvOS ignores
+/// this (the enum is platform-neutral only so prefs decode everywhere).
+enum BoardAnchor: String, Codable, Sendable, CaseIterable {
+    case top, center, bottom
+
+    var title: String {
+        switch self {
+        case .top: return "Top"
+        case .center: return "Center"
+        case .bottom: return "Bottom"
+        }
+    }
+}
+
+/// The optional ambient chip parked in the band opposite the board (PRD-2):
+/// a clock, or points + streak. Off is the default and the statement.
+enum AmbientSlot: String, Codable, Sendable, CaseIterable {
+    case none, clock, streak
+
+    var title: String {
+        switch self {
+        case .none: return "Off"
+        case .clock: return "Clock"
+        case .streak: return "Streak"
+        }
+    }
+}
+
 struct NinePrefs: Codable, Sendable, Equatable {
     /// Off is the statement (PRD §3).
     var showTimer = false
@@ -70,6 +100,10 @@ struct NinePrefs: Codable, Sendable, Equatable {
     var appearance: AppearanceChoice = .auto
     /// Launch straight back into a board in progress.
     var resumeOnLaunch = true
+    /// iOS board position; an edge anchor frees one contiguous band for PiP.
+    var boardAnchor: BoardAnchor = .center
+    /// iOS ambient chip in the free band; off by default.
+    var ambientSlot: AmbientSlot = .none
 
     init() {}
 
@@ -85,6 +119,8 @@ struct NinePrefs: Codable, Sendable, Equatable {
         controlsAtBottom = try c.decodeIfPresent(Bool.self, forKey: .controlsAtBottom) ?? true
         appearance = try c.decodeIfPresent(AppearanceChoice.self, forKey: .appearance) ?? .auto
         resumeOnLaunch = try c.decodeIfPresent(Bool.self, forKey: .resumeOnLaunch) ?? true
+        boardAnchor = try c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor) ?? .center
+        ambientSlot = try c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot) ?? .none
     }
 }
 
@@ -118,6 +154,9 @@ final class AppModel {
     /// Set the instant the last correct digit lands; drives the luminance
     /// wave and the calm completion chip.
     private(set) var solvedAt: Date?
+    /// The cell of the most recent placement — at `finishSolve()` this is
+    /// the winning cell by definition, and the Afterglow wave's origin.
+    private(set) var lastPlacedCell: Int?
     /// A puzzle is being composed off-main (Sharp can take a few seconds).
     private(set) var composing: GameKind?
 
@@ -224,7 +263,17 @@ final class AppModel {
         self.game = g
         self.kind = kind
         self.solvedAt = nil
+        self.lastPlacedCell = nil
         self.screen = .game
+        #if DEBUG
+        // Simulator rig (never compiled into Release): launching with
+        // --debug-fill brings any board one digit from the win, so the
+        // completion flow is testable on tvOS too, where the long-press-Undo
+        // rig doesn't exist. The final digit is still placed by hand.
+        if ProcessInfo.processInfo.arguments.contains("--debug-fill") {
+            debugFillAlmostAll()
+        }
+        #endif
     }
 
     private func compose(kind: GameKind, seed: UInt64, difficulty: Difficulty) {
@@ -247,6 +296,7 @@ final class AppModel {
         guard solvedAt == nil, var g = game else { return }
         guard g.place(digit, at: cell) else { return }
         game = g
+        lastPlacedCell = cell
         if g.isSolved {
             finishSolve()
         } else {

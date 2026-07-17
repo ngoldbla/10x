@@ -55,6 +55,13 @@ struct BoardView: View {
     /// pencil note of it — gets an accent wash, so tapping a 9 shows all
     /// nine 9s (and where you've penciled them).
     var highlightDigit: Int? = nil
+    /// Origin cell of the Afterglow shockwave — the winning placement.
+    /// Nil (or Reduce Motion) keeps the classic diagonal luminance wave.
+    var waveOrigin: Int? = nil
+    /// Polled once per frame while the solved board is a glass trophy;
+    /// returns device tilt (gravity delta from a baseline pose) steering the
+    /// specular sheen. Nil on tvOS: the sheen settles and the loop pauses.
+    var afterglowTilt: (@MainActor (Date) -> SIMD2<Double>)? = nil
     /// Side length of the drawing plane. The TV board is fixed at 900pt; the
     /// touch board passes whatever the screen affords, and every drawing
     /// constant below scales off `side / 900`.
@@ -67,6 +74,11 @@ struct BoardView: View {
     private static let inkText = Color(red: 0.17, green: 0.16, blue: 0.14)
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The celebration has reached its resting state — nothing animates
+    /// anymore, so the 60fps timeline can stop (tvOS and Reduce Motion; the
+    /// iOS trophy keeps polling the gyro until the screen goes away).
+    @State private var afterglowSettled = false
 
     /// Light mode flips the board's neutral tones; the accent stays put.
     private var isLight: Bool { colorScheme == .light }
@@ -74,17 +86,96 @@ struct BoardView: View {
     private var digitTone: Color { isLight ? Self.inkText : CouchPalette.paper }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil || afterglowSettled)) { timeline in
+            let phase = afterglowPhase(now: timeline.date)
+            // Both layer effects apply to the Canvas only — inside couchGlass
+            // — so digits and grid refract while the glass material and the
+            // void behind it stay optically still.
             Canvas { context, size in
                 draw(in: &context, size: size, now: timeline.date)
             }
+            .layerEffect(
+                ShaderLibrary.afterglowWave(
+                    .float2(originPoint),
+                    .float(phase.waveProgress ?? 0),
+                    .float(maxRadius),
+                    .float(waveAmplitude)
+                ),
+                maxSampleOffset: CGSize(width: waveAmplitude + 4, height: waveAmplitude + 4),
+                isEnabled: phase.waveActive
+            )
+            .layerEffect(
+                ShaderLibrary.afterglowSheen(
+                    .float2(side, side),
+                    .float(phase.sheenPos),
+                    .float2(phase.sheenTilt.x, phase.sheenTilt.y),
+                    .float(phase.sheenStrength)
+                ),
+                maxSampleOffset: CGSize(width: 6, height: 6),
+                isEnabled: phase.sheenActive
+            )
         }
         .frame(width: side, height: side)
         .padding(inset)
         .couchGlass(in: RoundedRectangle(cornerRadius: max(18, 36 * side / BoardMetrics.side), style: .continuous))
         .opacity(roseOpen ? 0.82 : 1.0)
         .animation(.couchFast, value: roseOpen)
+        .task(id: solvedAt) { await settleWhenDone() }
     }
+
+    // MARK: - Afterglow choreography
+
+    /// Everything the shaders need this frame, as a pure function of
+    /// time-since-solve. Reduce Motion never reaches the shaders at all —
+    /// `waveProgress(now:)` keeps today's diagonal luminance path.
+    private func afterglowPhase(now: Date) -> AfterglowPhase {
+        guard let solvedAt, !reduceMotion, waveOrigin != nil else { return AfterglowPhase() }
+        return AfterglowPhase.at(
+            now.timeIntervalSince(solvedAt),
+            tilt: afterglowTilt.map { $0(now) }
+        )
+    }
+
+    /// Flip `afterglowSettled` once the celebration reaches a static frame:
+    /// after the wave under Reduce Motion, after the sheen settles on tvOS.
+    /// The iOS trophy never settles — tilt keeps steering the light until
+    /// the screen goes away. Also fixes the pre-Afterglow behavior where the
+    /// solved board's timeline ran at 60fps forever.
+    private func settleWhenDone() async {
+        afterglowSettled = false
+        guard let solvedAt else { return }
+        let settleAt: TimeInterval?
+        if reduceMotion || waveOrigin == nil {
+            settleAt = AfterglowPhase.waveDuration + 0.1
+        } else if afterglowTilt == nil {
+            settleAt = AfterglowPhase.settleTime
+        } else {
+            settleAt = nil
+        }
+        guard let settleAt else { return }
+        let remaining = settleAt - Date().timeIntervalSince(solvedAt)
+        if remaining > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            if Task.isCancelled { return }
+        }
+        afterglowSettled = true
+    }
+
+    private var originPoint: CGPoint {
+        BoardMetrics.center(of: waveOrigin ?? 40, side: side)
+    }
+
+    /// Distance from the wave origin to the farthest board corner — the
+    /// crest reaches it exactly at the end of the wave, wherever you win.
+    private var maxRadius: CGFloat {
+        let o = originPoint
+        return max(hypot(o.x, o.y),
+                   max(hypot(side - o.x, o.y),
+                       max(hypot(o.x, side - o.y), hypot(side - o.x, side - o.y))))
+    }
+
+    /// Peak refraction displacement in points, scaled with the board.
+    private var waveAmplitude: CGFloat { 16 * side / BoardMetrics.side }
 
     // MARK: - Drawing
 
@@ -158,9 +249,19 @@ struct BoardView: View {
                 let isError = showErrors && game.isError(at: index)
                 if isError { color = Self.coral }
 
-                // Completion wave: a diagonal luminance crest.
+                // Completion wave: a luminance crest. With the Afterglow
+                // shader running, the phase is radial from the winning cell
+                // so the brightening rides the same crest as the refraction;
+                // Reduce Motion (and nil origin) keeps the classic diagonal.
                 if let wave {
-                    let phase = Double(row + col) / 16.0
+                    let phase: Double
+                    if let waveOrigin, !reduceMotion {
+                        let origin = BoardMetrics.center(of: waveOrigin, side: size.width)
+                        let scaledRadius = maxRadius * size.width / side
+                        phase = hypot(center.x - origin.x, center.y - origin.y) / scaledRadius
+                    } else {
+                        phase = Double(row + col) / 16.0
+                    }
                     let boost = max(0, 1 - abs(wave - phase) * 4.5)
                     if boost > 0 {
                         color = gridTone.opacity(0.6 + 0.4 * boost)
@@ -254,5 +355,81 @@ struct BoardView: View {
         let t = now.timeIntervalSince(solvedAt)
         guard t >= 0, t < 2.6 else { return nil }
         return t / 2.6
+    }
+}
+
+/// One frame of the Afterglow celebration, as a pure function of
+/// time-since-solve (PRD-1 §2):
+///
+///   0 – 2.6s   refractive shockwave from the winning cell
+///   2.6 – 5.4s one slow autonomous specular sweep (teaches the affordance)
+///   ≥ 5.4s     glass trophy — gyro steers the sheen (iOS); without tilt
+///              the sheen settles to a faint static and the caller pauses
+struct AfterglowPhase: Equatable {
+    static let waveDuration: TimeInterval = 2.6
+    static let sweepEnd: TimeInterval = 5.4
+    /// When the no-tilt settle (≈1s fade after the sweep) is fully static.
+    static let settleTime: TimeInterval = 6.5
+
+    private static let sweepStrength = 0.35
+    private static let trophyStrength = 0.30
+    private static let staticStrength = 0.12
+
+    var waveProgress: Double?
+    var sheenPos: Double = 0.5
+    var sheenTilt: SIMD2<Double> = .zero
+    var sheenStrength: Double = 0
+
+    var waveActive: Bool { waveProgress != nil }
+    var sheenActive: Bool { sheenStrength > 0.001 }
+
+    static func at(_ t: TimeInterval, tilt: SIMD2<Double>?) -> AfterglowPhase {
+        var phase = AfterglowPhase()
+        guard t >= 0 else { return phase }
+
+        if t < waveDuration {
+            phase.waveProgress = t / waveDuration
+            return phase
+        }
+
+        if t < sweepEnd {
+            let p = (t - waveDuration) / (sweepEnd - waveDuration)
+            phase.sheenPos = smoothstep(p)
+            phase.sheenStrength = sweepStrength
+            if let tilt, p > 0.85 {
+                // Hand off to gyro steering over the sweep's last 15% —
+                // position, tilt and strength all blend so there's no jump.
+                let blend = smoothstep((p - 0.85) / 0.15)
+                phase.sheenPos += (trophyPos(tilt) - phase.sheenPos) * blend
+                phase.sheenTilt = tilt * blend
+                phase.sheenStrength += (trophyStrength - sweepStrength) * blend
+            }
+            return phase
+        }
+
+        if let tilt {
+            phase.sheenPos = trophyPos(tilt)
+            phase.sheenTilt = tilt
+            phase.sheenStrength = trophyStrength
+        } else {
+            // No motion source: glide the light back to rest and dim it —
+            // the last frame before the timeline pauses.
+            let f = smoothstep((t - sweepEnd) / (settleTime - sweepEnd - 0.1))
+            phase.sheenPos = 1.0 + (0.5 - 1.0) * f
+            phase.sheenStrength = sweepStrength + (staticStrength - sweepStrength) * f
+        }
+        return phase
+    }
+
+    /// Tilt is pre-clamped to ±0.35 by AfterglowMotion, so the highlight
+    /// stays within the middle of the board — glass catching light, never
+    /// a gimmick.
+    private static func trophyPos(_ tilt: SIMD2<Double>) -> Double {
+        0.5 + tilt.x * 0.6
+    }
+
+    private static func smoothstep(_ x: Double) -> Double {
+        let t = min(max(x, 0), 1)
+        return t * t * (3 - 2 * t)
     }
 }
