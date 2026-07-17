@@ -27,6 +27,23 @@ public struct NineMove: Sendable, Codable, Equatable {
     }
 }
 
+/// One entry in the append-only move log: what the player did, in order.
+/// Undo is logged as an *event* (never popped), so a future solve replay can
+/// retrace the true path including corrections. No timestamps — order
+/// suffices, and the engine keeps its "no hidden clocks" rule.
+public struct LoggedMove: Sendable, Codable, Equatable {
+    public enum Kind: String, Sendable, Codable { case place, erase, pencil, undo }
+    public let kind: Kind
+    public let cell: Int
+    public let digit: Int
+
+    public init(kind: Kind, cell: Int, digit: Int) {
+        self.kind = kind
+        self.cell = cell
+        self.digit = digit
+    }
+}
+
 /// Play state for one board.
 public struct NineGame: Sendable, Codable, Equatable {
     public let puzzle: GeneratedPuzzle
@@ -36,6 +53,8 @@ public struct NineGame: Sendable, Codable, Equatable {
     public private(set) var pencil: [UInt16]
     public private(set) var undoStack: [NineMove]
     public var timer: ElapsedTimer
+    /// Append-only history of every accepted move (solve-replay groundwork).
+    public private(set) var moveLog: [LoggedMove]
 
     public init(puzzle: GeneratedPuzzle) {
         self.puzzle = puzzle
@@ -43,6 +62,20 @@ public struct NineGame: Sendable, Codable, Equatable {
         self.pencil = [UInt16](repeating: 0, count: 81)
         self.undoStack = []
         self.timer = ElapsedTimer()
+        self.moveLog = []
+    }
+
+    /// Tolerant decoding: CouchStored discards the whole blob when decode
+    /// throws, so any field added after 1.1 must fall back to its default
+    /// instead of destroying a player's in-progress autosave on update.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        puzzle = try c.decode(GeneratedPuzzle.self, forKey: .puzzle)
+        entries = try c.decode([Int].self, forKey: .entries)
+        pencil = try c.decode([UInt16].self, forKey: .pencil)
+        undoStack = try c.decode([NineMove].self, forKey: .undoStack)
+        timer = try c.decode(ElapsedTimer.self, forKey: .timer)
+        moveLog = try c.decodeIfPresent([LoggedMove].self, forKey: .moveLog) ?? []
     }
 
     // MARK: - Queries
@@ -107,6 +140,7 @@ public struct NineGame: Sendable, Codable, Equatable {
             previousEntry: entries[cell], previousPencil: snapshots
         ))
         entries[cell] = digit
+        moveLog.append(LoggedMove(kind: .place, cell: cell, digit: digit))
         return true
     }
 
@@ -120,6 +154,7 @@ public struct NineGame: Sendable, Codable, Equatable {
             previousPencil: [.init(cell: cell, mask: pencil[cell])]
         ))
         pencil[cell] ^= Sudoku.bit(digit)
+        moveLog.append(LoggedMove(kind: .pencil, cell: cell, digit: digit))
         return true
     }
 
@@ -127,11 +162,13 @@ public struct NineGame: Sendable, Codable, Equatable {
     @discardableResult
     public mutating func erase(at cell: Int) -> Bool {
         guard !isGiven(cell), entries[cell] != 0 else { return false }
+        let digit = entries[cell]
         undoStack.append(NineMove(
-            kind: .erase, cell: cell, digit: entries[cell],
-            previousEntry: entries[cell], previousPencil: []
+            kind: .erase, cell: cell, digit: digit,
+            previousEntry: digit, previousPencil: []
         ))
         entries[cell] = 0
+        moveLog.append(LoggedMove(kind: .erase, cell: cell, digit: digit))
         return true
     }
 
@@ -149,6 +186,7 @@ public struct NineGame: Sendable, Codable, Equatable {
         for snapshot in move.previousPencil {
             pencil[snapshot.cell] = snapshot.mask
         }
+        moveLog.append(LoggedMove(kind: .undo, cell: move.cell, digit: move.digit))
         return move
     }
 }
