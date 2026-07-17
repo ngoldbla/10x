@@ -180,3 +180,19 @@ Required GitHub secrets on `ngoldbla/10x`: `COUCH_TEAM_ID`, `ASC_API_KEY_ID`,
 removed. `scripts/testflight.sh` is retained as a manual fallback but CI no
 longer calls it.
 
+
+## Game Center (Nine, one-time — done 2026-07-16)
+
+Nine 1.1 reports to two leaderboards (`com.couchsuite.nine.points`,
+`com.couchsuite.nine.streak`) and seven achievements (`GameCenter.ID` in
+`nine/Sources/App/GameCenter.swift`). The ASC records were created via the App
+Store Connect API by `scripts/setup_gamecenter_nine.rb` (idempotent — safe to
+re-run; reads `~/.appstoreconnect/asc_api_key.json`, runs with Homebrew ruby +
+fastlane's jwt gem: `GEM_PATH=/opt/homebrew/Cellar/fastlane/<v>/libexec
+/opt/homebrew/opt/ruby/bin/ruby scripts/setup_gamecenter_nine.rb`).
+
+Not-yet-released Game Center items work immediately in development and
+TestFlight builds (testers must be signed into Game Center in Settings).
+Before the public App Store release: upload achievement/leaderboard artwork in
+ASC and include Game Center with the version submission — until then the
+dashboard shows placeholder art, which is fine for beta.

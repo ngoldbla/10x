@@ -51,6 +51,10 @@ struct BoardView: View {
     /// Preview at pencil scale, in the note's own keypad slot (rose opened
     /// in pencil mode).
     let previewPencil: Bool
+    /// Same-number highlight: every cell holding this digit — and every
+    /// pencil note of it — gets an accent wash, so tapping a 9 shows all
+    /// nine 9s (and where you've penciled them).
+    var highlightDigit: Int? = nil
     /// Side length of the drawing plane. The TV board is fixed at 900pt; the
     /// touch board passes whatever the screen affords, and every drawing
     /// constant below scales off `side / 900`.
@@ -59,6 +63,15 @@ struct BoardView: View {
     var inset: CGFloat = 28
 
     private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
+    /// Warm near-black for givens on light glass (paper's inverse).
+    private static let inkText = Color(red: 0.17, green: 0.16, blue: 0.14)
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Light mode flips the board's neutral tones; the accent stays put.
+    private var isLight: Bool { colorScheme == .light }
+    private var gridTone: Color { isLight ? .black : .white }
+    private var digitTone: Color { isLight ? Self.inkText : CouchPalette.paper }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil)) { timeline in
@@ -92,7 +105,7 @@ struct BoardView: View {
                 )
                 context.fill(
                     Path(roundedRect: rect, cornerRadius: 6 * scale),
-                    with: .color(.white.opacity(bright ? 0.055 : 0.02))
+                    with: .color(gridTone.opacity(bright ? (isLight ? 0.07 : 0.055) : (isLight ? 0.028 : 0.02)))
                 )
             }
         }
@@ -106,7 +119,21 @@ struct BoardView: View {
             lines.move(to: CGPoint(x: 0, y: offset))
             lines.addLine(to: CGPoint(x: size.width, y: offset))
         }
-        context.stroke(lines, with: .color(.white.opacity(0.05)), lineWidth: 1)
+        context.stroke(lines, with: .color(gridTone.opacity(isLight ? 0.07 : 0.05)), lineWidth: 1)
+
+        // 2.5 Same-number highlight: an accent wash on every cell holding the
+        //     digit. Pencil notes of the digit get their marker below (step 4).
+        if let highlightDigit, solvedAt == nil {
+            for index in 0..<81 where game.entry(at: index) == highlightDigit {
+                let row = index / 9, col = index % 9
+                let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                    .insetBy(dx: 3 * scale, dy: 3 * scale)
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: 12 * scale),
+                    with: .color(accent.opacity(isLight ? 0.28 : 0.22))
+                )
+            }
+        }
 
         // 3. Cursor.
         if solvedAt == nil {
@@ -127,7 +154,7 @@ struct BoardView: View {
 
             if digit != 0 {
                 let isGiven = game.isGiven(index)
-                var color = isGiven ? CouchPalette.paper : accent
+                var color = isGiven ? digitTone : accent
                 let isError = showErrors && game.isError(at: index)
                 if isError { color = Self.coral }
 
@@ -136,7 +163,7 @@ struct BoardView: View {
                     let phase = Double(row + col) / 16.0
                     let boost = max(0, 1 - abs(wave - phase) * 4.5)
                     if boost > 0 {
-                        color = .white.opacity(0.6 + 0.4 * boost)
+                        color = gridTone.opacity(0.6 + 0.4 * boost)
                     }
                 }
 
@@ -162,17 +189,28 @@ struct BoardView: View {
                     context.fill(Path(ellipseIn: dot), with: .color(Self.coral))
                 }
             } else {
-                // Corner notes: a mini 3×3 keypad of pencil digits.
+                // Corner notes: a mini 3×3 keypad of pencil digits. A note of
+                // the highlighted digit gets its own accent halo — penciled
+                // 9s answer "where could the 9s go" at a glance.
                 for mark in game.pencilDigits(at: index) {
                     let mc = CGFloat((mark - 1) % 3), mr = CGFloat((mark - 1) / 3)
                     let point = CGPoint(
                         x: center.x + (mc - 1) * cell * 0.28,
                         y: center.y + (mr - 1) * cell * 0.28
                     )
+                    let highlighted = solvedAt == nil && mark == highlightDigit
+                    if highlighted {
+                        let halo = cell * 0.26
+                        let rect = CGRect(
+                            x: point.x - halo / 2, y: point.y - halo / 2,
+                            width: halo, height: halo
+                        )
+                        context.fill(Path(ellipseIn: rect), with: .color(accent.opacity(isLight ? 0.34 : 0.30)))
+                    }
                     context.draw(
                         Text("\(mark)")
-                            .font(.system(size: 22 * scale, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.55)),
+                            .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(highlighted ? accent : gridTone.opacity(0.55)),
                         at: point
                     )
                 }

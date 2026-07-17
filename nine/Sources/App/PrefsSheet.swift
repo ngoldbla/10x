@@ -1,14 +1,27 @@
 // PrefsSheet.swift — the one allowed secondary surface (suite rule): timer
-// on/off (off is the default and the statement), error-highlight on/off, and
-// the accent tint. Lives inside CouchKit's GlassSheet; Back dismisses.
+// on/off (off is the default and the statement), error-highlight on/off,
+// same-number highlight, the accent tint — and on iOS: appearance, control
+// placement, launch resume, plus a "New game" escape hatch so a difficulty
+// is a choice, not a commitment. Lives inside CouchKit's GlassSheet.
 import SwiftUI
 import CouchKit
 
 struct PrefsSheetContent: View {
     let model: AppModel
+    /// In-game only (iOS): starts a fresh board at the chosen difficulty,
+    /// abandoning the current one. Nil hides the section (tvOS, or no host).
+    var onNewGame: (@MainActor (Difficulty) -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 36) {
+        #if os(tvOS)
+        content
+        #else
+        ScrollView(showsIndicators: false) { content }
+        #endif
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 36 * CouchScale.chrome) {
             Text("Nine")
                 .couchText(CouchTypography.title)
                 .padding(.bottom, 8)
@@ -39,9 +52,51 @@ struct PrefsSheetContent: View {
                 model.prefs.errorHighlight.toggle()
             }
 
+            prefRow(
+                title: "Number highlight",
+                detail: model.prefs.numberHighlight ? "On" : "Off",
+                symbol: model.prefs.numberHighlight ? "9.square.fill" : "9.square"
+            ) {
+                model.prefs.numberHighlight.toggle()
+            }
+
+            #if os(iOS)
+            prefRow(
+                title: "Controls",
+                detail: model.prefs.controlsAtBottom ? "Bottom" : "Top",
+                symbol: model.prefs.controlsAtBottom
+                    ? "inset.filled.bottomthird.square"
+                    : "inset.filled.topthird.square"
+            ) {
+                model.prefs.controlsAtBottom.toggle()
+            }
+
+            prefRow(
+                title: "Appearance",
+                detail: model.prefs.appearance.title,
+                symbol: appearanceSymbol
+            ) {
+                let all = AppearanceChoice.allCases
+                let index = all.firstIndex(of: model.prefs.appearance) ?? 0
+                model.prefs.appearance = all[(index + 1) % all.count]
+            }
+
+            prefRow(
+                title: "Resume on launch",
+                detail: model.prefs.resumeOnLaunch ? "On" : "Off",
+                symbol: model.prefs.resumeOnLaunch ? "play.circle.fill" : "play.circle"
+            ) {
+                model.prefs.resumeOnLaunch.toggle()
+            }
+            #endif
+
             accentRow
 
-            Spacer()
+            if let onNewGame {
+                newGameSection(onNewGame)
+            }
+
+            Spacer(minLength: 12)
 
             #if os(tvOS)
             Text("Press Back to return")
@@ -54,6 +109,46 @@ struct PrefsSheetContent: View {
             #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    #if os(iOS)
+    private var appearanceSymbol: String {
+        switch model.prefs.appearance {
+        case .auto: return "circle.lefthalf.filled"
+        case .dark: return "moon.fill"
+        case .light: return "sun.max.fill"
+        }
+    }
+    #endif
+
+    // MARK: - New game
+
+    private func newGameSection(_ start: @escaping @MainActor (Difficulty) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("New game")
+                .font(CouchTypography.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 28 * CouchScale.chrome)
+            HStack(spacing: 10) {
+                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                    Button {
+                        start(difficulty)
+                    } label: {
+                        Text(difficulty.title)
+                            .font(CouchTypography.caption)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .couchGlassInteractive(in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 28 * CouchScale.chrome)
+            Text("Starts fresh — the current board is abandoned")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 28 * CouchScale.chrome)
+        }
     }
 
     private var accentRow: some View {

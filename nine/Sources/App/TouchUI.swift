@@ -18,6 +18,9 @@ import CouchKit
 struct TouchHomeView: View {
     let model: AppModel
 
+    @State private var showHistory = false
+    @State private var showTutorial = false
+
     var body: some View {
         ZStack {
             ScrollView {
@@ -26,6 +29,7 @@ struct TouchHomeView: View {
                     todayCard
                     continueCard
                     freePlayRow
+                    learnRow
                 }
                 .padding(20)
                 .frame(maxWidth: 560)
@@ -41,18 +45,58 @@ struct TouchHomeView: View {
                 }
             }
         }
+        .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
+        .overlay {
+            if showTutorial {
+                TutorialView(accent: model.prefs.accent.color) {
+                    showTutorial = false
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.couchFast, value: showTutorial)
     }
 
     private var header: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             Text("Nine")
                 .couchText(CouchTypography.title)
             Spacer()
+            if model.totalPoints > 0 {
+                GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
+            }
             if model.displayedStreak > 0 {
                 GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
             }
         }
         .padding(.top, 8)
+    }
+
+    // MARK: Learn + records
+
+    private var learnRow: some View {
+        HStack(spacing: 14) {
+            TouchCard(action: { showTutorial = true }) {
+                VStack(spacing: 10) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("How to play")
+                        .font(CouchTypography.caption)
+                }
+                .frame(maxWidth: .infinity, minHeight: 74)
+            }
+            TouchCard(action: { showHistory = true }) {
+                VStack(spacing: 10) {
+                    Image(systemName: "trophy")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("History")
+                        .font(CouchTypography.caption)
+                }
+                .frame(maxWidth: .infinity, minHeight: 74)
+            }
+        }
     }
 
     // MARK: Today
@@ -108,6 +152,19 @@ struct TouchHomeView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    // Abandon the board: frees the slot so a fresh difficulty
+                    // doesn't feel like a betrayal of this one.
+                    Button {
+                        withAnimation(.couchFast) { model.discardSaved() }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Discard saved game")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -126,7 +183,7 @@ struct TouchHomeView: View {
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
         TouchCard(action: { model.startFree(difficulty) }) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 MiniBoard(difficulty: difficulty, accent: model.prefs.accent.color)
                     .frame(width: 64, height: 64)
                 if model.composing == .free(difficulty) {
@@ -135,9 +192,14 @@ struct TouchHomeView: View {
                     Text(difficulty.title)
                         .font(CouchTypography.caption)
                         .foregroundStyle(.primary)
+                    Text(difficulty.blurb)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 110)
+            .frame(maxWidth: .infinity, minHeight: 124)
         }
     }
 
@@ -196,30 +258,51 @@ struct TouchGameScreen: View {
     @State private var showPrefs = false
     @State private var toast: UndoToastState?
     @State private var toastDismissal: Task<Void, Never>?
+    /// Same-number highlight: the digit currently lit across the board.
+    /// Sticky on purpose — it survives placements so you can chase one
+    /// number around the grid; tapping a cell of the same digit clears it.
+    @State private var highlightedDigit: Int?
 
     var body: some View {
         GeometryReader { geo in
             let boardInset: CGFloat = 12
+            let controlsAtBottom = model.prefs.controlsAtBottom
             let side = max(200, min(geo.size.width - 2 * boardInset - 16,
                                     geo.size.height - 76 - 2 * boardInset - 16))
 
             VStack(spacing: 12) {
-                topBar
-                Spacer(minLength: 0)
-                boardArea(side: side, inset: boardInset)
-                Spacer(minLength: 0)
+                if controlsAtBottom {
+                    Spacer(minLength: 0)
+                    boardArea(side: side, inset: boardInset)
+                    Spacer(minLength: 0)
+                    controlBar
+                } else {
+                    controlBar
+                    Spacer(minLength: 0)
+                    boardArea(side: side, inset: boardInset)
+                    Spacer(minLength: 0)
+                }
             }
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) { toastView.padding(.bottom, 20) }
-            .overlay(alignment: .bottom) { completionChip.padding(.bottom, 64) }
-            .overlay { GlassSheet(isPresented: $showPrefs) { PrefsSheetContent(model: model) } }
+            .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
+            .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
+            .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
+            .overlay {
+                GlassSheet(isPresented: $showPrefs) {
+                    PrefsSheetContent(model: model) { difficulty in
+                        showPrefs = false
+                        highlightedDigit = nil
+                        model.startFree(difficulty)
+                    }
+                }
+            }
         }
     }
 
     // MARK: Chrome
 
-    private var topBar: some View {
+    private var controlBar: some View {
         HStack(spacing: 10) {
             GlassIconButton(symbol: "chevron.left", label: "Home") { model.goHome() }
             Spacer()
@@ -234,10 +317,28 @@ struct TouchGameScreen: View {
                 pencilMode.toggle()
             }
             GlassIconButton(symbol: "arrow.uturn.backward", label: "Undo") { performUndo() }
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 1.2).onEnded { _ in
+                        #if DEBUG
+                        model.debugFillAlmostAll() // test rig; no-op in Release
+                        #endif
+                    }
+                )
             GlassIconButton(symbol: "gearshape", label: "Settings") { showPrefs = true }
         }
-        .padding(.top, 8)
+        .padding(model.prefs.controlsAtBottom ? .bottom : .top, 8)
         .padding(.horizontal, 6)
+    }
+
+    /// While a replacement board is composed (New game in the sheet), the
+    /// old board stays up — this chip is the only sign work is happening,
+    /// so it matters on Sharp, which can take tens of seconds.
+    @ViewBuilder
+    private var composingChip: some View {
+        if model.composing != nil, model.game != nil {
+            GlassChip("Composing…", systemImage: "sparkles")
+                .transition(.opacity)
+        }
     }
 
     @ViewBuilder
@@ -291,6 +392,7 @@ struct TouchGameScreen: View {
                 roseOpen: rose != nil,
                 previewDigit: nil, // touch petals are direct — nothing to preview
                 previewPencil: false,
+                highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 side: side,
                 inset: inset
             )
@@ -345,10 +447,19 @@ struct TouchGameScreen: View {
     // MARK: Touch grammar
 
     private func handleBoardTap(at location: CGPoint, side: CGFloat, inset: CGFloat) {
-        guard model.game != nil, model.solvedAt == nil, rose == nil else { return }
+        guard let game = model.game, model.solvedAt == nil, rose == nil else { return }
         let boardPoint = CGPoint(x: location.x - inset, y: location.y - inset)
         guard let cell = BoardMetrics.cellIndex(at: boardPoint, side: side) else { return }
         cursor = cell
+        // Tap a placed digit → light up all of its kind (notes included).
+        // Tap it again → lights off. Givens are finally tappable: they're
+        // the natural handles for "show me every 9".
+        let digit = game.entry(at: cell)
+        if digit != 0, model.prefs.numberHighlight {
+            withAnimation(.couchFast) {
+                highlightedDigit = (highlightedDigit == digit) ? nil : digit
+            }
+        }
         openRose()
     }
 
@@ -408,7 +519,7 @@ struct TouchGameScreen: View {
 /// flick from anywhere in the rose toward a petal — the same 3×3 keypad
 /// mapping the Siri Remote uses (RoseGeometry), so the muscle memory
 /// transfers between couch and pocket.
-private struct TouchRose: View {
+struct TouchRose: View {
     let state: RoseState
     let accent: Color
     let completedDigits: Set<Int>
@@ -473,7 +584,7 @@ private struct TouchRose: View {
 // MARK: - Chrome atoms
 
 /// A circular glass icon button sized for fingers (44pt minimum hit target).
-private struct GlassIconButton: View {
+struct GlassIconButton: View {
     let symbol: String
     let label: String
     var active = false

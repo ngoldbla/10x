@@ -162,6 +162,27 @@ struct HomeView: View {
 
 #endif
 
+/// What each difficulty demands, in player language — shown on the home
+/// cards and in the tutorial's difficulty guide (both platforms share it).
+extension Difficulty {
+    var blurb: String {
+        switch self {
+        case .gentle: return "Singles & scans"
+        case .steady: return "Pairs & box lines"
+        case .sharp: return "X-wings & deep logic"
+        }
+    }
+
+    /// The longer explainer for the difficulty guide.
+    var explainer: String {
+        switch self {
+        case .gentle: return "Every step is a single: one place a digit can go. A calm first board."
+        case .steady: return "Needs naked pairs and box-line eliminations. Pencil marks start to pay."
+        case .sharp: return "Demands X-wings and layered deductions. Bring notes and patience."
+        }
+    }
+}
+
 /// The remote grammar, spelled out once. The full set feeds the first-run
 /// HelpOverlay; the compact set tops the prefs sheet, so the sheet doubles
 /// as the manual ever after.
@@ -190,6 +211,7 @@ enum NineLegend {
         LegendRow(symbol: "hand.tap", gesture: "Tap a cell", action: "Open the digit rose"),
         LegendRow(symbol: "circle.grid.3x3", gesture: "Tap a petal", action: "Place that digit"),
         LegendRow(symbol: "arrow.up.right", gesture: "Flick in the rose", action: "Place instantly"),
+        LegendRow(symbol: "9.square", gesture: "Tap a placed digit", action: "Light up all of its kind"),
         LegendRow(symbol: "pencil", gesture: "Pencil toggle", action: "Corner notes instead"),
         LegendRow(symbol: "arrow.uturn.backward", gesture: "Undo button", action: "Take back a move"),
     ]

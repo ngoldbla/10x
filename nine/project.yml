@@ -26,7 +26,7 @@ targets:
       base:
         SWIFT_VERSION: "6.0"
         PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.nine
-        MARKETING_VERSION: "1.0"
+        MARKETING_VERSION: "1.1"
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2,3"
         # tvOS keeps the layered brand asset; iOS uses the flat square icon.
@@ -45,6 +45,9 @@ targets:
       path: Nine.entitlements
       properties:
         com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
+        # Leaderboards + achievements (Game Center is default-enabled on App
+        # IDs, so existing match profiles already carry this entitlement).
+        com.apple.developer.game-center: true
     info:
       path: Info.plist
       properties:
@@ -52,10 +55,10 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
-        # iOS-only keys (ignored by tvOS): dark void always, no storyboard —
-        # an empty modern launch screen inherits the black window background.
+        # iOS-only keys (ignored by tvOS): no storyboard — an empty modern
+        # launch screen inherits the window background. Appearance follows
+        # the system (or the in-app Appearance pref) since 1.1.
         UILaunchScreen: {}
-        UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:
