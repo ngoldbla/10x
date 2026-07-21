@@ -44,10 +44,12 @@ final class AfterglowHaptics {
             ))
 
             let player = try engine.makePlayer(with: CHHapticPattern(events: events, parameters: []))
-            engine.notifyWhenPlayersFinished { _ in
-                // CoreHaptics calls this on its own queue; hop back to the
-                // main actor before touching our state.
-                Task { @MainActor [weak self] in self?.engine = nil }
+            engine.notifyWhenPlayersFinished { @Sendable [weak self] _ in
+                // CoreHaptics calls this on its own queue, so the handler
+                // must stay nonisolated (@Sendable) — a plain closure here
+                // inherits @MainActor isolation and traps on entry under
+                // Swift 6. Hop to the main actor before touching our state.
+                Task { @MainActor in self?.engine = nil }
                 return .stopEngine
             }
             try player.start(atTime: CHHapticTimeImmediate)
