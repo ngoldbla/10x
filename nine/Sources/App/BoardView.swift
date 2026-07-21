@@ -70,9 +70,8 @@ struct BoardView: View {
     var inset: CGFloat = 28
 
     private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
-    /// Warm near-black for givens on light glass (paper's inverse).
-    private static let inkText = Color(red: 0.17, green: 0.16, blue: 0.14)
 
+    @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The celebration has reached its resting state — nothing animates
@@ -80,10 +79,12 @@ struct BoardView: View {
     /// iOS trophy keeps polling the gyro until the screen goes away).
     @State private var afterglowSettled = false
 
-    /// Light mode flips the board's neutral tones; the accent stays put.
-    private var isLight: Bool { colorScheme == .light }
-    private var gridTone: Color { isLight ? .black : .white }
-    private var digitTone: Color { isLight ? Self.inkText : CouchPalette.paper }
+    /// The theme decides the board's neutral tones; callers pass an accent
+    /// already resolved for the theme's leaning.
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+    private var isLight: Bool { tones.isLight }
+    private var gridTone: Color { tones.gridTone }
+    private var digitTone: Color { tones.digitTone }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil || afterglowSettled)) { timeline in
@@ -213,7 +214,8 @@ struct BoardView: View {
         context.stroke(lines, with: .color(gridTone.opacity(isLight ? 0.07 : 0.05)), lineWidth: 1)
 
         // 2.5 Same-number highlight: an accent wash on every cell holding the
-        //     digit. Pencil notes of the digit get their marker below (step 4).
+        //     digit; cells whose pencil notes contain it get a quiet accent
+        //     border instead — "where could the 9s go" reads at cell scale.
         if let highlightDigit, solvedAt == nil {
             for index in 0..<81 where game.entry(at: index) == highlightDigit {
                 let row = index / 9, col = index % 9
@@ -223,6 +225,17 @@ struct BoardView: View {
                     Path(roundedRect: rect, cornerRadius: 12 * scale),
                     with: .color(accent.opacity(isLight ? 0.28 : 0.22))
                 )
+            }
+            // Kept apart from the cursor on purpose: deeper inset, smaller
+            // radius, thinner and dimmer stroke, no fill — when both land on
+            // one cell the cursor ring draws later, brighter and outside.
+            for index in 0..<81 where game.entry(at: index) == 0
+                    && game.pencilDigits(at: index).contains(highlightDigit) {
+                let row = index / 9, col = index % 9
+                let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                    .insetBy(dx: 6 * scale, dy: 6 * scale)
+                let path = Path(roundedRect: rect, cornerRadius: 12 * scale)
+                context.stroke(path, with: .color(accent.opacity(0.55)), lineWidth: max(1.5, 2 * scale))
             }
         }
 
@@ -291,8 +304,8 @@ struct BoardView: View {
                 }
             } else {
                 // Corner notes: a mini 3×3 keypad of pencil digits. A note of
-                // the highlighted digit gets its own accent halo — penciled
-                // 9s answer "where could the 9s go" at a glance.
+                // the highlighted digit goes bold accent; its cell already
+                // carries the border ring from step 2.5.
                 for mark in game.pencilDigits(at: index) {
                     let mc = CGFloat((mark - 1) % 3), mr = CGFloat((mark - 1) / 3)
                     let point = CGPoint(
@@ -300,14 +313,6 @@ struct BoardView: View {
                         y: center.y + (mr - 1) * cell * 0.28
                     )
                     let highlighted = solvedAt == nil && mark == highlightDigit
-                    if highlighted {
-                        let halo = cell * 0.26
-                        let rect = CGRect(
-                            x: point.x - halo / 2, y: point.y - halo / 2,
-                            width: halo, height: halo
-                        )
-                        context.fill(Path(ellipseIn: rect), with: .color(accent.opacity(isLight ? 0.34 : 0.30)))
-                    }
                     context.draw(
                         Text("\(mark)")
                             .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))

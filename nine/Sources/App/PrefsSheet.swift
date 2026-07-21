@@ -1,6 +1,6 @@
 // PrefsSheet.swift — the one allowed secondary surface (suite rule): timer
 // on/off (off is the default and the statement), error-highlight on/off,
-// same-number highlight, the accent tint — and on iOS: appearance, control
+// same-number highlight, the theme and accent swatches — and on iOS: control
 // placement, launch resume, plus a "New game" escape hatch so a difficulty
 // is a choice, not a commitment. Lives inside CouchKit's GlassSheet.
 import SwiftUI
@@ -60,17 +60,9 @@ struct PrefsSheetContent: View {
                 model.prefs.numberHighlight.toggle()
             }
 
-            #if os(iOS)
-            prefRow(
-                title: "Appearance",
-                detail: model.prefs.appearance.title,
-                symbol: appearanceSymbol
-            ) {
-                let all = AppearanceChoice.allCases
-                let index = all.firstIndex(of: model.prefs.appearance) ?? 0
-                model.prefs.appearance = all[(index + 1) % all.count]
-            }
+            themeRow
 
+            #if os(iOS)
             prefRow(
                 title: "Resume on launch",
                 detail: model.prefs.resumeOnLaunch ? "On" : "Off",
@@ -139,14 +131,6 @@ struct PrefsSheetContent: View {
     }
 
     #if os(iOS)
-    private var appearanceSymbol: String {
-        switch model.prefs.appearance {
-        case .auto: return "circle.lefthalf.filled"
-        case .dark: return "moon.fill"
-        case .light: return "sun.max.fill"
-        }
-    }
-
     // PRD-2 suggested inset.filled.tophalf.square — that name doesn't exist
     // in the SF catalog; the square.*half.filled family does.
     private var boardAnchorSymbol: String {
@@ -197,26 +181,109 @@ struct PrefsSheetContent: View {
     }
 
     private var accentRow: some View {
-        Button {
-            let all = AccentChoice.allCases
-            let index = all.firstIndex(of: model.prefs.accent) ?? 0
-            model.prefs.accent = all[(index + 1) % all.count]
-        } label: {
-            HStack(spacing: 24 * CouchScale.chrome) {
-                Circle()
-                    .fill(model.prefs.accent.color)
-                    .frame(width: 36 * CouchScale.chrome, height: 36 * CouchScale.chrome)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
                 Text("Accent")
-                    .font(CouchTypography.body)
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Text(model.prefs.accent.title)
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 28 * CouchScale.chrome)
-            .padding(.vertical, 18 * CouchScale.chrome)
+            HStack(spacing: 14 * CouchScale.chrome) {
+                ForEach(AccentChoice.allCases, id: \.self) { choice in
+                    Button {
+                        model.prefs.accent = choice
+                    } label: {
+                        Circle()
+                            .fill(choice.color)
+                            .frame(width: 36 * CouchScale.chrome, height: 36 * CouchScale.chrome)
+                            .overlay {
+                                if choice == model.prefs.accent {
+                                    Circle().strokeBorder(.primary, lineWidth: 3 * CouchScale.chrome)
+                                }
+                            }
+                            .padding(6 * CouchScale.chrome)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(choice.title)
+                }
+            }
+            .padding(.horizontal, 22 * CouchScale.chrome)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 6 * CouchScale.chrome)
+    }
+
+    private var themeRow: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Theme")
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(model.prefs.theme.title)
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 28 * CouchScale.chrome)
+            HStack(spacing: 14 * CouchScale.chrome) {
+                ForEach(ThemeChoice.allCases, id: \.self) { choice in
+                    Button {
+                        model.prefs.theme = choice
+                    } label: {
+                        themeSwatch(choice)
+                            .frame(width: 44 * CouchScale.chrome, height: 44 * CouchScale.chrome)
+                            .clipShape(RoundedRectangle(cornerRadius: 10 * CouchScale.chrome, style: .continuous))
+                            .overlay {
+                                // A hairline on every swatch (Void would
+                                // otherwise vanish into a dark sheet); the
+                                // pick gets the full primary ring.
+                                RoundedRectangle(cornerRadius: 10 * CouchScale.chrome, style: .continuous)
+                                    .strokeBorder(
+                                        choice == model.prefs.theme ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary),
+                                        lineWidth: choice == model.prefs.theme ? 3 * CouchScale.chrome : 1
+                                    )
+                            }
+                            .padding(6 * CouchScale.chrome)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(choice.title)
+                }
+            }
+            .padding(.horizontal, 22 * CouchScale.chrome)
+        }
+        .padding(.vertical, 6 * CouchScale.chrome)
+    }
+
+    /// A theme at swatch size: its backdrop with a "9" in its digit tone —
+    /// auto splits Void/Paper diagonally since it could resolve to either.
+    @ViewBuilder
+    private func themeSwatch(_ choice: ThemeChoice) -> some View {
+        let dark = choice.tones(for: .dark)
+        let light = choice.tones(for: .light)
+        ZStack {
+            Rectangle().fill(dark.background)
+            if choice == .auto {
+                DiagonalHalf().fill(light.background)
+            }
+            Text("9")
+                .font(.system(size: 22 * CouchScale.chrome, weight: .semibold, design: .rounded))
+                .foregroundStyle(choice == .auto ? .gray : dark.digitTone)
+        }
+    }
+
+    /// The lower-right triangle — the light half of the Auto theme swatch.
+    private struct DiagonalHalf: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.closeSubpath()
+            return path
+        }
     }
 
     private func prefRow(

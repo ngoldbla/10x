@@ -20,6 +20,10 @@ struct TouchHomeView: View {
 
     @State private var showHistory = false
     @State private var showTutorial = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
     var body: some View {
         ZStack {
@@ -48,7 +52,7 @@ struct TouchHomeView: View {
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay {
             if showTutorial {
-                TutorialView(accent: model.prefs.accent.color) {
+                TutorialView(accent: accent) {
                     showTutorial = false
                 }
                 .transition(.opacity)
@@ -184,7 +188,7 @@ struct TouchHomeView: View {
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
         TouchCard(action: { model.startFree(difficulty) }) {
             VStack(spacing: 10) {
-                MiniBoard(difficulty: difficulty, accent: model.prefs.accent.color)
+                MiniBoard(difficulty: difficulty, accent: accent)
                     .frame(width: 64, height: 64)
                 if model.composing == .free(difficulty) {
                     statusLabel("Composing…", symbol: "sparkles")
@@ -268,6 +272,10 @@ struct TouchGameScreen: View {
     @State private var motion = AfterglowMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
     var body: some View {
         GeometryReader { geo in
@@ -342,7 +350,7 @@ struct TouchGameScreen: View {
                 symbol: "pencil",
                 label: "Pencil marks",
                 active: pencilMode,
-                accent: model.prefs.accent.color
+                accent: accent
             ) {
                 pencilMode.toggle()
             }
@@ -456,7 +464,7 @@ struct TouchGameScreen: View {
             BoardView(
                 game: game,
                 cursor: cursor,
-                accent: model.prefs.accent.color,
+                accent: accent,
                 showErrors: model.prefs.errorHighlight,
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
@@ -484,7 +492,7 @@ struct TouchGameScreen: View {
                         .onTapGesture { closeRose() }
                     TouchRose(
                         state: rose,
-                        accent: model.prefs.accent.color,
+                        accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: scale,
                         onDigit: { commit(digit: $0) }
