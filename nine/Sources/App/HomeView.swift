@@ -9,6 +9,11 @@ import CouchKit
 struct HomeView: View {
     let model: AppModel
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
     var body: some View {
         ZStack {
             shelf
@@ -129,7 +134,7 @@ struct HomeView: View {
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
         ShelfCard(width: 360, height: 300, action: { model.startFree(difficulty) }) {
             VStack(spacing: 20) {
-                MiniBoard(difficulty: difficulty, accent: model.prefs.accent.color)
+                MiniBoard(difficulty: difficulty, accent: accent)
                     .frame(width: 132, height: 132)
                 if model.composing == .free(difficulty) {
                     statusLabel("Composing…", symbol: "sparkles")

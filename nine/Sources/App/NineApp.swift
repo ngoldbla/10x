@@ -32,10 +32,11 @@ struct RootView: View {
             }
         }
         .animation(.couchFast, value: model.screen) // navigation is a response, not weather
+        // Auto follows the device; every theme pins its own leaning so
+        // materials and secondary text follow — both platforms.
+        .preferredColorScheme(model.prefs.theme.colorScheme)
+        .environment(\.nineTheme, model.prefs.theme)
         #if os(iOS)
-        // Auto follows the device; dark stays the brand default feel, but a
-        // sunny-couch player can pin light. tvOS remains void-dark always.
-        .preferredColorScheme(model.prefs.appearance.colorScheme)
         .onAppear { GameCenter.shared.authenticate() }
         // Widget taps land on today's daily. openToday() is already safe
         // mid-composition (compose() guards on `composing`).
@@ -84,22 +85,38 @@ struct RootView: View {
     }
 }
 
-/// The resting background. Dark is the void (true black, the brand); light
-/// mode — iOS only, opted into via prefs or the system — swaps in a warm
-/// paper tone so glass and shadows still have something to catch.
+/// The player's theme, planted once at the root so leaf views (board,
+/// backgrounds) pick it up without prop-threading.
+private struct NineThemeKey: EnvironmentKey {
+    static let defaultValue: ThemeChoice = .auto
+}
+
+extension EnvironmentValues {
+    var nineTheme: ThemeChoice {
+        get { self[NineThemeKey.self] }
+        set { self[NineThemeKey.self] = newValue }
+    }
+}
+
+/// The resting background: each theme's flat backdrop. Void (true black)
+/// remains the dark default; Paper, Camel, Blueprint and Forest tint the
+/// whole plane so glass and shadows still have something to catch.
 struct VoidBackground: View {
+    @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        (colorScheme == .light ? Color(red: 0.94, green: 0.93, blue: 0.90) : CouchPalette.void)
+        theme.tones(for: colorScheme).background
             .ignoresSafeArea()
     }
 }
 
 /// The almost-subliminal background luminance breath (PRD §6): 8%–10% peak
 /// luminance on a 60-second period, so long sessions never feel static.
-/// In light mode the breath inverts — a whisper of shadow instead of light.
+/// On light-leaning themes the breath inverts — a whisper of shadow
+/// instead of light.
 struct BreathingVoid: View {
+    @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -108,7 +125,7 @@ struct BreathingVoid: View {
             let breath = 0.09 + 0.01 * sin(t * 2 * .pi / 60)
             RadialGradient(
                 colors: [
-                    colorScheme == .light
+                    theme.tones(for: colorScheme).isLight
                         ? Color.black.opacity(breath * 0.25)
                         : Color.white.opacity(breath * 0.5),
                     .clear,

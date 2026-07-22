@@ -9,6 +9,11 @@ import CouchKit
 struct HistorySheetContent: View {
     let model: AppModel
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
@@ -150,7 +155,7 @@ struct HistorySheetContent: View {
                         .foregroundStyle(.secondary)
                     Text("+\(record.points)")
                         .font(CouchTypography.caption)
-                        .foregroundStyle(model.prefs.accent.color)
+                        .foregroundStyle(accent)
                 }
             }
         }

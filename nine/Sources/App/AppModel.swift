@@ -11,10 +11,13 @@ import CouchKit
 
 // MARK: - Persisted value types
 
-/// Accent tints offered in prefs. Muted, glass-safe hues; never pure red or
-/// green (colorblind-safe rule: errors pair a coral underline with a dot).
+/// Accent tints offered in prefs. Vivid, mutually distinct hues; never pure
+/// red or green (colorblind-safe rule: errors pair a coral underline with a
+/// dot — crimson sits at rose ~345°, far from the coral marker's ~9°).
+/// Light-leaning themes get a deepened variant of each hue: the vivid values
+/// wash out on high-luminance backgrounds.
 enum AccentChoice: String, Codable, Sendable, CaseIterable {
-    case glacier, ember, meadow, lilac
+    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta
 
     var title: String {
         switch self {
@@ -22,37 +25,122 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .ember: return "Ember"
         case .meadow: return "Meadow"
         case .lilac: return "Lilac"
+        case .crimson: return "Crimson"
+        case .gold: return "Gold"
+        case .teal: return "Teal"
+        case .magenta: return "Magenta"
         }
     }
 
+    /// The vivid base tint — right on dark themes and in picker swatches.
     var color: Color {
         switch self {
-        case .glacier: return Color(red: 0.56, green: 0.78, blue: 0.92)
-        case .ember: return Color(red: 0.96, green: 0.71, blue: 0.51)
-        case .meadow: return Color(red: 0.62, green: 0.86, blue: 0.70)
-        case .lilac: return Color(red: 0.76, green: 0.70, blue: 0.94)
+        case .glacier: return Color(red: 0.33, green: 0.68, blue: 0.98)
+        case .ember: return Color(red: 1.00, green: 0.56, blue: 0.20)
+        case .meadow: return Color(red: 0.36, green: 0.84, blue: 0.48)
+        case .lilac: return Color(red: 0.66, green: 0.50, blue: 0.98)
+        case .crimson: return Color(red: 0.93, green: 0.29, blue: 0.50)
+        case .gold: return Color(red: 0.98, green: 0.75, blue: 0.18)
+        case .teal: return Color(red: 0.15, green: 0.80, blue: 0.76)
+        case .magenta: return Color(red: 0.88, green: 0.42, blue: 0.90)
+        }
+    }
+
+    /// The tint resolved for the surface it sits on.
+    func color(isLight: Bool) -> Color {
+        guard isLight else { return color }
+        switch self {
+        case .glacier: return Color(red: 0.10, green: 0.45, blue: 0.85)
+        case .ember: return Color(red: 0.82, green: 0.38, blue: 0.05)
+        case .meadow: return Color(red: 0.13, green: 0.58, blue: 0.30)
+        case .lilac: return Color(red: 0.48, green: 0.32, blue: 0.85)
+        case .crimson: return Color(red: 0.78, green: 0.13, blue: 0.33)
+        case .gold: return Color(red: 0.76, green: 0.53, blue: 0.02)
+        case .teal: return Color(red: 0.04, green: 0.55, blue: 0.53)
+        case .magenta: return Color(red: 0.70, green: 0.20, blue: 0.70)
         }
     }
 }
 
-/// iOS appearance override. `auto` follows the system; tvOS ignores this
-/// entirely (the TV void is always dark — that's the brand at 3 meters).
-enum AppearanceChoice: String, Codable, Sendable, CaseIterable {
-    case auto, dark, light
+/// The board's tonal palette, resolved from a `ThemeChoice`. Flat colors
+/// only — box borders stay luminance steps in `gridTone`, never hard lines.
+struct ThemeTones {
+    /// Full-bleed backdrop behind the glass.
+    let background: Color
+    /// Box washes, hairlines, pencil digits (at reduced opacity).
+    let gridTone: Color
+    /// Given digits.
+    let digitTone: Color
+    /// Light-leaning themes flip the wash opacities and deepen the accent.
+    let isLight: Bool
+}
+
+/// Color scheme for the whole app — both platforms. `auto` follows the
+/// system; the tinted themes (camel, blueprint, forest) pin their leaning so
+/// materials and secondary text follow along.
+enum ThemeChoice: String, Codable, Sendable, CaseIterable {
+    case auto, dark, light, camel, blueprint, forest
 
     var title: String {
         switch self {
         case .auto: return "Auto"
-        case .dark: return "Dark"
-        case .light: return "Light"
+        case .dark: return "Void"
+        case .light: return "Paper"
+        case .camel: return "Camel"
+        case .blueprint: return "Blueprint"
+        case .forest: return "Forest"
         }
     }
 
     var colorScheme: ColorScheme? {
         switch self {
         case .auto: return nil
-        case .dark: return .dark
-        case .light: return .light
+        case .light, .camel: return .light
+        case .dark, .blueprint, .forest: return .dark
+        }
+    }
+
+    /// Tones for this theme; `resolved` decides only for `auto`, where the
+    /// system's scheme picks Void or Paper.
+    func tones(for resolved: ColorScheme) -> ThemeTones {
+        switch self {
+        case .auto:
+            return (resolved == .light ? ThemeChoice.light : .dark).tones(for: resolved)
+        case .dark:
+            return ThemeTones(
+                background: CouchPalette.void,
+                gridTone: .white,
+                digitTone: CouchPalette.paper,
+                isLight: false
+            )
+        case .light:
+            return ThemeTones(
+                background: Color(red: 0.94, green: 0.93, blue: 0.90),
+                gridTone: .black,
+                digitTone: Color(red: 0.17, green: 0.16, blue: 0.14),
+                isLight: true
+            )
+        case .camel:
+            return ThemeTones(
+                background: Color(red: 0.80, green: 0.70, blue: 0.55),
+                gridTone: Color(red: 0.20, green: 0.13, blue: 0.06),
+                digitTone: Color(red: 0.23, green: 0.15, blue: 0.07),
+                isLight: true
+            )
+        case .blueprint:
+            return ThemeTones(
+                background: Color(red: 0.05, green: 0.14, blue: 0.33),
+                gridTone: Color(red: 0.75, green: 0.85, blue: 1.00),
+                digitTone: Color(red: 0.86, green: 0.92, blue: 1.00),
+                isLight: false
+            )
+        case .forest:
+            return ThemeTones(
+                background: Color(red: 0.05, green: 0.13, blue: 0.09),
+                gridTone: Color(red: 0.80, green: 0.92, blue: 0.84),
+                digitTone: Color(red: 0.89, green: 0.94, blue: 0.88),
+                isLight: false
+            )
         }
     }
 }
@@ -96,8 +184,9 @@ struct NinePrefs: Codable, Sendable, Equatable {
     var numberHighlight = true
     /// Touch controls sit at the bottom edge, in thumb reach; false = top.
     var controlsAtBottom = true
-    /// iOS color scheme override.
-    var appearance: AppearanceChoice = .auto
+    /// Color scheme for the whole app; stored under the pre-theme key
+    /// "appearance" so 1.x blobs (auto/dark/light) decode unchanged.
+    var theme: ThemeChoice = .auto
     /// Launch straight back into a board in progress.
     var resumeOnLaunch = true
     /// iOS board position; an edge anchor frees one contiguous band for PiP.
@@ -107,20 +196,28 @@ struct NinePrefs: Codable, Sendable, Equatable {
 
     init() {}
 
+    enum CodingKeys: String, CodingKey {
+        case showTimer, errorHighlight, accent, numberHighlight
+        case controlsAtBottom, resumeOnLaunch, boardAnchor, ambientSlot
+        case theme = "appearance"
+    }
+
     /// Tolerant decoding: CouchStored discards the whole blob when decode
     /// throws, so any field added after 1.0 must fall back to its default
-    /// instead of resetting a player's settings.
+    /// instead of resetting a player's settings. Enum fields decode with
+    /// `try?` — an unknown raw value (a downgrade meeting a newer accent or
+    /// theme) resets that one field, not the whole blob.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         showTimer = try c.decodeIfPresent(Bool.self, forKey: .showTimer) ?? false
         errorHighlight = try c.decodeIfPresent(Bool.self, forKey: .errorHighlight) ?? true
-        accent = try c.decodeIfPresent(AccentChoice.self, forKey: .accent) ?? .glacier
+        accent = (try? c.decodeIfPresent(AccentChoice.self, forKey: .accent)) ?? .glacier
         numberHighlight = try c.decodeIfPresent(Bool.self, forKey: .numberHighlight) ?? true
         controlsAtBottom = try c.decodeIfPresent(Bool.self, forKey: .controlsAtBottom) ?? true
-        appearance = try c.decodeIfPresent(AppearanceChoice.self, forKey: .appearance) ?? .auto
+        theme = (try? c.decodeIfPresent(ThemeChoice.self, forKey: .theme)) ?? .auto
         resumeOnLaunch = try c.decodeIfPresent(Bool.self, forKey: .resumeOnLaunch) ?? true
-        boardAnchor = try c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor) ?? .center
-        ambientSlot = try c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot) ?? .none
+        boardAnchor = (try? c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor)) ?? .center
+        ambientSlot = (try? c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot)) ?? .none
     }
 }
 

@@ -6,11 +6,14 @@ import SwiftUI
 import WidgetKit
 
 /// Nine's palette, restated: the extension must not link CouchKit
-/// (PRD-3 §2), so the three colors the widgets need live here.
+/// (PRD-3 §2), so the three colors the widgets need live here. glacier and
+/// ember mirror `AccentChoice`'s vivid base values (AppModel.swift) — retune
+/// both together. Widgets stay system light/dark; the in-app tinted themes
+/// don't reach the extension (it can't read nine's prefs).
 enum WidgetPalette {
     static let paper = Color(red: 0.94, green: 0.93, blue: 0.90)
-    static let glacier = Color(red: 0.56, green: 0.78, blue: 0.92)
-    static let ember = Color(red: 0.96, green: 0.71, blue: 0.51)
+    static let glacier = Color(red: 0.33, green: 0.68, blue: 0.98)
+    static let ember = Color(red: 1.00, green: 0.56, blue: 0.20)
 }
 
 struct NineDailyWidget: Widget {

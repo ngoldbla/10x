@@ -29,6 +29,10 @@ struct GameScreen: View {
     /// The settings-discoverability chip, flashed on the first board of a
     /// session (the once-per-launch gate lives on the model).
     @State private var showHint = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
     var body: some View {
         // While the prefs sheet is up, the remote surface detaches so the
@@ -66,7 +70,7 @@ struct GameScreen: View {
             BoardView(
                 game: game,
                 cursor: cursor,
-                accent: model.prefs.accent.color,
+                accent: accent,
                 showErrors: model.prefs.errorHighlight,
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
@@ -85,7 +89,7 @@ struct GameScreen: View {
                     let center = BoardMetrics.center(of: cursor)
                     FlickRoseView(
                         state: rose,
-                        accent: model.prefs.accent.color,
+                        accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         showsFocusRing: true
                     )

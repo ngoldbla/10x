@@ -94,6 +94,27 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   the actual gesture. Prefs decoding is now field-tolerant so 1.0 settings
   survive the upgrade.
 
+## 1.2 — themes, vivid accents, pencil border highlight
+
+- **Themes on both platforms:** `AppearanceChoice` grew into `ThemeChoice`
+  (Auto/Void/Paper/Camel/Blueprint/Forest) and the tvOS always-dark rule is
+  retired — the theme picker ships on the TV too. `auto` still follows the
+  system; old prefs decode unchanged (the field keeps its stored key
+  "appearance", and enum fields now decode with `try?` so an unknown raw
+  value resets one field, not the whole blob).
+- **Vivid accents, eight of them:** the four muted tints are re-tuned to
+  saturated hues and crimson/gold/teal/magenta join. Light-leaning themes
+  (Paper, Camel) get a deepened variant per hue so the accent keeps contrast.
+  Crimson sits at rose (~345°), away from the coral error marker (~9°); the
+  underline+dot error grammar is unchanged.
+- **Pencil-note highlight is a cell border now:** the tiny accent halos
+  behind highlighted pencil digits are replaced by a stroked rounded-rect
+  ring on the cell (thinner, dimmer and inset deeper than the cursor ring,
+  no fill, so the two never read as one). The highlighted mini digit still
+  goes bold accent.
+- **Widgets stay system light/dark:** the extension can't read nine's prefs;
+  `WidgetPalette` mirrors the new vivid glacier/ember values.
+
 ## PRD-1 — Afterglow (win celebration)
 
 - **Suite-first frameworks:** Afterglow introduces the suite's first Metal
