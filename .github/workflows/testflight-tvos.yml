@@ -111,6 +111,9 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          # macOS profiles + Mac Installer cert are minted and in the match
+          # repo; the mac leg of beta_app is live (guard added post-PR #18).
+          COUCH_SHIP_MAC: "1"
           # Override the Matchfile's HTTPS default with SSH so the deploy key applies.
           MATCH_GIT_URL: git@github.com:ngoldbla/couch-suite-certificates.git
           # workflow_dispatch inputs via env (never interpolate untrusted input into the shell).
