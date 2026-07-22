@@ -5,7 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "NineEngine",
-    platforms: [.tvOS(.v18), .macOS(.v14)],
+    // macOS 15 to match CouchKit (PRD-4 adds the Mac destination); the engine
+    // itself is pure Swift, this only pins the SwiftPM host floor.
+    platforms: [.tvOS(.v18), .macOS(.v15)],
     dependencies: [.package(path: "../couchkit")],
     targets: [
         .target(

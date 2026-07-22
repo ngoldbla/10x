@@ -4,9 +4,11 @@
 // debounced so gameplay can hammer a value without hammering the disk.
 // tvOS local storage is purgeable, so anything precious (streaks, progress)
 // should pass `cloudSynced: true` to mirror into NSUbiquitousKeyValueStore.
-// Compiles identically on iOS (same container layout, same KVS mirroring),
-// which is what lets a universal app share one save format across platforms.
-#if os(tvOS) || os(iOS)
+// Compiles identically on iOS and macOS (same container layout, same KVS
+// mirroring — on macOS the Application Support path resolves inside the App
+// Sandbox container), which is what lets a universal app share one save
+// format across every platform.
+#if os(tvOS) || os(iOS) || os(macOS)
 import SwiftUI
 import CouchCore
 

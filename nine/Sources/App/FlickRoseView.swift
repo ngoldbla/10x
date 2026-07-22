@@ -54,6 +54,33 @@ enum RoseGeometry {
         }
         return row * 3 + col
     }
+
+    /// Classify a pointer/finger drag as one of eight petal directions
+    /// (screen +y is down; the rose keypad thinks in +y up, matching
+    /// CouchCore's flick math). Returns nil for a stroke shorter than
+    /// `minimumDistance` — the never-misfire rule: an ambiguous nudge places
+    /// nothing. Shared by the iOS touch rose and the macOS pointer rose
+    /// (PRD-4 §2.3), so a trackpad drag and a finger flick classify
+    /// identically.
+    static func flickDirection(
+        _ translation: CGSize, minimumDistance: CGFloat = 24
+    ) -> Direction8OrCenter? {
+        let dx = translation.width
+        let dy = -translation.height
+        guard hypot(dx, dy) >= minimumDistance else { return nil }
+        let sector = Int((atan2(dy, dx) / (.pi / 4)).rounded())
+        switch sector {
+        case 0: return .right
+        case 1: return .upRight
+        case 2: return .up
+        case 3: return .upLeft
+        case 4, -4: return .left
+        case -1: return .downRight
+        case -2: return .down
+        case -3: return .downLeft
+        default: return nil
+        }
+    }
 }
 
 struct FlickRoseView: View {
@@ -108,6 +135,58 @@ struct FlickRoseView: View {
             .animation(.couchFast, value: focused)
     }
 }
+
+// MARK: - Pointer / touch rose
+
+#if os(iOS) || os(macOS)
+/// The flick rose with pointer input: tap (or click) a petal to place its
+/// digit, or drag from anywhere in the rose toward a petal — the same 3×3
+/// keypad mapping the Siri Remote uses (RoseGeometry), so the muscle memory
+/// transfers between couch, pocket and desk. Shared by the iOS touch screen
+/// and the macOS pointer screen (PRD-4 §2.3); on the Mac a click is a tap and
+/// a trackpad drag is a flick, both routed through `RoseGeometry.flickDirection`.
+struct TouchRose: View {
+    let state: RoseState
+    let accent: Color
+    let completedDigits: Set<Int>
+    let scale: CGFloat
+    let onDigit: @MainActor (Int) -> Void
+
+    private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
+    private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
+
+    var body: some View {
+        FlickRoseView(
+            state: state,
+            accent: accent,
+            completedDigits: completedDigits,
+            showsFocusRing: false,
+            scale: scale
+        )
+        .overlay {
+            // Invisible pointer targets aligned with the drawn petals.
+            ZStack {
+                ForEach(1...9, id: \.self) { digit in
+                    let offset = RoseGeometry.offset(forDigit: digit)
+                    Color.clear
+                        .contentShape(Circle())
+                        .frame(width: max(44, petalSize), height: max(44, petalSize))
+                        .onTapGesture { onDigit(digit) }
+                        .offset(x: offset.x * spacing, y: offset.y * spacing)
+                }
+            }
+        }
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { value in
+                    if let direction = RoseGeometry.flickDirection(value.translation) {
+                        onDigit(RoseGeometry.digit(for: direction))
+                    }
+                }
+        )
+    }
+}
+#endif
 
 /// A quiet two-beat glow for ambiguous-flick candidates: "one of these two —
 /// flick again, cleaner." Never fires a digit.

@@ -132,6 +132,151 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   blends position, tilt *and* strength (sweep 0.35 → trophy 0.30) so no
   visible level jump accompanies the handoff.
 
+## PRD-4 — Nine for Mac (keyboard-native + desk mode)
+
+- **CouchKit gains a macOS destination:** `Package.swift` adds `.macOS(.v15)`
+  and `CouchStore` / `CouchUI` / `GlassComponents` / `CouchGlass` / `HelpKit`
+  widen their gates to `os(macOS)`. `RemoteKit` / `AsciiEngine` /
+  `PhotoKitPlus` stay platform-gated. The four sibling apps declare no macOS
+  destination, so this is compile-surface only for them (heads-up in
+  COUCHKIT-ASKS.md, done in-repo — not an ask).
+- **`CouchScale.chrome` on macOS = 0.70** — a first guess between the couch
+  (1.0) and the hand (0.55). Tune on the first screenshot review (PRD-4 §7).
+  Typography reuses the iOS ramp on the Mac (no separate mac ramp yet).
+- **Model hoisted to the App level:** `AppModel` now lives on `NineApp`
+  (`@State`) and is injected into `RootView(model:)`, so the macOS Settings
+  scene (⌘,), History window (⌘Y) and menu-bar Commands all share the one
+  `@Observable`. tvOS/iOS behavior is unchanged (the model is still created
+  once at launch); only its owner moved up one level.
+- **Game Center dashboard on macOS = `GKAccessPoint.shared.trigger(.dashboard)`**
+  — chosen over an `NSViewControllerRepresentable` host for
+  `GKGameCenterViewController`: it needs no window plumbing and the access
+  point stays hidden otherwise. Sign-in view controller (which GameKit hands
+  back as an `NSViewController` on the Mac) is presented as a sheet on the key
+  window.
+- **History is a real window (⌘Y), not a sheet** — the Mac-native answer to
+  "History window from the Game menu" (PRD-4 §2.6). Settings is the standard
+  Settings scene (⌘,) reusing `PrefsSheetContent` with the keyboard legend and
+  the touch-only layout rows (Controls / Board position / Ambient) dropped.
+- **⌘Z is owned by the Edit menu, not `onKeyPress`** — a menu key-equivalent
+  wins over a focused view's key handler, so routing undo through the menu is
+  the honest path. The menu calls back into the focused game screen via
+  `focusedSceneValue(\.nineActions)` so the glass undo toast (view state) still
+  shows; the item greys out via `AppModel.canUndo`.
+- **TutorialGrammar shipped (cross-phase contract):** `TutorialView` widened
+  to `os(iOS) || os(macOS)` and now consumes a `TutorialGrammar`; the iOS copy
+  is `.touch` verbatim (zero copy regressions). `.keyboard` re-gestures the
+  five beats and the Mac practice board accepts the keyboard grammar
+  (arrows/digits/Space) alongside the pointer rose. `.remote` (tvOS) and
+  `.pad` (controller) are defined for PRD-5; `.pad` is a reasonable stub Phase
+  5 refines.
+- **Shared flick math:** `TouchRose.flickDirection` moved to
+  `RoseGeometry.flickDirection(_:minimumDistance:)` (pure math), and the
+  `TouchRose` view moved from the iOS-gated `TouchUI.swift` into the shared
+  `FlickRoseView.swift`, so the Mac pointer rose and the iOS touch rose place
+  through one classifier. A trackpad drag and a finger flick are identical.
+- **Afterglow trophy tilt is pointer-steered on the Mac:** `AfterglowPointer`
+  maps a hover offset over the solved board into the same `SIMD2<Double>` seam
+  `BoardView.afterglowTilt` consumes on iOS. `AfterglowMotion` (CoreMotion)
+  stays iOS-gated; `AfterglowHaptics` is untouched (Phase 5 owns it).
+- **Erase gesture:** the Mac keyboard's Delete / 0 erases a user entry via a
+  new `AppModel.erase(at:)` wrapping the engine's existing `NineGame.erase`.
+  Never completes a board; a no-op on givens and empty cells.
+- **Desk mode (PRD-4 §2.5):** ⌘⇧D collapses to a ~340pt board-only pane driven
+  by an `NSWindow` configurator — transparent titlebar + hidden title (kept,
+  not stripped, so the traffic lights and window drag survive), `minSize`
+  clamped, `isMovableByWindowBackground` on. Float-on-top is **opt-in and
+  remembered** (`nine.mac.deskFloating`, the PRD-4 §7 open question resolved
+  toward opt-in) via `window.level = .floating`. Each posture has its own
+  frame autosave name (`nine.main` / `nine.desk`) so both remember their
+  corner. Esc / ⌘⇧D / a hover-revealed corner glyph restore the full window.
+- **Signing is config-only:** `project.yml` carries the macOS profile
+  specifier + `Nine-macOS.entitlements` (App Sandbox + KVS + game-center) and
+  the Fastfile grows a `platform:mac` leg (train +2, signed pkg via gym, pilot
+  upload). The `match AppStore com.couchsuite.nine macos` profile and the **Mac
+  Installer Distribution** cert are **not minted from the worktree** — that is
+  the pre-merge portal→mint→CI ops step (PRD-3 §3 sequencing; may hit the
+  Apple Distribution cert-limit workaround from the tvOS setup).
+
+## PRD-5 — Pad Nine (controller-driven tvOS + haptics + parity ports)
+
+- **PadKit is a new CouchKit reader (`#if os(tvOS)`), sibling to RemoteKit.** It
+  filters STRICTLY to `extendedGamepad` profiles, so the Siri Remote (a
+  `microGamepad`, owned by RemoteKit) is never double-claimed. It never assumes
+  `GCController.current` — it adopts one device and walks `GCController.controllers()`
+  (two-controller households). Publishes `PadGesture` (move w/ momentum, flick,
+  flickAmbiguous, button, connect/disconnect). Heads-up (not an ask) recorded in
+  COUCHKIT-ASKS.md — Blockhead/Cartridge will want it.
+- **Ghost-rose shimmer works on the pad (COUCHKIT-ASKS #1, satisfied here).**
+  The Siri-Remote reader still swallows ambiguous strokes, but PadKit owns its
+  right-stick classifier, so an ambiguous diagonal emits `flickAmbiguous(a, b)`
+  and the board shimmers the two candidate petals (`RoseState.shimmerDigits`)
+  and places nothing. The never-misfire covenant: 0.75 magnitude + return-to-rest
+  + the `FlickClassifier` forgiveness cone.
+- **Cursor-momentum IOU paid.** The 1.0 deviation ("fast flick crosses a box")
+  deferred momentum because the remote's move command carries no velocity. The
+  left stick is analog, so `PadMomentum` maps deflection magnitude → a repeat-rate
+  curve: a feathered push steps one cell, a full push glides across a box (a
+  detent haptic per box crossed). The d-pad remains the single-step precision
+  fallback.
+- **Play/pause double-fire IOU paid (in pad sessions).** The remote's
+  play/pause-long-press leak (undo then prefs) is worked around on the remote;
+  the pad has a dedicated **Options** button for prefs, so the double-fire never
+  arises in a pad session. The remote workaround is unchanged.
+- **Light mode NOT ported to tvOS — brand call.** The TV void stays always-dark
+  in a pad session as everywhere else on tvOS; the theme picker's light-leaning
+  options remain available (retired the always-dark rule in 1.2), but there is no
+  new light affordance for the pad. The couch reads best dark.
+- **Afterglow score refactored into a shared factory.** `AfterglowScoreTiming`
+  (Sources/Shared, pure Foundation — Linux/hardware-independent) holds the exact
+  numbers; `AfterglowScore` (`canImport(CoreHaptics)`) builds the patterns; the
+  iPhone `AfterglowHaptics` keeps its class name / `playSolveScore()` / `stop()`
+  API and behavior **byte-identical**, and tvOS `ControllerHaptics` plays the same
+  patterns through the `GCDeviceHaptics` engines PadKit vends (`PadHaptics`,
+  create-at-need lifecycle). `AfterglowScoreTimingTests` pins the 9-tick
+  crescendo (0.25→2.15s) and 2.40s thump so the two hands can never drift.
+- **Controller haptics live on the placement paths.** Whisper tick per placement,
+  soft double-knock on an error placement (only when error highlight is on), one
+  detent per box crossed gliding, full crescendo on solve. A "Controller haptics"
+  prefs row (tvOS) silences all of it. Xbox pads with no CoreHaptics fidelity fail
+  soft (CoreHaptics degrades to rumble; a throw means silence).
+- **Gyro trophy on the controller.** PadKit exposes `motionTilt(at:)` (GCMotion
+  gravity delta, clamped ±0.35 — the exact `AfterglowMotion` seam) fed through
+  `BoardView.afterglowTilt` in a pad session; `AfterglowMotion` stays iOS-only.
+  Remote-mode solves pass no tilt closure, so they keep PRD-1's static settle.
+- **Session mode, not a second SKU.** `AppModel.padSession` + `padConnected`
+  (PadKit observation). The Pad Play shelf card appears when a pad connects and
+  starts a controller-locked session on today's board (Options → New Game switches
+  difficulty inside the session). During a session the `.couchRemote` closure
+  ignores every board gesture; only Menu/Back exits (save + home). Disconnect
+  mid-game drops a glass "Reconnect your controller" veil and pauses the timer;
+  reconnect resumes in place.
+- **Pad tutorial is a dedicated pad-driven surface, not the pointer TutorialView.**
+  `TutorialView.swift` is widened to tvOS, but the pad tutorial is a separate
+  `@Observable` `PadTutorialModel` + `PadTutorialView` rather than folding into
+  the iOS/macOS `TutorialView` (which is `TouchRose`/pointer-driven): PadKit's
+  gesture stream is an external event source that wants a reference model, not
+  view `@State`. It plays once on the first pad session (`nine.pad.tutorialSeen`),
+  re-gestured onto `TutorialGrammar.pad`. The tvOS remote first-run flow (HomeView
+  `HelpOverlay`) is untouched — no regression.
+- **Parity ports (5b) widen gates for remote players too.** `GameCenter.swift`
+  and `HistorySheet.swift` widen to `+ os(tvOS)` (GameKit dashboard via
+  `GKGameCenterViewController`; a History shelf card reachable by remote and pad).
+  History content is chrome-scaled ×1.7 on tvOS for the ten-foot read while iOS/
+  macOS stay pixel-identical; the tvOS History sheet gains a focusable close
+  control so the focus engine can always leave it (the Game Center row is disabled
+  when signed out). Resume-on-launch and the prefs New-Game rows now ship on tvOS.
+- **`GCSupportsControllerUserInteraction: true` + `GCSupportedGameControllers`
+  (ExtendedGamepad)** added to Info.plist; **no requires-controller key** — the
+  app stays fully remote-playable, enforcement is session-scoped (App Review
+  necessity, PRD-5 §5).
+- **Simulator quirk, not shipped behavior:** the tvOS 26.5 simulator's virtual
+  remote registers as an *extended* gamepad, so `padConnected` is true and the
+  Pad Play card shows in the sim with no controller. The phantom pad emits no
+  gestures (keyboard input drives the remote path, which pad sessions
+  correctly ignore — the lockout was validated this way). On hardware only
+  real extended pads pass the filter; real Siri Remotes are microGamepad.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

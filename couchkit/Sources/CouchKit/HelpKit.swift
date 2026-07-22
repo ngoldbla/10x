@@ -2,8 +2,9 @@
 // of help: a control legend (gesture → action rows) inside a glass card,
 // auto-shown once on first launch and embedded in the prefs sheet thereafter,
 // so no screen ever asks the player to guess what the remote does.
-// On iOS the same shapes carry a touch legend and dismiss on tap.
-#if os(tvOS) || os(iOS)
+// On iOS the same shapes carry a touch legend and dismiss on tap; on macOS
+// they carry the keyboard legend (PRD-4).
+#if os(tvOS) || os(iOS) || os(macOS)
 import SwiftUI
 
 /// One row of the control legend: an SF Symbol for the gesture, the gesture's

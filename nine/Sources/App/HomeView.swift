@@ -9,6 +9,7 @@ import CouchKit
 struct HomeView: View {
     let model: AppModel
 
+    @State private var showHistory = false
     @Environment(\.colorScheme) private var colorScheme
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
@@ -17,6 +18,11 @@ struct HomeView: View {
     var body: some View {
         ZStack {
             shelf
+            // History is the suite's one secondary surface on the shelf, opened
+            // from a card and reachable by remote and pad alike (PRD-5 §2.3).
+            GlassSheet(isPresented: $showHistory) {
+                HistorySheetContent(model: model, onClose: { showHistory = false })
+            }
             // First-run manual. The shelf cards use native focus (no
             // couchRemote surface), so the overlay simply sits on top and
             // owns the remote while shown; on dismiss the cards regain
@@ -34,18 +40,23 @@ struct HomeView: View {
     }
 
     private var shelf: some View {
-        VStack(spacing: 64) {
-            header
-            HStack(alignment: .top, spacing: 56) {
-                todayCard
-                if model.savedFree != nil {
-                    continueCard
+        // Scrolls so the added History / Pad Play row never crowds the void off
+        // the bottom on a 1080p panel; the focus engine still centers cards.
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 64) {
+                header
+                HStack(alignment: .top, spacing: 56) {
+                    todayCard
+                    if model.savedFree != nil {
+                        continueCard
+                    }
                 }
+                freePlayRow
+                extrasRow
             }
-            freePlayRow
+            .padding(80)
+            .frame(maxWidth: .infinity)
         }
-        .padding(80)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var header: some View {
@@ -129,6 +140,50 @@ struct HomeView: View {
                 difficultyCard(difficulty)
             }
         }
+    }
+
+    // MARK: - Extras (History, Pad Play)
+
+    private var extrasRow: some View {
+        HStack(spacing: 44) {
+            // Pad Play appears the instant an extended gamepad connects (PRD-5
+            // §2), and starts a controller-locked session on today's board.
+            // Wider than the difficulty tiles: an icon + two text lines needs
+            // the room, and 360 truncated both subtitles (seen in validation).
+            if model.padConnected {
+                ShelfCard(width: 440, height: 150, action: { model.startPadSession() }) {
+                    extraTile(symbol: "gamecontroller.fill", title: "Pad Play", subtitle: "Controller session")
+                }
+            }
+            ShelfCard(width: 440, height: 150, action: {
+                // Authenticate here, not at launch: opening History is the
+                // player choosing to engage Game Center, so the system sheet
+                // is expected — at launch it was an unprompted takeover.
+                GameCenter.shared.authenticate()
+                showHistory = true
+            }) {
+                extraTile(symbol: "trophy", title: "History", subtitle: "Points & best times")
+            }
+        }
+    }
+
+    private func extraTile(symbol: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 20) {
+            Image(systemName: symbol)
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(CouchTypography.body)
+                Text(subtitle)
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -223,6 +278,20 @@ enum NineLegend {
 
     /// The rows the touch prefs sheet keeps as its manual.
     static let touchCompact: [LegendRow] = [touch[0], touch[1], touch[3], touch[4]]
+
+    /// The keyboard grammar (macOS, PRD-4 §2.2): the keyboard is the
+    /// superpower — arrows walk, digits type straight in.
+    static let keyboard: [LegendRow] = [
+        LegendRow(symbol: "arrow.up.arrow.down", gesture: "Arrow keys", action: "Move the cursor (wraps at edges)"),
+        LegendRow(symbol: "1.square", gesture: "1–9", action: "Place the digit"),
+        LegendRow(symbol: "shift", gesture: "⇧1–9 · P", action: "Pencil a note · sticky pencil"),
+        LegendRow(symbol: "9.square", gesture: "Space", action: "Light up the digit under the cursor"),
+        LegendRow(symbol: "arrow.right.to.line", gesture: "Tab / ⇧Tab", action: "Next / previous empty cell"),
+        LegendRow(symbol: "arrow.uturn.backward", gesture: "⌘Z", action: "Undo"),
+    ]
+
+    /// The rows the macOS Settings scene keeps as its manual.
+    static let keyboardCompact: [LegendRow] = [keyboard[0], keyboard[1], keyboard[3], keyboard[5]]
 }
 
 #if os(tvOS)

@@ -9,6 +9,10 @@
 //   play/pause       undo, with a glass toast showing the reverted digit
 //   play/pause hold  prefs sheet
 //   back             cancel rose · else save + home
+//
+// PRD-5 adds the pad session: when `model.padSession` is on, RemoteKit gestures
+// are ignored (Menu still exits), and PadKit's reader drives the SAME AppModel
+// mutation paths through `PadPlayController`. One master at a time, by design.
 import SwiftUI
 import CouchKit
 
@@ -29,12 +33,41 @@ struct GameScreen: View {
     /// The settings-discoverability chip, flashed on the first board of a
     /// session (the once-per-launch gate lives on the model).
     @State private var showHint = false
+
+    // MARK: Pad session (PRD-5)
+    /// The controller-locked play state. A reference type (not `@State` value)
+    /// because PadKit's gesture stream is an external event source; the
+    /// reference is stable across re-renders so `padReader.onGesture` can point
+    /// at it once.
+    @State private var pad: PadPlayController
+    /// The five-beat pad tutorial, shown on the first pad session ever.
+    @State private var padTutorial = PadTutorialModel()
+    @State private var showPadTutorial = false
+
     @Environment(\.colorScheme) private var colorScheme
+
+    init(model: AppModel) {
+        self.model = model
+        _pad = State(initialValue: PadPlayController(model: model))
+    }
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
     var body: some View {
+        Group {
+            if model.padSession {
+                padBody
+            } else {
+                remoteBody
+            }
+        }
+    }
+
+    // MARK: - Remote body (unchanged grammar)
+
+    @ViewBuilder
+    private var remoteBody: some View {
         // While the prefs sheet is up, the remote surface detaches so the
         // tvOS focus engine can walk the sheet's controls; Back (handled by
         // GlassSheet) brings it home again.
@@ -55,14 +88,160 @@ struct GameScreen: View {
                 .overlay(alignment: .bottom) { hintView.padding(.bottom, 108) }
             completionChip
             GlassSheet(isPresented: $showPrefs) {
-                PrefsSheetContent(model: model)
+                // New Game ships for remote players too (PRD-5 §2.3: a widened
+                // gate lands for everyone, not just the pad).
+                PrefsSheetContent(model: model, onNewGame: { difficulty in
+                    showPrefs = false
+                    cursor = 40
+                    model.startFree(difficulty)
+                })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { flashHint() }
     }
 
-    // MARK: - Board + rose
+    // MARK: - Pad body (PRD-5)
+
+    @ViewBuilder
+    private var padBody: some View {
+        Group {
+            // Prefs and the tutorial own the focus engine while up, so the
+            // board surface detaches (the prefs-sheet detach pattern).
+            if pad.showPrefs || showPadTutorial {
+                padCore
+            } else {
+                padCore.couchRemote(chrome: chrome, interceptsBack: true) { gesture in
+                    // A pad session ignores every board gesture from the
+                    // remote; only Menu/Back still leaves (save + home).
+                    if case .back = gesture { pad.handleBack() }
+                }
+            }
+        }
+        .onAppear {
+            showPadTutorial = !model.padTutorialSeen
+            pad.syncHaptics()
+            syncPadRouting()
+        }
+        .onDisappear { model.padReader.onGesture = nil }
+        .onChange(of: showPadTutorial) { syncPadRouting() }
+        .onChange(of: pad.showPrefs) { syncPadRouting() }
+        .onChange(of: model.prefs.controllerHaptics) { pad.syncHaptics() }
+        .onChange(of: padTutorial.finished) { _, done in
+            guard done else { return }
+            model.padTutorialSeen = true
+            showPadTutorial = false
+        }
+        // Disconnect mid-game freezes the board and pauses the timer; reconnect
+        // resumes in place (PRD-5 §1).
+        .onChange(of: model.padConnected) { _, connected in
+            guard model.padSession else { return }
+            if connected { model.resumePadTimer() } else { model.pausePadTimer() }
+        }
+    }
+
+    private var padCore: some View {
+        ZStack {
+            padBoard
+                .overlay(alignment: .topLeading) { timerChip.padding(48) }
+                .overlay(alignment: .top) { padModeChip.padding(.top, 48) }
+            completionChip
+            if !model.padConnected {
+                ReconnectVeil()
+            }
+            GlassSheet(isPresented: padPrefsBinding) {
+                PrefsSheetContent(model: model, onNewGame: startPadNewGame)
+            }
+            if showPadTutorial {
+                PadTutorialView(model: padTutorial, accent: accent)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var padPrefsBinding: Binding<Bool> {
+        Binding(get: { pad.showPrefs }, set: { pad.showPrefs = $0 })
+    }
+
+    /// Point the reader at whichever surface is live: the tutorial while it
+    /// teaches, the board otherwise. Both targets are stable references.
+    private func syncPadRouting() {
+        guard model.padSession else { model.padReader.onGesture = nil; return }
+        if showPadTutorial {
+            model.padReader.onGesture = { [padTutorial] gesture in padTutorial.handle(gesture) }
+        } else {
+            model.padReader.onGesture = { [pad] gesture in pad.handle(gesture) }
+        }
+    }
+
+    private func startPadNewGame(_ difficulty: Difficulty) {
+        pad.showPrefs = false
+        pad.highlightDigit = nil
+        pad.learningRose = nil
+        pad.cursor = 40
+        model.startFree(difficulty) // keeps padSession on
+    }
+
+    @ViewBuilder
+    private var padModeChip: some View {
+        if pad.pencilSticky {
+            GlassChip("Pencil", systemImage: "pencil")
+                .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var padBoard: some View {
+        if let game = model.game {
+            BoardView(
+                game: game,
+                cursor: pad.cursor,
+                accent: accent,
+                showErrors: model.prefs.errorHighlight,
+                solvedAt: model.solvedAt,
+                roseOpen: pad.learningRose != nil,
+                previewDigit: pad.previewDigit,
+                previewPencil: pad.learningRose?.pencil ?? false,
+                // Same-number highlight is the Triangle toggle in a pad session.
+                highlightDigit: model.prefs.numberHighlight ? pad.highlightDigit : nil,
+                dimmedExcept: pad.peekDigit,
+                // Gyro trophy: DualSense/DualShock tilt steers the sheen after
+                // the sweep settles (PRD-5 §2.2). No motion → a calm centered
+                // highlight, which keeps the loop alive but harmless.
+                waveOrigin: model.lastPlacedCell,
+                afterglowTilt: { model.padReader.motionTilt(at: $0) }
+            )
+            .overlay { padRoseOverlay(game: game) }
+        } else {
+            GlassChip("Composing…", systemImage: "sparkles")
+        }
+    }
+
+    @ViewBuilder
+    private func padRoseOverlay(game: NineGame) -> some View {
+        let center = BoardMetrics.center(of: pad.cursor)
+        if let rose = pad.learningRose {
+            FlickRoseView(
+                state: rose,
+                accent: accent,
+                completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
+                showsFocusRing: true
+            )
+            .position(x: center.x + 28, y: center.y + 28)
+        } else if !pad.shimmer.isEmpty {
+            // Ghost rose: the two candidate petals shimmer, nothing placed.
+            FlickRoseView(
+                state: RoseState(pencil: false, shimmerDigits: pad.shimmer),
+                accent: accent,
+                completedDigits: [],
+                showsFocusRing: false
+            )
+            .position(x: center.x + 28, y: center.y + 28)
+            .allowsHitTesting(false)
+        }
+    }
+
+    // MARK: - Board + rose (remote)
 
     @ViewBuilder
     private var board: some View {

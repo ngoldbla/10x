@@ -1,7 +1,7 @@
 // CouchUI foundations: typography, palette, accent derivation, springs.
 // Art direction: "Pixels under glass" — dark-first, content full-bleed,
 // chrome transient. No component in this file draws an opaque background.
-#if os(tvOS) || os(iOS)
+#if os(tvOS) || os(iOS) || os(macOS)
 import SwiftUI
 @_exported import CouchCore
 
@@ -36,6 +36,11 @@ public enum CouchTypography {
 public enum CouchScale {
     #if os(tvOS)
     public static let chrome: CGFloat = 1.0
+    #elseif os(macOS)
+    // Desk viewing distance sits between the couch (1.0) and the hand
+    // (0.55): a pointer-scale chrome that still reads across a room (PRD-4
+    // §0). First-guess per PRD; tune on screenshot review.
+    public static let chrome: CGFloat = 0.70
     #else
     public static let chrome: CGFloat = 0.55
     #endif

@@ -33,6 +33,31 @@ enum BoardMetrics {
         guard (0..<9).contains(col), (0..<9).contains(row) else { return nil }
         return row * 9 + col
     }
+
+    /// Move a cursor one step. `wrap` toggles edge-wrapping (the Mac keyboard
+    /// grammar, PRD-4 §2.2) versus clamping (the TV/touch cursor).
+    static func moveCursor(_ cell: Int, _ direction: Direction4, wrap: Bool) -> Int {
+        var row = cell / 9, col = cell % 9
+        switch direction {
+        case .up: row = wrap ? (row + 8) % 9 : max(0, row - 1)
+        case .down: row = wrap ? (row + 1) % 9 : min(8, row + 1)
+        case .left: col = wrap ? (col + 8) % 9 : max(0, col - 1)
+        case .right: col = wrap ? (col + 1) % 9 : min(8, col + 1)
+        }
+        return row * 9 + col
+    }
+
+    /// The next (or previous) empty cell, searched cyclically — Tab / ⇧Tab on
+    /// the Mac. Givens are filled, so they're skipped for free. Falls back to
+    /// the starting cell when the board has no empties left.
+    static func nextEmptyCell(from cell: Int, in game: NineGame, forward: Bool) -> Int {
+        let step = forward ? 1 : -1
+        for i in 1...81 {
+            let idx = ((cell + step * i) % 81 + 81) % 81
+            if game.entry(at: idx) == 0 { return idx }
+        }
+        return cell
+    }
 }
 
 struct BoardView: View {
@@ -55,6 +80,15 @@ struct BoardView: View {
     /// pencil note of it — gets an accent wash, so tapping a 9 shows all
     /// nine 9s (and where you've penciled them).
     var highlightDigit: Int? = nil
+    /// Pad peek (L2 hold, PRD-5 §2.1): while held, every digit and note that is
+    /// not this kind dims to a whisper so the highlighted kind pops. Nil = off,
+    /// so every non-pad caller renders byte-identically.
+    var dimmedExcept: Int? = nil
+    /// The cell under the pointer (macOS, PRD-4 §2.3) — the first hover
+    /// affordance in the suite. Drawn as a faint accent halo, dimmer than the
+    /// cursor ring, and suppressed when it coincides with the cursor. Nil on
+    /// every other platform (no pointer).
+    var hoverCell: Int? = nil
     /// Origin cell of the Afterglow shockwave — the winning placement.
     /// Nil (or Reduce Motion) keeps the classic diagonal luminance wave.
     var waveOrigin: Int? = nil
@@ -239,6 +273,18 @@ struct BoardView: View {
             }
         }
 
+        // 2.7 Hover halo (macOS pointer): a faint accent ring tracking the
+        //     cell under the pointer. Dimmer and thinner than the cursor, and
+        //     hidden when it lands on the cursor cell so the two never fight.
+        if let hoverCell, solvedAt == nil, hoverCell != cursor {
+            let row = hoverCell / 9, col = hoverCell % 9
+            let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                .insetBy(dx: 5 * scale, dy: 5 * scale)
+            let path = Path(roundedRect: rect, cornerRadius: 13 * scale)
+            context.fill(path, with: .color(accent.opacity(isLight ? 0.10 : 0.08)))
+            context.stroke(path, with: .color(accent.opacity(0.4)), lineWidth: max(1.5, 2 * scale))
+        }
+
         // 3. Cursor.
         if solvedAt == nil {
             let row = cursor / 9, col = cursor % 9
@@ -281,6 +327,9 @@ struct BoardView: View {
                     }
                 }
 
+                // L2 peek: everything that isn't the peeked kind recedes.
+                if let dimmedExcept, digit != dimmedExcept { color = color.opacity(0.16) }
+
                 context.draw(
                     Text("\(digit)")
                         .font(.system(size: 56 * scale, weight: isGiven ? .semibold : .medium, design: .rounded))
@@ -313,10 +362,12 @@ struct BoardView: View {
                         y: center.y + (mr - 1) * cell * 0.28
                     )
                     let highlighted = solvedAt == nil && mark == highlightDigit
+                    var noteColor = highlighted ? accent : gridTone.opacity(0.55)
+                    if let dimmedExcept, mark != dimmedExcept { noteColor = noteColor.opacity(0.16) }
                     context.draw(
                         Text("\(mark)")
                             .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
-                            .foregroundStyle(highlighted ? accent : gridTone.opacity(0.55)),
+                            .foregroundStyle(noteColor),
                         at: point
                     )
                 }

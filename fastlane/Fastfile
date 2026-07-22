@@ -28,44 +28,66 @@ APPS = {
   "darkroom"    => { scheme: "Darkroom",   bundle: "com.couchsuite.darkroom" },
   # `extensions` are iOS-only embedded targets: each needs its own match
   # profile fetched and its own entry in gym's provisioningProfiles.
-  "nine"        => { scheme: "Nine",       bundle: "com.couchsuite.nine", ios: true,
+  # `mac: true` apps also ship a native macOS build (PRD-4) from the same
+  # universal target; the widget extension stays iOS-only.
+  "nine"        => { scheme: "Nine",       bundle: "com.couchsuite.nine", ios: true, mac: true,
                      extensions: ["com.couchsuite.nine.widgets"] },
   "blockhead"   => { scheme: "Blockhead",  bundle: "com.couchsuite.blockhead" },
   "cartridge"   => { scheme: "Cartridge",  bundle: "com.couchsuite.cartridge" }
 }.freeze
 
 platform :ios do
-  desc "Build one Couch Suite app and upload to TestFlight (app:<folder>, platform:tvos|ios, upload:false = dry run)"
+  desc "Build one Couch Suite app and upload to TestFlight (app:<folder>, platform:tvos|ios|mac, upload:false = dry run)"
   lane :beta do |options|
     app_key = options.fetch(:app, "rabbit-ears")
     cfg = APPS[app_key] || UI.user_error!("Unknown app '#{app_key}'. One of: #{APPS.keys.join(', ')}")
     plat = options.fetch(:platform, "tvos").to_s
-    UI.user_error!("platform must be 'tvos' or 'ios'") unless %w[tvos ios].include?(plat)
+    UI.user_error!("platform must be 'tvos', 'ios' or 'mac'") unless %w[tvos ios mac].include?(plat)
     UI.user_error!("#{app_key} has no iOS build (only: #{APPS.select { |_, c| c[:ios] }.keys.join(', ')})") if plat == "ios" && !cfg[:ios]
+    UI.user_error!("#{app_key} has no macOS build (only: #{APPS.select { |_, c| c[:mac] }.keys.join(', ')})") if plat == "mac" && !cfg[:mac]
     do_upload = options.fetch(:upload, true)
     app_id  = cfg[:bundle]
     scheme  = cfg[:scheme]
     folder  = File.expand_path("../#{app_key}", __dir__)
-    profile = plat == "ios" ? "match AppStore #{app_id}" : "match AppStore #{app_id} tvos"
-    destination = plat == "ios" ? "generic/platform=iOS" : "generic/platform=tvOS"
-    ipa_name = plat == "ios" ? "#{scheme}-iOS.ipa" : "#{scheme}.ipa"
+    profile =
+      case plat
+      when "ios" then "match AppStore #{app_id}"
+      when "mac" then "match AppStore #{app_id} macos"
+      else "match AppStore #{app_id} tvos"
+      end
+    destination =
+      case plat
+      when "ios" then "generic/platform=iOS"
+      when "mac" then "generic/platform=macOS"
+      else "generic/platform=tvOS"
+      end
+    # tvOS/iOS export an .ipa; macOS a signed .pkg.
+    output_name = case plat
+                  when "ios" then "#{scheme}-iOS.ipa"
+                  when "mac" then "#{scheme}-macOS.pkg"
+                  else "#{scheme}.ipa"
+                  end
+    # match's platform vocabulary calls the Mac "macos".
+    match_platform = plat == "mac" ? "macos" : plat
     # Build number derived from git history — monotonic, never committed back.
     # App Store Connect enforces CFBundleVersion uniqueness per app record (bundle
-    # ID), NOT per platform, so a universal app's iOS and tvOS builds must never
-    # share a number. Disjoint trains: commit-count*10 for tvOS, +1 for iOS
-    # (commit 23 → tvOS 230, iOS 231; always above the pre-scheme builds ≤22).
+    # ID), NOT per platform, so a universal app's tvOS/iOS/mac builds must never
+    # share a number. Disjoint trains (PR #10): commit-count*10 for tvOS, +1 for
+    # iOS, +2 for mac (commit 23 → tvOS 230, iOS 231, mac 232; always above the
+    # pre-scheme builds ≤22).
+    train = { "tvos" => 0, "ios" => 1, "mac" => 2 }.fetch(plat)
     commit_count = sh("git", "-C", File.expand_path("..", __dir__), "rev-list", "--count", "HEAD").strip
-    build = (Integer(commit_count) * 10 + (plat == "ios" ? 1 : 0)).to_s
+    build = (Integer(commit_count) * 10 + train).to_s
 
     # Embedded extensions ship on iOS only (the widget is filtered out of the
-    # tvOS dependency graph in project.yml).
+    # tvOS and macOS dependency graphs in project.yml).
     extensions = plat == "ios" ? Array(cfg[:extensions]) : []
 
     key = asc_api_key
     setup_ci # temp keychain on CI; no-op locally
 
     # readonly: fetch the existing cert + profile from the match repo, never mint.
-    match(type: "appstore", platform: plat, app_identifier: [app_id] + extensions, api_key: key, readonly: true)
+    match(type: "appstore", platform: match_platform, app_identifier: [app_id] + extensions, api_key: key, readonly: true)
 
     Dir.chdir(folder) { sh("xcodegen", "generate") }
 
@@ -75,7 +97,7 @@ platform :ios do
       destination: destination,
       export_method: "app-store",
       output_directory: "#{folder}/dist",
-      output_name: ipa_name,
+      output_name: output_name,
       xcargs: "CURRENT_PROJECT_VERSION=#{build}",
       export_options: {
         signingStyle: "manual",
@@ -89,16 +111,21 @@ platform :ios do
       pilot(api_key: key, app_identifier: app_id, skip_waiting_for_build_processing: true)
       UI.success("#{app_key} (#{plat}) build #{build} uploaded to TestFlight")
     else
-      UI.success("#{app_key} (#{plat}) build #{build} exported (dry run): #{app_key}/dist/#{ipa_name}")
+      UI.success("#{app_key} (#{plat}) build #{build} exported (dry run): #{app_key}/dist/#{output_name}")
     end
   end
 
-  desc "Ship every platform build for one app: tvOS, plus iOS when universal (app:<folder>, upload:false = dry run)"
+  desc "Ship every platform build for one app: tvOS, plus iOS/macOS when universal (app:<folder>, upload:false = dry run)"
   lane :beta_app do |options|
     app_key = options.fetch(:app)
     cfg = APPS[app_key] || UI.user_error!("Unknown app '#{app_key}'. One of: #{APPS.keys.join(', ')}")
     beta(options.merge(platform: "tvos"))
     beta(options.merge(platform: "ios")) if cfg[:ios]
+    # The mac profiles aren't minted yet (needs the Mac Installer Distribution
+    # cert — PRD-4 §4 Step 1). Until they are, CI's beta_all must not attempt
+    # the mac leg; mint with `fastlane beta app:nine platform:mac upload:false`
+    # directly, then flip COUCH_SHIP_MAC=1 in CI (or drop this guard).
+    beta(options.merge(platform: "mac")) if cfg[:mac] && ENV["COUCH_SHIP_MAC"] == "1"
   end
 
   desc "Build + upload ALL Couch Suite builds to TestFlight: tvOS for all five, plus iOS for universal apps (upload:false = dry run)"
