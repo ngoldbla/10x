@@ -27,6 +27,9 @@ build/
 # target, and the iOS app needs a second (app group) applied per-SDK, so this
 # one is checked in (PRD-3).
 !nine/Nine-iOS.entitlements
+# …and the macOS ones, applied per-SDK the same way (PRD-4). Omitting this
+# exception broke the first CI mac archive: the file existed only locally.
+!nine/Nine-macOS.entitlements
 
 # Swift Package Manager
 .build/
