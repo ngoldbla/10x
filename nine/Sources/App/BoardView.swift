@@ -33,6 +33,31 @@ enum BoardMetrics {
         guard (0..<9).contains(col), (0..<9).contains(row) else { return nil }
         return row * 9 + col
     }
+
+    /// Move a cursor one step. `wrap` toggles edge-wrapping (the Mac keyboard
+    /// grammar, PRD-4 §2.2) versus clamping (the TV/touch cursor).
+    static func moveCursor(_ cell: Int, _ direction: Direction4, wrap: Bool) -> Int {
+        var row = cell / 9, col = cell % 9
+        switch direction {
+        case .up: row = wrap ? (row + 8) % 9 : max(0, row - 1)
+        case .down: row = wrap ? (row + 1) % 9 : min(8, row + 1)
+        case .left: col = wrap ? (col + 8) % 9 : max(0, col - 1)
+        case .right: col = wrap ? (col + 1) % 9 : min(8, col + 1)
+        }
+        return row * 9 + col
+    }
+
+    /// The next (or previous) empty cell, searched cyclically — Tab / ⇧Tab on
+    /// the Mac. Givens are filled, so they're skipped for free. Falls back to
+    /// the starting cell when the board has no empties left.
+    static func nextEmptyCell(from cell: Int, in game: NineGame, forward: Bool) -> Int {
+        let step = forward ? 1 : -1
+        for i in 1...81 {
+            let idx = ((cell + step * i) % 81 + 81) % 81
+            if game.entry(at: idx) == 0 { return idx }
+        }
+        return cell
+    }
 }
 
 struct BoardView: View {
@@ -55,6 +80,11 @@ struct BoardView: View {
     /// pencil note of it — gets an accent wash, so tapping a 9 shows all
     /// nine 9s (and where you've penciled them).
     var highlightDigit: Int? = nil
+    /// The cell under the pointer (macOS, PRD-4 §2.3) — the first hover
+    /// affordance in the suite. Drawn as a faint accent halo, dimmer than the
+    /// cursor ring, and suppressed when it coincides with the cursor. Nil on
+    /// every other platform (no pointer).
+    var hoverCell: Int? = nil
     /// Origin cell of the Afterglow shockwave — the winning placement.
     /// Nil (or Reduce Motion) keeps the classic diagonal luminance wave.
     var waveOrigin: Int? = nil
@@ -237,6 +267,18 @@ struct BoardView: View {
                 let path = Path(roundedRect: rect, cornerRadius: 12 * scale)
                 context.stroke(path, with: .color(accent.opacity(0.55)), lineWidth: max(1.5, 2 * scale))
             }
+        }
+
+        // 2.7 Hover halo (macOS pointer): a faint accent ring tracking the
+        //     cell under the pointer. Dimmer and thinner than the cursor, and
+        //     hidden when it lands on the cursor cell so the two never fight.
+        if let hoverCell, solvedAt == nil, hoverCell != cursor {
+            let row = hoverCell / 9, col = hoverCell % 9
+            let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                .insetBy(dx: 5 * scale, dy: 5 * scale)
+            let path = Path(roundedRect: rect, cornerRadius: 13 * scale)
+            context.fill(path, with: .color(accent.opacity(isLight ? 0.10 : 0.08)))
+            context.stroke(path, with: .color(accent.opacity(0.4)), lineWidth: max(1.5, 2 * scale))
         }
 
         // 3. Cursor.

@@ -290,12 +290,43 @@ final class AppModel {
     @ObservationIgnored private let historyStore =
         CouchStored(wrappedValue: SolveHistory(), "nine.history", cloudSynced: true)
 
+    #if os(macOS)
+    // MARK: - Mac window state (PRD-4 §2.5)
+
+    /// The Mac window's posture: the full 720×820 window, or the compact
+    /// board-only desk pane.
+    enum MacWindowMode: String, Sendable { case full, desk }
+    private(set) var windowMode: MacWindowMode = .full
+    /// Whether the desk pane floats above other windows. Opt-in, but the
+    /// choice is remembered across launches (PRD-4 §7 open question resolved).
+    var deskFloating: Bool {
+        didSet { deskFloatingStore.wrappedValue = deskFloating }
+    }
+    @ObservationIgnored private let deskFloatingStore =
+        CouchStored(wrappedValue: false, "nine.mac.deskFloating")
+    /// Menu-driven request to open the interactive tutorial (Help ▸ How to
+    /// Play). RootView observes and presents the overlay; reset on dismiss.
+    var macShowTutorial = false
+
+    func enterDeskMode() { windowMode = .desk }
+    func exitDeskMode() { windowMode = .full }
+    func toggleDeskMode() { windowMode = windowMode == .full ? .desk : .full }
+    #endif
+
     init() {
         prefs = prefsStore.wrappedValue
         streak = streakStore.wrappedValue
         saved = saveStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         history = historyStore.wrappedValue
+        #if os(macOS)
+        deskFloating = deskFloatingStore.wrappedValue
+        // Resume straight into a board in progress, as iOS — the Mac equivalent
+        // of "fewer taps to the board" (PRD-4 §2.6 resume-on-launch parity).
+        if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
+            resume(game, kind: kind)
+        }
+        #endif
         #if os(iOS)
         // Fewer taps to the board: a launch with a board in progress goes
         // straight back to it. The home chevron is one tap away.
@@ -333,6 +364,10 @@ final class AppModel {
     var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
 
     var totalPoints: Int { history.totalPoints }
+
+    /// Whether Undo would do anything right now — drives the Mac Edit ▸ Undo
+    /// menu item's enabled state (PRD-4 §2.4).
+    var canUndo: Bool { solvedAt == nil && !(game?.undoStack.isEmpty ?? true) }
 
     // MARK: - Starting games
 
@@ -429,6 +464,17 @@ final class AppModel {
         persistProgress()
     }
 
+    /// Clear a user entry (Delete / 0 on the Mac keyboard, PRD-4 §2.2).
+    /// No-op on givens and empty cells; never completes a board.
+    @discardableResult
+    func erase(at cell: Int) -> Bool {
+        guard solvedAt == nil, var g = game else { return false }
+        guard g.erase(at: cell) else { return false }
+        game = g
+        persistProgress()
+        return true
+    }
+
     @discardableResult
     func undoMove() -> NineMove? {
         guard solvedAt == nil, var g = game else { return nil }
@@ -449,6 +495,10 @@ final class AppModel {
         // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
         // visually stable through the crossfade; the next start replaces them.
         screen = .home
+        #if os(macOS)
+        // Desk mode is a board posture; home always gets the full window.
+        windowMode = .full
+        #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)
         #endif
@@ -487,8 +537,11 @@ final class AppModel {
         try? historyStore.flushNow()
         saved = SaveSlot() // the board is done; free the slot
         try? saveStore.flushNow()
-        #if os(iOS)
+        // GameKit is native on iOS and macOS (PRD-4 §2.6); widgets are iOS-only.
+        #if os(iOS) || os(macOS)
         GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        #endif
+        #if os(iOS)
         WidgetBridge.publish(from: self)
         #endif
     }

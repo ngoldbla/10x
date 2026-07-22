@@ -29,6 +29,20 @@
    active and the press exceeds the long-press threshold (emit on release,
    not on press).
 
+5. **macOS enablement (heads-up, not an ask — done in-repo).** PRD-4 adds a
+   native macOS destination to Nine, so CouchKit gains `.macOS(.v15)` and the
+   portable SwiftUI layer widens its gates to `os(macOS)`: `CouchStore`
+   (Application Support resolves inside the App Sandbox container; KVS mirrors
+   unchanged), `CouchUI` (`CouchScale.chrome` mac branch = **0.70**, typography
+   reuses the iOS ramp), `GlassComponents` (the `GlassSheet` scrim-dismiss and
+   the `FocusHalo` no-op already cover non-tvOS), `CouchGlass` (glass
+   availability gains `macOS 26.0`; the material fallback carries macOS 15),
+   and `HelpKit` (keyboard legend). `RemoteKit` / `AsciiEngine` /
+   `PhotoKitPlus` stay platform-gated. The four sibling apps declare no macOS
+   destination, so this is compile-surface only for them. No API change
+   requested — flagged here so the next thread editing these files knows macOS
+   is now a live target.
+
 4. **`ChromeVisibility` + `GlassSheet` focus hand-off (documentation ask).**
    With `.couchRemote` attached at a screen's root, the root stays focusable
    and consumes move commands, so a `GlassSheet`'s buttons can never gain

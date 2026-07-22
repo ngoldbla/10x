@@ -1,9 +1,10 @@
 // The CouchUI component set (PRD §5.1). All chrome is transient glass:
 // it appears on remote touch and recedes after ~3s of stillness, driven by
 // a shared `ChromeVisibility` that RemoteKit pokes on every gesture.
-// On iOS the same components render at handheld scale (CouchScale.chrome);
-// focus-engine affordances (FocusHalo) degrade to no-ops there.
-#if os(tvOS) || os(iOS)
+// On iOS and macOS the same components render at handheld / desk scale
+// (CouchScale.chrome); focus-engine affordances (FocusHalo) degrade to
+// no-ops there. On macOS a GlassSheet dismisses on a scrim click, as iOS.
+#if os(tvOS) || os(iOS) || os(macOS)
 import SwiftUI
 import CouchCore
 import Observation

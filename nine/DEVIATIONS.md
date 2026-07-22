@@ -132,6 +132,72 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   blends position, tilt *and* strength (sweep 0.35 → trophy 0.30) so no
   visible level jump accompanies the handoff.
 
+## PRD-4 — Nine for Mac (keyboard-native + desk mode)
+
+- **CouchKit gains a macOS destination:** `Package.swift` adds `.macOS(.v15)`
+  and `CouchStore` / `CouchUI` / `GlassComponents` / `CouchGlass` / `HelpKit`
+  widen their gates to `os(macOS)`. `RemoteKit` / `AsciiEngine` /
+  `PhotoKitPlus` stay platform-gated. The four sibling apps declare no macOS
+  destination, so this is compile-surface only for them (heads-up in
+  COUCHKIT-ASKS.md, done in-repo — not an ask).
+- **`CouchScale.chrome` on macOS = 0.70** — a first guess between the couch
+  (1.0) and the hand (0.55). Tune on the first screenshot review (PRD-4 §7).
+  Typography reuses the iOS ramp on the Mac (no separate mac ramp yet).
+- **Model hoisted to the App level:** `AppModel` now lives on `NineApp`
+  (`@State`) and is injected into `RootView(model:)`, so the macOS Settings
+  scene (⌘,), History window (⌘Y) and menu-bar Commands all share the one
+  `@Observable`. tvOS/iOS behavior is unchanged (the model is still created
+  once at launch); only its owner moved up one level.
+- **Game Center dashboard on macOS = `GKAccessPoint.shared.trigger(.dashboard)`**
+  — chosen over an `NSViewControllerRepresentable` host for
+  `GKGameCenterViewController`: it needs no window plumbing and the access
+  point stays hidden otherwise. Sign-in view controller (which GameKit hands
+  back as an `NSViewController` on the Mac) is presented as a sheet on the key
+  window.
+- **History is a real window (⌘Y), not a sheet** — the Mac-native answer to
+  "History window from the Game menu" (PRD-4 §2.6). Settings is the standard
+  Settings scene (⌘,) reusing `PrefsSheetContent` with the keyboard legend and
+  the touch-only layout rows (Controls / Board position / Ambient) dropped.
+- **⌘Z is owned by the Edit menu, not `onKeyPress`** — a menu key-equivalent
+  wins over a focused view's key handler, so routing undo through the menu is
+  the honest path. The menu calls back into the focused game screen via
+  `focusedSceneValue(\.nineActions)` so the glass undo toast (view state) still
+  shows; the item greys out via `AppModel.canUndo`.
+- **TutorialGrammar shipped (cross-phase contract):** `TutorialView` widened
+  to `os(iOS) || os(macOS)` and now consumes a `TutorialGrammar`; the iOS copy
+  is `.touch` verbatim (zero copy regressions). `.keyboard` re-gestures the
+  five beats and the Mac practice board accepts the keyboard grammar
+  (arrows/digits/Space) alongside the pointer rose. `.remote` (tvOS) and
+  `.pad` (controller) are defined for PRD-5; `.pad` is a reasonable stub Phase
+  5 refines.
+- **Shared flick math:** `TouchRose.flickDirection` moved to
+  `RoseGeometry.flickDirection(_:minimumDistance:)` (pure math), and the
+  `TouchRose` view moved from the iOS-gated `TouchUI.swift` into the shared
+  `FlickRoseView.swift`, so the Mac pointer rose and the iOS touch rose place
+  through one classifier. A trackpad drag and a finger flick are identical.
+- **Afterglow trophy tilt is pointer-steered on the Mac:** `AfterglowPointer`
+  maps a hover offset over the solved board into the same `SIMD2<Double>` seam
+  `BoardView.afterglowTilt` consumes on iOS. `AfterglowMotion` (CoreMotion)
+  stays iOS-gated; `AfterglowHaptics` is untouched (Phase 5 owns it).
+- **Erase gesture:** the Mac keyboard's Delete / 0 erases a user entry via a
+  new `AppModel.erase(at:)` wrapping the engine's existing `NineGame.erase`.
+  Never completes a board; a no-op on givens and empty cells.
+- **Desk mode (PRD-4 §2.5):** ⌘⇧D collapses to a ~340pt board-only pane driven
+  by an `NSWindow` configurator — transparent titlebar + hidden title (kept,
+  not stripped, so the traffic lights and window drag survive), `minSize`
+  clamped, `isMovableByWindowBackground` on. Float-on-top is **opt-in and
+  remembered** (`nine.mac.deskFloating`, the PRD-4 §7 open question resolved
+  toward opt-in) via `window.level = .floating`. Each posture has its own
+  frame autosave name (`nine.main` / `nine.desk`) so both remember their
+  corner. Esc / ⌘⇧D / a hover-revealed corner glyph restore the full window.
+- **Signing is config-only:** `project.yml` carries the macOS profile
+  specifier + `Nine-macOS.entitlements` (App Sandbox + KVS + game-center) and
+  the Fastfile grows a `platform:mac` leg (train +2, signed pkg via gym, pilot
+  upload). The `match AppStore com.couchsuite.nine macos` profile and the **Mac
+  Installer Distribution** cert are **not minted from the worktree** — that is
+  the pre-merge portal→mint→CI ops step (PRD-3 §3 sequencing; may hit the
+  Apple Distribution cert-limit workaround from the tvOS setup).
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

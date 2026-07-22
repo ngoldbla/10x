@@ -223,6 +223,20 @@ enum NineLegend {
 
     /// The rows the touch prefs sheet keeps as its manual.
     static let touchCompact: [LegendRow] = [touch[0], touch[1], touch[3], touch[4]]
+
+    /// The keyboard grammar (macOS, PRD-4 §2.2): the keyboard is the
+    /// superpower — arrows walk, digits type straight in.
+    static let keyboard: [LegendRow] = [
+        LegendRow(symbol: "arrow.up.arrow.down", gesture: "Arrow keys", action: "Move the cursor (wraps at edges)"),
+        LegendRow(symbol: "1.square", gesture: "1–9", action: "Place the digit"),
+        LegendRow(symbol: "shift", gesture: "⇧1–9 · P", action: "Pencil a note · sticky pencil"),
+        LegendRow(symbol: "9.square", gesture: "Space", action: "Light up the digit under the cursor"),
+        LegendRow(symbol: "arrow.right.to.line", gesture: "Tab / ⇧Tab", action: "Next / previous empty cell"),
+        LegendRow(symbol: "arrow.uturn.backward", gesture: "⌘Z", action: "Undo"),
+    ]
+
+    /// The rows the macOS Settings scene keeps as its manual.
+    static let keyboardCompact: [LegendRow] = [keyboard[0], keyboard[1], keyboard[3], keyboard[5]]
 }
 
 #if os(tvOS)

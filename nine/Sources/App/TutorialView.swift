@@ -3,12 +3,19 @@
 // beats — the goal, placing a digit, pencil notes, the same-number
 // highlight, and what the difficulty names mean. Each beat advances when
 // the player actually does the thing.
-#if os(iOS)
+//
+// The beat copy comes from a `TutorialGrammar` the host supplies, so the same
+// view teaches the touch rose on iOS and the keyboard grammar on macOS
+// (PRD-4 §2.6). On the Mac the practice board also accepts the full keyboard
+// grammar — arrows walk, digits type — alongside the pointer rose.
+#if os(iOS) || os(macOS)
 import SwiftUI
 import CouchKit
 
 struct TutorialView: View {
     let accent: Color
+    /// Per-platform beat copy (`.touch` on iOS, `.keyboard` on macOS).
+    var grammar: TutorialGrammar = .touch
     let onDismiss: @MainActor () -> Void
 
     private enum Step: Int, CaseIterable {
@@ -80,6 +87,11 @@ struct TutorialView: View {
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if step == .place || step == .pencil || step == .highlight {
+                Text(grammar.advanceHint)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.couchFast, value: step)
@@ -100,11 +112,11 @@ struct TutorialView: View {
         case .goal:
             return "Fill every row, column and 3×3 box with 1–9 — each digit exactly once. This board is nearly done; you'll finish a piece of it."
         case .place:
-            return "Tap the glowing cell, then tap the \(targetDigitName) in the rose. (You can also flick toward it — the rose is a 3×3 keypad.)"
+            return grammar.placeDetail(digit: targetDigitName)
         case .pencil:
-            return "Pencil is on. Tap an empty cell and note a digit you're considering — notes sit small in the corner until a real digit lands."
+            return grammar.pencilDetail
         case .highlight:
-            return "Tap any placed digit on the board. Every copy of it lights up — pencil notes too. Tap one again to switch the lights off."
+            return grammar.highlightDetail
         case .difficulty:
             return "Every difficulty is provably solvable by logic alone — no guessing, ever. Solves earn points; faster and harder earns more."
         }
@@ -150,7 +162,7 @@ struct TutorialView: View {
         if let game {
             let inset: CGFloat = 10
             let side = max(200, min(geo.size.width - 104, geo.size.height * 0.52))
-            BoardView(
+            let board = BoardView(
                 game: game,
                 cursor: cursor,
                 accent: accent,
@@ -183,6 +195,16 @@ struct TutorialView: View {
                     .position(rosePosition(side: side, inset: inset, scale: scale))
                 }
             }
+            #if os(macOS)
+            // The Mac practice board speaks the keyboard grammar too: arrows
+            // walk, digits type, Shift-digit pencils, Space highlights.
+            board
+                .focusable()
+                .focusEffectDisabled()
+                .onKeyPress { press in handleKey(press) ? .handled : .ignored }
+            #else
+            board
+            #endif
         } else {
             GlassChip("Composing…", systemImage: "sparkles")
                 .frame(minHeight: 220)
@@ -229,6 +251,43 @@ struct TutorialView: View {
         game = g
         withAnimation(.couchFast) { rose = nil }
     }
+
+    #if os(macOS)
+    /// The keyboard grammar over the practice board (mirrors MacGameScreen,
+    /// but mutating the local practice game). Returns whether the key was
+    /// consumed.
+    private func handleKey(_ press: KeyPress) -> Bool {
+        guard var g = game else { return false }
+        if press.modifiers.contains(.command) { return false }
+        guard let action = MacBoardKeys.action(for: press) else { return false }
+        switch action {
+        case .move(let direction):
+            if rose == nil { cursor = BoardMetrics.moveCursor(cursor, direction, wrap: true) }
+        case .place(let digit):
+            guard !g.isGiven(cursor) else { return true }
+            _ = g.place(digit, at: cursor)
+            game = g
+        case .pencil(let digit):
+            guard !g.isGiven(cursor), g.entry(at: cursor) == 0 else { return true }
+            _ = g.togglePencil(digit, at: cursor)
+            game = g
+        case .toggleStickyPencil:
+            pencilMode.toggle()
+        case .highlight:
+            let digit = g.entry(at: cursor)
+            if digit != 0 {
+                withAnimation(.couchFast) { highlighted = (highlighted == digit) ? nil : digit }
+            }
+        case .nextEmpty(let forward):
+            cursor = BoardMetrics.nextEmptyCell(from: cursor, in: g, forward: forward)
+        case .erase:
+            break // no erase gesture in the tutorial
+        case .escape:
+            if rose != nil { withAnimation(.couchFast) { rose = nil } } else { onDismiss() }
+        }
+        return true
+    }
+    #endif
 
     /// A gentle board with all but five cells already resolved, so the goal
     /// reads at a glance and the lesson's target is unmissable.

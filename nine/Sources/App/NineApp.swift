@@ -1,22 +1,61 @@
 // NineApp.swift — entry point. Full-bleed void, two screens, no chrome that
 // isn't glass. Launches straight to the shelf: zero onboarding.
+//
+// The model is owned here at the App level (not inside RootView) so that on
+// macOS the extra scenes — the Settings scene (⌘,), the History window (⌘Y)
+// and the menu-bar Commands — all share the one @Observable AppModel. On
+// tvOS/iOS there is a single WindowGroup, so behavior is identical.
 import SwiftUI
 import CouchKit
 
 @main
 struct NineApp: App {
+    @State private var model = AppModel()
+
+    #if os(macOS)
+    init() {
+        // One board, one window — tabbing a sudoku makes no sense, and
+        // dropping it clears the stock Show Tab Bar rows from the View menu.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+    #endif
+
     var body: some Scene {
+        #if os(macOS)
+        // 720×820 default, 480×560 minimum (PRD-4 §2.1); desk mode overrides
+        // the constraints live via the window configurator.
         WindowGroup {
-            RootView()
+            RootView(model: model)
         }
+        .defaultSize(width: 720, height: 820)
+        .windowResizability(.contentMinSize)
+        .commands { NineCommands(model: model) }
+
+        // ⌘, — the standard Settings scene, iOS-parity rows minus touch-only.
+        Settings {
+            MacSettingsView(model: model)
+        }
+
+        // ⌘Y — the History window (points, best times, recent solves, Game
+        // Center), opened from the Game menu.
+        Window("History", id: "history") {
+            MacHistoryWindow(model: model)
+        }
+        .defaultSize(width: 440, height: 660)
+        #else
+        WindowGroup {
+            RootView(model: model)
+        }
+        #endif
     }
 }
 
 struct RootView: View {
-    @State private var model = AppModel()
+    let model: AppModel
     #if os(iOS)
     @Environment(\.scenePhase) private var scenePhase
     #endif
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -36,6 +75,21 @@ struct RootView: View {
         // materials and secondary text follow — both platforms.
         .preferredColorScheme(model.prefs.theme.colorScheme)
         .environment(\.nineTheme, model.prefs.theme)
+        #if os(macOS)
+        // Drive the NSWindow (desk mode size/level, frame autosave) and host
+        // the keyboard-gestured tutorial from Help ▸ How to Play.
+        .background(MacWindowConfigurator(model: model))
+        .overlay {
+            if model.macShowTutorial {
+                TutorialView(accent: accent, grammar: .keyboard) {
+                    model.macShowTutorial = false
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.couchFast, value: model.macShowTutorial)
+        .onAppear { GameCenter.shared.authenticate() }
+        #endif
         #if os(iOS)
         .onAppear { GameCenter.shared.authenticate() }
         // Widget taps land on today's daily. openToday() is already safe
@@ -63,13 +117,19 @@ struct RootView: View {
         #endif
     }
 
-    // One model, two grammars: the TV screens speak remote (RemoteKit), the
-    // touch screens speak fingers. Everything below them — engine, persistence,
-    // board and rose rendering — is shared.
+    /// The accent resolved for the theme's leaning (themes pin the scheme).
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    // One model, three grammars: the TV screens speak remote (RemoteKit), the
+    // touch screens speak fingers, the Mac screens speak keyboard + pointer.
+    // Everything below them — engine, persistence, board and rose rendering —
+    // is shared.
     @ViewBuilder
     private var homeScreen: some View {
         #if os(tvOS)
         HomeView(model: model)
+        #elseif os(macOS)
+        MacHomeView(model: model)
         #else
         TouchHomeView(model: model)
         #endif
@@ -79,6 +139,8 @@ struct RootView: View {
     private var gameScreen: some View {
         #if os(tvOS)
         GameScreen(model: model)
+        #elseif os(macOS)
+        MacGameScreen(model: model)
         #else
         TouchGameScreen(model: model)
         #endif

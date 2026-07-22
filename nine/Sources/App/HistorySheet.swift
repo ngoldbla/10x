@@ -1,8 +1,9 @@
 // HistorySheet.swift — the record of every solved board: totals, best times
 // per difficulty, the recent log, and the door into Game Center. Lives in
 // the same GlassSheet shell as prefs (the suite's one secondary surface —
-// only ever one open at a time).
-#if os(iOS)
+// only ever one open at a time). On macOS the same content fills the History
+// window opened from the Game menu (⌘Y, PRD-4 §2.6).
+#if os(iOS) || os(macOS)
 import SwiftUI
 import CouchKit
 
@@ -38,9 +39,13 @@ struct HistorySheetContent: View {
 
                 Spacer(minLength: 12)
 
+                // On Mac this is a real window with a close button — the
+                // dismissal footer is touch guidance and would read wrong.
+                #if !os(macOS)
                 Text("Tap outside to return")
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
+                #endif
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }

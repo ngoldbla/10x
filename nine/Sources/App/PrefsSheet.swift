@@ -31,6 +31,9 @@ struct PrefsSheetContent: View {
             #if os(tvOS)
             ControlLegend(rows: NineLegend.compact)
                 .padding(.bottom, 8)
+            #elseif os(macOS)
+            ControlLegend(rows: NineLegend.keyboardCompact)
+                .padding(.bottom, 8)
             #else
             ControlLegend(rows: NineLegend.touchCompact)
                 .padding(.bottom, 8)
@@ -62,7 +65,8 @@ struct PrefsSheetContent: View {
 
             themeRow
 
-            #if os(iOS)
+            // Resume-on-launch ships on iOS and macOS (PRD-4 §2.6 parity).
+            #if os(iOS) || os(macOS)
             prefRow(
                 title: "Resume on launch",
                 detail: model.prefs.resumeOnLaunch ? "On" : "Off",
@@ -70,7 +74,9 @@ struct PrefsSheetContent: View {
             ) {
                 model.prefs.resumeOnLaunch.toggle()
             }
+            #endif
 
+            #if os(iOS)
             // PRD-2: board anchor + ambient slot, grouped with the existing
             // control-placement pref — all three decide where things sit.
             Text("Layout")
@@ -121,6 +127,9 @@ struct PrefsSheetContent: View {
             Text("Press Back to return")
                 .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
+            #elseif os(macOS)
+            // The Settings window has its own chrome — no dismissal hint.
+            EmptyView()
             #else
             Text("Tap outside to return")
                 .font(CouchTypography.caption)

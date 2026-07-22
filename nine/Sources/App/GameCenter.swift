@@ -3,9 +3,19 @@
 // after each solve. Everything is fire-and-forget: Game Center being signed
 // out, offline, or not yet configured in App Store Connect must never cost
 // the player anything (points and history are local-first in SolveHistory).
-#if os(iOS)
+//
+// GameKit is native on macOS too (PRD-4 §2.6): the same leaderboard /
+// achievement IDs, the same fire-and-forget reporting. Only the sign-in
+// presentation and the dashboard invocation branch per platform — the Mac
+// triggers `GKAccessPoint` (no UIKit view-controller surface).
+#if os(iOS) || os(macOS)
 import GameKit
 import Observation
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 @MainActor @Observable
 final class GameCenter: NSObject {
@@ -30,9 +40,7 @@ final class GameCenter: NSObject {
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, _ in
             Task { @MainActor in
                 guard let self else { return }
-                if let viewController {
-                    Self.rootViewController?.present(viewController, animated: true)
-                }
+                if let viewController { Self.present(viewController) }
                 self.isAuthenticated = GKLocalPlayer.local.isAuthenticated
             }
         }
@@ -68,13 +76,18 @@ final class GameCenter: NSObject {
         }
     }
 
-    /// The full Game Center dashboard (leaderboards + achievements),
-    /// presented UIKit-style since GameKit has no SwiftUI surface yet.
+    /// The full Game Center dashboard (leaderboards + achievements). On iOS
+    /// this is a modally-presented `GKGameCenterViewController`; on macOS the
+    /// `GKAccessPoint` trigger opens the same dashboard without a UIKit host.
     func showDashboard() {
         guard isAuthenticated else { return }
+        #if os(macOS)
+        GKAccessPoint.shared.trigger(state: .dashboard) {}
+        #else
         let dashboard = GKGameCenterViewController(state: .dashboard)
         dashboard.gameCenterDelegate = self
         Self.rootViewController?.present(dashboard, animated: true)
+        #endif
     }
 
     // MARK: - Internals
@@ -86,6 +99,18 @@ final class GameCenter: NSObject {
         return achievement
     }
 
+    #if os(macOS)
+    /// Present the sign-in view controller macOS-style: as a sheet on the key
+    /// window (GameKit hands back an `NSViewController` on the Mac).
+    private static func present(_ viewController: NSViewController) {
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first else { return }
+        window.contentViewController?.presentAsSheet(viewController)
+    }
+    #else
+    private static func present(_ viewController: UIViewController) {
+        rootViewController?.present(viewController, animated: true)
+    }
+
     private static var rootViewController: UIViewController? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -93,8 +118,10 @@ final class GameCenter: NSObject {
             .first(where: \.isKeyWindow)?
             .rootViewController
     }
+    #endif
 }
 
+#if os(iOS)
 extension GameCenter: GKGameCenterControllerDelegate {
     nonisolated func gameCenterViewControllerDidFinish(_ controller: GKGameCenterViewController) {
         Task { @MainActor in
@@ -102,4 +129,5 @@ extension GameCenter: GKGameCenterControllerDelegate {
         }
     }
 }
+#endif
 #endif

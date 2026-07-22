@@ -4,16 +4,18 @@ options:
   deploymentTarget:
     tvOS: "18.0"
     iOS: "18.0"
+    macOS: "15.0"
 packages:
   CouchKit:
     path: ../couchkit
 targets:
   Nine:
     type: application
-    # One universal target: the tvOS app and the iOS (iPhone/iPad) app build
-    # from the same sources — RootView picks the remote or touch UI per
-    # platform, and per-SDK settings below pick icons and signing profiles.
-    supportedDestinations: [tvOS, iOS]
+    # One universal target: the tvOS app, the iOS (iPhone/iPad) app and the
+    # native macOS app build from the same sources — RootView picks the
+    # remote, touch or keyboard UI per platform, and per-SDK settings below
+    # pick icons, entitlements and signing profiles (PRD-4 §1).
+    supportedDestinations: [tvOS, iOS, macOS]
     sources:
       - Sources/App
       - Sources/Engine
@@ -35,22 +37,32 @@ targets:
         MARKETING_VERSION: "1.1"
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2,3"
-        # tvOS keeps the layered brand asset; iOS uses the flat square icon.
+        # tvOS keeps the layered brand asset; iOS uses the flat square icon;
+        # macOS uses its own margined, rounded icon set (PRD-4 §1).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]": "App Icon & Top Shelf Image"
         "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]": "App Icon & Top Shelf Image"
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]": "AppIcon-macOS"
         "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvos*]": "Launch Image"
         "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvsimulator*]": "Launch Image"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Distribution"
         DEVELOPMENT_TEAM: ${COUCH_TEAM_ID}
-        # match names tvOS profiles with a "tvos" suffix; iOS gets the default.
+        # App Sandbox is mandatory for the Mac App Store; hardened runtime
+        # rides with it. tvOS/iOS are unaffected (this key is macOS-scoped by
+        # the entitlements override below, not here).
+        "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": "YES"
+        # match names tvOS profiles with a "tvos" suffix, macOS with "macos";
+        # iOS gets the default.
         "PROVISIONING_PROFILE_SPECIFIER[sdk=appletvos*]": "match AppStore com.couchsuite.nine tvos"
         "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "match AppStore com.couchsuite.nine"
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "match AppStore com.couchsuite.nine macos"
         # iOS adds the app group (widget snapshot); the checked-in file keeps
-        # the generated tvOS entitlements byte-identical (PRD-3 §3a).
+        # the generated tvOS entitlements byte-identical (PRD-3 §3a). macOS
+        # gets its own sandbox + KVS + game-center entitlements.
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Nine-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Nine-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Nine-macOS.entitlements
     entitlements:
       path: Nine.entitlements
       properties:

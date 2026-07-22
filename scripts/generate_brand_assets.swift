@@ -33,6 +33,11 @@ struct AppSpec {
     // Apps that also ship an iOS build get a flat square AppIcon.appiconset
     // (single-size 1024, opaque RGB — the App Store rejects alpha).
     var iosIcon: Bool = false
+    // Apps that also ship a macOS build get a margined, rounded-rect
+    // AppIcon-macOS.appiconset (PRD-4 §1): the mac idiom expects the icon to
+    // carry its own HIG margin + rounded shape (transparency is fine here,
+    // unlike iOS).
+    var macIcon: Bool = false
     let glyph: [String]
 }
 
@@ -79,6 +84,7 @@ let specs: [AppSpec] = [
         grid: RGB(r: 0.76, g: 0.70, b: 0.94),
         accent: RGB(r: 0.76, g: 0.70, b: 0.94), secondary: RGB(r: 1.0, g: 0.45, b: 0.38),
         iosIcon: true,
+        macIcon: true,
         glyph: [
             "##...##...##",
             "##...##...##",
@@ -345,6 +351,61 @@ func emitIOSAppIcon(_ s: AppSpec, catalog: URL) {
         dir.appendingPathComponent("Contents.json"))
 }
 
+/// macOS app icon: the flat composition clipped to a rounded-rect with a HIG
+/// margin (PRD-4 §1). Transparency IS expected here (the margin + corners),
+/// unlike the opaque iOS icon.
+func renderMacIcon(_ s: AppSpec, size: Int) -> CGContext {
+    let ctx = context(w: size, h: size)          // premultipliedLast: transparent
+    let fsize = CGFloat(size)
+    let margin = fsize * 0.10                     // ~10% HIG margin all around
+    let inner = CGRect(x: margin, y: margin, width: fsize - 2 * margin, height: fsize - 2 * margin)
+    let radius = inner.width * 0.2237             // the macOS continuous-corner ratio
+    ctx.saveGState()
+    ctx.addPath(CGPath(roundedRect: inner, cornerWidth: radius, cornerHeight: radius, transform: nil))
+    ctx.clip()
+    let colors = [s.backTop.cg, s.backBottom.cg] as CFArray
+    let grad = CGGradient(colorsSpace: ctx.colorSpace!, colors: colors, locations: [0, 1])!
+    ctx.drawLinearGradient(
+        grad, start: CGPoint(x: 0, y: fsize), end: CGPoint(x: 0, y: 0), options: [])
+    let cell = max(8, size / 24)
+    let dot = max(1, cell / 8)
+    ctx.setFillColor(s.grid.alpha(0.08))
+    var y = cell / 2
+    while y < size {
+        var x = cell / 2
+        while x < size {
+            ctx.fill(CGRect(x: x, y: y, width: dot, height: dot))
+            x += cell
+        }
+        y += cell
+    }
+    ctx.restoreGState()
+    // Glyph centered over the whole canvas; the reduced coverage keeps it
+    // inside the margin.
+    drawGlyph(s, into: ctx, w: size, h: size, coverage: 0.50, dim: 1.0)
+    return ctx
+}
+
+/// The full mac idiom icon set (16…512 at 1x/2x); Xcode assembles the .icns.
+func emitMacAppIcon(_ s: AppSpec, catalog: URL) {
+    let dir = catalog.appendingPathComponent("AppIcon-macOS.appiconset")
+    let sizes: [(pt: Int, scale: Int)] = [
+        (16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2),
+        (256, 1), (256, 2), (512, 1), (512, 2),
+    ]
+    var entries: [String] = []
+    for item in sizes {
+        let file = "icon_\(item.pt)x\(item.pt)@\(item.scale)x.png"
+        entries.append(
+            "{ \"size\" : \"\(item.pt)x\(item.pt)\", \"idiom\" : \"mac\", "
+                + "\"filename\" : \"\(file)\", \"scale\" : \"\(item.scale)x\" }")
+        writePNG(renderMacIcon(s, size: item.pt * item.scale), to: dir.appendingPathComponent(file))
+    }
+    write(
+        "{ \"images\" : [ \(entries.joined(separator: ", ")) ], \(info) }",
+        dir.appendingPathComponent("Contents.json"))
+}
+
 // MARK: - Main
 
 let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0])
@@ -378,5 +439,6 @@ for s in selected {
     emitImageset(s, name: "Top Shelf Image Wide", brand: brand, w: 2320, h: 720, coverage: 0.55)
     emitLaunchImage(s, catalog: catalog)
     if s.iosIcon { emitIOSAppIcon(s, catalog: catalog) }
+    if s.macIcon { emitMacAppIcon(s, catalog: catalog) }
     print("✓ \(s.folder)/Assets.xcassets")
 }
