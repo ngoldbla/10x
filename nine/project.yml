@@ -82,8 +82,12 @@ targets:
         # NOT a requires-controller key: the app stays fully remote-playable, so
         # enforcement is session-scoped, never app-wide.
         GCSupportsControllerUserInteraction: true
+        # Each entry must be a dict keyed `ProfileName` — any other shape fails
+        # App Store validation (error 90593, seen on the first post-merge
+        # upload). MicroGamepad = the Siri Remote grammar RemoteKit speaks.
         GCSupportedGameControllers:
-          - GCControllerProfile: ExtendedGamepad
+          - ProfileName: ExtendedGamepad
+          - ProfileName: MicroGamepad
         # Widgets deep-link into today's daily via nine://daily.
         CFBundleURLTypes:
           - CFBundleURLName: com.couchsuite.nine
