@@ -121,7 +121,11 @@ platform :ios do
     cfg = APPS[app_key] || UI.user_error!("Unknown app '#{app_key}'. One of: #{APPS.keys.join(', ')}")
     beta(options.merge(platform: "tvos"))
     beta(options.merge(platform: "ios")) if cfg[:ios]
-    beta(options.merge(platform: "mac")) if cfg[:mac]
+    # The mac profiles aren't minted yet (needs the Mac Installer Distribution
+    # cert — PRD-4 §4 Step 1). Until they are, CI's beta_all must not attempt
+    # the mac leg; mint with `fastlane beta app:nine platform:mac upload:false`
+    # directly, then flip COUCH_SHIP_MAC=1 in CI (or drop this guard).
+    beta(options.merge(platform: "mac")) if cfg[:mac] && ENV["COUCH_SHIP_MAC"] == "1"
   end
 
   desc "Build + upload ALL Couch Suite builds to TestFlight: tvOS for all five, plus iOS for universal apps (upload:false = dry run)"
