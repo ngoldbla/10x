@@ -64,7 +64,9 @@ platform :ios do
     # tvOS/iOS export an .ipa; macOS a signed .pkg.
     output_name = case plat
                   when "ios" then "#{scheme}-iOS.ipa"
-                  when "mac" then "#{scheme}-macOS.pkg"
+                  # gym appends .pkg itself for Mac App Store exports; naming
+                  # it here yielded Nine-macOS.pkg.pkg on the first dry run.
+                  when "mac" then "#{scheme}-macOS"
                   else "#{scheme}.ipa"
                   end
     # match's platform vocabulary calls the Mac "macos".
@@ -87,11 +89,16 @@ platform :ios do
     setup_ci # temp keychain on CI; no-op locally
 
     # readonly: fetch the existing cert + profile from the match repo, never mint.
-    match(type: "appstore", platform: match_platform, app_identifier: [app_id] + extensions, api_key: key, readonly: true)
+    # The Mac App Store pkg is signed by a separate installer certificate, so
+    # the mac leg must ask match for that type too or gym's pkg step finds no
+    # installer identity in the (CI temp) keychain.
+    extra_certs = plat == "mac" ? ["mac_installer_distribution"] : []
+    match(type: "appstore", platform: match_platform, app_identifier: [app_id] + extensions,
+          additional_cert_types: extra_certs, api_key: key, readonly: true)
 
     Dir.chdir(folder) { sh("xcodegen", "generate") }
 
-    gym(
+    gym_params = {
       project: "#{folder}/#{scheme}.xcodeproj",
       scheme: scheme,
       destination: destination,
@@ -105,7 +112,12 @@ platform :ios do
           map[ext] = "match AppStore #{ext}"
         }
       }
-    )
+    }
+    # On a multiplatform project gym only takes its pkg (Mac App Store) branch
+    # when the sdk names the Mac — without this it walks the iOS path and dies
+    # with "IPA invalid" after a perfectly good export (gym module.rb:70).
+    gym_params[:sdk] = "macosx" if plat == "mac"
+    gym(gym_params)
 
     if do_upload
       pilot(api_key: key, app_identifier: app_id, skip_waiting_for_build_processing: true)
