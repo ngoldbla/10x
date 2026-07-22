@@ -65,14 +65,27 @@ struct PrefsSheetContent: View {
 
             themeRow
 
-            // Resume-on-launch ships on iOS and macOS (PRD-4 §2.6 parity).
-            #if os(iOS) || os(macOS)
+            // Resume-on-launch ships on iOS, macOS and tvOS (PRD-4 §2.6,
+            // PRD-5 §2.3 parity).
+            #if os(iOS) || os(macOS) || os(tvOS)
             prefRow(
                 title: "Resume on launch",
                 detail: model.prefs.resumeOnLaunch ? "On" : "Off",
                 symbol: model.prefs.resumeOnLaunch ? "play.circle.fill" : "play.circle"
             ) {
                 model.prefs.resumeOnLaunch.toggle()
+            }
+            #endif
+
+            #if os(tvOS)
+            // Controller haptics — the Afterglow score in hand, and the ticks
+            // during play (PRD-5 §2.2). Silences all of it in a pad session.
+            prefRow(
+                title: "Controller haptics",
+                detail: model.prefs.controllerHaptics ? "On" : "Off",
+                symbol: model.prefs.controllerHaptics ? "gamecontroller.fill" : "gamecontroller"
+            ) {
+                model.prefs.controllerHaptics.toggle()
             }
             #endif
 

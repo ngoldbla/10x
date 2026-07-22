@@ -115,6 +115,11 @@ struct RootView: View {
             }
         }
         #endif
+        // tvOS deliberately does NOT authenticate at launch: while signed out,
+        // GameKit re-presents its full-screen welcome sheet on every launch —
+        // an app-opening takeover on the calmest screen in the house (observed
+        // in validation). The History sheet authenticates on open instead;
+        // solve reporting stays fire-and-forget and simply no-ops until then.
     }
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).

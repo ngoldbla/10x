@@ -80,6 +80,10 @@ struct BoardView: View {
     /// pencil note of it — gets an accent wash, so tapping a 9 shows all
     /// nine 9s (and where you've penciled them).
     var highlightDigit: Int? = nil
+    /// Pad peek (L2 hold, PRD-5 §2.1): while held, every digit and note that is
+    /// not this kind dims to a whisper so the highlighted kind pops. Nil = off,
+    /// so every non-pad caller renders byte-identically.
+    var dimmedExcept: Int? = nil
     /// The cell under the pointer (macOS, PRD-4 §2.3) — the first hover
     /// affordance in the suite. Drawn as a faint accent halo, dimmer than the
     /// cursor ring, and suppressed when it coincides with the cursor. Nil on
@@ -323,6 +327,9 @@ struct BoardView: View {
                     }
                 }
 
+                // L2 peek: everything that isn't the peeked kind recedes.
+                if let dimmedExcept, digit != dimmedExcept { color = color.opacity(0.16) }
+
                 context.draw(
                     Text("\(digit)")
                         .font(.system(size: 56 * scale, weight: isGiven ? .semibold : .medium, design: .rounded))
@@ -355,10 +362,12 @@ struct BoardView: View {
                         y: center.y + (mr - 1) * cell * 0.28
                     )
                     let highlighted = solvedAt == nil && mark == highlightDigit
+                    var noteColor = highlighted ? accent : gridTone.opacity(0.55)
+                    if let dimmedExcept, mark != dimmedExcept { noteColor = noteColor.opacity(0.16) }
                     context.draw(
                         Text("\(mark)")
                             .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
-                            .foregroundStyle(highlighted ? accent : gridTone.opacity(0.55)),
+                            .foregroundStyle(noteColor),
                         at: point
                     )
                 }

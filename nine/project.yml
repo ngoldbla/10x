@@ -77,6 +77,13 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # PRD-5: an extended gamepad drives the Pad Play session. Declare
+        # controller-driven UI support and the ExtendedGamepad profile — but
+        # NOT a requires-controller key: the app stays fully remote-playable, so
+        # enforcement is session-scoped, never app-wide.
+        GCSupportsControllerUserInteraction: true
+        GCSupportedGameControllers:
+          - GCControllerProfile: ExtendedGamepad
         # Widgets deep-link into today's daily via nine://daily.
         CFBundleURLTypes:
           - CFBundleURLName: com.couchsuite.nine

@@ -198,6 +198,85 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   the pre-merge portal→mint→CI ops step (PRD-3 §3 sequencing; may hit the
   Apple Distribution cert-limit workaround from the tvOS setup).
 
+## PRD-5 — Pad Nine (controller-driven tvOS + haptics + parity ports)
+
+- **PadKit is a new CouchKit reader (`#if os(tvOS)`), sibling to RemoteKit.** It
+  filters STRICTLY to `extendedGamepad` profiles, so the Siri Remote (a
+  `microGamepad`, owned by RemoteKit) is never double-claimed. It never assumes
+  `GCController.current` — it adopts one device and walks `GCController.controllers()`
+  (two-controller households). Publishes `PadGesture` (move w/ momentum, flick,
+  flickAmbiguous, button, connect/disconnect). Heads-up (not an ask) recorded in
+  COUCHKIT-ASKS.md — Blockhead/Cartridge will want it.
+- **Ghost-rose shimmer works on the pad (COUCHKIT-ASKS #1, satisfied here).**
+  The Siri-Remote reader still swallows ambiguous strokes, but PadKit owns its
+  right-stick classifier, so an ambiguous diagonal emits `flickAmbiguous(a, b)`
+  and the board shimmers the two candidate petals (`RoseState.shimmerDigits`)
+  and places nothing. The never-misfire covenant: 0.75 magnitude + return-to-rest
+  + the `FlickClassifier` forgiveness cone.
+- **Cursor-momentum IOU paid.** The 1.0 deviation ("fast flick crosses a box")
+  deferred momentum because the remote's move command carries no velocity. The
+  left stick is analog, so `PadMomentum` maps deflection magnitude → a repeat-rate
+  curve: a feathered push steps one cell, a full push glides across a box (a
+  detent haptic per box crossed). The d-pad remains the single-step precision
+  fallback.
+- **Play/pause double-fire IOU paid (in pad sessions).** The remote's
+  play/pause-long-press leak (undo then prefs) is worked around on the remote;
+  the pad has a dedicated **Options** button for prefs, so the double-fire never
+  arises in a pad session. The remote workaround is unchanged.
+- **Light mode NOT ported to tvOS — brand call.** The TV void stays always-dark
+  in a pad session as everywhere else on tvOS; the theme picker's light-leaning
+  options remain available (retired the always-dark rule in 1.2), but there is no
+  new light affordance for the pad. The couch reads best dark.
+- **Afterglow score refactored into a shared factory.** `AfterglowScoreTiming`
+  (Sources/Shared, pure Foundation — Linux/hardware-independent) holds the exact
+  numbers; `AfterglowScore` (`canImport(CoreHaptics)`) builds the patterns; the
+  iPhone `AfterglowHaptics` keeps its class name / `playSolveScore()` / `stop()`
+  API and behavior **byte-identical**, and tvOS `ControllerHaptics` plays the same
+  patterns through the `GCDeviceHaptics` engines PadKit vends (`PadHaptics`,
+  create-at-need lifecycle). `AfterglowScoreTimingTests` pins the 9-tick
+  crescendo (0.25→2.15s) and 2.40s thump so the two hands can never drift.
+- **Controller haptics live on the placement paths.** Whisper tick per placement,
+  soft double-knock on an error placement (only when error highlight is on), one
+  detent per box crossed gliding, full crescendo on solve. A "Controller haptics"
+  prefs row (tvOS) silences all of it. Xbox pads with no CoreHaptics fidelity fail
+  soft (CoreHaptics degrades to rumble; a throw means silence).
+- **Gyro trophy on the controller.** PadKit exposes `motionTilt(at:)` (GCMotion
+  gravity delta, clamped ±0.35 — the exact `AfterglowMotion` seam) fed through
+  `BoardView.afterglowTilt` in a pad session; `AfterglowMotion` stays iOS-only.
+  Remote-mode solves pass no tilt closure, so they keep PRD-1's static settle.
+- **Session mode, not a second SKU.** `AppModel.padSession` + `padConnected`
+  (PadKit observation). The Pad Play shelf card appears when a pad connects and
+  starts a controller-locked session on today's board (Options → New Game switches
+  difficulty inside the session). During a session the `.couchRemote` closure
+  ignores every board gesture; only Menu/Back exits (save + home). Disconnect
+  mid-game drops a glass "Reconnect your controller" veil and pauses the timer;
+  reconnect resumes in place.
+- **Pad tutorial is a dedicated pad-driven surface, not the pointer TutorialView.**
+  `TutorialView.swift` is widened to tvOS, but the pad tutorial is a separate
+  `@Observable` `PadTutorialModel` + `PadTutorialView` rather than folding into
+  the iOS/macOS `TutorialView` (which is `TouchRose`/pointer-driven): PadKit's
+  gesture stream is an external event source that wants a reference model, not
+  view `@State`. It plays once on the first pad session (`nine.pad.tutorialSeen`),
+  re-gestured onto `TutorialGrammar.pad`. The tvOS remote first-run flow (HomeView
+  `HelpOverlay`) is untouched — no regression.
+- **Parity ports (5b) widen gates for remote players too.** `GameCenter.swift`
+  and `HistorySheet.swift` widen to `+ os(tvOS)` (GameKit dashboard via
+  `GKGameCenterViewController`; a History shelf card reachable by remote and pad).
+  History content is chrome-scaled ×1.7 on tvOS for the ten-foot read while iOS/
+  macOS stay pixel-identical; the tvOS History sheet gains a focusable close
+  control so the focus engine can always leave it (the Game Center row is disabled
+  when signed out). Resume-on-launch and the prefs New-Game rows now ship on tvOS.
+- **`GCSupportsControllerUserInteraction: true` + `GCSupportedGameControllers`
+  (ExtendedGamepad)** added to Info.plist; **no requires-controller key** — the
+  app stays fully remote-playable, enforcement is session-scoped (App Review
+  necessity, PRD-5 §5).
+- **Simulator quirk, not shipped behavior:** the tvOS 26.5 simulator's virtual
+  remote registers as an *extended* gamepad, so `padConnected` is true and the
+  Pad Play card shows in the sim with no controller. The phantom pad emits no
+  gestures (keyboard input drives the remote path, which pad sessions
+  correctly ignore — the lockout was validated this way). On hardware only
+  real extended pads pass the filter; real Siri Remotes are microGamepad.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

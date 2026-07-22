@@ -193,12 +193,17 @@ struct NinePrefs: Codable, Sendable, Equatable {
     var boardAnchor: BoardAnchor = .center
     /// iOS ambient chip in the free band; off by default.
     var ambientSlot: AmbientSlot = .none
+    /// tvOS: haptics in the controller's hands during a pad session (PRD-5
+    /// §2.2). On by default — the whole point is the Afterglow score in hand;
+    /// the "Controller haptics" row silences all of it.
+    var controllerHaptics = true
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case showTimer, errorHighlight, accent, numberHighlight
         case controlsAtBottom, resumeOnLaunch, boardAnchor, ambientSlot
+        case controllerHaptics
         case theme = "appearance"
     }
 
@@ -218,6 +223,7 @@ struct NinePrefs: Codable, Sendable, Equatable {
         resumeOnLaunch = try c.decodeIfPresent(Bool.self, forKey: .resumeOnLaunch) ?? true
         boardAnchor = (try? c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor)) ?? .center
         ambientSlot = (try? c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot)) ?? .none
+        controllerHaptics = try c.decodeIfPresent(Bool.self, forKey: .controllerHaptics) ?? true
     }
 }
 
@@ -313,12 +319,73 @@ final class AppModel {
     func toggleDeskMode() { windowMode = windowMode == .full ? .desk : .full }
     #endif
 
+    #if os(tvOS)
+    // MARK: - Pad session (PRD-5 §4 Step 2)
+
+    /// The reader for a paired extended gamepad. Owned here so the shelf can
+    /// observe `padConnected` at launch; the active screen sets its `onGesture`.
+    @ObservationIgnored let padReader = PadReader()
+    /// An extended gamepad is paired (drives the Pad Play card + the veil).
+    private(set) var padConnected = false
+    /// The board is under controller lock: RemoteKit gestures are ignored, the
+    /// pad drives every mutation. Menu still exits (save + home).
+    var padSession = false
+    /// The interactive pad tutorial has run once. Persisted — it plays on the
+    /// first pad session ever, then never nags again.
+    var padTutorialSeen: Bool {
+        didSet { padTutorialSeenStore.wrappedValue = padTutorialSeen }
+    }
+    @ObservationIgnored private let padTutorialSeenStore =
+        CouchStored(wrappedValue: false, "nine.pad.tutorialSeen")
+
+    /// Begin observing controller connection (call once at launch). PadKit is
+    /// inert until a device pairs, so this is free on a remote-only household.
+    func startPadReader() {
+        padReader.onConnectionChange = { [weak self] connected in
+            self?.padConnected = connected
+        }
+        padReader.start()
+    }
+
+    /// Enter a controller-locked session on today's daily. Difficulty is a
+    /// choice inside the session (Options → New Game). No-op without a pad.
+    func startPadSession() {
+        guard padConnected else { return }
+        padSession = true
+        openToday()
+    }
+
+    /// Pause the board timer while the reconnect veil is up (PRD-5 §1).
+    func pausePadTimer() {
+        guard solvedAt == nil, var g = game else { return }
+        g.timer.pause(at: Date())
+        game = g
+    }
+
+    /// Resume in place when the controller reconnects.
+    func resumePadTimer() {
+        guard solvedAt == nil, var g = game else { return }
+        g.timer.start(at: Date())
+        game = g
+    }
+    #endif
+
     init() {
         prefs = prefsStore.wrappedValue
         streak = streakStore.wrappedValue
         saved = saveStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         history = historyStore.wrappedValue
+        #if os(tvOS)
+        padTutorialSeen = padTutorialSeenStore.wrappedValue
+        startPadReader()
+        // Resume straight into a board in progress (PRD-5 §2.3 parity). The pad
+        // session is not resumed — a fresh launch is a remote surface until the
+        // player chooses Pad Play again.
+        if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
+            resume(game, kind: kind)
+        }
+        #endif
         #if os(macOS)
         deskFloating = deskFloatingStore.wrappedValue
         // Resume straight into a board in progress, as iOS — the Mac equivalent
@@ -499,6 +566,10 @@ final class AppModel {
         // Desk mode is a board posture; home always gets the full window.
         windowMode = .full
         #endif
+        #if os(tvOS)
+        // Home is a remote surface; the pad session ends at the shelf.
+        padSession = false
+        #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)
         #endif
@@ -537,8 +608,9 @@ final class AppModel {
         try? historyStore.flushNow()
         saved = SaveSlot() // the board is done; free the slot
         try? saveStore.flushNow()
-        // GameKit is native on iOS and macOS (PRD-4 §2.6); widgets are iOS-only.
-        #if os(iOS) || os(macOS)
+        // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
+        // widgets are iOS-only.
+        #if os(iOS) || os(macOS) || os(tvOS)
         GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
         #endif
         #if os(iOS)

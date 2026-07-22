@@ -4,11 +4,12 @@
 // out, offline, or not yet configured in App Store Connect must never cost
 // the player anything (points and history are local-first in SolveHistory).
 //
-// GameKit is native on macOS too (PRD-4 §2.6): the same leaderboard /
-// achievement IDs, the same fire-and-forget reporting. Only the sign-in
-// presentation and the dashboard invocation branch per platform — the Mac
-// triggers `GKAccessPoint` (no UIKit view-controller surface).
-#if os(iOS) || os(macOS)
+// GameKit is native on macOS and tvOS too (PRD-4 §2.6, PRD-5 §2.3): the same
+// leaderboard / achievement IDs, the same fire-and-forget reporting. Only the
+// sign-in presentation and the dashboard invocation branch per platform — the
+// Mac triggers `GKAccessPoint` (no UIKit view-controller surface); tvOS uses
+// the same `GKGameCenterViewController` UIKit path as iOS.
+#if os(iOS) || os(macOS) || os(tvOS)
 import GameKit
 import Observation
 #if os(macOS)
@@ -121,7 +122,7 @@ final class GameCenter: NSObject {
     #endif
 }
 
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 extension GameCenter: GKGameCenterControllerDelegate {
     nonisolated func gameCenterViewControllerDidFinish(_ controller: GKGameCenterViewController) {
         Task { @MainActor in

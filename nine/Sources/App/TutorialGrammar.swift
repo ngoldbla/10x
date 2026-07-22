@@ -68,16 +68,17 @@ struct TutorialGrammar {
         highlightDetail: "Move the cursor onto any placed digit and press Space. Every copy lights up — pencil notes too. Space again switches the lights off."
     )
 
-    // MARK: - Controller / pad (tvOS, PRD-5). Stub — Phase 5 refines the copy
-    // to the real DualSense / Xbox verbs and connects the beats to the pad
-    // grammar. The verbs below are reasonable placeholders.
+    // MARK: - Controller / pad (tvOS, PRD-5). Real DualSense / Xbox verbs,
+    // wired to the pad grammar: the right stick *is* the rose (one deflection
+    // per digit, the cell always armed), Square is sticky pencil, Triangle is
+    // the same-number highlight, L2 held is peek.
     static let pad = TutorialGrammar(
         placeVerb: "flick the right stick",
-        pencilVerb: "hold pencil",
-        highlightVerb: "press to highlight",
-        advanceHint: "Left stick moves · right stick flicks · B undoes",
-        placeDetailFormat: "Move to the glowing cell with the left stick, then flick the right stick toward %@ — the rose is a 3×3 keypad.",
-        pencilDetail: "Hold the pencil button and flick a note into an empty cell — small in the corner until a real digit lands.",
-        highlightDetail: "Rest on any placed digit and press to light up every copy — pencil notes too."
+        pencilVerb: "Square",
+        highlightVerb: "Triangle",
+        advanceHint: "Left stick moves · right stick flicks a digit · Circle erases",
+        placeDetailFormat: "Walk to the glowing cell with the left stick, then flick the right stick toward %@ — the cell is always armed, so it's one flick per digit, no rose to open. (Cross opens the rose if you'd rather learn the petals; R3 places 5.)",
+        pencilDetail: "Press Square for sticky pencil, then flick a note into an empty cell — small in the corner until a real digit lands. Square again turns pencil off.",
+        highlightDetail: "Rest on any placed digit and press Triangle — every copy lights up, pencil notes too. Hold L2 to dim everything except that kind. Triangle again switches the lights off."
     )
 }

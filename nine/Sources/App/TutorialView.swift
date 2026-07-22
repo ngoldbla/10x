@@ -377,3 +377,323 @@ struct TutorialView: View {
     }
 }
 #endif
+
+// MARK: - Pad tutorial (tvOS, PRD-5 §2.3)
+
+// The tvOS remote tutorial is the first-run HelpOverlay (HomeView) — unchanged.
+// A pad session gets its own interactive tutorial on the first play, re-gestured
+// onto the pad verbs (`TutorialGrammar.pad`) and driven by PadKit's reader. As
+// on the board, an external gesture stream wants a reference model, so the beats
+// live on a `@Observable` object GameScreen feeds; `PadTutorialView` renders it.
+#if os(tvOS)
+import SwiftUI
+import Observation
+import CouchKit
+
+@MainActor
+@Observable
+final class PadTutorialModel {
+    enum Step: Int, CaseIterable { case goal, place, pencil, highlight, difficulty }
+
+    private(set) var step: Step = .goal
+    private(set) var game: NineGame?
+    private(set) var cursor = 0
+    private(set) var learningRose: RoseState?
+    private(set) var pencilMode = false
+    private(set) var highlighted: Int?
+    private(set) var stepDone = false
+    /// Flips true when the last beat is dismissed; GameScreen watches this to
+    /// mark the tutorial seen and hand the board to the pad grammar.
+    var finished = false
+
+    private var targetCell = 0
+    @ObservationIgnored private var advanceTask: Task<Void, Never>?
+
+    var targetDigitName: String {
+        guard let game else { return "digit" }
+        return "\(game.puzzle.solution.cells[targetCell])"
+    }
+
+    /// The digit a flick into the learning rose would place, ghosted.
+    var previewDigit: Int? { learningRose.map { $0.focusedIndex + 1 } }
+
+    // MARK: Board
+
+    func composePracticeBoardIfNeeded() async {
+        guard game == nil else { return }
+        let puzzle = await Task.detached(priority: .userInitiated) {
+            PuzzleGenerator.generate(seed: 0x9109, difficulty: .gentle)
+        }.value
+        var g = NineGame(puzzle: puzzle)
+        let empties = (0..<81).filter { g.entry(at: $0) == 0 }
+        for cell in empties.dropLast(5) {
+            g.place(puzzle.solution.cells[cell], at: cell)
+        }
+        targetCell = Array(empties.suffix(5)).first ?? 40
+        cursor = targetCell
+        game = g
+    }
+
+    // MARK: Gesture entry
+
+    func handle(_ gesture: PadGesture) {
+        switch gesture {
+        case .move(let direction, let glide):
+            move(direction, glide: glide)
+        case .flick(let direction):
+            commit(digit: RoseGeometry.digit(for: direction))
+        case .flickAmbiguous:
+            break // the ghost rose is the board's teacher, not the tutorial's
+        case .button(let button):
+            press(button)
+        case .buttonUp, .connect, .disconnect:
+            break
+        }
+    }
+
+    private func move(_ direction: Direction4, glide: Bool) {
+        if var rose = learningRose {
+            guard !glide else { return }
+            rose.focusedIndex = RoseGeometry.moveFocus(rose.focusedIndex, direction)
+            learningRose = rose
+            return
+        }
+        cursor = BoardMetrics.moveCursor(cursor, direction, wrap: false)
+    }
+
+    private func press(_ button: PadButton) {
+        switch button {
+        case .cross:
+            if step == .goal { advance(); return }
+            if step == .difficulty { finished = true; return }
+            openRose()
+        case .circle:
+            learningRose = nil
+        case .square:
+            pencilMode.toggle()
+        case .triangle:
+            toggleHighlight()
+        case .r3:
+            commit(digit: 5)
+        default:
+            break
+        }
+    }
+
+    private func openRose() {
+        guard let game, !game.isGiven(cursor) else { return }
+        if pencilMode, game.entry(at: cursor) != 0 { return }
+        learningRose = RoseState(pencil: pencilMode)
+    }
+
+    private func commit(digit: Int) {
+        guard var g = game, !g.isGiven(cursor) else { learningRose = nil; return }
+        if pencilMode, g.entry(at: cursor) == 0 {
+            _ = g.togglePencil(digit, at: cursor)
+        } else {
+            _ = g.place(digit, at: cursor)
+        }
+        game = g
+        learningRose = nil
+        checkProgress()
+    }
+
+    private func toggleHighlight() {
+        guard let digit = game?.entry(at: cursor), digit != 0 else { return }
+        highlighted = (highlighted == digit) ? nil : digit
+        checkProgress()
+    }
+
+    /// The "Skip this step" affordance (Options), so nobody is ever stuck.
+    func skip() { advance() }
+
+    // MARK: Progression
+
+    private func checkProgress() {
+        guard !stepDone else { return }
+        let done: Bool
+        switch step {
+        case .place:
+            done = game.map { $0.entry(at: targetCell) == $0.puzzle.solution.cells[targetCell] } ?? false
+        case .pencil:
+            done = game.map { g in (0..<81).contains { !g.pencilDigits(at: $0).isEmpty } } ?? false
+        case .highlight:
+            done = highlighted != nil
+        case .goal, .difficulty:
+            return
+        }
+        guard done else { return }
+        stepDone = true
+        advanceTask?.cancel()
+        advanceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            self?.advance()
+        }
+    }
+
+    private func advance() {
+        stepDone = false
+        step = Step(rawValue: step.rawValue + 1) ?? .difficulty
+        pencilMode = (step == .pencil)
+        if step == .highlight { highlighted = nil }
+    }
+}
+
+struct PadTutorialView: View {
+    let model: PadTutorialModel
+    let accent: Color
+    var grammar: TutorialGrammar = .pad
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            VStack(spacing: 28) {
+                header
+                instruction
+                if model.step != .difficulty {
+                    boardArea
+                } else {
+                    PadDifficultyGuide(accent: accent)
+                }
+                footer
+            }
+            .padding(48)
+            .frame(maxWidth: 1180)
+            .couchGlass(in: RoundedRectangle(cornerRadius: 48, style: .continuous))
+            .padding(48)
+        }
+        // The tutorial owns the remote while shown: Menu/Back skips out of it.
+        .couchRemote(interceptsBack: true) { gesture in
+            if case .back = gesture { model.finished = true }
+        }
+        .task { await model.composePracticeBoardIfNeeded() }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("How to play — controller")
+                .couchText(CouchTypography.title)
+            Spacer()
+        }
+    }
+
+    private var instruction: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(instructionTitle)
+                .font(CouchTypography.body)
+            Text(instructionDetail)
+                .font(CouchTypography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if model.step == .place || model.step == .pencil || model.step == .highlight {
+                Text(grammar.advanceHint)
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var instructionTitle: String {
+        switch model.step {
+        case .goal: return "The goal"
+        case .place: return "Place a digit"
+        case .pencil: return "Pencil notes"
+        case .highlight: return "Find every 9 (or 5, or 2…)"
+        case .difficulty: return "Pick your poison"
+        }
+    }
+
+    private var instructionDetail: String {
+        switch model.step {
+        case .goal:
+            return "Fill every row, column and 3×3 box with 1–9 — each digit exactly once. This board is nearly done; you'll finish a piece of it. Press Cross to begin."
+        case .place:
+            return grammar.placeDetail(digit: model.targetDigitName)
+        case .pencil:
+            return grammar.pencilDetail
+        case .highlight:
+            return grammar.highlightDetail
+        case .difficulty:
+            return "Every difficulty is provably solvable by logic alone — no guessing, ever. Solves earn points; faster and harder earns more. Press Cross when you're ready."
+        }
+    }
+
+    @ViewBuilder
+    private var boardArea: some View {
+        if let game = model.game {
+            let side: CGFloat = 560
+            BoardView(
+                game: game,
+                cursor: model.cursor,
+                accent: accent,
+                showErrors: true,
+                solvedAt: nil,
+                roseOpen: model.learningRose != nil,
+                previewDigit: model.previewDigit,
+                previewPencil: model.learningRose?.pencil ?? false,
+                highlightDigit: model.highlighted,
+                side: side,
+                inset: 20
+            )
+            .overlay {
+                if let rose = model.learningRose {
+                    let center = BoardMetrics.center(of: model.cursor, side: side)
+                    FlickRoseView(
+                        state: rose,
+                        accent: accent,
+                        completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
+                        showsFocusRing: true,
+                        scale: 0.6
+                    )
+                    .position(x: center.x + 20, y: center.y + 20)
+                }
+            }
+            .frame(width: side + 40, height: side + 40)
+        } else {
+            GlassChip("Composing…", systemImage: "sparkles")
+                .frame(minHeight: 300)
+        }
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        if model.stepDone {
+            GlassChip("Nice", systemImage: "checkmark")
+        } else if model.step == .goal {
+            GlassChip("Press Cross to try it", systemImage: "circle")
+        } else if model.step == .difficulty {
+            GlassChip("Press Cross — done", systemImage: "checkmark.circle")
+        } else {
+            GlassChip("Press Menu to skip the tutorial", systemImage: "forward")
+                .opacity(0.7)
+        }
+    }
+}
+
+/// The difficulty guide at TV scale (the tutorial's last beat).
+private struct PadDifficultyGuide: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                HStack(alignment: .top, spacing: 20) {
+                    MiniBoard(difficulty: difficulty, accent: accent)
+                        .frame(width: 64, height: 64)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(difficulty.title)
+                            .font(CouchTypography.body)
+                        Text(difficulty.explainer)
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+#endif

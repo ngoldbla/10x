@@ -43,6 +43,22 @@
    requested — flagged here so the next thread editing these files knows macOS
    is now a live target.
 
+6. **PadKit added to CouchKit (heads-up, not an ask — done in-repo).** PRD-5
+   adds `couchkit/Sources/CouchKit/PadKit.swift` (`#if os(tvOS)`), a sibling to
+   RemoteKit for extended gamepads: it observes `GCController` connect/disconnect,
+   filters STRICTLY to `extendedGamepad` (the Siri Remote's `microGamepad` stays
+   RemoteKit's — the two readers must never both claim a device), and publishes
+   `PadGesture` (move w/ analog momentum via the pure `PadMomentum`, right-stick
+   `flick`/`flickAmbiguous` reusing `CouchCore.FlickClassifier`, buttons,
+   connect/disconnect). `PadHaptics` vends per-locality `GCDeviceHaptics` engines
+   with the `AfterglowHaptics` create-at-need lifecycle; `motionTilt(at:)` exposes
+   GCMotion for the gyro trophy. No CouchKit API change is requested — flagged
+   here so the next thread (Blockhead/Cartridge will want controller input)
+   knows the reader already exists and where the filter/never-misfire rules live.
+   PadKit fulfils COUCHKIT-ASKS #1 for the pad (it owns its own reader, so it
+   forwards ambiguous strokes as `flickAmbiguous`); the Siri-Remote ask #1 still
+   stands for RemoteKit.
+
 4. **`ChromeVisibility` + `GlassSheet` focus hand-off (documentation ask).**
    With `.couchRemote` attached at a screen's root, the root stays focusable
    and consumes move commands, so a `GlassSheet`'s buttons can never gain
