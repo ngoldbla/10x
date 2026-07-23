@@ -77,6 +77,9 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Required for the Mac App Store (.pkg upload rejects without it, error
+        # 90242); harmless/valid on iOS too, ignored by tvOS. Nine is a sudoku.
+        LSApplicationCategoryType: public.app-category.puzzle-games
         # PRD-5: an extended gamepad drives the Pad Play session. Declare
         # controller-driven UI support and the ExtendedGamepad profile — but
         # NOT a requires-controller key: the app stays fully remote-playable, so
