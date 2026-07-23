@@ -130,6 +130,16 @@ struct MacHomeView: View {
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
+        // The board tracker, opened from the Boards card or Game ▸ Boards…
+        // (a GlassSheet overlay, the Mac's one secondary surface on home).
+        .overlay {
+            GlassSheet(isPresented: Binding(
+                get: { model.macShowBoards },
+                set: { model.macShowBoards = $0 }
+            )) {
+                BoardsSheetContent(model: model, onClose: { model.macShowBoards = false })
+            }
+        }
     }
 
     private var header: some View {
@@ -189,7 +199,8 @@ struct MacHomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Continue")
                         .font(CouchTypography.body)
-                    Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%")
+                    Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%"
+                         + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -238,6 +249,9 @@ struct MacHomeView: View {
         HStack(spacing: 14) {
             MacCard(action: { model.macShowTutorial = true }) {
                 learnTile(symbol: "questionmark.circle", title: "How to play")
+            }
+            MacCard(action: { model.macShowBoards = true }) {
+                learnTile(symbol: "square.stack.3d.up", title: "Boards")
             }
             MacCard(action: { openWindow(id: "history") }) {
                 learnTile(symbol: "trophy", title: "History")
@@ -686,9 +700,11 @@ struct NineCommands: Commands {
                 .keyboardShortcut("t", modifiers: .command)
             Divider()
             HistoryMenuButton()
+            Button("Boards…") { model.macShowBoards = true }
+                .keyboardShortcut("b", modifiers: .command)
             Divider()
             Button("Discard Board") { model.discardSaved() }
-                .disabled(model.saved.game == nil)
+                .disabled(model.savedFree == nil)
         }
 
         // Edit — replace the stock Undo/Redo so ⌘Z drives the game's toast.

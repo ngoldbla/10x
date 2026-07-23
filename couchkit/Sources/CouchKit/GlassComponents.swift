@@ -228,11 +228,13 @@ public struct GlassRing: View {
 /// modifier passes content through untouched (touch feedback belongs to the
 /// tappable control itself).
 #if os(tvOS)
-public struct FocusHalo: ViewModifier {
+public struct FocusHalo<S: Shape>: ViewModifier {
     @FocusState private var isFocused: Bool
     private let claimsDefaultFocus: Bool
+    private let shape: S
 
-    public init(claimsDefaultFocus: Bool = false) {
+    public init(shape: S, claimsDefaultFocus: Bool = false) {
+        self.shape = shape
         self.claimsDefaultFocus = claimsDefaultFocus
     }
 
@@ -253,30 +255,54 @@ public struct FocusHalo: ViewModifier {
             }
             .scaleEffect(isFocused ? 1.03 : 1.0)
             .overlay {
-                LinearGradient(
-                    colors: [.white.opacity(0.16), .clear, .clear],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                // The specular sweep is clipped to the tile's own silhouette by
+                // filling the shape — an unclipped rectangle overlay used to
+                // paint sharp corners the caller's .clipShape had already
+                // rounded off (the tvOS "black rectangle" artifact).
+                shape.fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.16), .clear, .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
                 .opacity(isFocused ? 1 : 0)
                 .allowsHitTesting(false)
             }
-            .shadow(
-                color: .black.opacity(isFocused ? 0.55 : 0),
-                radius: isFocused ? 34 : 0, y: isFocused ? 18 : 0
-            )
+            .background {
+                // Explicit silhouette shadow: a blurred fill of the tile's own
+                // shape, so the lift never trusts the glass layer's alpha (a
+                // `.shadow` silhouettes whatever opaque geometry it finds, which
+                // was the pre-clip rectangle). Matches the rounded card exactly.
+                shape.fill(.black.opacity(isFocused ? 0.45 : 0))
+                    .blur(radius: 30)
+                    .offset(y: 16)
+                    .allowsHitTesting(false)
+            }
             .animation(.couchFast, value: isFocused)
     }
 }
 
 extension View {
+    /// Shape-aware focus halo — the sweep and lift hug this silhouette. Pass
+    /// the same shape the caller clips the tile to.
+    public func focusHalo(in shape: some Shape, claimsDefaultFocus: Bool = false) -> some View {
+        modifier(FocusHalo(shape: shape, claimsDefaultFocus: claimsDefaultFocus))
+    }
+
+    /// Source-compatible no-shape overload — delegates to a rectangle (the
+    /// historical behavior) so existing callers keep compiling.
     public func focusHalo(claimsDefaultFocus: Bool = false) -> some View {
-        modifier(FocusHalo(claimsDefaultFocus: claimsDefaultFocus))
+        focusHalo(in: Rectangle(), claimsDefaultFocus: claimsDefaultFocus)
     }
 }
 #else
 extension View {
     /// No-op on iOS — keeps shared view code platform-agnostic.
+    public func focusHalo(in shape: some Shape, claimsDefaultFocus: Bool = false) -> some View {
+        self
+    }
+
     public func focusHalo(claimsDefaultFocus: Bool = false) -> some View {
         self
     }

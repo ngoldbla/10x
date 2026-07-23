@@ -72,10 +72,14 @@ extension WidgetSnapshot {
     }
 
     /// Coarse digest gating `WidgetCenter` reloads: state bucket
-    /// (notStarted / solved / fill decile), displayed streak, points. `place()`
-    /// publishes on every move, so reloading only when this string changes
-    /// keeps the widget reload budget intact.
-    public func reloadDigest(today: Int) -> String {
+    /// (notStarted / solved / fill decile), displayed streak, points — plus the
+    /// exact daily board revision. `place()` publishes on every move, and the
+    /// decile bucket used to lag the playable BoardWidget (a move within a
+    /// decile didn't change the digest, so no reload). Appending the revision
+    /// makes every *daily* move reload the widget (foreground reloads are
+    /// WidgetKit-budget-exempt); free-play moves don't bump the revision, so
+    /// there's no waste. Pass 0 to reproduce the pre-fix, glanceable-only digest.
+    public func reloadDigest(today: Int, boardRevision: Int = 0) -> String {
         let state: String
         if isSolved(today: today) {
             state = "solved"
@@ -84,7 +88,7 @@ extension WidgetSnapshot {
         } else {
             state = "notStarted"
         }
-        return "\(state)|\(displayedStreak(today: today))|\(totalPoints)"
+        return "\(state)|\(displayedStreak(today: today))|\(totalPoints)|r\(boardRevision)"
     }
 }
 

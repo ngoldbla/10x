@@ -27,6 +27,9 @@ build/
 # target, and the iOS app needs a second (app group) applied per-SDK, so this
 # one is checked in (PRD-3).
 !nine/Nine-iOS.entitlements
+# …and Nine's macOS entitlements (sandbox + KVS + game-center), applied per-SDK
+# the same way, so the CI mac archive can find it (PRD-4).
+!nine/Nine-macOS.entitlements
 
 # Swift Package Manager
 .build/
@@ -56,3 +59,11 @@ fastlane/test_output
 *.p12
 *.p8
 */build-tvos/
+
+# Local xcodebuild derived data (per-platform, created during validation)
+.build-ios/
+.build-tvos/
+.build-mac/
+*/.build-ios/
+*/.build-tvos/
+*/.build-mac/

@@ -10,9 +10,12 @@
 //   play/pause hold  prefs sheet
 //   back             cancel rose · else save + home
 //
-// PRD-5 adds the pad session: when `model.padSession` is on, RemoteKit gestures
-// are ignored (Menu still exits), and PadKit's reader drives the SAME AppModel
-// mutation paths through `PadPlayController`. One master at a time, by design.
+// PRD-5 (revised): a real controller is adopted automatically. The remote body
+// listens for pad gesture traffic and, on the first one, seeds the cursor and
+// flips `model.padSession` — PadKit's reader then drives the SAME AppModel
+// mutation paths through `PadPlayController` (RemoteKit ignored; Menu still
+// exits). A drop mid-session falls back to the remote grammar in place. One
+// master at a time, by design.
 import SwiftUI
 import CouchKit
 
@@ -43,6 +46,13 @@ struct GameScreen: View {
     /// The five-beat pad tutorial, shown on the first pad session ever.
     @State private var padTutorial = PadTutorialModel()
     @State private var showPadTutorial = false
+    /// The pad discoverability chip, flashed once per launch on the first pad
+    /// session (session-scoped, never persisted).
+    @State private var showPadHint = false
+    @State private var padHintFlashed = false
+    /// Brief chip shown when a controller drops mid-session and the remote
+    /// grammar takes over in place.
+    @State private var showDisconnected = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -61,6 +71,23 @@ struct GameScreen: View {
             } else {
                 remoteBody
             }
+        }
+        // While not in a session the remote body listens for real pad traffic
+        // and adopts the controller grammar in place on the first gesture (the
+        // sim's phantom pad emits none, so it never adopts). Home needs no
+        // listener — a gamepad drives shelf focus natively.
+        .onAppear { if !model.padSession { installAdoptionListener() } }
+        .onDisappear { model.padReader.onGesture = nil }
+        .onChange(of: model.padSession) { _, session in
+            if !session { installAdoptionListener() }
+            // session == true is wired by padBody.onAppear → syncPadRouting().
+        }
+        // A controller dropped mid-session falls back to the remote grammar in
+        // place — seed the remote cursor, keep the timer running, flash a chip.
+        // No reconnect veil, no pause (PRD-5 revised).
+        .onChange(of: model.padConnected) { _, connected in
+            guard model.padSession, !connected else { return }
+            fallBackToRemote()
         }
     }
 
@@ -86,6 +113,7 @@ struct GameScreen: View {
                 .overlay(alignment: .topLeading) { timerChip.padding(48) }
                 .overlay(alignment: .bottom) { toastView.padding(.bottom, 24) }
                 .overlay(alignment: .bottom) { hintView.padding(.bottom, 108) }
+                .overlay(alignment: .bottom) { disconnectedView.padding(.bottom, 170) }
             completionChip
             GlassSheet(isPresented: $showPrefs) {
                 // New Game ships for remote players too (PRD-5 §2.3: a widened
@@ -122,8 +150,8 @@ struct GameScreen: View {
             showPadTutorial = !model.padTutorialSeen
             pad.syncHaptics()
             syncPadRouting()
+            flashPadHint()
         }
-        .onDisappear { model.padReader.onGesture = nil }
         .onChange(of: showPadTutorial) { syncPadRouting() }
         .onChange(of: pad.showPrefs) { syncPadRouting() }
         .onChange(of: model.prefs.controllerHaptics) { pad.syncHaptics() }
@@ -132,12 +160,6 @@ struct GameScreen: View {
             model.padTutorialSeen = true
             showPadTutorial = false
         }
-        // Disconnect mid-game freezes the board and pauses the timer; reconnect
-        // resumes in place (PRD-5 §1).
-        .onChange(of: model.padConnected) { _, connected in
-            guard model.padSession else { return }
-            if connected { model.resumePadTimer() } else { model.pausePadTimer() }
-        }
     }
 
     private var padCore: some View {
@@ -145,10 +167,9 @@ struct GameScreen: View {
             padBoard
                 .overlay(alignment: .topLeading) { timerChip.padding(48) }
                 .overlay(alignment: .top) { padModeChip.padding(.top, 48) }
+                .overlay(alignment: .bottom) { padToastView.padding(.bottom, 24) }
+                .overlay(alignment: .bottom) { padHintView.padding(.bottom, 108) }
             completionChip
-            if !model.padConnected {
-                ReconnectVeil()
-            }
             GlassSheet(isPresented: padPrefsBinding) {
                 PrefsSheetContent(model: model, onNewGame: startPadNewGame)
             }
@@ -166,11 +187,69 @@ struct GameScreen: View {
     /// Point the reader at whichever surface is live: the tutorial while it
     /// teaches, the board otherwise. Both targets are stable references.
     private func syncPadRouting() {
-        guard model.padSession else { model.padReader.onGesture = nil; return }
+        guard model.padSession else { installAdoptionListener(); return }
         if showPadTutorial {
             model.padReader.onGesture = { [padTutorial] gesture in padTutorial.handle(gesture) }
         } else {
             model.padReader.onGesture = { [pad] gesture in pad.handle(gesture) }
+        }
+    }
+
+    /// Listen for real pad gesture traffic while playing on the remote; the
+    /// first one adopts the controller grammar in place.
+    private func installAdoptionListener() {
+        guard !model.padSession else { return }
+        model.padReader.onGesture = { gesture in adoptIfRealGesture(gesture) }
+    }
+
+    /// Adopt the controller grammar on the first *input* gesture (never on a
+    /// bare connect/disconnect — the sim's phantom pad only ever connects).
+    private func adoptIfRealGesture(_ gesture: PadGesture) {
+        switch gesture {
+        case .connect, .disconnect: return
+        default: break
+        }
+        guard !model.padSession else { return }
+        // Seed the pad cursor from where the remote left off; clear remote UI.
+        pad.cursor = cursor
+        pad.learningRose = nil
+        pad.showPrefs = false
+        withAnimation(.couchFast) { rose = nil }
+        showPrefs = false
+        model.padSession = true
+        // Forward the triggering gesture so the first input isn't swallowed.
+        pad.handle(gesture)
+    }
+
+    /// Controller dropped mid-session: hand control back to the remote grammar
+    /// where the pad left the cursor, keep the timer running, flash a chip.
+    private func fallBackToRemote() {
+        cursor = pad.cursor
+        withAnimation(.couchFast) { rose = nil }
+        showPrefs = false
+        pad.showPrefs = false
+        pad.learningRose = nil
+        model.padSession = false
+        flashDisconnectedChip()
+    }
+
+    private func flashDisconnectedChip() {
+        withAnimation(.couchFast) { showDisconnected = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            withAnimation(.couchAmbient) { showDisconnected = false }
+        }
+    }
+
+    /// Flash the pad discoverability chip once per launch on the first pad
+    /// session (session-scoped; the tutorial owns the first-ever teaching).
+    private func flashPadHint() {
+        guard !padHintFlashed, !showPadTutorial else { return }
+        padHintFlashed = true
+        withAnimation(.couchFast) { showPadHint = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 4_200_000_000)
+            withAnimation(.couchAmbient) { showPadHint = false }
         }
     }
 
@@ -187,6 +266,31 @@ struct GameScreen: View {
         if pad.pencilSticky {
             GlassChip("Pencil", systemImage: "pencil")
                 .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var padToastView: some View {
+        if let toast = pad.undoToast {
+            GlassChip(toast.text, systemImage: "arrow.uturn.backward")
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .id(toast.id)
+        }
+    }
+
+    @ViewBuilder
+    private var padHintView: some View {
+        if showPadHint {
+            GlassChip("Right stick places · Circle undoes · Create for settings", systemImage: "gamecontroller")
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    @ViewBuilder
+    private var disconnectedView: some View {
+        if showDisconnected {
+            GlassChip("Controller disconnected", systemImage: "gamecontroller")
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
