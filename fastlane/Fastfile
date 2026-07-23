@@ -120,7 +120,19 @@ platform :ios do
     gym(gym_params)
 
     if do_upload
-      pilot(api_key: key, app_identifier: app_id, skip_waiting_for_build_processing: true)
+      # Be explicit about the artifact + platform. On the mac leg gym produces a
+      # .pkg, but pilot defaults to "ipa preferred" and would re-upload the
+      # leftover Nine-iOS.ipa from the iOS leg (a build-number collision, since
+      # that ipa was just uploaded). Point mac at its pkg with app_platform osx;
+      # iOS/tvOS pass their ipa explicitly so no stray artifact can be picked.
+      upload_params = { api_key: key, app_identifier: app_id, skip_waiting_for_build_processing: true }
+      if plat == "mac"
+        upload_params[:app_platform] = "osx"
+        upload_params[:pkg] = "#{folder}/dist/#{output_name}.pkg"
+      else
+        upload_params[:ipa] = "#{folder}/dist/#{output_name}"
+      end
+      pilot(upload_params)
       UI.success("#{app_key} (#{plat}) build #{build} uploaded to TestFlight")
     else
       UI.success("#{app_key} (#{plat}) build #{build} exported (dry run): #{app_key}/dist/#{output_name}")
