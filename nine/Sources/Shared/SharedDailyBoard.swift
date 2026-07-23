@@ -118,4 +118,21 @@ public enum SharedDailyBoardStore {
     public static var groupDefaults: UserDefaults? {
         UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)
     }
+
+    // MARK: - App-ingested revision (persisted — fixes the cold-launch clobber)
+
+    static let knownRevisionKey = "nine.widget.knownBoardRevision"
+
+    /// The highest board revision the app has already ingested. Persisted in
+    /// the app group so a *cold* launch doesn't re-adopt (and clobber) a
+    /// partial: the counter used to live only in memory (`WidgetBridge.
+    /// knownBoardRevision`), resetting to 0 every process, so each launch
+    /// re-ingested the same widget moves over a fresh free-play game.
+    public static func knownRevision(defaults: UserDefaults? = groupDefaults) -> Int {
+        defaults?.integer(forKey: knownRevisionKey) ?? 0
+    }
+
+    public static func setKnownRevision(_ revision: Int, defaults: UserDefaults? = groupDefaults) {
+        defaults?.set(revision, forKey: knownRevisionKey)
+    }
 }

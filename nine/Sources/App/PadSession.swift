@@ -45,8 +45,18 @@ final class PadPlayController {
     /// Options opened the prefs sheet; while up, the pad drives the sheet's
     /// focus and board gestures are parked.
     var showPrefs = false
+    /// The glass toast shown after a Circle-tap undo (mirrors the remote's
+    /// undo toast; auto-clears like `shimmer`).
+    var undoToast: UndoToastState?
 
     @ObservationIgnored private var shimmerClear: Task<Void, Never>?
+    @ObservationIgnored private var undoToastClear: Task<Void, Never>?
+    /// Circle is a tap/hold: a hold task fires an erase; a release before it
+    /// fires is an undo. `circleConsumed` stops the release from double-acting.
+    @ObservationIgnored private var circleHold: Task<Void, Never>?
+    private var circleConsumed = false
+    /// Hold threshold before Circle switches from undo (tap) to erase.
+    private static let circleHoldThreshold: UInt64 = 400_000_000
 
     init(model: AppModel) {
         self.model = model
@@ -92,7 +102,11 @@ final class PadPlayController {
         case .button(let button):
             press(button)
         case .buttonUp(let button):
-            if button == .l2 { peekHeld = false }
+            switch button {
+            case .l2: peekHeld = false
+            case .circle: circleUp()
+            default: break
+            }
         case .connect, .disconnect:
             break
         }
@@ -161,11 +175,7 @@ final class PadPlayController {
                 openLearningRose()
             }
         case .circle:
-            if learningRose != nil {
-                learningRose = nil
-            } else {
-                if model.erase(at: cursor) { haptics.placement() }
-            }
+            circleDown()
         case .square:
             pencilSticky.toggle()
         case .triangle:
@@ -200,6 +210,56 @@ final class PadPlayController {
         cursor = BoardMetrics.nextEmptyCell(from: cursor, in: game, forward: forward)
     }
 
+    // MARK: - Circle: tap undoes, hold erases
+
+    private func circleDown() {
+        circleConsumed = false
+        // Rose open: Circle still cancels it immediately (unchanged feel), and
+        // the release must not then undo.
+        if learningRose != nil {
+            learningRose = nil
+            circleConsumed = true
+            return
+        }
+        // Arm the hold: if Circle is still down past the threshold, erase.
+        circleHold?.cancel()
+        circleHold = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.circleHoldThreshold)
+            guard !Task.isCancelled, let self else { return }
+            self.circleConsumed = true
+            if self.model.erase(at: self.cursor) { self.haptics.placement() }
+        }
+    }
+
+    private func circleUp() {
+        circleHold?.cancel()
+        circleHold = nil
+        // A hold (or a rose-cancel) already acted — the release is a no-op.
+        guard !circleConsumed else { circleConsumed = false; return }
+        performUndo()
+    }
+
+    /// Take back the last move with a glass toast (mirrors the remote screen's
+    /// play/pause undo; the toast auto-clears like `shimmer`).
+    private func performUndo() {
+        guard let move = model.undoMove() else { return }
+        let text: String
+        switch move.kind {
+        case .place: text = "Undid \(move.digit)"
+        case .erase: text = "Restored \(move.digit)"
+        case .pencil: text = "Undid note \(move.digit)"
+        }
+        haptics.placement()
+        let next = UndoToastState(text: text)
+        undoToast = next
+        undoToastClear?.cancel()
+        undoToastClear = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            if self?.undoToast?.id == next.id { self?.undoToast = nil }
+        }
+    }
+
     // MARK: - Ghost rose
 
     private func shimmerCandidates(_ a: Direction8OrCenter, _ b: Direction8OrCenter) {
@@ -225,29 +285,7 @@ final class PadPlayController {
     }
 }
 
-// MARK: - Reconnect veil
-
-/// The glass veil that freezes the board when the controller drops mid-game
-/// (PRD-5 §1). The timer is paused by AppModel; reconnect resumes in place,
-/// Menu exits. Purely presentational — connection state lives on the model.
-struct ReconnectVeil: View {
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.55).ignoresSafeArea()
-            VStack(spacing: 24) {
-                Image(systemName: "gamecontroller")
-                    .font(.system(size: 64, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("Reconnect your controller")
-                    .couchText(CouchTypography.title)
-                Text("The board is paused. Press Menu to leave.")
-                    .font(CouchTypography.body)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(72)
-            .couchGlass(in: RoundedRectangle(cornerRadius: 48, style: .continuous))
-        }
-        .transition(.opacity)
-    }
-}
+// The reconnect veil is retired (PRD-5 revised): a controller drop mid-game now
+// falls back to the remote grammar in place with a brief chip, timer running —
+// see GameScreen.fallBackToRemote(). No pause, no modal freeze.
 #endif

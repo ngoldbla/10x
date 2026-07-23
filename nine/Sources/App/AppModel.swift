@@ -227,13 +227,13 @@ struct NinePrefs: Codable, Sendable, Equatable {
     }
 }
 
-/// What kind of board is (or was) being played.
-enum GameKind: Codable, Sendable, Equatable, Hashable {
-    case daily(day: Int)
-    case free(Difficulty)
-}
+// GameKind moved to the Engine (BoardLibrary.swift) so the library can key on
+// it; the app target compiles the Engine sources directly, so it's used here
+// unqualified as before.
 
-/// The single autosave slot: one in-progress board at a time.
+/// The legacy single autosave slot. Retained for one-time migration decode of
+/// a pre-library `nine.save` blob (and to write an empty slot back on migrate,
+/// so a downgrade sees "no save", never a stale board).
 struct SaveSlot: Codable, Sendable, Equatable {
     var game: NineGame?
     var kind: GameKind?
@@ -276,9 +276,15 @@ final class AppModel {
     private(set) var streak: StreakState {
         didSet { streakStore.wrappedValue = streak }
     }
-    private(set) var saved: SaveSlot {
-        didSet { saveStore.wrappedValue = saved }
+    /// The full board library: the daily (one per day) plus unlimited free-play
+    /// partials, solved boards retained for the "previously played" log.
+    /// Local-only — iCloud KVS is 1 MB total and already carries the streak and
+    /// the 200-record solve history; `nine.save` was never synced either.
+    private(set) var library: BoardLibrary {
+        didSet { libraryStore.wrappedValue = library }
     }
+    /// The library entry the on-screen game reads from and persists back into.
+    private(set) var currentEntryID: UUID?
     /// Every finished board: date, difficulty, time, points (capped log).
     private(set) var history: SolveHistory {
         didSet { historyStore.wrappedValue = history }
@@ -289,7 +295,11 @@ final class AppModel {
         CouchStored(wrappedValue: NinePrefs(), "nine.prefs")
     @ObservationIgnored private let streakStore =
         CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
-    @ObservationIgnored private let saveStore =
+    @ObservationIgnored private let libraryStore =
+        CouchStored(wrappedValue: BoardLibrary(), "nine.library")
+    /// Legacy single-slot store — read once for migration, then blanked so a
+    /// downgrade sees "no save" rather than a stale board.
+    @ObservationIgnored private let legacySaveStore =
         CouchStored(wrappedValue: SaveSlot(), "nine.save")
     @ObservationIgnored private let helpSeenStore =
         CouchStored(wrappedValue: false, "help.seen")
@@ -313,6 +323,9 @@ final class AppModel {
     /// Menu-driven request to open the interactive tutorial (Help ▸ How to
     /// Play). RootView observes and presents the overlay; reset on dismiss.
     var macShowTutorial = false
+    /// Menu-driven request to open the board tracker (Game ▸ Boards…). The home
+    /// view presents a GlassSheet bound to this; reset on dismiss.
+    var macShowBoards = false
 
     func enterDeskMode() { windowMode = .desk }
     func exitDeskMode() { windowMode = .full }
@@ -325,10 +338,13 @@ final class AppModel {
     /// The reader for a paired extended gamepad. Owned here so the shelf can
     /// observe `padConnected` at launch; the active screen sets its `onGesture`.
     @ObservationIgnored let padReader = PadReader()
-    /// An extended gamepad is paired (drives the Pad Play card + the veil).
+    /// An extended gamepad is paired. Adoption is on gesture traffic, not this
+    /// flag (the sim's phantom pad reports paired but emits nothing); a drop
+    /// while `padSession` is on triggers the remote-grammar fallback.
     private(set) var padConnected = false
-    /// The board is under controller lock: RemoteKit gestures are ignored, the
-    /// pad drives every mutation. Menu still exits (save + home).
+    /// The board is under controller grammar: RemoteKit gestures are ignored,
+    /// the pad drives every mutation. Entered automatically on the first real
+    /// pad gesture; Menu still exits (save + home).
     var padSession = false
     /// The interactive pad tutorial has run once. Persisted — it plays on the
     /// first pad session ever, then never nags again.
@@ -347,62 +363,65 @@ final class AppModel {
         padReader.start()
     }
 
-    /// Enter a controller-locked session on today's daily. Difficulty is a
-    /// choice inside the session (Options → New Game). No-op without a pad.
-    func startPadSession() {
-        guard padConnected else { return }
-        padSession = true
-        openToday()
-    }
-
-    /// Pause the board timer while the reconnect veil is up (PRD-5 §1).
-    func pausePadTimer() {
-        guard solvedAt == nil, var g = game else { return }
-        g.timer.pause(at: Date())
-        game = g
-    }
-
-    /// Resume in place when the controller reconnects.
-    func resumePadTimer() {
-        guard solvedAt == nil, var g = game else { return }
-        g.timer.start(at: Date())
-        game = g
-    }
+    // Pad sessions are entered automatically by GameScreen when a real pad
+    // gesture arrives (the Pad Play card and its explicit start are retired);
+    // a mid-game drop falls back to the remote grammar in place, so the timer
+    // never pauses — the reconnect veil is gone too (PRD-5 revised).
     #endif
 
     init() {
         prefs = prefsStore.wrappedValue
         streak = streakStore.wrappedValue
-        saved = saveStore.wrappedValue
+        library = libraryStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         history = historyStore.wrappedValue
+        // Initialize every platform-specific stored property before the
+        // migration below uses `self` (Swift requires all stored props set).
         #if os(tvOS)
         padTutorialSeen = padTutorialSeenStore.wrappedValue
-        startPadReader()
-        // Resume straight into a board in progress (PRD-5 §2.3 parity). The pad
-        // session is not resumed — a fresh launch is a remote surface until the
-        // player chooses Pad Play again.
-        if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
-            resume(game, kind: kind)
-        }
         #endif
         #if os(macOS)
         deskFloating = deskFloatingStore.wrappedValue
+        #endif
+
+        // One-time migration: seed the library from a legacy `nine.save` board,
+        // then blank that slot (a downgrade sees "no save", never a stale one).
+        // Runs on every platform; order stays migrate → ingest → resume → publish.
+        if library.entries.isEmpty {
+            let legacy = legacySaveStore.wrappedValue
+            if let game = legacy.game, let kind = legacy.kind {
+                library = BoardLibrary.migrating(game: game, kind: kind, now: Date())
+                try? libraryStore.flushNow()
+            }
+            legacySaveStore.wrappedValue = SaveSlot()
+            try? legacySaveStore.flushNow()
+        }
+
+        #if os(tvOS)
+        startPadReader()
+        // Resume straight into a board in progress (PRD-5 §2.3 parity). A fresh
+        // launch is a remote surface; the controller grammar is adopted in
+        // place the moment a real pad gesture arrives.
+        if prefs.resumeOnLaunch, let entry = library.mostRecentInProgress {
+            startEntry(entry.id)
+        }
+        #endif
+        #if os(macOS)
         // Resume straight into a board in progress, as iOS — the Mac equivalent
         // of "fewer taps to the board" (PRD-4 §2.6 resume-on-launch parity).
-        if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
-            resume(game, kind: kind)
+        if prefs.resumeOnLaunch, let entry = library.mostRecentInProgress {
+            startEntry(entry.id)
         }
         #endif
         #if os(iOS)
         // Fewer taps to the board: a launch with a board in progress goes
         // straight back to it. The home chevron is one tap away.
-        // Widget moves made while the app was dead merge in before anything
-        // reads the autosave slot (and before the publish below can write a
-        // stale board over them).
+        // Widget moves made while the app was dead merge into the day entry
+        // before resume reads the library (and before the publish below can
+        // write a stale board over them). Free-play partials are untouched.
         ingestSharedDailyBoard()
-        if prefs.resumeOnLaunch, let game = saved.game, let kind = saved.kind {
-            resume(game, kind: kind)
+        if prefs.resumeOnLaunch, let entry = library.mostRecentInProgress {
+            startEntry(entry.id)
         }
         // Post-load publish covers state that changed without the widget
         // hearing about it (reinstall, iCloud KVS sync, midnight).
@@ -416,17 +435,31 @@ final class AppModel {
 
     var todaySolved: Bool { streak.hasCompleted(day: todayOrdinal) }
 
-    /// The saved board, when it is today's daily.
+    /// The saved board, when it is today's daily and still in progress.
     var savedDaily: NineGame? {
-        guard case .daily(let day)? = saved.kind, day == todayOrdinal else { return nil }
-        return saved.game
+        library.inProgressDaily(day: todayOrdinal)?.game
     }
 
-    /// The saved board, when it is a free-play game (drives the Continue card).
+    /// The most recent free-play partial (drives the Continue card).
     var savedFree: (game: NineGame, difficulty: Difficulty)? {
-        guard case .free(let difficulty)? = saved.kind, let game = saved.game else { return nil }
-        return (game, difficulty)
+        guard let entry = library.mostRecentFreePartial,
+              case .free(let difficulty) = entry.kind else { return nil }
+        return (entry.game, difficulty)
     }
+
+    /// In-progress boards, newest first (tracker "In progress" section).
+    var partials: [LibraryEntry] { library.partials }
+
+    /// Solved/archived boards, newest first ("Previously played").
+    var playedBoards: [LibraryEntry] { library.played }
+
+    /// Free-play partials only (the Continue card shows the newest).
+    var freePartials: [LibraryEntry] {
+        library.partials.filter { if case .free = $0.kind { return true }; return false }
+    }
+
+    /// Free-play partials beyond the one on the Continue card ("+N more").
+    var extraPartialCount: Int { max(0, freePartials.count - 1) }
 
     var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
 
@@ -444,44 +477,82 @@ final class AppModel {
         ingestSharedDailyBoard()
         #endif
         let day = todayOrdinal
-        if let inProgress = savedDaily {
-            resume(inProgress, kind: .daily(day: day))
+        if let entry = library.inProgressDaily(day: day) {
+            startEntry(entry.id)
         } else {
+            // No in-progress daily (fresh, or replay-after-solve): compose one.
+            // adoptDaily replaces the day slot; recordCompletion is idempotent.
             compose(kind: .daily(day: day), seed: DailySeed.seed(for: Date()), difficulty: .steady)
         }
     }
 
     func continueSaved() {
-        guard let game = saved.game, let kind = saved.kind else { return }
-        resume(game, kind: kind)
+        guard let entry = library.mostRecentFreePartial else { return }
+        startEntry(entry.id)
     }
 
     func startFree(_ difficulty: Difficulty) {
         compose(kind: .free(difficulty), seed: .random(in: UInt64.min...UInt64.max), difficulty: difficulty)
     }
 
-    /// Drop the saved in-progress board without playing it (the Continue
+    /// Drop the most-recent free partial without playing it (the Continue
     /// card's discard control). The current on-screen game is untouched.
     func discardSaved() {
+        guard let entry = library.mostRecentFreePartial else { return }
+        library.delete(id: entry.id)
+        if currentEntryID == entry.id { currentEntryID = nil }
+        try? libraryStore.flushNow()
         #if os(iOS)
-        let wasDaily = if case .daily? = saved.kind { true } else { false }
-        #endif
-        saved = SaveSlot()
-        try? saveStore.flushNow()
-        #if os(iOS)
-        // A discarded daily must not resurrect from the shared board file.
-        if wasDaily {
-            WidgetBridge.clearDailyBoard(today: todayOrdinal)
-        }
         WidgetBridge.publish(from: self)
         #endif
     }
 
-    private func resume(_ game: NineGame, kind: GameKind) {
-        var g = game
+    // MARK: - Tracker actions (BoardsSheet)
+
+    /// Resume a specific in-progress entry (a tracker row tap).
+    func resumeEntry(id: UUID) { startEntry(id) }
+
+    /// Archive a partial out of the active list (kept as "previously played").
+    func archiveEntry(id: UUID) {
+        library.archive(id: id)
+        if currentEntryID == id { currentEntryID = nil }
+        try? libraryStore.flushNow()
+        #if os(iOS)
+        WidgetBridge.publish(from: self)
+        #endif
+    }
+
+    /// Delete an entry entirely. Deleting today's daily also clears the shared
+    /// board file so the widget offers "tap to start" instead of resurrecting it.
+    func deleteEntry(id: UUID) {
+        #if os(iOS)
+        let wasTodayDaily = isTodayDaily(id)
+        #endif
+        library.delete(id: id)
+        if currentEntryID == id { currentEntryID = nil }
+        try? libraryStore.flushNow()
+        #if os(iOS)
+        if wasTodayDaily { WidgetBridge.clearDailyBoard(today: todayOrdinal) }
+        WidgetBridge.publish(from: self)
+        #endif
+    }
+
+    #if os(iOS)
+    private func isTodayDaily(_ id: UUID) -> Bool {
+        guard let entry = library.entry(id: id) else { return false }
+        if case .daily(let day) = entry.kind { return day == todayOrdinal }
+        return false
+    }
+    #endif
+
+    /// Put a library entry on screen and mark it the current persist target.
+    private func startEntry(_ id: UUID) {
+        guard let entry = library.entry(id: id) else { return }
+        currentEntryID = id
+        var g = entry.game
         g.timer.start(at: Date())
         self.game = g
-        self.kind = kind
+        self.kind = entry.kind
         self.solvedAt = nil
         self.lastPlacedCell = nil
         self.screen = .game
@@ -493,6 +564,15 @@ final class AppModel {
         if ProcessInfo.processInfo.arguments.contains("--debug-fill") {
             debugFillAlmostAll()
         }
+        #if os(tvOS)
+        // Presentation-only rig: the sim's virtual remote never emits pad
+        // gestures, so it can never adopt on its own. --debug-pad forces the
+        // pad session on so the pad legend, hint chip and toast surfaces can be
+        // screenshotted in the simulator (no real controller needed).
+        if ProcessInfo.processInfo.arguments.contains("--debug-pad") {
+            padSession = true
+        }
+        #endif
         #endif
     }
 
@@ -504,7 +584,18 @@ final class AppModel {
             let puzzle = PuzzleGenerator.generate(seed: seed, difficulty: difficulty)
             await MainActor.run {
                 self.composing = nil
-                self.resume(NineGame(puzzle: puzzle), kind: kind)
+                // Create/adopt the entry first so currentEntryID is set before
+                // the game goes on screen and persistProgress upserts it.
+                let now = Date()
+                let newGame = NineGame(puzzle: puzzle)
+                let id: UUID
+                switch kind {
+                case .daily(let day):
+                    id = self.library.adoptDaily(game: newGame, day: day, now: now)
+                case .free:
+                    id = self.library.create(kind: kind, game: newGame, now: now)
+                }
+                self.startEntry(id)
                 self.persistProgress()
             }
         }
@@ -557,7 +648,7 @@ final class AppModel {
             game = g
             persistProgress()
         }
-        try? saveStore.flushNow()
+        try? libraryStore.flushNow()
         try? streakStore.flushNow()
         // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
         // visually stable through the crossfade; the next start replaces them.
@@ -606,8 +697,9 @@ final class AppModel {
         )
         history.record(record)
         try? historyStore.flushNow()
-        saved = SaveSlot() // the board is done; free the slot
-        try? saveStore.flushNow()
+        // The board is done; keep it as a "previously played" entry.
+        if let id = currentEntryID { library.markSolved(id: id, at: now) }
+        try? libraryStore.flushNow()
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
         // widgets are iOS-only.
         #if os(iOS) || os(macOS) || os(tvOS)
@@ -619,8 +711,10 @@ final class AppModel {
     }
 
     private func persistProgress() {
-        guard let game, let kind else { return }
-        saved = SaveSlot(game: game, kind: kind)
+        guard let game, let id = currentEntryID, var entry = library.entry(id: id) else { return }
+        entry.game = game
+        entry.updatedAt = Date()
+        library.upsert(entry)
         #if os(iOS)
         // Fires per move; WidgetBridge digest-gates the actual reloads.
         WidgetBridge.publish(from: self)
@@ -635,16 +729,17 @@ final class AppModel {
     /// the app never plays over widget moves. A solve made in the widget is
     /// recorded here — exactly once — into streak/history/Game Center.
     func ingestSharedDailyBoard() {
-        // Invariant repair: a solved, already-recorded daily never lives in
-        // the autosave slot (finishSolve frees it). Clear one if found so
-        // resumeOnLaunch/openToday can't land on a finished board.
-        if let game = saved.game, game.isSolved,
-           case .daily(let day)? = saved.kind, streak.hasCompleted(day: day) {
-            saved = SaveSlot()
-            try? saveStore.flushNow()
+        let today = todayOrdinal
+        // Invariant repair: a solved, already-recorded daily should be marked
+        // solved in the library, not sitting as an in-progress entry that
+        // resumeOnLaunch/openToday could land on.
+        if let daily = library.inProgressDaily(day: today), daily.game.isSolved,
+           streak.hasCompleted(day: today) {
+            library.markSolved(id: daily.id, at: Date())
+            try? libraryStore.flushNow()
         }
         guard let shared = SharedDailyBoardStore.load(),
-              shared.isCurrent(today: todayOrdinal),
+              shared.isCurrent(today: today),
               shared.revision > WidgetBridge.knownBoardRevision
         else { return }
         WidgetBridge.knownBoardRevision = shared.revision
@@ -670,9 +765,11 @@ final class AppModel {
                 try? historyStore.flushNow()
                 GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
             }
-            // The board is done; free the slot and clear the pending flag.
-            if case .daily? = saved.kind { saved = SaveSlot() }
-            try? saveStore.flushNow()
+            // Adopt the finished board into the one day entry and mark it solved
+            // (free-play entries structurally untouched — the clobber fix).
+            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            library.markSolved(id: id, at: pending.solvedAt)
+            try? libraryStore.flushNow()
             var cleared = shared
             cleared.pendingSolve = nil
             cleared.revision += 1
@@ -685,18 +782,23 @@ final class AppModel {
                 solvedAt = pending.solvedAt
             }
         } else if !shared.game.isSolved {
-            // Widget moves flow into the autosave, undo stack included.
-            saved = SaveSlot(game: shared.game, kind: .daily(day: shared.dayOrdinal))
-            try? saveStore.flushNow()
+            // Widget moves flow into the day entry only — free-play untouched.
+            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            try? libraryStore.flushNow()
             if screen == .game, solvedAt == nil,
                case .daily(let day)? = kind, day == shared.dayOrdinal {
                 var g = shared.game
                 g.timer.start(at: Date())
                 game = g
+                currentEntryID = id // keep the persist target on the day entry
             }
+        } else if library.dailyEntry(day: shared.dayOrdinal)?.status != .solved {
+            // Solved with no pendingSolve → already recorded elsewhere; make
+            // sure the day entry reflects solved (repair; keeps solvedAt if set).
+            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            library.markSolved(id: id, at: Date())
+            try? libraryStore.flushNow()
         }
-        // (A solved board with no pendingSolve is already recorded — nothing
-        // to adopt; the autosave slot stays free, per finishSolve.)
         // Re-publish so the glanceable widgets swap the widget's optimistic
         // facts for the recorded truth (points included).
         WidgetBridge.publish(from: self)

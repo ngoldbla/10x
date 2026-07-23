@@ -277,6 +277,59 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   correctly ignore — the lockout was validated this way). On hardware only
   real extended pads pass the filter; real Siri Remotes are microGamepad.
 
+## PRD-5 revised — playtest fixes (cross-platform)
+
+- **Controller grammar is first-class, adopted automatically.** Playtesting on
+  a PS5 pad found the opt-in "Pad Play" mode hid undo/erase/settings/back behind
+  Siri-Remote verbs a gamepad can't reach. The Pad Play shelf card and
+  `startPadSession()` are retired; instead the in-game remote body listens for
+  real PadKit gesture traffic and, on the first one, seeds the cursor from the
+  remote and flips `padSession` in place. Adoption keys on **gesture traffic**,
+  never on `padConnected` — the tvOS 26.5 simulator's virtual remote registers
+  as an extended gamepad but emits no PadKit gestures, so it never adopts (the
+  sim keeps the remote grammar, correctly).
+- **Circle mapping changed (PRD-5 §2.1).** Circle was erase/cancel. It is now
+  **tap = undo, hold (~0.4 s) = erase**; with the rose open a Circle tap still
+  cancels the rose. PadKit wires `buttonB` press/release like L2 so the app can
+  classify tap-vs-hold; a glass undo toast mirrors the remote's.
+- **Reconnect veil retired.** A controller drop mid-session no longer freezes
+  the board behind a modal veil or pauses the timer. It falls back to the remote
+  grammar in place (cursor seeded from the pad), flashes a "Controller
+  disconnected" chip, and keeps playing. `pausePadTimer`/`resumePadTimer` gone.
+- **Controller-aware guidance.** `NineLegend` gained `pad`/`padCompact` row sets;
+  the prefs sheet legend is keyed on `padSession` (not `padConnected`, so the sim
+  phantom never flips it); the pad body flashes its own hint chip ("Right stick
+  places · Circle undoes · Create for settings"); the first-run HelpOverlay
+  appends a controller row when a pad is connected; `TutorialGrammar.pad`'s
+  advance hint now states the Circle tap-undo/hold-erase semantics.
+- **`--debug-pad` sim rig** (DEBUG only, beside `--debug-fill`): forces
+  `padSession` on so the pad legend/chip/toast can be screenshotted in the
+  simulator, which can never adopt on its own.
+
+## Playtest fix D — board library + tracker (supersedes PRD.md §4.1 single Continue)
+
+- **The single `SaveSlot` autosave is replaced by a `BoardLibrary`** (Engine,
+  pure, SwiftPM-tested): one daily entry per day plus unlimited concurrent
+  free-play partials, with solved boards retained as a "previously played" log.
+  PRD.md §4.1 specced a single Continue card; the home now shows a **Boards
+  section / tracker** (resume, archive, delete) on every platform — an iPhone/iPad
+  home section + "See all" sheet, a tvOS "Boards" shelf card, a macOS Boards card
+  + `Game ▸ Boards…` (⌘B). `GameKind` moved into the Engine so the library can key
+  on it (Codable shape unchanged; old `nine.save` blobs still decode).
+- **Migration is one-way and safe:** a legacy `nine.save` board seeds the library
+  once, then the slot is blanked so a downgrade sees "no save", never a stale one.
+- **Local-only persistence** (`nine.library`, not `cloudSynced`): iCloud KVS is
+  1 MB total and already carries the streak + 200-record history; `nine.save` was
+  never synced, so no regression. Prune caps at 60 total / 20 solved+archived.
+- **Widget-sync fixes (D3):** `knownBoardRevision` is now persisted in the app
+  group (was an in-memory counter reset to 0 per process, which re-adopted and
+  clobbered a free-play partial on every cold launch). `ingestSharedDailyBoard`
+  and `publishDailyBoard` work in library terms — widget moves flow into the one
+  daily entry only, free-play entries structurally untouched. The daily revision
+  is folded into the reload digest so a within-decile daily move reloads the
+  playable BoardWidget (foreground reloads are budget-exempt; free-play moves
+  don't bump the revision, so no waste).
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

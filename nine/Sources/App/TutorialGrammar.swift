@@ -76,7 +76,7 @@ struct TutorialGrammar {
         placeVerb: "flick the right stick",
         pencilVerb: "Square",
         highlightVerb: "Triangle",
-        advanceHint: "Left stick moves · right stick flicks a digit · Circle erases",
+        advanceHint: "Left stick moves · right stick flicks a digit · Circle taps undo, holds to erase",
         placeDetailFormat: "Walk to the glowing cell with the left stick, then flick the right stick toward %@ — the cell is always armed, so it's one flick per digit, no rose to open. (Cross opens the rose if you'd rather learn the petals; R3 places 5.)",
         pencilDetail: "Press Square for sticky pencil, then flick a note into an empty cell — small in the corner until a real digit lands. Square again turns pencil off.",
         highlightDetail: "Rest on any placed digit and press Triangle — every copy lights up, pencil notes too. Hold L2 to dim everything except that kind. Triangle again switches the lights off."

@@ -380,7 +380,13 @@ public final class PadReader {
     private func wireButtons(_ pad: GCExtendedGamepad?) {
         guard let pad else { return }
         press(pad.buttonA) { [weak self] in self?.onGesture?(.button(.cross)) }
-        press(pad.buttonB) { [weak self] in self?.onGesture?(.button(.circle)) }
+        // Circle is a hold, like L2: the app classifies tap-vs-hold by the gap
+        // between .button(.circle) and .buttonUp(.circle) — tap = undo, hold = erase.
+        pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
+            MainActor.assumeIsolated {
+                self?.onGesture?(pressed ? .button(.circle) : .buttonUp(.circle))
+            }
+        }
         press(pad.buttonX) { [weak self] in self?.onGesture?(.button(.square)) }
         press(pad.buttonY) { [weak self] in self?.onGesture?(.button(.triangle)) }
         press(pad.leftShoulder) { [weak self] in self?.onGesture?(.button(.l1)) }

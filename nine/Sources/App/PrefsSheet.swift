@@ -29,7 +29,10 @@ struct PrefsSheetContent: View {
             // The manual lives here after first run (suite rule: the prefs
             // sheet doubles as the help page).
             #if os(tvOS)
-            ControlLegend(rows: NineLegend.compact)
+            // Keyed on padSession, not padConnected: the sim's phantom pad
+            // reports connected but never adopts, so remote players (and the
+            // sim) keep the remote legend.
+            ControlLegend(rows: model.padSession ? NineLegend.padCompact : NineLegend.compact)
                 .padding(.bottom, 8)
             #elseif os(macOS)
             ControlLegend(rows: NineLegend.keyboardCompact)

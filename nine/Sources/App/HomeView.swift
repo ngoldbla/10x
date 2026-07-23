@@ -10,6 +10,7 @@ struct HomeView: View {
     let model: AppModel
 
     @State private var showHistory = false
+    @State private var showBoards = false
     @Environment(\.colorScheme) private var colorScheme
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
@@ -23,6 +24,11 @@ struct HomeView: View {
             GlassSheet(isPresented: $showHistory) {
                 HistorySheetContent(model: model, onClose: { showHistory = false })
             }
+            // The board tracker — the second door on the shelf (still one sheet
+            // open at a time; a card opens exactly one).
+            GlassSheet(isPresented: $showBoards) {
+                BoardsSheetContent(model: model, onClose: { showBoards = false })
+            }
             // First-run manual. The shelf cards use native focus (no
             // couchRemote surface), so the overlay simply sits on top and
             // owns the remote while shown; on dismiss the cards regain
@@ -31,7 +37,13 @@ struct HomeView: View {
                 HelpOverlay(
                     title: "Nine",
                     tagline: "Couch sudoku.",
-                    rows: NineLegend.full
+                    rows: NineLegend.full + (model.padConnected ? [
+                        LegendRow(
+                            symbol: "gamecontroller",
+                            gesture: "Controller",
+                            action: "Just start playing — the guide appears in-game"
+                        )
+                    ] : [])
                 ) {
                     model.helpSeen = true
                 }
@@ -40,8 +52,8 @@ struct HomeView: View {
     }
 
     private var shelf: some View {
-        // Scrolls so the added History / Pad Play row never crowds the void off
-        // the bottom on a 1080p panel; the focus engine still centers cards.
+        // Scrolls so the added History row never crowds the void off the
+        // bottom on a 1080p panel; the focus engine still centers cards.
         ScrollView(showsIndicators: false) {
             VStack(spacing: 64) {
                 header
@@ -142,18 +154,15 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Extras (History, Pad Play)
+    // MARK: - Extras (History)
 
     private var extrasRow: some View {
         HStack(spacing: 44) {
-            // Pad Play appears the instant an extended gamepad connects (PRD-5
-            // §2), and starts a controller-locked session on today's board.
-            // Wider than the difficulty tiles: an icon + two text lines needs
-            // the room, and 360 truncated both subtitles (seen in validation).
-            if model.padConnected {
-                ShelfCard(width: 440, height: 150, action: { model.startPadSession() }) {
-                    extraTile(symbol: "gamecontroller.fill", title: "Pad Play", subtitle: "Controller session")
-                }
+            // Pad Play is retired: a gamepad drives shelf focus natively and the
+            // controller grammar is adopted in-game on the first real gesture.
+            ShelfCard(width: 440, height: 150, action: { showBoards = true }) {
+                extraTile(symbol: "square.stack.3d.up", title: "Boards",
+                          subtitle: boardsSubtitle)
             }
             ShelfCard(width: 440, height: 150, action: {
                 // Authenticate here, not at launch: opening History is the
@@ -184,6 +193,11 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var boardsSubtitle: String {
+        let n = model.partials.count
+        return n == 0 ? "Resume, archive, replay" : "\(n) in progress"
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -292,6 +306,24 @@ enum NineLegend {
 
     /// The rows the macOS Settings scene keeps as its manual.
     static let keyboardCompact: [LegendRow] = [keyboard[0], keyboard[1], keyboard[3], keyboard[5]]
+
+    /// The controller grammar (tvOS pad session, PRD-5): the right stick *is*
+    /// the rose (one deflection per digit), Circle taps undo and holds erase.
+    /// Symbols are gamecontroller glyphs available at the tvOS deployment floor.
+    static let pad: [LegendRow] = [
+        LegendRow(symbol: "l.joystick", gesture: "Left stick / d-pad", action: "Move around the board"),
+        LegendRow(symbol: "r.joystick", gesture: "Right stick flick", action: "Place a digit (R3 = 5)"),
+        LegendRow(symbol: "xmark", gesture: "Cross", action: "Open the rose · confirm a petal"),
+        LegendRow(symbol: "arrow.uturn.backward", gesture: "Circle tap · hold", action: "Undo · hold to erase the cell"),
+        LegendRow(symbol: "square", gesture: "Square", action: "Sticky pencil"),
+        LegendRow(symbol: "triangle", gesture: "Triangle", action: "Light up all of a digit"),
+        LegendRow(symbol: "eye", gesture: "Hold L2", action: "Peek — dim all but one kind"),
+        LegendRow(symbol: "gamecontroller", gesture: "Create", action: "Settings"),
+        LegendRow(symbol: "arrow.backward", gesture: "Menu", action: "Save + home"),
+    ]
+
+    /// The rows the pad prefs sheet keeps as its manual.
+    static let padCompact: [LegendRow] = [pad[0], pad[1], pad[3], pad[7]]
 }
 
 #if os(tvOS)
@@ -310,7 +342,10 @@ private struct ShelfCard<Content: View>: View {
             .frame(width: width, height: height)
             .couchGlassInteractive(in: RoundedRectangle(cornerRadius: 40, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
-            .focusHalo(claimsDefaultFocus: isPrimary)
+            .focusHalo(
+                in: RoundedRectangle(cornerRadius: 40, style: .continuous),
+                claimsDefaultFocus: isPrimary
+            )
             .onTapGesture { action() }
     }
 }

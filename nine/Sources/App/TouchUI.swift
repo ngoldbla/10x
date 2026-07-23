@@ -20,6 +20,7 @@ struct TouchHomeView: View {
 
     @State private var showHistory = false
     @State private var showTutorial = false
+    @State private var showBoards = false
     @Environment(\.colorScheme) private var colorScheme
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
@@ -32,6 +33,7 @@ struct TouchHomeView: View {
                     header
                     todayCard
                     continueCard
+                    boardsSection
                     freePlayRow
                     learnRow
                 }
@@ -50,6 +52,7 @@ struct TouchHomeView: View {
             }
         }
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
+        .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
         .overlay {
             if showTutorial {
                 TutorialView(accent: accent) {
@@ -151,7 +154,8 @@ struct TouchHomeView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Continue")
                             .font(CouchTypography.body)
-                        Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%")
+                        Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%"
+                             + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -172,6 +176,63 @@ struct TouchHomeView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    // MARK: Boards tracker
+
+    /// Partials not already surfaced by the Today card (in-progress daily) or
+    /// the Continue card (newest free partial) — the "extra" boards.
+    private var extraPartials: [LibraryEntry] {
+        let today = model.todayOrdinal
+        let continueID = model.freePartials.first?.id
+        return model.partials.filter { entry in
+            if entry.id == continueID { return false }
+            if case .daily(let day) = entry.kind, day == today { return false }
+            return true
+        }
+    }
+
+    @ViewBuilder
+    private var boardsSection: some View {
+        if !extraPartials.isEmpty || !model.playedBoards.isEmpty {
+            VStack(spacing: 10) {
+                HStack {
+                    Text("Boards")
+                        .font(CouchTypography.body)
+                    Spacer()
+                    Button { showBoards = true } label: {
+                        Text("See all")
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("See all boards")
+                }
+                ForEach(extraPartials.prefix(3)) { entry in
+                    TouchCard(action: { model.resumeEntry(id: entry.id) }) {
+                        HStack(spacing: 14) {
+                            GlassRing(progress: entry.game.fillFraction, lineWidth: 4)
+                                .frame(width: 34, height: 34)
+                            Text(boardTitle(entry))
+                                .font(CouchTypography.caption)
+                            Spacer()
+                            Text("\(Int(entry.game.fillFraction * 100))%")
+                                .font(CouchTypography.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private func boardTitle(_ entry: LibraryEntry) -> String {
+        switch entry.kind {
+        case .daily: return "Daily · \(entry.createdAt.formatted(date: .abbreviated, time: .omitted))"
+        case .free(let difficulty): return difficulty.title
         }
     }
 
@@ -647,7 +708,12 @@ struct GlassIconButton: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(active ? AnyShapeStyle(accent) : AnyShapeStyle(.secondary))
                 .frame(width: 44, height: 44)
-                .couchGlassInteractive(in: Circle())
+                // Non-interactive glass: the Button + TouchCardStyle press-scale
+                // already gives feedback. Interactive Liquid Glass ran its own
+                // touch handling that competed with the Button's tap recognizer,
+                // making Home/pencil/undo/gear unresponsive (mirrors the working
+                // macOS chip pattern). At rest the two variants look identical.
+                .couchGlass(in: Circle())
                 .overlay {
                     Circle().strokeBorder(accent.opacity(active ? 0.8 : 0), lineWidth: 2)
                 }
