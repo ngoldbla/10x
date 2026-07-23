@@ -330,6 +330,18 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   playable BoardWidget (foreground reloads are budget-exempt; free-play moves
   don't bump the revision, so no waste).
 
+## macOS TestFlight — one-time ASC app-record setup (2026-07-23)
+
+The mac leg's `altool` upload fails with *"Cannot determine the Apple ID from
+Bundle ID 'com.couchsuite.nine' and platform 'MAC_OS'"* until a **macOS App
+Store version exists on the ASC app record** — exactly the `ensure_version!`
+step that was needed for iOS before its first upload. Registered via the ASC
+API (Spaceship): `app.ensure_version!('1.0', platform: MAC_OS)` on app id
+6789779314. With that in place the signed `.pkg` uploads (the Fastfile mac leg
+passes `app_platform: "osx"` + the pkg path so pilot doesn't re-ship the iOS
+`.ipa`). Build numbers are `commit-count × 10 + train` (mac train +2), so a
+retry must land on a new commit or it collides with the partial run's uploads.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),
