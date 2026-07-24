@@ -83,6 +83,42 @@ struct SolveHistoryTests {
         #expect(history.bestSeconds(for: .steady) == nil)
     }
 
+    // The `record(daysAgo:)` helper anchors dates at 1970 + 1_000_000s minus
+    // whole days, so a fixed gregorian calendar gives deterministic ordinals.
+    private func dayOrdinal(daysAgo: Int, calendar cal: Calendar) -> Int {
+        DailySeed.dayOrdinal(
+            for: Date(timeIntervalSince1970: 1_000_000 - TimeInterval(daysAgo) * 86_400),
+            calendar: cal)
+    }
+
+    @Test func solvesByDayBucketsAndFlagsDaily() {
+        var history = SolveHistory()
+        history.record(record(daysAgo: 0, isDaily: false))
+        history.record(record(daysAgo: 0, isDaily: true))
+        history.record(record(daysAgo: 3, isDaily: false))
+
+        let cal = Calendar(identifier: .gregorian)
+        let today = dayOrdinal(daysAgo: 0, calendar: cal)
+        let buckets = history.solvesByDay(ordinalRange: (today - 6)...today, calendar: cal)
+
+        #expect(buckets[today]?.count == 2)
+        #expect(buckets[today]?.hasDaily == true)
+        #expect(buckets[today - 3]?.count == 1)
+        #expect(buckets[today - 3]?.hasDaily == false)
+        #expect(buckets[today - 5] == nil)          // no solve → absent
+    }
+
+    @Test func solvesByDayExcludesOutsideRange() {
+        var history = SolveHistory()
+        history.record(record(daysAgo: 0))
+        history.record(record(daysAgo: 40))
+        let cal = Calendar(identifier: .gregorian)
+        let today = dayOrdinal(daysAgo: 0, calendar: cal)
+        let buckets = history.solvesByDay(ordinalRange: (today - 6)...today, calendar: cal)
+        #expect(buckets.count == 1)                 // the 40-day-old solve is dropped
+        #expect(buckets[today]?.count == 1)
+    }
+
     @Test func averageSecondsPerDifficulty() {
         var history = SolveHistory()
         history.record(record(difficulty: .gentle, seconds: 300))

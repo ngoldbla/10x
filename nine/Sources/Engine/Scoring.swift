@@ -52,6 +52,17 @@ public struct SolveRecord: Sendable, Codable, Equatable, Identifiable {
     }
 }
 
+/// One day's worth of solves, for the History heat grid. `hasDaily` lights
+/// the cell at full accent strength (a daily solve is the streak-worthy one).
+public struct DaySolves: Sendable, Equatable {
+    public let count: Int
+    public let hasDaily: Bool
+    public init(count: Int, hasDaily: Bool) {
+        self.count = count
+        self.hasDaily = hasDaily
+    }
+}
+
 /// The rolling log of finished boards, newest first, capped so the value
 /// stays small enough to mirror through iCloud KVS alongside the streak.
 public struct SolveHistory: Sendable, Codable, Equatable {
@@ -90,5 +101,23 @@ public struct SolveHistory: Sendable, Codable, Equatable {
         var n = 0
         for t in times { sum += t; n += 1 }
         return n == 0 ? nil : sum / TimeInterval(n)
+    }
+
+    /// Buckets solves by their local day ordinal within `ordinalRange`. Days
+    /// with no solves are absent; the caller defaults them to an empty cell.
+    public func solvesByDay(
+        ordinalRange: ClosedRange<Int>,
+        calendar: Calendar = .current
+    ) -> [Int: DaySolves] {
+        var byDay: [Int: (count: Int, hasDaily: Bool)] = [:]
+        for record in records {
+            let ordinal = DailySeed.dayOrdinal(for: record.date, calendar: calendar)
+            guard ordinalRange.contains(ordinal) else { continue }
+            var entry = byDay[ordinal] ?? (0, false)
+            entry.count += 1
+            entry.hasDaily = entry.hasDaily || record.isDaily
+            byDay[ordinal] = entry
+        }
+        return byDay.mapValues { DaySolves(count: $0.count, hasDaily: $0.hasDaily) }
     }
 }
