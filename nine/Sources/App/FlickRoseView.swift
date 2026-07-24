@@ -92,11 +92,21 @@ struct FlickRoseView: View {
     /// Multiplier on every petal metric. 1.0 is the TV rose; the touch rose
     /// passes something near 0.45 so petals sit finger-sized over the board.
     var scale: CGFloat = 1.0
+    /// Per-digit count of that digit still to place (index 0 = digit 1). When
+    /// nil the rose draws no counts — the shared TV/Mac/tutorial default.
+    var remainingCounts: [Int]? = nil
+    /// Adds a tenth "erase" petal below the ring. Off for givens/empty cells
+    /// and every non-iOS surface.
+    var showsErase: Bool = false
 
     @State private var bloomed = false
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
+    /// Center-to-center drop from the bottom petal row to the erase glyph.
+    private var eraseDrop: CGFloat { spacing * 0.92 }
+    /// Extra height below the ring when the erase petal is present.
+    private var eraseAllowance: CGFloat { showsErase ? eraseDrop : 0 }
 
     var body: some View {
         CouchGlassContainer(spacing: 12) {
@@ -104,9 +114,19 @@ struct FlickRoseView: View {
                 ForEach(1...9, id: \.self) { digit in
                     petal(for: digit)
                 }
+                if !state.pencil, let counts = remainingCounts {
+                    ForEach(1...9, id: \.self) { digit in
+                        countCaption(for: digit, remaining: counts[digit - 1])
+                    }
+                }
+                if showsErase, !state.pencil {
+                    erasePetal
+                }
             }
         }
-        .frame(width: spacing * 2 + petalSize, height: spacing * 2 + petalSize)
+        .frame(width: spacing * 2 + petalSize,
+               height: spacing * 2 + petalSize + eraseAllowance,
+               alignment: .top)
         .scaleEffect(bloomed ? 1.0 : 0.35)
         .opacity(bloomed ? 1.0 : 0.0)
         .onAppear {
@@ -134,6 +154,29 @@ struct FlickRoseView: View {
             .offset(x: offset.x * spacing, y: offset.y * spacing)
             .animation(.couchFast, value: focused)
     }
+
+    /// "N left" (or "done" in the accent) tucked under a petal. iOS-only —
+    /// pencil roses and non-iOS surfaces pass `remainingCounts == nil`.
+    private func countCaption(for digit: Int, remaining: Int) -> some View {
+        let offset = RoseGeometry.offset(forDigit: digit)
+        let complete = remaining <= 0
+        return Text(complete ? "done" : "\(remaining) left")
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(complete ? accent : Color.secondary)
+            .fixedSize()
+            .offset(x: offset.x * spacing,
+                    y: offset.y * spacing + petalSize / 2 + 4)
+    }
+
+    /// The tenth petal: an eraser glyph directly below the 7-8-9 row.
+    private var erasePetal: some View {
+        Image(systemName: "eraser.fill")
+            .font(.system(size: (state.pencil ? 26 : 34) * scale, weight: .semibold))
+            .foregroundStyle(accent)
+            .frame(width: petalSize, height: petalSize)
+            .couchGlassInteractive(in: Circle())
+            .offset(y: spacing + eraseDrop)
+    }
 }
 
 // MARK: - Pointer / touch rose
@@ -151,9 +194,16 @@ struct TouchRose: View {
     let completedDigits: Set<Int>
     let scale: CGFloat
     let onDigit: @MainActor (Int) -> Void
+    var remainingCounts: [Int]? = nil
+    var showsErase: Bool = false
+    var onErase: (@MainActor () -> Void)? = nil
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
+    /// Minimum downward travel that means "flick past the 7-8-9 row, through
+    /// the erase petal." Anything shorter falls through to the digit keypad,
+    /// so a normal down-flick still places 8.
+    private var eraseFlickThreshold: CGFloat { spacing * 0.92 + petalSize / 2 }
 
     var body: some View {
         FlickRoseView(
@@ -161,7 +211,9 @@ struct TouchRose: View {
             accent: accent,
             completedDigits: completedDigits,
             showsFocusRing: false,
-            scale: scale
+            scale: scale,
+            remainingCounts: remainingCounts,
+            showsErase: showsErase
         )
         .overlay {
             // Invisible pointer targets aligned with the drawn petals.
@@ -174,11 +226,26 @@ struct TouchRose: View {
                         .onTapGesture { onDigit(digit) }
                         .offset(x: offset.x * spacing, y: offset.y * spacing)
                 }
+                if showsErase, let onErase {
+                    Color.clear
+                        .contentShape(Circle())
+                        .frame(width: max(44, petalSize), height: max(44, petalSize))
+                        .onTapGesture { onErase() }
+                        .offset(y: spacing + spacing * 0.92)
+                }
             }
         }
         .highPriorityGesture(
             DragGesture(minimumDistance: 24)
                 .onEnded { value in
+                    // Erase: a long, predominantly-downward flick that reaches
+                    // the erase petal below the ring (iOS filled cells only).
+                    if let onErase, showsErase,
+                       value.translation.height >= eraseFlickThreshold,
+                       value.translation.height >= abs(value.translation.width) {
+                        onErase()
+                        return
+                    }
                     if let direction = RoseGeometry.flickDirection(value.translation) {
                         onDigit(RoseGeometry.digit(for: direction))
                     }
