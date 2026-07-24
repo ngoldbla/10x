@@ -90,21 +90,14 @@ struct CoachDemo: View {
                     Text("Hidden Single")
                         .font(CouchTypography.body)
                     Spacer()
-                    Text("2 left today")
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Place it")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(accent)
                 }
                 Text("Only one square in this box can still take a 7 — the other cells in the box already see one.")
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("Pro is unlimited")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                }
-                .foregroundStyle(accent)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -137,7 +130,7 @@ struct ProSheetDemo: View {
                     Spacer()
                     ProChip(accent: accent)
                 }
-                Text("Everything, unlocked — for the quiet obsessive.")
+                Text("One purchase. Everything, forever — no subscription.")
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
 
@@ -159,8 +152,7 @@ struct ProSheetDemo: View {
                 }
                 .padding(.vertical, 4)
 
-                priceButton(title: "Lifetime", price: "$14.99", note: "Pay once", primary: true)
-                priceButton(title: "Yearly", price: "$6.99", note: "Billed annually", primary: false)
+                priceButton(title: "Unlock everything", price: "$14.99", note: "One purchase · yours forever", primary: true)
 
                 HStack {
                     Spacer()
@@ -171,7 +163,7 @@ struct ProSheetDemo: View {
                 }
                 .padding(.top, 2)
 
-                Text("The daily puzzle and your streak are free forever. No ads, ever.")
+                Text("The daily puzzle and your streak are always free. No subscription, no ads, ever.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -219,12 +211,8 @@ struct ArchiveDemo: View {
     var body: some View {
         DemoSheet {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Archive")
-                        .couchText(CouchTypography.title)
-                    Spacer()
-                    ProChip(accent: accent)
-                }
+                Text("Archive")
+                    .couchText(CouchTypography.title)
                 Text("July 2026")
                     .font(CouchTypography.body)
                     .foregroundStyle(.secondary)
@@ -237,11 +225,11 @@ struct ArchiveDemo: View {
 
                 HStack(spacing: 14) {
                     legend(symbol: "checkmark.circle.fill", tint: accent, text: "Solved")
-                    legend(symbol: "lock.fill", tint: .secondary, text: "Pro")
+                    legend(symbol: "circle", tint: .secondary, text: "Unplayed")
                 }
                 .padding(.top, 4)
 
-                Text("Every past daily, on tap — deterministic seeds mean no downloads. Free players always have today.")
+                Text("Every past daily, on tap. Deterministic seeds mean the whole year is already here — nothing to download.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -254,7 +242,6 @@ struct ArchiveDemo: View {
         let isToday = day == today
         let solved = solvedDays.contains(day)
         let future = day > today
-        let locked = day < today && !solved   // past unsolved → Pro archive
         ZStack {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(isToday ? accent.opacity(0.9) : Color.white.opacity(future ? 0.03 : 0.06))
@@ -262,10 +249,6 @@ struct ArchiveDemo: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(accent)
-            } else if locked {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
             } else {
                 Text("\(day)")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -402,12 +385,8 @@ struct ShieldDemo: View {
     var body: some View {
         SceneBackdrop {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 12) {
-                    Text("Nine").couchText(CouchTypography.title)
-                    Spacer()
-                    ProChip(accent: accent)
-                }
-                // Header chips — streak now carries a shield glyph.
+                Text("Nine").couchText(CouchTypography.title)
+                // Header chips — streak now carries a quiet shield glyph.
                 HStack(spacing: 10) {
                     chip("625 pts", symbol: "star.fill")
                     shieldChip
@@ -418,9 +397,9 @@ struct ShieldDemo: View {
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundStyle(accent)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Your Shield kept the streak")
+                            Text("Your streak held")
                                 .font(CouchTypography.body)
-                            Text("You missed yesterday — Pro auto-spent one Shield so your 12-day streak stands. It refills weekly.")
+                            Text("You took yesterday off — Nine kept your 12-day streak safe. Life happens; one rest day won't cost you.")
                                 .font(CouchTypography.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -488,13 +467,6 @@ struct RichStatsDemo: View {
                     DemoSectionHeader(text: "Solve time trend", trailing: "▼ faster")
                     Sparkline(points: [0.8, 0.72, 0.75, 0.6, 0.64, 0.5, 0.46, 0.4], accent: accent)
                         .frame(height: 56)
-                }
-
-                HStack(spacing: 8) {
-                    ProChip(accent: accent)
-                    Text("Heat grid, trends & per-difficulty splits")
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -588,52 +560,46 @@ struct ThemePacksDemo: View {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Appearance").couchText(CouchTypography.title)
 
-                // Themes: the six free swatches, then three Pro packs.
+                // A wider palette of themes — all just available.
                 VStack(alignment: .leading, spacing: 14) {
                     DemoSectionHeader(text: "Theme", trailing: "Auto")
-                    swatchRow(free: [.dark, .light, .camel, .blueprint, .forest],
-                              lockedNames: ["Ember", "Tide", "Mono"],
-                              lockedColors: [Color(red: 0.5, green: 0.12, blue: 0.05),
-                                             Color(red: 0.03, green: 0.28, blue: 0.36),
-                                             Color(red: 0.14, green: 0.14, blue: 0.15)])
+                    swatchRow(extraNames: ["Ember", "Tide", "Mono"],
+                              extraColors: [Color(red: 0.5, green: 0.12, blue: 0.05),
+                                            Color(red: 0.03, green: 0.28, blue: 0.36),
+                                            Color(red: 0.14, green: 0.14, blue: 0.15)])
                 }
 
-                // Accents: free dots, then locked dots.
                 VStack(alignment: .leading, spacing: 14) {
                     DemoSectionHeader(text: "Accent", trailing: "Glacier")
                     accentRow
                 }
 
-                // App icon pack.
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        DemoSectionHeader(text: "App icon")
-                        ProChip(accent: accent)
-                    }
+                    DemoSectionHeader(text: "App icon")
                     iconRow
                 }
             }
         }
     }
 
-    private func swatchRow(free: [ThemeChoice], lockedNames: [String], lockedColors: [Color]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+    private func swatchRow(extraNames: [String], extraColors: [Color]) -> some View {
+        let free: [ThemeChoice] = [.dark, .light, .camel, .blueprint, .forest]
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(free, id: \.self) { theme in
-                    swatch(theme.tones(for: .dark).background, digitTone: theme.tones(for: .dark).digitTone, locked: false)
+                    swatch(theme.tones(for: .dark).background, digitTone: theme.tones(for: .dark).digitTone)
                 }
-                ForEach(Array(lockedColors.enumerated()), id: \.offset) { _, c in
-                    swatch(c, digitTone: .white, locked: true)
+                ForEach(Array(extraColors.enumerated()), id: \.offset) { _, c in
+                    swatch(c, digitTone: .white)
                 }
             }
         }
     }
 
-    private func swatch(_ bg: Color, digitTone: Color, locked: Bool) -> some View {
+    private func swatch(_ bg: Color, digitTone: Color) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 9, style: .continuous).fill(bg)
             Text("9").font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(digitTone)
-            if locked { LockBadge(size: 18) }
         }
         .frame(width: 34, height: 34)
         .overlay { RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1) }
@@ -650,7 +616,6 @@ struct ThemePacksDemo: View {
                     Circle().fill(LinearGradient(colors: i == 0 ? [.pink, .orange] : [.mint, .cyan],
                                                  startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 26, height: 26)
-                        .overlay { LockBadge(size: 16) }
                 }
             }
         }
@@ -664,7 +629,6 @@ struct ThemePacksDemo: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13, style: .continuous).fill(bg[i])
                     Text("9").font(.system(size: 26, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                    if i != 0 { LockBadge(size: 20) }
                 }
                 .frame(width: 52, height: 52)
                 .overlay { RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1) }

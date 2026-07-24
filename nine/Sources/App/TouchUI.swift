@@ -74,11 +74,6 @@ struct TouchHomeView: View {
             Text("Nine")
                 .couchText(CouchTypography.title)
             Spacer()
-            // Audit funnel entry point (rec 2) shown alongside the home-inline
-            // teasers so the Pro chip's context is visible.
-            if UXDemo.active?.isHomeInline == true {
-                ProChip(accent: accent)
-            }
             if model.totalPoints > 0 {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
@@ -280,32 +275,30 @@ struct TouchHomeView: View {
 
     // MARK: UX audit prototypes (home-inline)
 
-    /// rec 10 — a fourth, Pro-gated difficulty (X-wings and worse).
+    /// rec 10 — a fourth difficulty (X-wings and worse), a calm equal to the
+    /// other three cards; identity comes from a moon glyph, not a lock.
     private var nocturneCard: some View {
         TouchCard(action: {}) {
             HStack(spacing: 16) {
                 DemoNocturneBoard(accent: accent)
                     .frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text("Nocturne")
-                            .font(CouchTypography.body)
-                        ProChip(accent: accent)
-                    }
+                    Text("Nocturne")
+                        .font(CouchTypography.body)
                     Text("X-wings, chains — the deep end.")
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Image(systemName: "moon.stars")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(accent)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    /// rec 9 — a calm teaser for upcoming variant modes; taps open Pro.
+    /// rec 9 — a calm teaser for upcoming variant modes.
     private var variantsTeaser: some View {
         TouchCard(action: {}) {
             HStack(spacing: 16) {
@@ -316,7 +309,7 @@ struct TouchHomeView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Killer · Thermo")
                         .font(CouchTypography.body)
-                    Text("New variants arriving with Pro.")
+                    Text("New variants, coming soon.")
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                 }
