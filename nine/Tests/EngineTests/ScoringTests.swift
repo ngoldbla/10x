@@ -83,6 +83,16 @@ struct SolveHistoryTests {
         #expect(history.bestSeconds(for: .steady) == nil)
     }
 
+    @Test func averageSecondsPerDifficulty() {
+        var history = SolveHistory()
+        history.record(record(difficulty: .gentle, seconds: 300))
+        history.record(record(difficulty: .gentle, seconds: 500))
+        history.record(record(difficulty: .sharp, seconds: 900))
+        #expect(history.averageSeconds(for: .gentle) == 400)
+        #expect(history.averageSeconds(for: .sharp) == 900)
+        #expect(history.averageSeconds(for: .steady) == nil)
+    }
+
     @Test func solveCountsByDifficulty() {
         var history = SolveHistory()
         history.record(record(difficulty: .gentle))

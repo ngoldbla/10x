@@ -82,4 +82,13 @@ public struct SolveHistory: Sendable, Codable, Equatable {
     public func bestSeconds(for difficulty: Difficulty) -> TimeInterval? {
         records.lazy.filter { $0.difficulty == difficulty }.map(\.seconds).min()
     }
+
+    /// Mean solve time for this difficulty, nil when none exist.
+    public func averageSeconds(for difficulty: Difficulty) -> TimeInterval? {
+        let times = records.lazy.filter { $0.difficulty == difficulty }.map(\.seconds)
+        var sum: TimeInterval = 0
+        var n = 0
+        for t in times { sum += t; n += 1 }
+        return n == 0 ? nil : sum / TimeInterval(n)
+    }
 }
