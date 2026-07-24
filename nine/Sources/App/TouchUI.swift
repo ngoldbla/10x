@@ -35,6 +35,9 @@ struct TouchHomeView: View {
                     continueCard
                     boardsSection
                     freePlayRow
+                    // UX audit home-inline prototypes (rec 10, rec 9).
+                    if UXDemo.active == .nocturne { nocturneCard }
+                    if UXDemo.active == .variants { variantsTeaser }
                     learnRow
                 }
                 .padding(20)
@@ -62,6 +65,8 @@ struct TouchHomeView: View {
             }
         }
         .animation(.couchFast, value: showTutorial)
+        // UX audit prototypes: a no-op unless a -uxdemo.* launch flag is set.
+        .overlay { UXDemoLayer(model: model) }
     }
 
     private var header: some View {
@@ -69,6 +74,11 @@ struct TouchHomeView: View {
             Text("Nine")
                 .couchText(CouchTypography.title)
             Spacer()
+            // Audit funnel entry point (rec 2) shown alongside the home-inline
+            // teasers so the Pro chip's context is visible.
+            if UXDemo.active?.isHomeInline == true {
+                ProChip(accent: accent)
+            }
             if model.totalPoints > 0 {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
@@ -265,6 +275,57 @@ struct TouchHomeView: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 124)
+        }
+    }
+
+    // MARK: UX audit prototypes (home-inline)
+
+    /// rec 10 — a fourth, Pro-gated difficulty (X-wings and worse).
+    private var nocturneCard: some View {
+        TouchCard(action: {}) {
+            HStack(spacing: 16) {
+                DemoNocturneBoard(accent: accent)
+                    .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text("Nocturne")
+                            .font(CouchTypography.body)
+                        ProChip(accent: accent)
+                    }
+                    Text("X-wings, chains — the deep end.")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// rec 9 — a calm teaser for upcoming variant modes; taps open Pro.
+    private var variantsTeaser: some View {
+        TouchCard(action: {}) {
+            HStack(spacing: 16) {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Killer · Thermo")
+                        .font(CouchTypography.body)
+                    Text("New variants arriving with Pro.")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
