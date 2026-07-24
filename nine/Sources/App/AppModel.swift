@@ -525,9 +525,17 @@ final class AppModel {
         WidgetBridge.publish(from: self)
         #endif
 
-        // Cloud library (PRD-8). Ambient or absent: no account → local-only,
-        // no modal, no error surfaced. Callbacks apply remote changes through
-        // the tested Engine merge rules on the main actor.
+        // Cloud library (PRD-8). Ambient or absent: no iCloud account →
+        // purely local, no modal, no error surfaced (and no CKContainer, which
+        // hard-traps when the app isn't iCloud-entitled). An account appearing
+        // later starts sync on the next foreground.
+        setUpCloudSyncIfAvailable()
+    }
+
+    /// Construct and start the cloud store, but only when an iCloud account is
+    /// signed in. Idempotent — safe to call repeatedly (e.g. on foreground).
+    private func setUpCloudSyncIfAvailable() {
+        guard cloudStore == nil, FileManager.default.ubiquityIdentityToken != nil else { return }
         let store = LibraryCloudStore()
         store.onRemoteEntry = { [weak self] synced in self?.applyRemoteEntry(synced) }
         store.onRemoteDeletion = { [weak self] id in self?.applyRemoteDeletion(id) }
@@ -536,7 +544,7 @@ final class AppModel {
         store.start()
         // Seed the cloud from whatever this device already has on a first run
         // (idempotent). Ongoing per-mutation pushes keep it current thereafter;
-        // an account appearing later re-seeds via onAccountReset.
+        // a re-sign-in re-seeds via onAccountReset.
         if !store.hasSyncedBefore { repushEntireLibrary() }
     }
 
@@ -856,9 +864,14 @@ final class AppModel {
 
     // MARK: - Cloud sync (PRD-8)
 
-    /// Ask CloudKit to fetch now (called when the app comes forward). Ambient:
-    /// no store / no account → no-op.
-    func syncOnForeground() { cloudStore?.kick() }
+    /// Ask CloudKit to fetch now (called when the app comes forward). Also the
+    /// "quiet re-sync when an account appears" hook: if the user signed into
+    /// iCloud since launch, start the store now. Ambient: still no account →
+    /// no-op.
+    func syncOnForeground() {
+        setUpCloudSyncIfAvailable()
+        cloudStore?.kick()
+    }
 
     /// Seed every local board up to CloudKit (idempotent — the engine dedupes).
     private func repushEntireLibrary() {
