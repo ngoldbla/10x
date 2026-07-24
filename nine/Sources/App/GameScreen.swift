@@ -72,6 +72,9 @@ struct GameScreen: View {
                 remoteBody
             }
         }
+        // The pad-probe HUD rides the OUTER Group so it survives the remote↔pad
+        // body swap — the exact transition under observation (Phase 0.2).
+        .overlay(alignment: .topTrailing) { padProbeOverlay }
         // While not in a session the remote body listens for real pad traffic
         // and adopts the controller grammar in place on the first gesture (the
         // sim's phantom pad emits none, so it never adopts). Home needs no
@@ -89,6 +92,13 @@ struct GameScreen: View {
             guard model.padSession, !connected else { return }
             fallBackToRemote()
         }
+    }
+
+    @ViewBuilder
+    private var padProbeOverlay: some View {
+        #if DEBUG
+        if model.padProbe { PadProbeHUD(model: model) }
+        #endif
     }
 
     // MARK: - Remote body (unchanged grammar)
@@ -190,8 +200,10 @@ struct GameScreen: View {
         guard model.padSession else { installAdoptionListener(); return }
         if showPadTutorial {
             model.padReader.onGesture = { [padTutorial] gesture in padTutorial.handle(gesture) }
+            setRoutingLabel("tutorial")
         } else {
             model.padReader.onGesture = { [pad] gesture in pad.handle(gesture) }
+            setRoutingLabel("pad-grammar")
         }
     }
 
@@ -200,6 +212,13 @@ struct GameScreen: View {
     private func installAdoptionListener() {
         guard !model.padSession else { return }
         model.padReader.onGesture = { gesture in adoptIfRealGesture(gesture) }
+        setRoutingLabel("adoption-listener")
+    }
+
+    private func setRoutingLabel(_ label: String) {
+        #if DEBUG
+        model.padRoutingLabel = label
+        #endif
     }
 
     /// Adopt the controller grammar on the first *input* gesture (never on a
@@ -217,6 +236,10 @@ struct GameScreen: View {
         withAnimation(.couchFast) { rose = nil }
         showPrefs = false
         model.padSession = true
+        // Light the DualSense bar to the accent on the session flip (Phase 3.4;
+        // nil-safe no-op on Xbox pads / no light).
+        let rgb = model.prefs.accent.lightBarRGB
+        model.padReader.setLight(red: rgb.red, green: rgb.green, blue: rgb.blue)
         // Forward the triggering gesture so the first input isn't swallowed.
         pad.handle(gesture)
     }

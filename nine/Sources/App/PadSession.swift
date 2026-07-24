@@ -16,7 +16,7 @@
 //   Square         sticky pencil toggle
 //   Triangle       same-number highlight of the digit under the cursor
 //   L1 / R1        previous / next empty cell
-//   L2 (hold)      peek — dim all but the highlighted kind
+//   L2 / R2 (hold) peek — dim all but the highlighted kind
 //   Options        prefs sheet
 #if os(tvOS)
 import SwiftUI
@@ -103,7 +103,7 @@ final class PadPlayController {
             press(button)
         case .buttonUp(let button):
             switch button {
-            case .l2: peekHeld = false
+            case .l2, .r2: peekHeld = false // R2 is a first-class peek alias (Phase 3)
             case .circle: circleUp()
             default: break
             }
@@ -187,7 +187,9 @@ final class PadPlayController {
             jumpEmpty(forward: false)
         case .r1:
             jumpEmpty(forward: true)
-        case .l2:
+        case .l2, .r2:
+            // Peek is held on either trigger — R2 is a first-class alias of L2
+            // so right-handed players get the same reach (PRD-5 Phase 3).
             peekHeld = true
         case .options:
             showPrefs = true

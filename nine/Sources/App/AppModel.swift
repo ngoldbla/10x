@@ -46,6 +46,22 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         }
     }
 
+    /// The vivid base tint as raw components, for the DualSense light bar
+    /// (PRD-5 Phase 3). Kept parallel to `color` rather than extracted from it —
+    /// SwiftUI `Color` → RGB round-tripping is unreliable on tvOS.
+    var lightBarRGB: (red: Double, green: Double, blue: Double) {
+        switch self {
+        case .glacier: return (0.33, 0.68, 0.98)
+        case .ember: return (1.00, 0.56, 0.20)
+        case .meadow: return (0.36, 0.84, 0.48)
+        case .lilac: return (0.66, 0.50, 0.98)
+        case .crimson: return (0.93, 0.29, 0.50)
+        case .gold: return (0.98, 0.75, 0.18)
+        case .teal: return (0.15, 0.80, 0.76)
+        case .magenta: return (0.88, 0.42, 0.90)
+        }
+    }
+
     /// The tint resolved for the surface it sits on.
     func color(isLight: Bool) -> Color {
         guard isLight else { return color }
@@ -346,6 +362,15 @@ final class AppModel {
     /// the pad drives every mutation. Entered automatically on the first real
     /// pad gesture; Menu still exits (save + home).
     var padSession = false
+    #if DEBUG
+    /// The `--pad-probe` HUD is mounted and `padReader.diagnosticsEnabled` is on
+    /// (os.Logger traces + poll-edge counters). Presentation/observation rig
+    /// only, never compiled into Release (PRD-5 Phase 0).
+    var padProbe = false
+    /// Which surface the reader's gesture stream is pointed at, for the HUD:
+    /// "adoption-listener" / "tutorial" / "pad-grammar".
+    var padRoutingLabel = "—"
+    #endif
     /// The interactive pad tutorial has run once. Persisted — it plays on the
     /// first pad session ever, then never nags again.
     var padTutorialSeen: Bool {
@@ -367,6 +392,73 @@ final class AppModel {
     // gesture arrives (the Pad Play card and its explicit start are retired);
     // a mid-game drop falls back to the remote grammar in place, so the timer
     // never pauses — the reconnect veil is gone too (PRD-5 revised).
+
+    #if DEBUG
+    /// Replay a comma-separated PadGesture script through the reader's OWN
+    /// callback, so adoption → routing → grammar → UI all run exactly as they
+    /// would for a real controller. Honest boundary: this validates everything
+    /// ABOVE the GCController layer, never the poll/sampler hardware read
+    /// itself (that needs a forwarded physical pad — PRD-5 Phase 4.2).
+    ///
+    /// Tokens: `cross`/`circle`/`square`/…/`options` (press only), `<btn>.tap`
+    /// (quick release → undo/place), `<btn>.hold` (past the 400 ms gate →
+    /// erase/peek), `flick.<dir8>` (e.g. `flick.upLeft`), `move.<dir4>`.
+    private func replayPadGestures(_ spec: String) {
+        let tokens = spec.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000) // let GameScreen install its listener
+            for token in tokens {
+                await playPadToken(token)
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+        }
+    }
+
+    @MainActor
+    private func playPadToken(_ token: String) async {
+        func fire(_ g: PadGesture) { padReader.onGesture?(g) }
+        let parts = token.split(separator: ".").map(String.init)
+        let head = parts.first ?? ""
+        let mod = parts.count > 1 ? parts[1] : nil
+        switch head {
+        case "flick":
+            if let d = mod.flatMap(Direction8OrCenter.init(rawValue:)) { fire(.flick(d)) }
+        case "move":
+            if let d = mod.flatMap(Direction4.init(rawValue:)) { fire(.move(d, glide: false)) }
+        default:
+            guard let button = Self.padButton(head) else { return }
+            fire(.button(button))
+            switch mod {
+            case "tap":
+                try? await Task.sleep(nanoseconds: 150_000_000) // release before the hold gate
+                fire(.buttonUp(button))
+            case "hold":
+                try? await Task.sleep(nanoseconds: 600_000_000) // release past the 400 ms hold gate
+                fire(.buttonUp(button))
+            default:
+                break // press only
+            }
+        }
+    }
+
+    private static func padButton(_ name: String) -> PadButton? {
+        switch name {
+        case "cross": return .cross
+        case "circle": return .circle
+        case "square": return .square
+        case "triangle": return .triangle
+        case "l1": return .l1
+        case "r1": return .r1
+        case "l2": return .l2
+        case "r2": return .r2
+        case "r3": return .r3
+        case "options", "create": return .options
+        default: return nil
+        }
+    }
+    #endif
     #endif
 
     init() {
@@ -571,6 +663,21 @@ final class AppModel {
         // screenshotted in the simulator (no real controller needed).
         if ProcessInfo.processInfo.arguments.contains("--debug-pad") {
             padSession = true
+        }
+        // --pad-probe: mount the diagnostics HUD and turn on PadKit's logging +
+        // poll-edge counters. Adoption stays organic (do NOT force padSession) so
+        // the probe can watch a REAL controller adopt when forwarded from the Mac
+        // (Simulator ▸ I/O ▸ Send Game Controller to Device) — PRD-5 Phase 0/1.
+        if ProcessInfo.processInfo.arguments.contains("--pad-probe") {
+            padProbe = true
+            padReader.diagnosticsEnabled = true
+        }
+        // --debug-pad-gestures "square,flick.up,circle.tap,l2.hold": replay a
+        // scripted gesture stream so run-couch-suite can screenshot the pencil
+        // chip / undo toast / ghost-rose shimmer / peek in the sim (Phase 4.2).
+        let args = ProcessInfo.processInfo.arguments
+        if let idx = args.firstIndex(of: "--debug-pad-gestures"), idx + 1 < args.count {
+            replayPadGestures(args[idx + 1])
         }
         #endif
         #endif

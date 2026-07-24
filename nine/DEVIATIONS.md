@@ -306,6 +306,105 @@ Sanctioned cuts and pragmatic deviations, with reasons.
   `padSession` on so the pad legend/chip/toast can be screenshotted in the
   simulator, which can never adopt on its own.
 
+## PRD-5 controller fix — DualSense first-class on real hardware (2026-07-23)
+
+Playtest on a real Apple TV: **stick navigation worked, nothing else did** — no
+pencil, buttons unmapped, "just the joysticks." Every prior validation ran in the
+simulator, whose phantom extended gamepad emits no gestures, so no physical button
+press had ever been observed end-to-end.
+
+- **Root cause & the unconditional fix (Phase 2.1).** Sticks were *polled* at
+  60 Hz (re-reading the live profile each tick), but every button hung off a
+  `pressedChangedHandler` wired once to the profile object present at `adopt()`.
+  A reconnect / profile replacement (`handleConnect` guarded `controller == nil`
+  and silently ignored the same controller) left those handlers on a dead object
+  forever. **Every button now rides the same poll path**: `pollButtons` reads live
+  `isPressed` each tick and a pure `PadButtonSampler` turns edges into gestures.
+  This neutralizes *both* candidate hypotheses (stale profile AND suppressed
+  handler delivery) at once, so it shipped unconditionally rather than waiting on
+  the observation gate. Worst-case latency ≤16 ms — imperceptible.
+- **Same-controller re-adopt (Phase 2.3).** `handleConnect` now re-runs the
+  device-facing setup (motion wake, haptics re-point, sampler reset) when the
+  re-announced controller is the one we already hold, instead of returning.
+- **Deliberate deviations from the plan.**
+  - **Phase 1 (manual observation) was NOT run in this change.** It needs a
+    physical DualSense paired to the Mac and Simulator ▸ I/O ▸ *Send Game
+    Controller to Device* (no CLI can inject gamepad HID; GCVirtualController is
+    iOS-only). Because 2.1 is unconditional, the fix does not depend on which
+    hypothesis Phase 1 would have confirmed. The observation protocol and matrix
+    below are retained for a confirming pass on real hardware.
+  - **The handler-vs-poll divergence detector and wired-vs-live profile
+    `ObjectIdentifier` comparison from Phase 0 were dropped as obsolete.** With
+    2.1 there is no handler path and no wired profile to go stale, so those
+    instruments would measure nothing. The pad-probe HUD keeps the parts that
+    still mean something: live pressed/axis state, per-button **poll-edge
+    counters** (proof a physical press reached the sampler), the controllers()
+    census, last gesture, and the routing label.
+  - **Phase 2.2 (GCEventViewController host) was skipped** per the plan's own
+    default — padBody's absorb-and-drop `.couchRemote` closure already neutralizes
+    focus-engine echoes; adopt only on observed evidence.
+  - **Create/Options mapping is UNVERIFIED.** `buttonOptions` is still polled for
+    the Create/Options button, marked with a comment in `PadKit.pollButtons`. The
+    physical probe (Phase 1) settles which element the DualSense *Create* button
+    lights; if disproven, swap the polled element and fix the three label surfaces
+    (GameScreen hint, HomeView legend, pad tutorial strings) in one commit.
+- **Phase 3 completeness.** R2 is now a first-class **peek alias of L2** (hold);
+  legend reads "Hold L2 · R2". The DualSense **light bar** is painted to the
+  accent on the pad-session flip (`PadReader.setLight`, nil-safe on Xbox pads).
+  PS/`buttonHome` (system-reserved), touchpad-click, and adaptive-trigger
+  resistance are documented-as-deferred in the `PadButton` header.
+- **CI gap closed (Phase 4.1).** The pure grammar (`PadButton`, `PadGesture`,
+  `PadMomentum`/`classifyStick`, `PadButtonSampler`) moved outside `#if os(tvOS)`;
+  a new `CouchKitTests` target exercises it on the Mac. `swift test` used to
+  compile PadKit out entirely — which is how the broken mapping shipped.
+- **DEBUG rigs.** `--pad-probe` mounts the diagnostics HUD + turns on PadKit
+  logging/counters (adoption stays organic). `--debug-pad-gestures
+  "square,flick.up,circle.tap,l2.hold"` replays a scripted gesture stream through
+  the reader's own callback so the sim can screenshot pencil chip / undo toast /
+  ghost-rose shimmer / peek. Honest boundary: the rig validates routing + grammar
+  + UI, never the GCController poll/sampler hardware read.
+
+### Phase 1 observation protocol (run on the Mac with a real DualSense)
+
+Pair DualSense to the Mac → boot the tvOS sim → launch nine with `--pad-probe`
+(NOT `--debug-pad` — adoption must be organic) → Simulator ▸ I/O ▸ *Send Game
+Controller to Device* → open a board, then:
+
+1. Check the HUD: `adopted` shows the vendor name, `controllers` ≥ 1 extended,
+   routing flips `adoption-listener` → `pad-grammar` on the first input.
+2. Nudge the left stick: HUD `gestures` counter climbs and `session` flips to
+   PAD (organic adoption), OR the cursor moves with **zero** gestures (focus
+   engine drove it — adoption never flipped; revisit).
+3. Press every physical button once: ✕ ○ □ △ L1 R1 L2 R2 L3 R3 d-pad×4 Create
+   Options touchpad-click. For each, confirm the HUD button lights green and its
+   **poll-edge counter increments**. Note which element **Create** lights.
+4. Un-forward mid-session (fallback chip + remote grammar), re-forward
+   (re-adoption via the same-controller path).
+
+### Manual verification matrix (per-button grammar, post-fix)
+
+Full pass via Simulator forwarding; one confirming pass on a physical Apple TV.
+
+- ✕ Cross — opens the rose / confirms a focused petal
+- ○ Circle — tap → undo toast · hold → erase the cell
+- □ Square — pencil chip toggles
+- △ Triangle — same-number highlight toggles
+- L1 / R1 — jump to previous / next empty cell
+- L2 **and R2** — peek (dim all but one kind) while held
+- Right stick — 8 petals place 1–9; ambiguous angle shimmers, places nothing
+- R3 — places 5 (center petal)
+- Left stick — analog momentum glide; d-pad single-steps
+- Create — opens prefs (focus walks the sheet)
+- Menu — rose→cancel · prefs→close · else→shelf; shelf Menu→TV home
+- Light bar — lights to the accent when the pad session begins
+- Un-forward mid-game → fallback chip, remote grammar, cursor preserved
+- Re-forward + press → re-adoption
+
+### Findings
+
+_Phase 1 not yet run — record the observed hypothesis row and any Create/Options
+correction here after the confirming session on the Mac and on the Apple TV._
+
 ## Playtest fix D — board library + tracker (supersedes PRD.md §4.1 single Continue)
 
 - **The single `SaveSlot` autosave is replaced by a `BoardLibrary`** (Engine,

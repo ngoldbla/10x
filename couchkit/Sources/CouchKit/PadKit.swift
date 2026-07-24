@@ -18,22 +18,22 @@
 // Remote, COUCHKIT-ASKS #1 — it works here because we own the reader). The left
 // stick is analog momentum: deflection magnitude drives a cursor repeat-rate
 // curve so a full push glides across a box and a feathered push steps one cell.
-#if os(tvOS)
+//
+// Guard split (PRD-5 Phase 4): the grammar below the reader — `PadButton`,
+// `PadGesture`, `PadMomentum`/`classifyStick`, and `PadButtonSampler` — is pure
+// Foundation + CouchCore, so it lives OUTSIDE the `#if os(tvOS)` and is
+// exercised by CouchKitTests on the Mac (the simulator can never pair a
+// controller — PRD-5 §5). Only the device-facing `PadReader`/`PadHaptics` stay
+// tvOS-guarded.
 import Foundation
 import CouchCore
-#if canImport(GameController)
-import GameController
-#endif
-#if canImport(CoreHaptics)
-import CoreHaptics
-#endif
 
 // MARK: - Gestures
 
 /// The pad's face / shoulder buttons, named by their PRD-5 §2.1 role rather
 /// than a vendor glyph (Cross/Circle/Square/Triangle on DualSense; A/B/X/Y on
 /// Xbox map to the same positions through GameController's profile).
-public enum PadButton: Sendable, Equatable {
+public enum PadButton: Sendable, Equatable, Hashable {
     case cross     // place-into-rose (learning mode) / confirm
     case circle    // erase user entry / cancel rose
     case square    // sticky pencil toggle
@@ -42,8 +42,17 @@ public enum PadButton: Sendable, Equatable {
     case l1        // previous empty cell
     case r1        // next empty cell
     case l2        // peek (hold): dim all but the highlighted kind
+    case r2        // peek alias of L2 (hold) — first-class R2 (PRD-5 Phase 3)
     case options   // prefs sheet
 }
+
+// Deliberately unmapped (PRD-5 Phase 3, documented not forgotten):
+//   • PS / `buttonHome` — system-reserved (tvOS routes it to the home screen);
+//     claiming it risks App Review and fights the OS. Left untouched.
+//   • Touchpad click — vendor-specific element naming would break the Xbox
+//     covenant; deferred.
+//   • Adaptive-trigger resistance — hardware-tuning cost outweighs the payoff
+//     for a sudoku; deferred.
 
 /// Declarative gesture intents an app subscribes to. The board never sees a
 /// raw axis — only the classified intent.
@@ -166,7 +175,115 @@ extension PadMomentum {
     }
 }
 
+// MARK: - Button sampler (pure)
+
+/// One frame of button state, read from the live gamepad each poll tick. Plain
+/// `Bool`s plus the raw d-pad axes so the sampler is pure and Mac-testable —
+/// no `GCExtendedGamepad` leaks into the grammar layer.
+public struct PadButtonFrame: Sendable, Equatable {
+    public var cross: Bool
+    public var circle: Bool
+    public var square: Bool
+    public var triangle: Bool
+    public var l1: Bool
+    public var r1: Bool
+    public var l2: Bool
+    public var r2: Bool
+    public var r3: Bool
+    public var options: Bool
+    public var dpadX: Double
+    public var dpadY: Double
+
+    public init(
+        cross: Bool = false, circle: Bool = false, square: Bool = false,
+        triangle: Bool = false, l1: Bool = false, r1: Bool = false,
+        l2: Bool = false, r2: Bool = false, r3: Bool = false,
+        options: Bool = false, dpadX: Double = 0, dpadY: Double = 0
+    ) {
+        self.cross = cross; self.circle = circle; self.square = square
+        self.triangle = triangle; self.l1 = l1; self.r1 = r1
+        self.l2 = l2; self.r2 = r2; self.r3 = r3; self.options = options
+        self.dpadX = dpadX; self.dpadY = dpadY
+    }
+}
+
+/// Turns a stream of per-frame button snapshots into discrete `PadGesture`s by
+/// edge detection — the same job the old `pressedChangedHandler`s did, but on
+/// the poll path. Unifying every button onto polling is the PRD-5 tvOS-controller
+/// fix: a re-connect or profile replacement can never strand a handler on a dead
+/// profile object, because each tick re-reads the live `isPressed` (real Apple
+/// TV symptom: sticks worked, buttons didn't). Pure/`Sendable` so
+/// `PadButtonSamplerTests` pins every edge without a device.
+public struct PadButtonSampler: Sendable {
+    private var last = PadButtonFrame()
+    private var lastDpad: Direction4?
+
+    public init() {}
+
+    /// Forget all prior state (call on adopt / teardown so the first frame after
+    /// a fresh device can't read a rising edge against a stale `true`).
+    public mutating func reset() {
+        last = PadButtonFrame()
+        lastDpad = nil
+    }
+
+    /// Feed one frame; return the gestures its edges imply this tick.
+    ///
+    /// Edge policy:
+    ///   • Rising edge (was up, now down) → `.button(b)` for EVERY button — the
+    ///     press is the intent for taps and the *start* of a hold alike.
+    ///   • Falling edge (was down, now up) → `.buttonUp(b)` only for the held
+    ///     buttons the grammar cares about: Circle (tap-undo vs hold-erase) and
+    ///     the L2/R2 peek. Emitting `.buttonUp` for the rest would be dead noise.
+    ///   • D-pad single-steps on the *transition into* a direction using the
+    ///     same 0.5 deadzone the old `handleDpad` used; holding a direction does
+    ///     not repeat (that is the analog left stick's job).
+    public mutating func sample(_ frame: PadButtonFrame) -> [PadGesture] {
+        var out: [PadGesture] = []
+        func rise(_ now: Bool, _ was: Bool, _ button: PadButton) {
+            if now && !was { out.append(.button(button)) }
+        }
+        rise(frame.cross, last.cross, .cross)
+        rise(frame.circle, last.circle, .circle)
+        rise(frame.square, last.square, .square)
+        rise(frame.triangle, last.triangle, .triangle)
+        rise(frame.l1, last.l1, .l1)
+        rise(frame.r1, last.r1, .r1)
+        rise(frame.l2, last.l2, .l2)
+        rise(frame.r2, last.r2, .r2)
+        rise(frame.r3, last.r3, .r3)
+        rise(frame.options, last.options, .options)
+
+        func fall(_ now: Bool, _ was: Bool, _ button: PadButton) {
+            if !now && was { out.append(.buttonUp(button)) }
+        }
+        fall(frame.circle, last.circle, .circle)
+        fall(frame.l2, last.l2, .l2)
+        fall(frame.r2, last.r2, .r2)
+
+        if let direction = PadMomentum.direction(x: frame.dpadX, y: frame.dpadY, deadzone: 0.5) {
+            if direction != lastDpad {
+                lastDpad = direction
+                out.append(.move(direction, glide: false))
+            }
+        } else {
+            lastDpad = nil
+        }
+
+        last = frame
+        return out
+    }
+}
+
 // MARK: - Controller haptics provider
+#if os(tvOS)
+#if canImport(GameController)
+import GameController
+#endif
+#if canImport(CoreHaptics)
+import CoreHaptics
+#endif
+import os
 
 #if canImport(GameController) && canImport(CoreHaptics)
 /// Vends and caches a CoreHaptics engine per locality from the controller's
@@ -232,6 +349,12 @@ public final class PadReader {
     /// Cone width for right-stick ambiguity (degrees). The never-misfire dial.
     public var ambiguityCone = FlickThresholds.standard.ambiguityCone
 
+    /// Turns on os.Logger tracing (adopt / connect / gesture emission) and keeps
+    /// the poll-edge counters `debugSnapshot()` reports live. Default off — the
+    /// `--pad-probe` launch arg flips it for the DEBUG pad-probe HUD (PRD-5
+    /// Phase 0). Costs nothing when off.
+    public var diagnosticsEnabled = false
+
     #if canImport(GameController)
     private var controller: GCController?
     private var connectObserver: (any NSObjectProtocol)?
@@ -239,15 +362,28 @@ public final class PadReader {
     private var pollTask: Task<Void, Never>?
 
     private var momentum = PadMomentum()
+    /// Every face / shoulder / stick-click button now flows through this pure
+    /// edge sampler on the poll path instead of a `pressedChangedHandler` bound
+    /// once to a profile object that a reconnect could strand (PRD-5 Phase 2.1
+    /// — the real Apple TV "sticks work, buttons don't" fix).
+    private var buttons = PadButtonSampler()
     /// Right-stick flick state: armed once the magnitude crosses 0.75, holding
     /// the peak deflection until the stick returns to rest.
     private var stickArmed = false
     private var stickPeak = SIMD2<Double>(0, 0)
-    private var lastDpad: Direction4?
 
     /// Gyro baseline for the trophy tilt (captured on first read, like
     /// `AfterglowMotion` — the player's holding pose is neutral, not flat).
     private var motionBaseline: SIMD2<Double>?
+
+    // Diagnostics (Phase 0): all inert unless `diagnosticsEnabled`, except the
+    // counters, which are cheap enough to always keep.
+    private let log = Logger(subsystem: "com.couchsuite.couchkit", category: "padkit")
+    /// Rising-edge count per button since adoption — the HUD's proof a physical
+    /// press actually reached the poll path.
+    private var edgeCounts: [PadButton: Int] = [:]
+    private var gestureCount = 0
+    private var lastGestureDescription: String?
     #endif
 
     public init() {}
@@ -256,6 +392,10 @@ public final class PadReader {
 
     public func start() {
         #if canImport(GameController)
+        if diagnosticsEnabled {
+            let all = GCController.controllers()
+            log.debug("start: \(all.count, privacy: .public) controller(s); extended: \(all.filter { $0.extendedGamepad != nil }.map { $0.vendorName ?? "?" }.joined(separator: ","), privacy: .public)")
+        }
         // Adopt any extended gamepad already paired at launch.
         for candidate in GCController.controllers() where candidate.extendedGamepad != nil {
             adopt(candidate)
@@ -314,8 +454,43 @@ public final class PadReader {
     // MARK: Connection
 
     private func handleConnect(_ controller: GCController?) {
-        guard self.controller == nil, let controller, controller.extendedGamepad != nil else { return }
+        guard let controller, controller.extendedGamepad != nil else { return }
+        // Phase 2.3 — same-controller re-announce (profile replacement / wake).
+        // The old guard returned here, silently leaving handlers on a dead
+        // profile object forever. Polling already re-reads the live profile each
+        // tick, so re-adopt only has to re-point motion/haptics and re-arm the
+        // sampler, never reset the session.
+        if controller === self.controller {
+            if diagnosticsEnabled { log.debug("handleConnect: same-controller re-adopt \(controller.vendorName ?? "?", privacy: .public)") }
+            reAdopt(controller)
+            return
+        }
+        guard self.controller == nil else {
+            if diagnosticsEnabled { log.debug("handleConnect: ignoring second controller \(controller.vendorName ?? "?", privacy: .public)") }
+            return
+        }
+        if diagnosticsEnabled { log.debug("handleConnect: adopt \(controller.vendorName ?? "?", privacy: .public)") }
         adopt(controller)
+    }
+
+    /// Re-run the device-facing setup for a controller we already hold, without
+    /// disturbing the session (no `.connect`, no `onConnectionChange`).
+    private func reAdopt(_ controller: GCController) {
+        #if canImport(CoreHaptics)
+        haptics.stopAll()
+        haptics.controller = controller
+        #endif
+        if let motion = controller.motion, motion.sensorsRequireManualActivation {
+            motion.sensorsActive = true
+        }
+        motionBaseline = nil
+        // Reset ALL per-device transient state, exactly as `adopt` does — a
+        // re-announce mid-flick must not let a stale armed peak (or left-stick
+        // momentum) misfire a placement on the replaced profile.
+        buttons.reset()
+        stickArmed = false
+        stickPeak = .zero
+        momentum = PadMomentum()
     }
 
     private func handleDisconnect(_ controller: GCController?) {
@@ -334,7 +509,10 @@ public final class PadReader {
         motionBaseline = nil
         stickArmed = false
         stickPeak = .zero
-        lastDpad = nil
+        buttons.reset()
+        edgeCounts.removeAll()
+        gestureCount = 0
+        lastGestureDescription = nil
         momentum = PadMomentum()
         #if canImport(CoreHaptics)
         haptics.controller = controller
@@ -346,97 +524,48 @@ public final class PadReader {
             motion.sensorsActive = true
         }
 
-        wireButtons(controller.extendedGamepad)
+        // No handler wiring: every button rides the poll path now (Phase 2.1).
         startPolling()
 
         isConnected = true
         onConnectionChange?(true)
-        onGesture?(.connect)
+        emit(.connect)
     }
 
     private func teardownActive(emitDisconnect: Bool) {
         pollTask?.cancel()
         pollTask = nil
-        if let pad = controller?.extendedGamepad { unwireButtons(pad) }
         #if canImport(CoreHaptics)
         haptics.stopAll()
         haptics.controller = nil
         #endif
         controller = nil
         motionBaseline = nil
+        buttons.reset()
         if isConnected {
             isConnected = false
             if emitDisconnect {
                 onConnectionChange?(false)
-                onGesture?(.disconnect)
+                emit(.disconnect)
             } else {
                 onConnectionChange?(false)
             }
         }
     }
 
-    // MARK: Button wiring (edge-triggered; the handler queue is main)
-
-    private func wireButtons(_ pad: GCExtendedGamepad?) {
-        guard let pad else { return }
-        press(pad.buttonA) { [weak self] in self?.onGesture?(.button(.cross)) }
-        // Circle is a hold, like L2: the app classifies tap-vs-hold by the gap
-        // between .button(.circle) and .buttonUp(.circle) — tap = undo, hold = erase.
-        pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
-            MainActor.assumeIsolated {
-                self?.onGesture?(pressed ? .button(.circle) : .buttonUp(.circle))
-            }
+    /// The single funnel for every gesture leaving the reader — keeps the
+    /// diagnostic counters and the `--pad-probe` trace honest (Phase 0).
+    private func emit(_ gesture: PadGesture) {
+        gestureCount += 1
+        if case .button(let button) = gesture { edgeCounts[button, default: 0] += 1 }
+        if diagnosticsEnabled {
+            lastGestureDescription = String(describing: gesture)
+            log.debug("gesture \(String(describing: gesture), privacy: .public)")
         }
-        press(pad.buttonX) { [weak self] in self?.onGesture?(.button(.square)) }
-        press(pad.buttonY) { [weak self] in self?.onGesture?(.button(.triangle)) }
-        press(pad.leftShoulder) { [weak self] in self?.onGesture?(.button(.l1)) }
-        press(pad.rightShoulder) { [weak self] in self?.onGesture?(.button(.r1)) }
-        pad.rightThumbstickButton.map { button in
-            press(button) { [weak self] in self?.onGesture?(.button(.r3)) }
-        }
-        pad.buttonOptions.map { button in
-            press(button) { [weak self] in self?.onGesture?(.button(.options)) }
-        }
-        // L2 is a hold: peek begins on press, restores on release.
-        pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
-            MainActor.assumeIsolated {
-                self?.onGesture?(pressed ? .button(.l2) : .buttonUp(.l2))
-            }
-        }
-        // D-pad is the precision single-step fallback: fire once per press.
-        pad.dpad.valueChangedHandler = { [weak self] _, x, y in
-            MainActor.assumeIsolated { self?.handleDpad(x: Double(x), y: Double(y)) }
-        }
+        onGesture?(gesture)
     }
 
-    private func unwireButtons(_ pad: GCExtendedGamepad) {
-        for button in [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY,
-                       pad.leftShoulder, pad.rightShoulder, pad.leftTrigger,
-                       pad.rightThumbstickButton, pad.buttonOptions].compactMap({ $0 }) {
-            button.pressedChangedHandler = nil
-        }
-        pad.dpad.valueChangedHandler = nil
-    }
-
-    /// Attach a fire-on-press handler (ignore the release edge).
-    private func press(_ button: GCControllerButtonInput, _ action: @escaping @MainActor () -> Void) {
-        button.pressedChangedHandler = { _, _, pressed in
-            MainActor.assumeIsolated { if pressed { action() } }
-        }
-    }
-
-    private func handleDpad(x: Double, y: Double) {
-        // Single-step on the transition into a direction; nothing on release.
-        guard let direction = PadMomentum.direction(x: x, y: y, deadzone: 0.5) else {
-            lastDpad = nil
-            return
-        }
-        guard direction != lastDpad else { return }
-        lastDpad = direction
-        onGesture?(.move(direction, glide: false))
-    }
-
-    // MARK: Polling (sticks — held deflections must re-fire)
+    // MARK: Polling (sticks AND buttons — one 60 Hz loop, no handlers)
 
     private func startPolling() {
         pollTask?.cancel()
@@ -448,17 +577,45 @@ public final class PadReader {
                 let now = Date()
                 let dt = min(0.1, now.timeIntervalSince(last))
                 last = now
+                self.pollButtons(pad)
                 self.pollLeftStick(pad, dt: dt)
                 self.pollRightStick(pad)
             }
         }
     }
 
+    /// Sample every button off the LIVE profile this tick and let the pure
+    /// sampler turn the edges into gestures (Phase 2.1). ≤16 ms worst-case
+    /// latency — imperceptible, and nothing a `pressedChangedHandler` delivered
+    /// is lost, while the stale-profile/handler-delivery failure modes are gone.
+    private func pollButtons(_ pad: GCExtendedGamepad) {
+        let frame = PadButtonFrame(
+            cross: pad.buttonA.isPressed,
+            circle: pad.buttonB.isPressed,
+            square: pad.buttonX.isPressed,
+            triangle: pad.buttonY.isPressed,
+            l1: pad.leftShoulder.isPressed,
+            r1: pad.rightShoulder.isPressed,
+            l2: pad.leftTrigger.isPressed,
+            r2: pad.rightTrigger.isPressed,
+            r3: pad.rightThumbstickButton?.isPressed ?? false,
+            // Phase 3.2 — DualSense's Create (left of the touchpad) is believed
+            // to surface as `buttonOptions`, but this is UNVERIFIED until the
+            // physical pad-probe session confirms which element lights (the
+            // probe couldn't run in the sim). If disproven, swap this element and
+            // fix the three label surfaces — see nine/DEVIATIONS.md pad section.
+            options: pad.buttonOptions?.isPressed ?? false,
+            dpadX: Double(pad.dpad.xAxis.value),
+            dpadY: Double(pad.dpad.yAxis.value)
+        )
+        for gesture in buttons.sample(frame) { emit(gesture) }
+    }
+
     private func pollLeftStick(_ pad: GCExtendedGamepad, dt: Double) {
         let x = Double(pad.leftThumbstick.xAxis.value)
         let y = Double(pad.leftThumbstick.yAxis.value)
         for step in momentum.accumulate(x: x, y: y, dt: dt) {
-            onGesture?(.move(step, glide: true))
+            emit(.move(step, glide: true))
         }
     }
 
@@ -488,11 +645,85 @@ public final class PadReader {
     private func emitStickFlick(dx: Double, dy: Double) {
         switch PadMomentum.classifyStick(dx: dx, dy: dy, cone: ambiguityCone) {
         case .direction(let direction):
-            onGesture?(.flick(direction))
+            emit(.flick(direction))
         case .ambiguous(let a, let b):
-            onGesture?(.flickAmbiguous(a, b))
+            emit(.flickAmbiguous(a, b))
         }
     }
+
+    // MARK: Light bar (Phase 3)
+
+    /// Paint the DualSense light bar (nil-safe: Xbox pads and unpaired devices
+    /// have no `light` and are a no-op). Nine calls this from the accent color
+    /// when a pad session begins — ~zero cost, high delight.
+    public func setLight(red: Double, green: Double, blue: Double) {
+        guard let light = controller?.light else { return }
+        light.color = GCColor(red: Float(red), green: Float(green), blue: Float(blue))
+    }
+
+    // MARK: Diagnostics snapshot (Phase 0)
+
+    /// A read-only census of the adopted device for the DEBUG pad-probe HUD:
+    /// live pressed/axis state, per-button poll-edge counts (proof a physical
+    /// press reached the poll path), and the controllers() population.
+    public func debugSnapshot() -> PadDebugSnapshot {
+        let all = GCController.controllers()
+        let pad = controller?.extendedGamepad
+        func pressed(_ b: GCControllerButtonInput?) -> Bool { b?.isPressed ?? false }
+        return PadDebugSnapshot(
+            adopted: controller != nil,
+            vendorName: controller?.vendorName,
+            controllerCount: all.count,
+            extendedCount: all.filter { $0.extendedGamepad != nil }.count,
+            pressed: [
+                .cross: pressed(pad?.buttonA), .circle: pressed(pad?.buttonB),
+                .square: pressed(pad?.buttonX), .triangle: pressed(pad?.buttonY),
+                .l1: pressed(pad?.leftShoulder), .r1: pressed(pad?.rightShoulder),
+                .l2: pressed(pad?.leftTrigger), .r2: pressed(pad?.rightTrigger),
+                .r3: pressed(pad?.rightThumbstickButton), .options: pressed(pad?.buttonOptions),
+            ],
+            edgeCounts: edgeCounts,
+            leftStick: SIMD2(Double(pad?.leftThumbstick.xAxis.value ?? 0), Double(pad?.leftThumbstick.yAxis.value ?? 0)),
+            rightStick: SIMD2(Double(pad?.rightThumbstick.xAxis.value ?? 0), Double(pad?.rightThumbstick.yAxis.value ?? 0)),
+            dpad: SIMD2(Double(pad?.dpad.xAxis.value ?? 0), Double(pad?.dpad.yAxis.value ?? 0)),
+            gestureCount: gestureCount,
+            lastGesture: lastGestureDescription
+        )
+    }
     #endif
+}
+
+// MARK: - Debug snapshot (Phase 0)
+
+/// Immutable census the pad-probe HUD renders. Pure value type so the HUD can
+/// hold it in `@State` and diff it frame to frame.
+public struct PadDebugSnapshot: Sendable, Equatable {
+    public var adopted: Bool
+    public var vendorName: String?
+    public var controllerCount: Int
+    public var extendedCount: Int
+    /// Live `isPressed` per button this instant.
+    public var pressed: [PadButton: Bool]
+    /// Rising-edge count per button since adoption (poll path).
+    public var edgeCounts: [PadButton: Int]
+    public var leftStick: SIMD2<Double>
+    public var rightStick: SIMD2<Double>
+    public var dpad: SIMD2<Double>
+    public var gestureCount: Int
+    public var lastGesture: String?
+
+    public init(
+        adopted: Bool = false, vendorName: String? = nil, controllerCount: Int = 0,
+        extendedCount: Int = 0, pressed: [PadButton: Bool] = [:],
+        edgeCounts: [PadButton: Int] = [:], leftStick: SIMD2<Double> = .zero,
+        rightStick: SIMD2<Double> = .zero, dpad: SIMD2<Double> = .zero,
+        gestureCount: Int = 0, lastGesture: String? = nil
+    ) {
+        self.adopted = adopted; self.vendorName = vendorName
+        self.controllerCount = controllerCount; self.extendedCount = extendedCount
+        self.pressed = pressed; self.edgeCounts = edgeCounts
+        self.leftStick = leftStick; self.rightStick = rightStick; self.dpad = dpad
+        self.gestureCount = gestureCount; self.lastGesture = lastGesture
+    }
 }
 #endif
