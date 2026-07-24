@@ -20,7 +20,10 @@ public enum BoardStatus: String, Codable, Sendable, Equatable {
 
 /// One tracked board.
 public struct LibraryEntry: Codable, Sendable, Equatable, Identifiable {
-    public let id: UUID
+    // `var` (not `let`) so cloud merges can re-home a divergent loser under a
+    // fresh id (PRD-8 §2). The synthesized Codable shape is unchanged, and no
+    // local code mutates it outside LibrarySync.
+    public var id: UUID
     public var kind: GameKind
     public var game: NineGame
     public var status: BoardStatus

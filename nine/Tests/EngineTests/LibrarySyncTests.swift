@@ -96,3 +96,66 @@ extension LibrarySyncTests {
         #expect(decoded.id == entry.id)
     }
 }
+
+extension LibrarySyncTests {
+
+    private func entry(
+        id: UUID = UUID(), kind: GameKind = .free(.gentle), game: NineGame,
+        status: BoardStatus = .inProgress, created: TimeInterval = 0,
+        updated: TimeInterval, solved: TimeInterval? = nil
+    ) -> LibraryEntry {
+        LibraryEntry(
+            id: id, kind: kind, game: game, status: status,
+            createdAt: t(created), updatedAt: t(updated),
+            solvedAt: solved.map(t)
+        )
+    }
+
+    private func sequentialIDs() -> () -> UUID {
+        var n = 0
+        return { n += 1; return UUID(uuidString: "00000000-0000-0000-0000-\(String(format: "%012d", n))")! }
+    }
+
+    @Test func reconcileLastWriterWinsWhenBoardsAgree() {
+        let id = UUID()
+        // Same board content, different metadata timestamps → newer wins.
+        let g = progressed(count: 4)
+        let a = entry(id: id, game: g, updated: 10)
+        let b = entry(id: id, game: g, updated: 20)
+        let r = LibrarySync.reconcile(a, b, makeID: sequentialIDs())
+        #expect(r.winner.updatedAt == t(20))
+        #expect(r.archivedLoser == nil)
+    }
+
+    @Test func reconcileSolvedBeatsInProgressRegardlessOfTime() {
+        let id = UUID()
+        let inProg = entry(id: id, game: progressed(count: 30), status: .inProgress, updated: 100)
+        let done = entry(id: id, game: solved(), status: .solved, updated: 5, solved: 5)
+        let r = LibrarySync.reconcile(inProg, done, makeID: sequentialIDs())
+        #expect(r.winner.status == .solved)          // solved wins though older
+        #expect(r.archivedLoser == nil)
+    }
+
+    @Test func reconcileContinuationTakesTheSuperset() {
+        let id = UUID()
+        let short = entry(id: id, game: progressed(count: 5), updated: 10)
+        let long = entry(id: id, game: progressed(count: 12), updated: 8) // fewer minutes but more moves
+        let r = LibrarySync.reconcile(short, long, makeID: sequentialIDs())
+        #expect(r.winner.game.fillFraction > short.game.fillFraction) // the longer board
+        #expect(r.archivedLoser == nil)               // pure progress, nothing to archive
+    }
+
+    @Test func reconcileDivergentKeepsHigherFillArchivesLoser() throws {
+        let id = UUID()
+        // Two boards from DIFFERENT seeds progressed to different fills — the
+        // user-entry sets conflict, so neither is a superset.
+        let lower = entry(id: id, game: progressed(seed: 1, count: 6), updated: 30)
+        let higher = entry(id: id, game: progressed(seed: 2, count: 15), updated: 10)
+        let r = LibrarySync.reconcile(lower, higher, makeID: sequentialIDs())
+        #expect(r.winner.game.fillFraction == higher.game.fillFraction)
+        let loser = try #require(r.archivedLoser)
+        #expect(loser.status == .archived)
+        #expect(loser.id != id)                        // retained under a new id
+        #expect(loser.game.entries == lower.game.entries) // progress preserved
+    }
+}
