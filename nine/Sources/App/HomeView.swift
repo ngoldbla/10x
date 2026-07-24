@@ -317,7 +317,7 @@ enum NineLegend {
         LegendRow(symbol: "arrow.uturn.backward", gesture: "Circle tap · hold", action: "Undo · hold to erase the cell"),
         LegendRow(symbol: "square", gesture: "Square", action: "Sticky pencil"),
         LegendRow(symbol: "triangle", gesture: "Triangle", action: "Light up all of a digit"),
-        LegendRow(symbol: "eye", gesture: "Hold L2", action: "Peek — dim all but one kind"),
+        LegendRow(symbol: "eye", gesture: "Hold L2 · R2", action: "Peek — dim all but one kind"),
         LegendRow(symbol: "gamecontroller", gesture: "Create", action: "Settings"),
         LegendRow(symbol: "arrow.backward", gesture: "Menu", action: "Save + home"),
     ]

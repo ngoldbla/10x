@@ -26,5 +26,10 @@ let package = Package(
         .target(name: "CouchCore"),
         .target(name: "CouchKit", dependencies: ["CouchCore"]),
         .testTarget(name: "CouchCoreTests", dependencies: ["CouchCore"]),
+        // Exercises the pure PadKit grammar (momentum curve, stick classifier,
+        // button sampler) on the Mac — closes the CI gap that let the broken
+        // tvOS controller mapping ship: `swift test` used to compile PadKit out
+        // entirely because the whole file was `#if os(tvOS)` (PRD-5 Phase 4.1).
+        .testTarget(name: "CouchKitTests", dependencies: ["CouchKit"]),
     ]
 )
