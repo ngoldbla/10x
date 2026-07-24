@@ -66,6 +66,23 @@ struct SolveHistoryTests {
         #expect(history.records.count == SolveHistory.capacity)
     }
 
+    @Test func capacityIsOneThousand() {
+        #expect(SolveHistory.capacity == 1000)
+    }
+
+    @Test func legacyTwoHundredRecordBlobDecodesUnchanged() throws {
+        // A blob written under the old 200 cap must decode intact under the new
+        // cap (append-only change, no migration — PRD-9 §3).
+        var history = SolveHistory()
+        for day in 0..<200 { history.record(record(daysAgo: day)) }
+        #expect(history.records.count == 200)
+
+        let data = try JSONEncoder().encode(history)
+        let decoded = try JSONDecoder().decode(SolveHistory.self, from: data)
+        #expect(decoded.records.count == 200)
+        #expect(decoded == history)
+    }
+
     @Test func totalPointsSumsAllRecords() {
         var history = SolveHistory()
         history.record(record(difficulty: .gentle, seconds: 600)) // 100

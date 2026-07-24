@@ -65,8 +65,10 @@ public struct DaySolves: Sendable, Equatable {
 
 /// The rolling log of finished boards, newest first, capped so the value
 /// stays small enough to mirror through iCloud KVS alongside the streak.
+/// 1000 records ≈ 110 KB — a daily solver fills 200 in ~7 months and the
+/// heat grid would silently truncate, so the ceiling is generous (PRD-9 §3).
 public struct SolveHistory: Sendable, Codable, Equatable {
-    public static let capacity = 200
+    public static let capacity = 1000
 
     public private(set) var records: [SolveRecord]
 
