@@ -48,3 +48,51 @@ struct LibrarySyncTests {
         #expect(g.pencil == pencil)
     }
 }
+
+extension LibrarySyncTests {
+
+    @Test func syncedEntryRoundTripsDroppingOnlyLocalHistory() {
+        let entry = LibraryEntry(
+            kind: .free(.sharp), game: progressed(count: 7),
+            status: .inProgress, createdAt: t(0), updatedAt: t(10)
+        )
+        let back = SyncedEntry(entry).hydrated()
+        #expect(back.id == entry.id)
+        #expect(back.kind == entry.kind)
+        #expect(back.status == entry.status)
+        #expect(back.createdAt == entry.createdAt)
+        #expect(back.updatedAt == entry.updatedAt)
+        #expect(back.solvedAt == entry.solvedAt)
+        // Board preserved; only the device-local history is gone.
+        #expect(back.game.entries == entry.game.entries)
+        #expect(back.game.pencil == entry.game.pencil)
+        #expect(back.game.undoStack.isEmpty)
+        #expect(back.game.moveLog.isEmpty)
+    }
+
+    @Test func syncedEntryCodableRoundTrips() throws {
+        let entry = LibraryEntry(
+            kind: .daily(day: 19_000), game: solved(),
+            status: .solved, createdAt: t(0), updatedAt: t(20), solvedAt: t(20)
+        )
+        let data = try JSONEncoder().encode(SyncedEntry(entry))
+        let decoded = try JSONDecoder().decode(SyncedEntry.self, from: data)
+        #expect(decoded == SyncedEntry(entry))
+    }
+
+    @Test func syncedEntryToleratesMissingSolvedAt() throws {
+        // A record written before solvedAt existed must decode, not throw.
+        let entry = LibraryEntry(
+            kind: .free(.gentle), game: game(), status: .inProgress,
+            createdAt: t(0), updatedAt: t(1)
+        )
+        var obj = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(SyncedEntry(entry))
+        ) as! [String: Any]
+        obj.removeValue(forKey: "solvedAt")
+        let data = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(SyncedEntry.self, from: data)
+        #expect(decoded.solvedAt == nil)
+        #expect(decoded.id == entry.id)
+    }
+}
