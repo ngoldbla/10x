@@ -124,9 +124,11 @@ struct FlickRoseView: View {
                 }
             }
         }
+        // Grow the frame *symmetrically* for the erase petal so the drawn
+        // petals stay centered — TouchRose's tap targets are centered on this
+        // same frame, and any asymmetry (e.g. `.top`) desyncs touch from paint.
         .frame(width: spacing * 2 + petalSize,
-               height: spacing * 2 + petalSize + eraseAllowance,
-               alignment: .top)
+               height: spacing * 2 + petalSize + eraseAllowance * 2)
         .scaleEffect(bloomed ? 1.0 : 0.35)
         .opacity(bloomed ? 1.0 : 0.0)
         .onAppear {
