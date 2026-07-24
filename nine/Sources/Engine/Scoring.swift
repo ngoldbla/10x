@@ -120,4 +120,20 @@ public struct SolveHistory: Sendable, Codable, Equatable {
         }
         return byDay.mapValues { DaySolves(count: $0.count, hasDaily: $0.hasDaily) }
     }
+
+    /// Rolling-mean solve-time trend over the most recent `window` solves,
+    /// oldest→newest, for the History sparkline. Smoothed by a trailing
+    /// sub-window so one fast solve nudges the line rather than spiking it.
+    /// Empty below two solves (nothing to trend).
+    public func trend(window: Int) -> [TimeInterval] {
+        // records is newest-first; take the last `window`, chronological.
+        let recent = Array(records.prefix(max(0, window)).reversed()).map(\.seconds)
+        guard recent.count >= 2 else { return [] }
+        let sub = max(1, recent.count / 4)
+        return recent.indices.map { i in
+            let lower = max(0, i - sub + 1)
+            let slice = recent[lower...i]
+            return slice.reduce(0, +) / TimeInterval(slice.count)
+        }
+    }
 }

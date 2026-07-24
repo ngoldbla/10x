@@ -119,6 +119,39 @@ struct SolveHistoryTests {
         #expect(buckets[today]?.count == 1)
     }
 
+    @Test func trendIsEmptyBelowTwoSolves() {
+        var history = SolveHistory()
+        #expect(history.trend(window: 20).isEmpty)
+        history.record(record(seconds: 400))
+        #expect(history.trend(window: 20).isEmpty)   // one solve is not a trend
+    }
+
+    @Test func trendConstantTimesIsFlat() {
+        var history = SolveHistory()
+        for _ in 0..<10 { history.record(record(seconds: 300)) }
+        let series = history.trend(window: 20)
+        #expect(series.count == 10)
+        #expect(series.allSatisfy { abs($0 - 300) < 0.0001 })
+    }
+
+    @Test func trendImprovesWhenSolvesGetFaster() {
+        var history = SolveHistory()
+        // record() inserts at the front, so recording oldest-first leaves the
+        // newest (fastest) solve at records[0], matching the live app.
+        for i in 0..<12 {
+            history.record(record(daysAgo: 12 - i, seconds: TimeInterval(600 - i * 30)))
+        }
+        let series = history.trend(window: 12)
+        #expect(series.count == 12)
+        #expect(series.last! < series.first!)        // newest rolling mean is faster
+    }
+
+    @Test func trendRespectsWindow() {
+        var history = SolveHistory()
+        for i in 0..<30 { history.record(record(daysAgo: 30 - i, seconds: 400)) }
+        #expect(history.trend(window: 20).count == 20)
+    }
+
     @Test func averageSecondsPerDifficulty() {
         var history = SolveHistory()
         history.record(record(difficulty: .gentle, seconds: 300))
