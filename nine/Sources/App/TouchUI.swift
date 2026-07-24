@@ -610,7 +610,14 @@ struct TouchGameScreen: View {
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: scale,
-                        onDigit: { commit(digit: $0) }
+                        onDigit: { commit(digit: $0) },
+                        remainingCounts: rose.pencil
+                            ? nil
+                            : (1...9).map { 9 - game.count(of: $0) },
+                        showsErase: !rose.pencil
+                            && !game.isGiven(cursor)
+                            && game.entry(at: cursor) != 0,
+                        onErase: { eraseCurrentCell() }
                     )
                     .position(rosePosition(side: side, inset: inset, scale: scale))
                 }
@@ -634,11 +641,19 @@ struct TouchGameScreen: View {
     private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
         let center = BoardMetrics.center(of: cursor, side: side)
         let radius = 126 * scale + (116 * scale) / 2
+        let showsErase = model.game.map {
+            !$0.isGiven(cursor) && $0.entry(at: cursor) != 0
+                && !(pencilMode && $0.entry(at: cursor) == 0)
+        } ?? false
+        let bottomExtra = showsErase ? 126 * scale * 0.92 : 0
         let frameSide = side + 2 * inset
-        let clamp: (CGFloat) -> CGFloat = { value in
+        let clampX: (CGFloat) -> CGFloat = { value in
             min(max(value, radius - 6), frameSide - radius + 6)
         }
-        return CGPoint(x: clamp(center.x + inset), y: clamp(center.y + inset))
+        let clampY: (CGFloat) -> CGFloat = { value in
+            min(max(value, radius - 6), frameSide - radius - bottomExtra + 6)
+        }
+        return CGPoint(x: clampX(center.x + inset), y: clampY(center.y + inset))
     }
 
     // MARK: Touch grammar
@@ -681,6 +696,11 @@ struct TouchGameScreen: View {
         } else {
             model.place(digit, at: cursor)
         }
+        closeRose()
+    }
+
+    private func eraseCurrentCell() {
+        _ = model.erase(at: cursor)
         closeRose()
     }
 

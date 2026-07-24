@@ -22,13 +22,11 @@ enum UXDemo: String, CaseIterable {
     case pro            // 2  "Nine Pro" paywall
     case archive        // 3  daily archive month grid
     case autonotes      // 4  auto-fill pencil marks
-    case erase          // 5  erase petal on the rose (free — table stakes)
     case shield         // 6  streak shield
     case themes         // 8  theme / accent / icon packs
     case variants       // 9  variants teaser (Killer · Thermo)
     case nocturne       // 10 expert difficulty
     case share          // 11 share-your-solve card (free — funnel)
-    case rosecounts     // 12 "N left" petal badges (free polish)
     case feedback       // 13 haptics + sound settings group (free polish)
 
     /// The active prototype for this launch, or nil for a normal run.
@@ -61,11 +59,9 @@ struct UXDemoLayer: View {
             case .pro:        ProSheetDemo(model: model)
             case .archive:    ArchiveDemo(model: model)
             case .autonotes:  AutoNotesDemo(model: model)
-            case .erase:      RoseDemo(model: model, mode: .erase)
             case .shield:     ShieldDemo(model: model)
             case .themes:     ThemePacksDemo(model: model)
             case .share:      ShareCardDemo(model: model)
-            case .rosecounts: RoseDemo(model: model, mode: .counts)
             case .feedback:   FeedbackDemo(model: model)
             case .variants, .nocturne: EmptyView()
             }
