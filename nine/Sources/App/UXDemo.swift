@@ -24,7 +24,6 @@ enum UXDemo: String, CaseIterable {
     case autonotes      // 4  auto-fill pencil marks
     case erase          // 5  erase petal on the rose (free — table stakes)
     case shield         // 6  streak shield
-    case stats          // 7  rich stats
     case themes         // 8  theme / accent / icon packs
     case variants       // 9  variants teaser (Killer · Thermo)
     case nocturne       // 10 expert difficulty
@@ -64,7 +63,6 @@ struct UXDemoLayer: View {
             case .autonotes:  AutoNotesDemo(model: model)
             case .erase:      RoseDemo(model: model, mode: .erase)
             case .shield:     ShieldDemo(model: model)
-            case .stats:      RichStatsDemo(model: model)
             case .themes:     ThemePacksDemo(model: model)
             case .share:      ShareCardDemo(model: model)
             case .rosecounts: RoseDemo(model: model, mode: .counts)

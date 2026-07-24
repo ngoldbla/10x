@@ -66,6 +66,23 @@ struct SolveHistoryTests {
         #expect(history.records.count == SolveHistory.capacity)
     }
 
+    @Test func capacityIsOneThousand() {
+        #expect(SolveHistory.capacity == 1000)
+    }
+
+    @Test func legacyTwoHundredRecordBlobDecodesUnchanged() throws {
+        // A blob written under the old 200 cap must decode intact under the new
+        // cap (append-only change, no migration — PRD-9 §3).
+        var history = SolveHistory()
+        for day in 0..<200 { history.record(record(daysAgo: day)) }
+        #expect(history.records.count == 200)
+
+        let data = try JSONEncoder().encode(history)
+        let decoded = try JSONDecoder().decode(SolveHistory.self, from: data)
+        #expect(decoded.records.count == 200)
+        #expect(decoded == history)
+    }
+
     @Test func totalPointsSumsAllRecords() {
         var history = SolveHistory()
         history.record(record(difficulty: .gentle, seconds: 600)) // 100
@@ -81,6 +98,85 @@ struct SolveHistoryTests {
         #expect(history.bestSeconds(for: .gentle) == 320)
         #expect(history.bestSeconds(for: .sharp) == 900)
         #expect(history.bestSeconds(for: .steady) == nil)
+    }
+
+    // The `record(daysAgo:)` helper anchors dates at 1970 + 1_000_000s minus
+    // whole days, so a fixed gregorian calendar gives deterministic ordinals.
+    private func dayOrdinal(daysAgo: Int, calendar cal: Calendar) -> Int {
+        DailySeed.dayOrdinal(
+            for: Date(timeIntervalSince1970: 1_000_000 - TimeInterval(daysAgo) * 86_400),
+            calendar: cal)
+    }
+
+    @Test func solvesByDayBucketsAndFlagsDaily() {
+        var history = SolveHistory()
+        history.record(record(daysAgo: 0, isDaily: false))
+        history.record(record(daysAgo: 0, isDaily: true))
+        history.record(record(daysAgo: 3, isDaily: false))
+
+        let cal = Calendar(identifier: .gregorian)
+        let today = dayOrdinal(daysAgo: 0, calendar: cal)
+        let buckets = history.solvesByDay(ordinalRange: (today - 6)...today, calendar: cal)
+
+        #expect(buckets[today]?.count == 2)
+        #expect(buckets[today]?.hasDaily == true)
+        #expect(buckets[today - 3]?.count == 1)
+        #expect(buckets[today - 3]?.hasDaily == false)
+        #expect(buckets[today - 5] == nil)          // no solve → absent
+    }
+
+    @Test func solvesByDayExcludesOutsideRange() {
+        var history = SolveHistory()
+        history.record(record(daysAgo: 0))
+        history.record(record(daysAgo: 40))
+        let cal = Calendar(identifier: .gregorian)
+        let today = dayOrdinal(daysAgo: 0, calendar: cal)
+        let buckets = history.solvesByDay(ordinalRange: (today - 6)...today, calendar: cal)
+        #expect(buckets.count == 1)                 // the 40-day-old solve is dropped
+        #expect(buckets[today]?.count == 1)
+    }
+
+    @Test func trendIsEmptyBelowTwoSolves() {
+        var history = SolveHistory()
+        #expect(history.trend(window: 20).isEmpty)
+        history.record(record(seconds: 400))
+        #expect(history.trend(window: 20).isEmpty)   // one solve is not a trend
+    }
+
+    @Test func trendConstantTimesIsFlat() {
+        var history = SolveHistory()
+        for _ in 0..<10 { history.record(record(seconds: 300)) }
+        let series = history.trend(window: 20)
+        #expect(series.count == 10)
+        #expect(series.allSatisfy { abs($0 - 300) < 0.0001 })
+    }
+
+    @Test func trendImprovesWhenSolvesGetFaster() {
+        var history = SolveHistory()
+        // record() inserts at the front, so recording oldest-first leaves the
+        // newest (fastest) solve at records[0], matching the live app.
+        for i in 0..<12 {
+            history.record(record(daysAgo: 12 - i, seconds: TimeInterval(600 - i * 30)))
+        }
+        let series = history.trend(window: 12)
+        #expect(series.count == 12)
+        #expect(series.last! < series.first!)        // newest rolling mean is faster
+    }
+
+    @Test func trendRespectsWindow() {
+        var history = SolveHistory()
+        for i in 0..<30 { history.record(record(daysAgo: 30 - i, seconds: 400)) }
+        #expect(history.trend(window: 20).count == 20)
+    }
+
+    @Test func averageSecondsPerDifficulty() {
+        var history = SolveHistory()
+        history.record(record(difficulty: .gentle, seconds: 300))
+        history.record(record(difficulty: .gentle, seconds: 500))
+        history.record(record(difficulty: .sharp, seconds: 900))
+        #expect(history.averageSeconds(for: .gentle) == 400)
+        #expect(history.averageSeconds(for: .sharp) == 900)
+        #expect(history.averageSeconds(for: .steady) == nil)
     }
 
     @Test func solveCountsByDifficulty() {

@@ -21,6 +21,14 @@ struct HistorySheetContent: View {
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
+    /// Theme tones for re-theming the stat views (muted tracks, empty cells)
+    /// so they read on Paper and the tinted themes, not just Void.
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
+
+    /// The new stat sections need a real history to be worth drawing; below
+    /// this they collapse to the guidance line (PRD-9 §2 — never an empty chart).
+    private var hasRichStats: Bool { model.history.records.count >= 5 }
+
     /// TV read distance wants everything larger; iOS/macOS keep their exact
     /// pixel sizes (`1.0`), so this widening is byte-identical off the couch.
     private var s: CGFloat {
@@ -55,16 +63,20 @@ struct HistorySheetContent: View {
 
                 totalsRow
 
-                bestTimes
-
-                gameCenterRow
-
-                if model.history.records.isEmpty {
+                if hasRichStats {
+                    heatSection
+                    avgVsBestSection
+                    trendSection
+                } else {
                     Text("Solve a board and it lands here — time, difficulty and points.")
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                } else {
+                }
+
+                gameCenterRow
+
+                if !model.history.records.isEmpty {
                     recentSolves
                 }
 
@@ -109,29 +121,92 @@ struct HistorySheetContent: View {
         .couchGlass(in: RoundedRectangle(cornerRadius: 16 * s, style: .continuous))
     }
 
-    // MARK: - Best times
+    // MARK: - Heat grid (last 12 weeks)
+
+    private var heatColumns: [[HeatCell]] {
+        let today = model.todayOrdinal
+        let start = today - (12 * 7 - 1)            // 84 days incl. today
+        let buckets = model.history.solvesByDay(ordinalRange: start...today)
+        return (0..<12).map { col in
+            (0..<7).map { row in
+                let ord = start + col * 7 + row
+                let day = buckets[ord]
+                return HeatCell(id: ord, count: day?.count ?? 0, hasDaily: day?.hasDaily ?? false)
+            }
+        }
+    }
+
+    private var heatSection: some View {
+        VStack(alignment: .leading, spacing: 10 * s) {
+            sectionHeader("Last 12 weeks")
+            HeatGrid(columns: heatColumns,
+                     accent: accent,
+                     emptyTrack: tones.gridTone.opacity(0.10),
+                     s: s)
+        }
+    }
+
+    // MARK: - Average vs. best
+
+    private var avgVsBestRows: [(Difficulty, TimeInterval, TimeInterval)] {
+        Difficulty.allCases.compactMap { d in
+            guard let avg = model.history.averageSeconds(for: d),
+                  let best = model.history.bestSeconds(for: d) else { return nil }
+            return (d, avg, best)
+        }
+    }
 
     @ViewBuilder
-    private var bestTimes: some View {
-        let bests = Difficulty.allCases.compactMap { difficulty in
-            model.history.bestSeconds(for: difficulty).map { (difficulty, $0) }
-        }
-        if !bests.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Best times")
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(bests, id: \.0) { difficulty, seconds in
-                    HStack {
-                        Text(difficulty.title)
-                            .font(CouchTypography.body)
-                        Spacer()
-                        Text(Self.format(seconds))
-                            .font(CouchTypography.body)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
+    private var avgVsBestSection: some View {
+        let rows = avgVsBestRows
+        if !rows.isEmpty {
+            let maxAvg = rows.map(\.1).max() ?? 1
+            VStack(alignment: .leading, spacing: 12 * s) {
+                sectionHeader("Average vs. best")
+                ForEach(rows, id: \.0) { difficulty, avg, best in
+                    TwinBar(title: difficulty.title,
+                            avg: avg / maxAvg,
+                            best: best / maxAvg,
+                            bestLabel: Self.format(best),
+                            avgLabel: Self.format(avg),
+                            accent: accent,
+                            track: tones.gridTone.opacity(0.10),
+                            s: s)
                 }
+            }
+        }
+    }
+
+    // MARK: - Solve-time trend
+
+    @ViewBuilder
+    private var trendSection: some View {
+        let raw = model.history.trend(window: 20)
+        if raw.count >= 2 {
+            let lo = raw.min() ?? 0, hi = raw.max() ?? 0
+            let span = hi - lo
+            let points = raw.map { span > 0 ? ($0 - lo) / span : 0.5 }
+            let faster = raw.last! < raw.first!
+            VStack(alignment: .leading, spacing: 10 * s) {
+                sectionHeader("Solve time trend", trailing: faster ? "▼ faster" : nil)
+                Sparkline(points: points, accent: accent)
+                    .frame(height: 56 * s)
+            }
+        }
+    }
+
+    // MARK: - Section header
+
+    private func sectionHeader(_ text: String, trailing: String? = nil) -> some View {
+        HStack {
+            Text(text)
+                .font(CouchTypography.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if let trailing {
+                Text(trailing)
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(accent)
             }
         }
     }
