@@ -2,20 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Checked-in copy of the generated Nine.entitlements plus the app
-	     group (PRD-3 §3a). Applied only for iPhone/iPad SDKs via
-	     CODE_SIGN_ENTITLEMENTS overrides in project.yml, so the tvOS
-	     entitlements stay byte-identical. -->
+	<!-- tvOS entitlements (PRD-8 §5 step 4): the generated base (game-center +
+	     KVS) plus the CloudKit container, applied for the tvOS SDKs via the
+	     CODE_SIGN_ENTITLEMENTS override in project.yml. tvOS previously shipped
+	     the generated Nine.entitlements; this checked-in file adds CloudKit
+	     without an app group (tvOS has no widgets) or sandbox (macOS-only). -->
 	<key>com.apple.developer.game-center</key>
 	<true/>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
 	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.com.couchsuite.nine</string>
-	</array>
-	<!-- Cloud library (PRD-8): the private CloudKit database drives CKSyncEngine.
-	     Container + capability provisioned on the app ID (team XC6FN96MA8). -->
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
 		<string>iCloud.com.couchsuite.nine</string>
