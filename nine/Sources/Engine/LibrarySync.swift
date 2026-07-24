@@ -107,6 +107,114 @@ public enum LibrarySync {
         return Reconciliation(winner: win, archivedLoser: loser)
     }
 
+    // MARK: - Applying a remote entry into the local library
+
+    /// What the caller must tell CloudKit after a local apply.
+    public struct ApplyEffects: Equatable {
+        /// Local ids whose board changed and should be pushed back up.
+        public var reupload: [UUID]
+        /// Cloud record ids to delete (daily dedup — redundant same-day rows).
+        public var cloudDeletes: [UUID]
+        public init(reupload: [UUID] = [], cloudDeletes: [UUID] = []) {
+            self.reupload = reupload
+            self.cloudDeletes = cloudDeletes
+        }
+    }
+
+    /// Merge a remote entry into the local library honoring every rule.
+    public static func apply(
+        remote: SyncedEntry, into library: inout BoardLibrary,
+        now: Date, makeID: () -> UUID
+    ) -> ApplyEffects {
+        if case .daily(let day) = remote.kind {
+            return applyDaily(remote: remote, day: day, into: &library, makeID: makeID)
+        }
+        return applyRegular(remote: remote, into: &library, makeID: makeID)
+    }
+
+    /// Remove a board the cloud says was deleted.
+    public static func applyDeletion(id: UUID, into library: inout BoardLibrary) {
+        library.delete(id: id)
+    }
+
+    /// Non-daily entries, keyed by id.
+    private static func applyRegular(
+        remote: SyncedEntry, into library: inout BoardLibrary, makeID: () -> UUID
+    ) -> ApplyEffects {
+        guard let local = library.entry(id: remote.id) else {
+            library.upsert(remote.hydrated())
+            return ApplyEffects()
+        }
+        let r = reconcile(local, remote.hydrated(), makeID: makeID)
+        library.upsert(r.winner)
+        var fx = ApplyEffects()
+        if let loser = r.archivedLoser {
+            library.upsert(loser)
+            fx.reupload.append(loser.id)
+        }
+        // The winner differs from what the cloud holds → push it back.
+        if r.winner.game.entries != remote.game.entries || r.winner.status != remote.status {
+            fx.reupload.append(r.winner.id)
+        }
+        return fx
+    }
+
+    /// Dailies, keyed by day (one entry per day invariant). All same-day
+    /// candidates fold to one winning board through `reconcile`, routed through
+    /// `adoptDaily`, homed on the canonical (smallest) uuid so both devices
+    /// converge on the same surviving id without ping-ponging.
+    private static func applyDaily(
+        remote: SyncedEntry, day: Int, into library: inout BoardLibrary, makeID: () -> UUID
+    ) -> ApplyEffects {
+        let locals = library.entries.filter {
+            if case .daily(let d) = $0.kind { return d == day }; return false
+        }
+        // Fold every local daily(day) into the remote. Align ids first so the
+        // rules compare the boards (dailies are keyed by day, not id).
+        var winner = remote.hydrated()
+        var archived: [LibraryEntry] = []
+        for local in locals {
+            let r = reconcile(local, winner.reIded(local.id), makeID: makeID)
+            winner = r.winner
+            if let loser = r.archivedLoser { archived.append(loser) }
+        }
+        // Canonical id: deterministic across devices (smallest uuid seen).
+        let allIDs = (locals.map(\.id) + [remote.id]).map(\.uuidString)
+        let canonical = UUID(uuidString: allIDs.min()!)!
+
+        var fx = ApplyEffects()
+        // Drop every non-canonical daily(day) row and schedule its cloud delete.
+        for local in locals where local.id != canonical {
+            library.delete(id: local.id)
+            fx.cloudDeletes.append(local.id)
+        }
+        if remote.id != canonical { fx.cloudDeletes.append(remote.id) }
+
+        // Route the winning board through adoptDaily (PRD-8 §2), then re-home
+        // onto the canonical id if adoptDaily minted a fresh one.
+        let landedID = library.adoptDaily(game: winner.game, day: day, now: winner.updatedAt)
+        if landedID != canonical, var e = library.entry(id: landedID) {
+            library.delete(id: landedID)
+            e.id = canonical
+            library.upsert(e)
+        }
+        if winner.status == .solved {
+            library.markSolved(id: canonical, at: winner.solvedAt ?? winner.updatedAt)
+        }
+        for loser in archived { library.upsert(loser); fx.reupload.append(loser.id) }
+        // Push the canonical row back only when the cloud doesn't already hold
+        // it verbatim (keeps a repeat apply a no-op).
+        if canonical != remote.id
+            || winner.game.entries != remote.game.entries
+            || winner.status != remote.status {
+            fx.reupload.append(canonical)
+        }
+        return ApplyEffects(
+            reupload: Array(Set(fx.reupload)),
+            cloudDeletes: Array(Set(fx.cloudDeletes))
+        )
+    }
+
     // MARK: - Board comparison (placed digits only; pencil is not progress)
 
     static func userEntriesEqual(_ x: NineGame, _ y: NineGame) -> Bool {
@@ -132,5 +240,15 @@ public enum LibrarySync {
         let sa = a.solvedAt ?? a.updatedAt, sb = b.solvedAt ?? b.updatedAt
         if sa != sb { return sa > sb ? a : b }
         return newer(a, b)
+    }
+}
+
+private extension LibraryEntry {
+    /// A copy under a different id — used so daily reconciliation compares the
+    /// boards (dailies are keyed by day) rather than short-circuiting on id.
+    func reIded(_ newID: UUID) -> LibraryEntry {
+        var copy = self
+        copy.id = newID
+        return copy
     }
 }

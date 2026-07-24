@@ -159,3 +159,70 @@ extension LibrarySyncTests {
         #expect(loser.game.entries == lower.game.entries) // progress preserved
     }
 }
+
+extension LibrarySyncTests {
+
+    @Test func applyInsertsUnknownRemoteEntry() {
+        var lib = BoardLibrary()
+        let remote = SyncedEntry(entry(game: progressed(count: 3), updated: 10))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(10), makeID: sequentialIDs())
+        #expect(lib.entry(id: remote.id)?.game.entries == remote.game.entries)
+    }
+
+    @Test func applyDailyFromTwoDevicesConvergesToOneEntry() {
+        var lib = BoardLibrary()
+        let day = 19_500
+        // Device A already has its own daily(day) entry (its own uuid).
+        let localID = lib.adoptDaily(game: progressed(seed: 3, count: 4), day: day, now: t(5))
+        // Device B's daily(day) arrives from the cloud under a DIFFERENT uuid,
+        // further along.
+        let remote = SyncedEntry(entry(
+            id: UUID(), kind: .daily(day: day),
+            game: progressed(seed: 3, count: 11), updated: 20
+        ))
+        let fx = LibrarySync.apply(remote: remote, into: &lib, now: t(20), makeID: sequentialIDs())
+        // Exactly one daily entry for the day survives (the invariant).
+        let dailies = lib.entries.filter { if case .daily(let d) = $0.kind { return d == day }; return false }
+        #expect(dailies.count == 1)
+        // It carries the further-along board.
+        #expect(dailies.first?.game.fillFraction == remote.game.fillFraction)
+        // The non-canonical (larger uuid) of the two ids is scheduled for a
+        // cloud delete — exactly one.
+        #expect(fx.cloudDeletes.count == 1)
+        let nonCanonical = UUID(uuidString: max(localID.uuidString, remote.id.uuidString))!
+        #expect(fx.cloudDeletes.first == nonCanonical)
+        // The survivor is homed on the canonical (smaller) uuid — convergent.
+        let canonical = UUID(uuidString: min(localID.uuidString, remote.id.uuidString))!
+        #expect(dailies.first?.id == canonical)
+    }
+
+    @Test func applySolvedDailyMarksSolvedThroughAdoptDaily() {
+        var lib = BoardLibrary()
+        let day = 19_600
+        let localID = lib.adoptDaily(game: progressed(count: 2), day: day, now: t(1))
+        let remote = SyncedEntry(entry(
+            id: localID, kind: .daily(day: day), game: solved(),
+            status: .solved, updated: 30, solved: 30
+        ))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(30), makeID: sequentialIDs())
+        #expect(lib.dailyEntry(day: day)?.status == .solved)
+        #expect(lib.dailyEntry(day: day)?.solvedAt == t(30))
+    }
+
+    @Test func applyIsIdempotentOnRepeat() {
+        var lib = BoardLibrary()
+        let ids = sequentialIDs()
+        let remote = SyncedEntry(entry(kind: .free(.steady), game: progressed(count: 6), updated: 10))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(10), makeID: ids)
+        let snapshot = lib
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(11), makeID: ids)
+        #expect(lib == snapshot)   // second apply of the same record changes nothing
+    }
+
+    @Test func applyDeletionRemovesEntry() {
+        var lib = BoardLibrary()
+        let id = lib.create(kind: .free(.gentle), game: game(), now: t(0))
+        LibrarySync.applyDeletion(id: id, into: &lib)
+        #expect(lib.entry(id: id) == nil)
+    }
+}
