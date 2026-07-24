@@ -19,5 +19,10 @@
 	<array>
 		<string>CloudKit</string>
 	</array>
+	<!-- CloudKit delivers silent change pushes, so App Store Connect rejects
+	     any target that declares icloud-services without aps-environment
+	     (upload error 90575). App Store distribution uses the production APS. -->
+	<key>aps-environment</key>
+	<string>production</string>
 </dict>
 </plist>
