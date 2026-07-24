@@ -57,12 +57,15 @@ targets:
         "PROVISIONING_PROFILE_SPECIFIER[sdk=appletvos*]": "match AppStore com.couchsuite.nine tvos"
         "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "match AppStore com.couchsuite.nine"
         "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "match AppStore com.couchsuite.nine macos"
-        # iOS adds the app group (widget snapshot); the checked-in file keeps
-        # the generated tvOS entitlements byte-identical (PRD-3 §3a). macOS
-        # gets its own sandbox + KVS + game-center entitlements.
+        # iOS adds the app group (widget snapshot) + CloudKit; macOS gets its
+        # own sandbox + KVS + game-center + CloudKit; tvOS gets game-center +
+        # KVS + CloudKit (PRD-8 §5: tvOS now has its own entitlements file
+        # instead of the generated default, to carry the CloudKit container).
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Nine-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Nine-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Nine-macOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=appletvos*]": Nine-tvOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=appletvsimulator*]": Nine-tvOS.entitlements
     entitlements:
       path: Nine.entitlements
       properties:

@@ -189,6 +189,15 @@ public struct NineGame: Sendable, Codable, Equatable {
         moveLog.append(LoggedMove(kind: .undo, cell: move.cell, digit: move.digit))
         return move
     }
+
+    /// Drop device-local UX state (undo stack + move log). The cloud record
+    /// carries only the board — undo/redo history is per-device and never
+    /// synced (PRD-8 §2). Must live inside NineGame: the two arrays are
+    /// `private(set)` (file-scoped setter).
+    public mutating func clearLocalHistory() {
+        undoStack = []
+        moveLog = []
+    }
 }
 
 /// Elapsed-time bookkeeping with an injectable clock: callers pass `Date`

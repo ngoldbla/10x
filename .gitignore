@@ -30,6 +30,10 @@ build/
 # …and Nine's macOS entitlements (sandbox + KVS + game-center), applied per-SDK
 # the same way, so the CI mac archive can find it (PRD-4).
 !nine/Nine-macOS.entitlements
+# …and Nine's tvOS entitlements (game-center + KVS + CloudKit), a checked-in
+# file replacing the generated default so tvOS carries the CloudKit container
+# (PRD-8).
+!nine/Nine-tvOS.entitlements
 
 # Swift Package Manager
 .build/

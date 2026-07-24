@@ -322,6 +322,11 @@ final class AppModel {
     @ObservationIgnored private let historyStore =
         CouchStored(wrappedValue: SolveHistory(), "nine.history", cloudSynced: true)
 
+    /// The CloudKit boundary (PRD-8). Nil when the store isn't created; when
+    /// present but no iCloud account exists the app stays purely local — sync
+    /// is ambient or absent, never a modal.
+    @ObservationIgnored private var cloudStore: LibraryCloudStore?
+
     #if os(macOS)
     // MARK: - Mac window state (PRD-4 §2.5)
 
@@ -519,6 +524,28 @@ final class AppModel {
         // hearing about it (reinstall, iCloud KVS sync, midnight).
         WidgetBridge.publish(from: self)
         #endif
+
+        // Cloud library (PRD-8). Ambient or absent: no iCloud account →
+        // purely local, no modal, no error surfaced (and no CKContainer, which
+        // hard-traps when the app isn't iCloud-entitled). An account appearing
+        // later starts sync on the next foreground.
+        setUpCloudSyncIfAvailable()
+    }
+
+    /// Construct and start the cloud store, but only when an iCloud account is
+    /// signed in. Idempotent — safe to call repeatedly (e.g. on foreground).
+    private func setUpCloudSyncIfAvailable() {
+        guard cloudStore == nil, FileManager.default.ubiquityIdentityToken != nil else { return }
+        let store = LibraryCloudStore()
+        store.onRemoteEntry = { [weak self] synced in self?.applyRemoteEntry(synced) }
+        store.onRemoteDeletion = { [weak self] id in self?.applyRemoteDeletion(id) }
+        store.onAccountReset = { [weak self] in self?.repushEntireLibrary() }
+        cloudStore = store
+        store.start()
+        // Seed the cloud from whatever this device already has on a first run
+        // (idempotent). Ongoing per-mutation pushes keep it current thereafter;
+        // a re-sign-in re-seeds via onAccountReset.
+        if !store.hasSyncedBefore { repushEntireLibrary() }
     }
 
     // MARK: - Derived
@@ -592,6 +619,7 @@ final class AppModel {
     func discardSaved() {
         guard let entry = library.mostRecentFreePartial else { return }
         library.delete(id: entry.id)
+        cloudStore?.delete(entry.id)
         if currentEntryID == entry.id { currentEntryID = nil }
         try? libraryStore.flushNow()
         #if os(iOS)
@@ -607,6 +635,7 @@ final class AppModel {
     /// Archive a partial out of the active list (kept as "previously played").
     func archiveEntry(id: UUID) {
         library.archive(id: id)
+        if let archived = library.entry(id: id) { cloudStore?.push(archived) }
         if currentEntryID == id { currentEntryID = nil }
         try? libraryStore.flushNow()
         #if os(iOS)
@@ -621,6 +650,7 @@ final class AppModel {
         let wasTodayDaily = isTodayDaily(id)
         #endif
         library.delete(id: id)
+        cloudStore?.delete(id)
         if currentEntryID == id { currentEntryID = nil }
         try? libraryStore.flushNow()
         #if os(iOS)
@@ -805,7 +835,10 @@ final class AppModel {
         history.record(record)
         try? historyStore.flushNow()
         // The board is done; keep it as a "previously played" entry.
-        if let id = currentEntryID { library.markSolved(id: id, at: now) }
+        if let id = currentEntryID {
+            library.markSolved(id: id, at: now)
+            if let solvedEntry = library.entry(id: id) { cloudStore?.push(solvedEntry) }
+        }
         try? libraryStore.flushNow()
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
         // widgets are iOS-only.
@@ -822,10 +855,71 @@ final class AppModel {
         entry.game = game
         entry.updatedAt = Date()
         library.upsert(entry)
+        cloudStore?.push(entry)
         #if os(iOS)
         // Fires per move; WidgetBridge digest-gates the actual reloads.
         WidgetBridge.publish(from: self)
         #endif
+    }
+
+    // MARK: - Cloud sync (PRD-8)
+
+    /// Ask CloudKit to fetch now (called when the app comes forward). Also the
+    /// "quiet re-sync when an account appears" hook: if the user signed into
+    /// iCloud since launch, start the store now. Ambient: still no account →
+    /// no-op.
+    func syncOnForeground() {
+        setUpCloudSyncIfAvailable()
+        cloudStore?.kick()
+    }
+
+    /// Seed every local board up to CloudKit (idempotent — the engine dedupes).
+    private func repushEntireLibrary() {
+        for entry in library.entries { cloudStore?.push(entry) }
+    }
+
+    /// A remote board arrived: merge it in (tested Engine rules), persist, push
+    /// back anything the merge changed, and refresh any surface showing it.
+    private func applyRemoteEntry(_ synced: SyncedEntry) {
+        let effects = LibrarySync.apply(
+            remote: synced, into: &library, now: Date(), makeID: { UUID() }
+        )
+        try? libraryStore.flushNow()
+        for id in effects.reupload {
+            if let entry = library.entry(id: id) { cloudStore?.push(entry) }
+        }
+        for id in effects.cloudDeletes { cloudStore?.delete(id) }
+        refreshOnScreenBoardAfterMerge()
+        #if os(iOS)
+        WidgetBridge.publish(from: self)   // widgets must reflect remote moves
+        #endif
+    }
+
+    private func applyRemoteDeletion(_ id: UUID) {
+        LibrarySync.applyDeletion(id: id, into: &library)
+        if currentEntryID == id { currentEntryID = nil }
+        try? libraryStore.flushNow()
+        #if os(iOS)
+        WidgetBridge.publish(from: self)
+        #endif
+    }
+
+    /// If a merge changed the board on screen, swap it in calmly (keep the
+    /// timer running, never yank progress out from under an active hand — only
+    /// adopt a board that is further along). Re-points the persist target if a
+    /// daily merge re-homed the entry's id.
+    private func refreshOnScreenBoardAfterMerge() {
+        guard screen == .game, solvedAt == nil else { return }
+        if let id = currentEntryID, library.entry(id: id) == nil,
+           case .daily(let day)? = kind, let daily = library.dailyEntry(day: day) {
+            currentEntryID = daily.id
+        }
+        guard let id = currentEntryID, let entry = library.entry(id: id) else { return }
+        if let shown = game, entry.game.fillFraction > shown.fillFraction {
+            var g = entry.game
+            g.timer.start(at: Date())
+            game = g
+        }
     }
 
     #if os(iOS)
