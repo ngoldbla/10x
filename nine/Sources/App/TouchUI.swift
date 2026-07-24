@@ -35,6 +35,9 @@ struct TouchHomeView: View {
                     continueCard
                     boardsSection
                     freePlayRow
+                    // UX audit home-inline prototypes (rec 10, rec 9).
+                    if UXDemo.active == .nocturne { nocturneCard }
+                    if UXDemo.active == .variants { variantsTeaser }
                     learnRow
                 }
                 .padding(20)
@@ -62,6 +65,8 @@ struct TouchHomeView: View {
             }
         }
         .animation(.couchFast, value: showTutorial)
+        // UX audit prototypes: a no-op unless a -uxdemo.* launch flag is set.
+        .overlay { UXDemoLayer(model: model) }
     }
 
     private var header: some View {
@@ -265,6 +270,55 @@ struct TouchHomeView: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 124)
+        }
+    }
+
+    // MARK: UX audit prototypes (home-inline)
+
+    /// rec 10 — a fourth difficulty (X-wings and worse), a calm equal to the
+    /// other three cards; identity comes from a moon glyph, not a lock.
+    private var nocturneCard: some View {
+        TouchCard(action: {}) {
+            HStack(spacing: 16) {
+                DemoNocturneBoard(accent: accent)
+                    .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Nocturne")
+                        .font(CouchTypography.body)
+                    Text("X-wings, chains — the deep end.")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "moon.stars")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(accent)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// rec 9 — a calm teaser for upcoming variant modes.
+    private var variantsTeaser: some View {
+        TouchCard(action: {}) {
+            HStack(spacing: 16) {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Killer · Thermo")
+                        .font(CouchTypography.body)
+                    Text("New variants, coming soon.")
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
