@@ -38,6 +38,10 @@ final class LibraryCloudStore {
         self.zoneID = CKRecordZone.ID(zoneName: Self.zoneName, ownerName: CKCurrentUserDefaultName)
     }
 
+    /// Whether the engine has ever persisted state (i.e. synced at least once).
+    /// Nil serialization = a first run, so the caller seeds the whole library.
+    var hasSyncedBefore: Bool { stateStore.wrappedValue.serialization != nil }
+
     /// Begin syncing (idempotent). Safe with no iCloud account: the engine
     /// simply emits no zone changes until an account appears.
     func start() {

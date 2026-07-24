@@ -52,9 +52,9 @@ struct NineApp: App {
 
 struct RootView: View {
     let model: AppModel
-    #if os(iOS)
+    // Scene phase drives the widget merge on iOS and the cloud fetch on every
+    // platform (PRD-8): coming forward, pull remote boards.
     @Environment(\.scenePhase) private var scenePhase
-    #endif
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -108,11 +108,18 @@ struct RootView: View {
             switch phase {
             case .active:
                 model.ingestSharedDailyBoard()
+                model.syncOnForeground()
             case .background:
                 WidgetBridge.publish(from: model)
             default:
                 break
             }
+        }
+        #endif
+        #if os(tvOS) || os(macOS)
+        // No widgets here, but the cloud library still pulls on foreground.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.syncOnForeground() }
         }
         #endif
         // tvOS deliberately does NOT authenticate at launch: while signed out,
