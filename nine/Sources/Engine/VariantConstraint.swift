@@ -199,6 +199,19 @@ public enum Variant: Sendable, Equatable, Hashable, Codable {
         }
     }
 
+    /// A fixed per-variant constant folded into seed derivation, so killer seed
+    /// 1 and classic seed 1 are unrelated boards. Written out rather than
+    /// hashed: `String.hashValue` is seeded per process in Swift, and a board
+    /// that changes between launches is not a seeded board.
+    var seedSalt: UInt64 {
+        switch self {
+        case .classic: return 0
+        case .killer: return 0x4B49_4C4C_4552_0001
+        case .thermo: return 0x5448_4552_4D4F_0002
+        case .unrecognized: return 0xFFFF_FFFF_FFFF_FFFF
+        }
+    }
+
     public init(rawValue: String) {
         switch rawValue {
         case "classic": self = .classic
