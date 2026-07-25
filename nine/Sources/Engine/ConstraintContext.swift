@@ -62,8 +62,13 @@ public final class ConstraintContext: Sendable {
     // MARK: - Killer tables
 
     public let cages: [Cage]
-    /// Cage index per cell, or -1.
+    /// Cage index per cell, or -1. Only meaningful when `cagesAreDisjoint`;
+    /// `innieOutie` is the one reader and it gates on exactly that.
     public let cageOfCell: [Int]
+    /// Every cage containing each cell. `ConstraintBacktrackSolver` reads this
+    /// one instead, so overlapping cages — legal in some killer dialects, never
+    /// produced by our tiler — are still proved correctly rather than refused.
+    public let cagesOfCell: [[Int]]
     /// For each cage, every set of distinct digits of the right size and sum, as
     /// a candidate bitmask. Precomputed because the count is tiny (≤ 42 for the
     /// worst size) and the alternative is re-deriving it inside the solve loop.
@@ -146,6 +151,7 @@ public final class ConstraintContext: Sendable {
         initialCandidates = [UInt16](repeating: Sudoku.allDigitsMask, count: 81)
         cages = []
         cageOfCell = [Int](repeating: -1, count: 81)
+        cagesOfCell = [[Int]](repeating: [], count: 81)
         cageCombinations = []
         cagesInsideUnit = [[Int]](repeating: [], count: Sudoku.units.count)
         cagesTouchingUnit = [[Int]](repeating: [], count: Sudoku.units.count)
@@ -179,14 +185,17 @@ public final class ConstraintContext: Sendable {
         // rule — the later cage wins for the lookup table, but both still
         // contribute peers below, so the solve stays sound either way.
         var cageOfCell = [Int](repeating: -1, count: 81)
+        var cagesOfCell = [[Int]](repeating: [], count: 81)
         var disjoint = true
         for (index, cage) in cages.enumerated() {
             for cell in cage.cells {
                 if cageOfCell[cell] != -1 { disjoint = false }
                 cageOfCell[cell] = index
+                cagesOfCell[cell].append(index)
             }
         }
         self.cageOfCell = cageOfCell
+        self.cagesOfCell = cagesOfCell
         self.cagesAreDisjoint = disjoint
         self.probeOrder = ConstraintContext.variantProbeOrder
         self.cageCombinations = cages.map {
