@@ -10,6 +10,18 @@ import Foundation
 import CouchCore
 
 /// The ordered human-technique chain. `rank` follows declaration order.
+///
+/// **The six classic cases and their ranks are frozen.** Their raw values are
+/// persisted inside every `GeneratedPuzzle`'s trace and so inside the golden
+/// corpus hash, and `Difficulty.ceiling`/`floor` compare against their ranks.
+/// PRD-23's variant techniques are therefore *appended*, never interleaved:
+/// `Difficulty.allowedTechniques` is `techniques(upTo: .xWing)`, which filters
+/// them out by rank, so classic generation cannot reach them. (They would also
+/// find nothing on a classic board, which has no cages and no thermometers —
+/// two independent reasons, on the enum the golden hash is made of.)
+///
+/// Rank is *not* the order a variant board probes them in; see
+/// `ConstraintContext.probeOrder`.
 public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Comparable {
     case nakedSingle
     case hiddenSingle
@@ -17,6 +29,12 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
     case hiddenPair
     case boxLineReduction
     case xWing
+    // PRD-23 — variant techniques. Ordinary cases emitting ordinary
+    // `SolveStep`s, which is what lets the coach speak a killer board for free.
+    case cageSingle
+    case thermoBound
+    case innieOutie
+    case cageCombination
 
     public var rank: Int {
         switch self {
@@ -26,8 +44,17 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
         case .hiddenPair: return 3
         case .boxLineReduction: return 4
         case .xWing: return 5
+        case .cageSingle: return 6
+        case .thermoBound: return 7
+        case .innieOutie: return 8
+        case .cageCombination: return 9
         }
     }
+
+    /// True for the six techniques classic sudoku is defined by. The variant
+    /// ones are inert on a classic board, but the distinction is worth being
+    /// able to state rather than infer from a rank comparison.
+    public var isClassic: Bool { rank <= Technique.xWing.rank }
 
     public static func < (lhs: Technique, rhs: Technique) -> Bool {
         lhs.rank < rhs.rank
@@ -41,6 +68,10 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
         case .hiddenPair: return "Hidden Pair"
         case .boxLineReduction: return "Box-Line Reduction"
         case .xWing: return "X-Wing"
+        case .cageSingle: return "Cage Single"
+        case .thermoBound: return "Thermometer Bound"
+        case .innieOutie: return "Rule of 45"
+        case .cageCombination: return "Cage Combination"
         }
     }
 }
@@ -208,11 +239,12 @@ public enum LogicSolver {
         }
     }
 
-    /// The first step the ordered chain finds, or nil when the allowed
-    /// techniques are exhausted. Techniques are always probed in rank order
-    /// regardless of the order of `allowed`.
+    /// The first step the chain finds, or nil when the allowed techniques are
+    /// exhausted. Techniques are probed in the *context's* order, never in the
+    /// order of `allowed` — for a classic board that order is `allCases`, i.e.
+    /// rank order, exactly as before PRD-23.
     public static func nextStep(in state: CandidateState, allowed: [Technique]) -> SolveStep? {
-        for technique in Technique.allCases where allowed.contains(technique) {
+        for technique in state.context.probeOrder where allowed.contains(technique) {
             let step: SolveStep?
             switch technique {
             case .nakedSingle: step = nakedSingle(state)
@@ -221,6 +253,10 @@ public enum LogicSolver {
             case .hiddenPair: step = hiddenPair(state)
             case .boxLineReduction: step = boxLineReduction(state)
             case .xWing: step = xWing(state)
+            case .cageSingle: step = cageSingle(state)
+            case .thermoBound: step = thermoBound(state)
+            case .innieOutie: step = innieOutie(state)
+            case .cageCombination: step = cageCombination(state)
             }
             if let step { return step }
         }

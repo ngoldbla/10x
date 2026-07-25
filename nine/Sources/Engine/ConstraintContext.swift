@@ -75,6 +75,33 @@ public final class ConstraintContext: Sendable {
     /// half needs the ones that poke out).
     public let cagesTouchingUnit: [[Int]]
 
+    /// True when no cell belongs to two cages. `innieOutie` refuses to run
+    /// without it: the rule of 45 adds cage sums together, so an overlapping
+    /// pair double-counts a cell and derives a *wrong* digit that still looks
+    /// like a proof. Well-formed killer boards are tilings, so this is true of
+    /// everything the generator makes — it is a guard against hand-built and
+    /// received input, not against ourselves.
+    public let cagesAreDisjoint: Bool
+
+    /// The order this context's techniques are probed in, which for a variant
+    /// is a pedagogy choice rather than a rank one: a killer solver should reach
+    /// for a cage single before an X-wing, and the trace the coach narrates is
+    /// whatever order this list produces.
+    ///
+    /// Classic is `Technique.allCases` — literally rank order, literally what
+    /// `nextStep` iterated before PRD-23.
+    public let probeOrder: [Technique]
+
+    /// Every technique exactly once, variant reasoning slotted in at the point a
+    /// player of that skill would reach for it: the two singles first (a cage
+    /// single is as trivial as a naked one), then the two propagation rules,
+    /// then the classic pattern techniques, X-wing last.
+    static let variantProbeOrder: [Technique] = [
+        .nakedSingle, .hiddenSingle, .cageSingle,
+        .thermoBound, .innieOutie, .cageCombination,
+        .nakedPair, .hiddenPair, .boxLineReduction, .xWing,
+    ]
+
     // MARK: - Thermometer tables
 
     public let thermometers: [Thermometer]
@@ -122,9 +149,11 @@ public final class ConstraintContext: Sendable {
         cageCombinations = []
         cagesInsideUnit = [[Int]](repeating: [], count: Sudoku.units.count)
         cagesTouchingUnit = [[Int]](repeating: [], count: Sudoku.units.count)
+        cagesAreDisjoint = true
         thermometers = []
         thermoPositions = [[ThermoPosition]](repeating: [], count: 81)
         canEnforceEveryConstraint = true
+        probeOrder = Technique.allCases
     }
 
     private init(_ constraints: [VariantConstraint]) {
@@ -150,10 +179,16 @@ public final class ConstraintContext: Sendable {
         // rule — the later cage wins for the lookup table, but both still
         // contribute peers below, so the solve stays sound either way.
         var cageOfCell = [Int](repeating: -1, count: 81)
+        var disjoint = true
         for (index, cage) in cages.enumerated() {
-            for cell in cage.cells { cageOfCell[cell] = index }
+            for cell in cage.cells {
+                if cageOfCell[cell] != -1 { disjoint = false }
+                cageOfCell[cell] = index
+            }
         }
         self.cageOfCell = cageOfCell
+        self.cagesAreDisjoint = disjoint
+        self.probeOrder = ConstraintContext.variantProbeOrder
         self.cageCombinations = cages.map {
             ConstraintContext.combinations(size: $0.cells.count, sum: $0.sum)
         }
