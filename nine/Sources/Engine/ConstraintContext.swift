@@ -45,6 +45,10 @@ public final class ConstraintContext: Sendable {
     /// the prover would be wrong in the same way. Cages enter as peers (above)
     /// and as their own tables (below). The property exists so the seam is here
     /// when a variant that *does* add a unit arrives — windoku, jigsaw.
+    ///
+    /// **Index contract, which `boxLineReduction` and `innieOutie` both depend
+    /// on:** 0…8 are rows, 9…17 columns, 18…26 boxes, exactly as in
+    /// `Sudoku.units`. A variant that adds units must *append* them from 27.
     public let units: [[Int]]
 
     /// For each cell, the indices into `units` it belongs to.

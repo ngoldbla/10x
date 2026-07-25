@@ -99,16 +99,37 @@ public struct CandidateState: Sendable, Equatable {
     public private(set) var values: [Int]      // 81; 0 = unsolved
     public private(set) var candidates: [UInt16] // 81; empty cells only, else 0
 
-    public init(grid: SudokuGrid) {
+    /// The variant rules this state is being solved under.
+    ///
+    /// A classic board carries the shared `ConstraintContext.classic` singleton,
+    /// whose `peers` and `initialCandidates` **are** the static `Sudoku` tables
+    /// this initialiser used to name directly — same arrays, same order, same
+    /// bytes out. That is the whole reason classic did not need a second code
+    /// path for PRD-23, and the golden corpus is the proof that it did not get
+    /// one.
+    public let context: ConstraintContext
+
+    public init(grid: SudokuGrid, context: ConstraintContext = .classic) {
+        self.context = context
         values = grid.cells
         candidates = [UInt16](repeating: 0, count: 81)
         for i in 0..<81 where values[i] == 0 {
-            var mask = Sudoku.allDigitsMask
-            for p in Sudoku.peers[i] where values[p] != 0 {
+            var mask = context.initialCandidates[i]
+            for p in context.peers[i] where values[p] != 0 {
                 mask &= ~Sudoku.bit(values[p])
             }
             candidates[i] = mask
         }
+    }
+
+    /// Explicit because `context` is a reference type. Two states of the same
+    /// position under the same *rules* are the same state, whether or not they
+    /// happen to hold the same compiled instance — so this compares the rules,
+    /// not the pointer.
+    public static func == (lhs: CandidateState, rhs: CandidateState) -> Bool {
+        lhs.values == rhs.values
+            && lhs.candidates == rhs.candidates
+            && lhs.context.constraints == rhs.context.constraints
     }
 
     public var isSolved: Bool { !values.contains(0) }
@@ -125,7 +146,7 @@ public struct CandidateState: Sendable, Equatable {
         values[cell] = digit
         candidates[cell] = 0
         let bit = Sudoku.bit(digit)
-        for p in Sudoku.peers[cell] {
+        for p in context.peers[cell] {
             candidates[p] &= ~bit
         }
     }
@@ -158,12 +179,16 @@ public enum LogicSolver {
     }
 
     /// Solve as far as the allowed techniques reach. Deterministic.
+    ///
+    /// `context` defaults to the shared classic singleton, so every call site
+    /// that existed before PRD-23 is unchanged in meaning as well as in text.
     public static func solve(
         _ grid: SudokuGrid,
         allowed: [Technique] = allTechniques,
+        context: ConstraintContext = .classic,
         maxSteps: Int = 2000
     ) -> SolveOutcome {
-        var state = CandidateState(grid: grid)
+        var state = CandidateState(grid: grid, context: context)
         var steps: [SolveStep] = []
         while !state.isSolved && steps.count < maxSteps {
             guard let step = nextStep(in: state, allowed: allowed) else { break }
@@ -221,7 +246,7 @@ public enum LogicSolver {
     }
 
     private static func hiddenSingle(_ state: CandidateState) -> SolveStep? {
-        for unit in Sudoku.units {
+        for unit in state.context.units {
             for digit in 1...9 {
                 let bit = Sudoku.bit(digit)
                 var spot = -1
@@ -245,7 +270,7 @@ public enum LogicSolver {
     }
 
     private static func nakedPair(_ state: CandidateState) -> SolveStep? {
-        for unit in Sudoku.units {
+        for unit in state.context.units {
             let pairCells = unit.filter { state.candidates[$0].nonzeroBitCount == 2 }
             guard pairCells.count >= 2 else { continue }
             for i in 0..<(pairCells.count - 1) {
@@ -277,7 +302,7 @@ public enum LogicSolver {
     }
 
     private static func hiddenPair(_ state: CandidateState) -> SolveStep? {
-        for unit in Sudoku.units {
+        for unit in state.context.units {
             // Cells (as a small bitset over unit positions) holding each digit.
             var spots = [UInt16](repeating: 0, count: 10)
             for (position, cell) in unit.enumerated() {
@@ -319,7 +344,7 @@ public enum LogicSolver {
         // Pointing: digit confined to one row/column within a box eliminates
         // it from the rest of that row/column.
         for b in 0..<9 {
-            let boxCells = Sudoku.units[18 + b]
+            let boxCells = state.context.units[18 + b]
             for digit in 1...9 {
                 let bit = Sudoku.bit(digit)
                 let spots = boxCells.filter { state.candidates[$0] & bit != 0 }
@@ -328,7 +353,7 @@ public enum LogicSolver {
                 let cols = Set(spots.map { Sudoku.col(of: $0) })
                 if rows.count == 1, let r = rows.first {
                     let eliminations = eliminationsInLine(
-                        state, digit: digit, cells: Sudoku.units[r], excluding: Set(spots)
+                        state, digit: digit, cells: state.context.units[r], excluding: Set(spots)
                     )
                     if !eliminations.isEmpty {
                         return SolveStep(
@@ -339,7 +364,7 @@ public enum LogicSolver {
                 }
                 if cols.count == 1, let c = cols.first {
                     let eliminations = eliminationsInLine(
-                        state, digit: digit, cells: Sudoku.units[9 + c], excluding: Set(spots)
+                        state, digit: digit, cells: state.context.units[9 + c], excluding: Set(spots)
                     )
                     if !eliminations.isEmpty {
                         return SolveStep(
@@ -353,7 +378,7 @@ public enum LogicSolver {
         // Claiming: digit confined to one box within a row/column eliminates
         // it from the rest of that box.
         for lineIndex in 0..<18 {
-            let line = Sudoku.units[lineIndex]
+            let line = state.context.units[lineIndex]
             for digit in 1...9 {
                 let bit = Sudoku.bit(digit)
                 let spots = line.filter { state.candidates[$0] & bit != 0 }
@@ -361,7 +386,7 @@ public enum LogicSolver {
                 let boxes = Set(spots.map { Sudoku.box(of: $0) })
                 guard boxes.count == 1, let b = boxes.first else { continue }
                 let eliminations = eliminationsInLine(
-                    state, digit: digit, cells: Sudoku.units[18 + b], excluding: Set(spots)
+                    state, digit: digit, cells: state.context.units[18 + b], excluding: Set(spots)
                 )
                 if !eliminations.isEmpty {
                     return SolveStep(
