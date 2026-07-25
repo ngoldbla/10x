@@ -880,3 +880,80 @@ chrome buttons present and not one cell, plus a message that names
 - **Five screens, not every screen.** `game`, `game-quiet`, `game-rose`, `prefs`,
   `home`. The Boards sheet, History and the tutorial are not covered; the
   selection is the board-bearing screens plus the two the board is reached from.
+
+## The first run — welcome, first flick, tip budget (PRD-34 + PRD-18, 2026-07-25)
+
+PRD-34's remaining half (first launch *is* the tutorial's first beat; TipKit
+capped at three tips) and PRD-18 (welcome card, variants teaser, and the death
+of the `-uxdemo` rig) shipped as one change, because a buyer does not
+experience them as two: the welcome and the first flick are one sequence.
+
+- **The first-run legend card was deleted, not kept alongside.** PRD-18 called
+  for the welcome card *plus* the existing touch legend ("two cards max"); the
+  audit's own finding is that a six-row gesture table is a manual, and a manual
+  is the thing a rose is supposed to make unnecessary. The beat teaches the one
+  gesture by doing it, and the legend it replaced still exists verbatim in
+  Settings ▸ How to play (`NineLegend.touchCompact`) and in the playable
+  tutorial, so nothing was lost — it moved to where a reference belongs. Two
+  cards is still the ceiling: ledger, then flick.
+- **Two flags, not one, and the update install is why.** `welcome.seen` gates
+  the ledger and the existing `help.seen` gates the beat. A 1.1 player updating
+  into this build has `help.seen` true already: they get the ledger once and no
+  beginner's lesson. Verified on a simulator by seeding `help.seen` alone —
+  welcome, Begin, shelf, no beat.
+- **The rose's `.isModal` trait was hiding the way out.** The first beat puts
+  the rose inside a card that also carries the lesson and the **Skip** button,
+  and `describe-ui` on the first build listed nine petals *and nothing else at
+  all* — Skip, the heading and the instruction were beyond VoiceOver, Switch
+  Control and Full Keyboard Access, in the one screen a player most needs to be
+  able to leave. `TouchRose` gained `isModal: Bool = true`; only the first-run
+  beat passes false. Every other rose is byte-identical.
+- **TipKit-the-framework was not adopted; the budget was.** The requirement is
+  a *global* cap — three tips ever, one per session, across all tips — and
+  TipKit expresses per-tip counts plus one app-wide display frequency, so the
+  cross-tip budget is hand-held either way. Against that it brings a datastore
+  on an 800 ms launch path, a card that is not in the glass language without a
+  custom `TipViewStyle`, and nothing `swift test` can reach. `TipCoach` is ~90
+  pure lines in `Sources/Shared` with 14 tests covering the cap, the
+  one-per-session rule, each trigger and the tolerant decode. If a later PRD
+  wants TipKit's presentation, `TipCoach.next` is the eligibility function to
+  hand it.
+- **The tip ledger stores raw ids, not enum cases.** A tip minted by a later
+  build still costs one of the three when an older build reads `nine.tips`
+  back; decoding to a case would drop it and hand a downgraded player a fresh
+  budget. Its own top-level blob, never a field on `LibraryEntry`.
+- **Tips are silent under VoiceOver.** Every sentence is in the finger grammar
+  ("tap the pencil, then flick"), which is not how a VoiceOver player reaches
+  any of the three; they have the cell's actions rotor and its hint, which say
+  the true thing for them. Switch Control and Voice Control still see them —
+  those drive the tap path.
+- **The undo tip is gated on `errorHighlight`, like the error haptic.** Its
+  trigger is a wrong digit standing on the board, which the engine knows only
+  from the proven solution. With mistake-marking off the tip must not fire, or
+  a hint becomes the leak the whole PRD-19 privacy rule exists to prevent. The
+  `TipMoment.visibleMistake` field is the caller's assertion that the screen is
+  already showing it; there is a test for the false branch.
+- **`UXDemo.swift` and `UXDemoScenes.swift` were deleted early.** PRD-18 says
+  the last PRD standing removes them, and PRD-11–17 have not shipped, so their
+  prototypes (`CoachDemo`, `AutoNotesDemo`, `ShieldDemo`, `ArchiveDemo`,
+  `FeedbackDemo`, `ThemePacksDemo`, `ShareCardDemo`, `ProSheetDemo`, the
+  nocturne card) went with them. This was directed, and the cost is recoverable
+  in one command — they are not lost, only out of the build:
+
+  ```bash
+  git show a18cbe3:nine/Sources/App/UXDemoScenes.swift   # every scene
+  git show a18cbe3:nine/Sources/App/UXDemo.swift         # DemoBoard, DemoData, the flag reader
+  ```
+
+  The screenshots those flags existed to produce are already in
+  `.context/ux-audit`, which is what the PRDs actually reason from. A PRD that
+  wants its prototype back restores the file, ships the production version, and
+  deletes it again — which was always the workflow.
+- **The teaser carries a remove-by date in its own comment: 2026-10-25.** A
+  "coming soon" with no expiry rots into a lie on someone's home screen. If
+  PRD-23/24 have not landed Killer or Thermo by then, the card comes out.
+- **Not done here:** the welcome ledger is iOS-only (PRD-18 §2 defers tvOS and
+  macOS parity), and the tvOS/macOS first runs are unchanged — the TV still
+  shows its remote legend and the Mac still has no first-run screen at all. The
+  Mac is the odd one out and wants its own pass: a buyer who lands on the Mac
+  first sees nothing about what they bought.

@@ -18,14 +18,14 @@
 | PRD-15 feedback | **half shipped** | haptics landed as PRD-21; sound still blocked on assets |
 | PRD-16 themes/icons | written, **not shipped** | |
 | PRD-17 Nocturne | written, **not shipped** | first live test of Phase 0 tolerance; stresses the chain PRD-23 generalizes |
-| PRD-18 welcome + teaser + UXDemo deletion | written, **not shipped** | `UXDemo.swift` still present |
+| PRD-18 welcome + teaser + UXDemo deletion | **shipped** | welcome ledger (iOS), variants teaser with a 2026-10-25 remove-by date, both `UXDemo` files deleted — every prototype scene is `git show a18cbe3:…` away (PRD-7 rule 4). Not done: tvOS/macOS welcome parity |
 | **Wave 1 — "Worthy"** | | |
 | Phase 0 foundations | **partly shipped** | element-level quarantine + 50-pair golden corpus in. Field-level preservation implemented, measured at 1515 ms vs 49 ms, reverted — see DEVIATIONS |
 | PRD-19 accessibility | **shipped** | 81 AX children in 9 box containers (Switch Control group scan), rotors, actions, 44 pt chrome, Voice Control cell names, `describe-ui` baselines diffed per screen on every PR. Not done: a tvOS/macOS lane (`describe-ui` is iOS-only), and the tvOS board still has no per-cell actions |
 | PRD-20 localization | not started | needs translators, not infrastructure |
 | PRD-21 audio + haptics | **haptics shipped** | audio blocked: no recorded samples exist |
 | PRD-22 lens | **fingerprints shipped** | remaining: dark-contrast harness (96-cell matrix), Metal per-petal refraction |
-| PRD-34 first five minutes | **IA shipped** | new-game routing, drawer grabber, prefs regroup. Remaining: first-launch onboarding, TipKit budget |
+| PRD-34 first five minutes | **shipped** | new-game routing, drawer grabber, prefs regroup, and now the first run: welcome ledger → one pre-focused cell, "flick to place a 7", skippable from the first frame. Tip budget capped at three ever / one per session, hand-rolled rather than TipKit (see DEVIATIONS). Not done: the Mac has no first run at all |
 | **Waves 2–3** | not started | PRD-23 unblocked — the golden corpus tripwire now exists |
 
 Shipped in PR #32 ("Worthy"; TestFlight tvOS 450 / iOS 451 / macOS 452). Every

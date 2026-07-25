@@ -11,5 +11,7 @@
   Button "Sharp, X-wings & deep logic"  (294,461 64x126)
   Button "How to play"  (71,655 73x52)
   Button "History"  (272,654 45x54)
+[Bottom]
+  Button "Killer · Thermo, New variants, coming soon."  (45,773 318x39)
 
-# 7 elements in 1 container
+# 8 elements in 2 containers

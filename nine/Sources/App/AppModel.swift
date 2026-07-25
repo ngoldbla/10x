@@ -288,9 +288,32 @@ final class AppModel {
     var prefs: NinePrefs {
         didSet { prefsStore.wrappedValue = prefs }
     }
-    /// First-run help overlay: flips true (forever) once dismissed.
+    /// First-run lesson seen: flips true (forever) once the playable first
+    /// beat is finished or skipped. On tvOS and macOS this still gates the
+    /// old legend overlay; on iOS it gates the beat (PRD-34).
     var helpSeen: Bool {
         didSet { helpSeenStore.wrappedValue = helpSeen }
+    }
+    /// The one-time welcome ledger has been shown (PRD-18). Deliberately a
+    /// *separate* flag from `helpSeen`: a 1.1 player updating into this build
+    /// has `helpSeen` true already, and should still get the welcome once —
+    /// and must not be handed a beginner's lesson they finished last year.
+    var welcomeSeen: Bool {
+        didSet { welcomeSeenStore.wrappedValue = welcomeSeen }
+    }
+    /// Which of the three lifetime tips have been spent (PRD-34).
+    private(set) var tips: TipLedger {
+        didSet { tipsStore.wrappedValue = tips }
+    }
+    /// A tip has already been shown during this launch. Never persisted: the
+    /// "one per session" half of the budget is a property of the launch, and
+    /// the lifetime half is what the ledger is for.
+    @ObservationIgnored var tipShownThisSession = false
+
+    /// Spend one tip, from both budgets at once.
+    func noteTipShown(_ tip: NineTip) {
+        tipShownThisSession = true
+        tips.record(tip)
     }
     /// The settings-discoverability chip has flashed this session. Never
     /// persisted — the gentle reminder returns once per launch by design.
@@ -348,6 +371,13 @@ final class AppModel {
         CouchStored(wrappedValue: SaveSlot(), "nine.save")
     @ObservationIgnored private let helpSeenStore =
         CouchStored(wrappedValue: false, "help.seen")
+    @ObservationIgnored private let welcomeSeenStore =
+        CouchStored(wrappedValue: false, "welcome.seen")
+    /// Its own top-level blob, never a field on a library entry — a new field
+    /// inside `LibraryEntry` is erased by the next autosave of any older build
+    /// (EXECUTING-A-PRD §2).
+    @ObservationIgnored private let tipsStore =
+        CouchStored(wrappedValue: TipLedger(), "nine.tips")
     @ObservationIgnored private let sessionCountStore =
         CouchStored(wrappedValue: 0, "nine.sessionCount")
     @ObservationIgnored private let drawerFoundStore =
@@ -504,6 +534,8 @@ final class AppModel {
         streak = streakStore.wrappedValue
         library = libraryStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
+        welcomeSeen = welcomeSeenStore.wrappedValue
+        tips = tipsStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit

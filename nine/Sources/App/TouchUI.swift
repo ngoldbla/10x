@@ -21,10 +21,17 @@ struct TouchHomeView: View {
     @State private var showHistory = false
     @State private var showTutorial = false
     @State private var showBoards = false
+    /// The variants teaser's answer, swapped in place of its own subtitle so
+    /// the shelf never grows a floating chip nobody asked for.
+    @State private var variantsChip = false
+    @State private var variantsChipDismissal: Task<Void, Never>?
     @Environment(\.colorScheme) private var colorScheme
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    /// Either half of the first run is still owed (PRD-34 + PRD-18).
+    private var showsFirstRun: Bool { !model.welcomeSeen || !model.helpSeen }
 
     var body: some View {
         ZStack {
@@ -35,25 +42,29 @@ struct TouchHomeView: View {
                     continueCard
                     boardsSection
                     freePlayRow
-                    // UX audit home-inline prototypes (rec 10, rec 9).
-                    if UXDemo.active == .nocturne { nocturneCard }
-                    if UXDemo.active == .variants { variantsTeaser }
                     learnRow
+                    variantsTeaser
                 }
                 .padding(20)
                 .frame(maxWidth: 560)
                 .frame(maxWidth: .infinity) // center the column on iPad
             }
-            if !model.helpSeen {
-                HelpOverlay(
-                    title: "Nine",
-                    tagline: "Couch sudoku.",
-                    rows: NineLegend.touch
-                ) {
-                    model.helpSeen = true
-                }
+            // The scrim swallows touches, but a hit-test is not the whole
+            // story: left in the tree, the shelf's six buttons interleave with
+            // the lesson's own sentences by y-position (measured), and a
+            // VoiceOver or Switch Control activation of "Today" would start a
+            // board out from under a first run that is still owed.
+            .accessibilityHidden(showsFirstRun)
+            // PRD-34 + PRD-18: one first run, two beats at most — the welcome
+            // ledger and the playable first flick. The old legend card is gone;
+            // the touch grammar it listed lives in Settings ▸ How to play.
+            if showsFirstRun {
+                FirstRunFlow(model: model, accent: accent)
+                    .transition(.opacity)
             }
         }
+        .animation(.couchFast, value: model.welcomeSeen)
+        .animation(.couchFast, value: model.helpSeen)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
         .overlay {
@@ -65,8 +76,7 @@ struct TouchHomeView: View {
             }
         }
         .animation(.couchFast, value: showTutorial)
-        // UX audit prototypes: a no-op unless a -uxdemo.* launch flag is set.
-        .overlay { UXDemoLayer(model: model) }
+        .onDisappear { variantsChipDismissal?.cancel() }
     }
 
     private var header: some View {
@@ -270,34 +280,26 @@ struct TouchHomeView: View {
         }
     }
 
-    // MARK: UX audit prototypes (home-inline)
+    // MARK: Variants teaser (PRD-18)
 
-    /// rec 10 — a fourth difficulty (X-wings and worse), a calm equal to the
-    /// other three cards; identity comes from a moon glyph, not a lock.
-    private var nocturneCard: some View {
-        TouchCard(action: {}) {
-            HStack(spacing: 16) {
-                DemoNocturneBoard(accent: accent)
-                    .frame(width: 56, height: 56)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Nocturne")
-                        .font(CouchTypography.body)
-                    Text("X-wings, chains — the deep end.")
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "moon.stars")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(accent)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    /// rec 9 — a calm teaser for upcoming variant modes.
+    /// The "one price, growing app" story, told once at the foot of the shelf
+    /// and never anywhere else: no email capture, no notify-me, no link out.
+    /// Tapping it says the honest thing — they will simply appear here.
+    ///
+    /// **Remove-by date: 2026-10-25.** A promise with no delivery date rots
+    /// into a lie on someone's home screen. If PRD-23/24 have not shipped
+    /// Killer or Thermo by then, this card comes out; it is four lines and a
+    /// glyph, and re-adding it the week variants land costs nothing.
     private var variantsTeaser: some View {
-        TouchCard(action: {}) {
+        TouchCard(action: {
+            withAnimation(.couchFast) { variantsChip = true }
+            variantsChipDismissal?.cancel()
+            variantsChipDismissal = Task {
+                try? await Task.sleep(nanoseconds: 2_600_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.couchAmbient) { variantsChip = false }
+            }
+        }) {
             HStack(spacing: 16) {
                 Image(systemName: "square.on.square")
                     .font(.system(size: 24, weight: .semibold))
@@ -306,12 +308,14 @@ struct TouchHomeView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Killer · Thermo")
                         .font(CouchTypography.body)
-                    Text("New variants, coming soon.")
+                    Text(variantsChip ? "In the works — they'll simply appear here."
+                                      : "New variants, coming soon.")
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                Image(systemName: "sparkles")
+                Image(systemName: variantsChip ? "checkmark" : "sparkles")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(accent)
             }
@@ -374,6 +378,12 @@ struct TouchGameScreen: View {
     @State private var showPrefs = false
     @State private var toast: UndoToastState?
     @State private var toastDismissal: Task<Void, Never>?
+    /// The one tip this session may spend (PRD-34), and the two "they already
+    /// know this" latches that keep it from teaching what the player is doing.
+    @State private var tip: NineTip?
+    @State private var tipDismissal: Task<Void, Never>?
+    @State private var pencilEverToggled = false
+    @State private var highlightEverUsed = false
     /// Same-number highlight: the digit currently lit across the board.
     /// Sticky on purpose — it survives placements so you can chase one
     /// number around the grid; tapping a cell of the same digit clears it.
@@ -425,6 +435,7 @@ struct TouchGameScreen: View {
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
+            .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
             .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
             // The grabber sits *under* the drawer it advertises, so the panel
@@ -482,6 +493,11 @@ struct TouchGameScreen: View {
         .onDisappear {
             haptics.stop()
             motion.stop()
+            // Cleared, not just cancelled: the timer that would have retired
+            // this chip is gone, so leaving `tip` set would strand it on the
+            // next appearance of this screen with nothing left to dismiss it.
+            tipDismissal?.cancel()
+            tip = nil
         }
     }
 
@@ -504,6 +520,8 @@ struct TouchGameScreen: View {
                 accent: accent
             ) {
                 pencilMode.toggle()
+                pencilEverToggled = true
+                dismissTip()
             }
             GlassIconButton(symbol: "arrow.uturn.backward", label: "Undo") { performUndo() }
                 .simultaneousGesture(
@@ -585,6 +603,32 @@ struct TouchGameScreen: View {
             GlassChip(toast.text, systemImage: "arrow.uturn.backward")
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .id(toast.id)
+        }
+    }
+
+    /// One of three sentences a Nine install may ever say unprompted (PRD-34).
+    /// A sentence, not a coach mark: nothing points at the control, nothing
+    /// blocks the board, and a tap makes it go away early.
+    @ViewBuilder
+    private var tipView: some View {
+        if let tip {
+            HStack(spacing: 10) {
+                Image(systemName: tip.symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .accessibilityHidden(true) // decoration; the sentence says it
+                Text(tip.message)
+                    .font(CouchTypography.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: 340)
+            .couchGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(.horizontal, 20)
+            .contentShape(Rectangle())
+            .onTapGesture { dismissTip() }
+            .transition(.opacity)
         }
     }
 
@@ -902,6 +946,8 @@ struct TouchGameScreen: View {
         // the natural handles for "show me every 9".
         let digit = game.entry(at: cell)
         if digit != 0, model.prefs.numberHighlight {
+            highlightEverUsed = true
+            dismissTip()
             withAnimation(.couchFast) {
                 highlightedDigit = (highlightedDigit == digit) ? nil : digit
             }
@@ -935,6 +981,55 @@ struct TouchGameScreen: View {
             hapticsAfterPlacing(at: cursor)
         }
         closeRose()
+        considerTip()
+    }
+
+    // MARK: Tips (PRD-34)
+
+    /// The whole of Nine's unprompted teaching, gathered in one call site so
+    /// the budget cannot be spent from somewhere nobody remembers.
+    ///
+    /// Two suppressions are not about the budget. A tip never lands on top of
+    /// the undo toast — two glass slabs in the same place read as a pile-up.
+    /// And nothing fires while VoiceOver is running: every sentence here is in
+    /// the *finger* grammar ("tap the pencil, then flick"), which is not how a
+    /// VoiceOver player reaches any of it — they have the cell's actions rotor
+    /// and its hint, both of which say the true thing for them (PRD-19).
+    private func considerTip() {
+        guard let game = model.game, tip == nil, toast == nil,
+              !UIAccessibility.isVoiceOverRunning else { return }
+        let showErrors = model.prefs.errorHighlight
+        let moment = TipMoment(
+            placements: game.placementCount,
+            undosTaken: game.undoCount,
+            pencilMarks: game.pencilMarkCount,
+            pencilUsed: pencilEverToggled,
+            highlightUsed: highlightEverUsed,
+            highlightAvailable: model.prefs.numberHighlight,
+            // Gated on the pref, not on the board: a hint that appears the
+            // instant a wrong digit lands would announce the mistake to a
+            // player who switched mistake-marking off.
+            visibleMistake: showErrors && (0..<81).contains { game.isError(at: $0) },
+            solved: model.solvedAt != nil
+        )
+        guard let next = TipCoach.next(
+            for: moment,
+            ledger: model.tips,
+            shownThisSession: model.tipShownThisSession
+        ) else { return }
+        model.noteTipShown(next)
+        withAnimation(.couchFast) { tip = next }
+        tipDismissal?.cancel()
+        tipDismissal = Task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard !Task.isCancelled else { return }
+            dismissTip()
+        }
+    }
+
+    private func dismissTip() {
+        tipDismissal?.cancel()
+        withAnimation(.couchAmbient) { tip = nil }
     }
 
     /// The in-play haptic mark for a placement (PRD-21). Both commit paths —
@@ -963,6 +1058,9 @@ struct TouchGameScreen: View {
 
     private func performUndo() {
         guard let move = model.undoMove() else { return }
+        // The player found undo on their own; whatever the tip was about to
+        // say, the toast is the more useful thing in that spot right now.
+        dismissTip()
         let text: String
         switch move.kind {
         case .place: text = "Undid \(move.digit)"

@@ -58,9 +58,20 @@ Rules for every PRD build:
 3. Green gates before PR: `swift test` in `nine/` (engine), `xcodebuild` for
    **iPhone simulator AND tvOS simulator** (macOS too when the PRD touches
    shared UI), and a `sim-use` screenshot of the feature actually running.
-4. When a feature ships, **delete its `-uxdemo.*` scene** from
+4. ~~When a feature ships, **delete its `-uxdemo.*` scene** from
    `UXDemo.swift`/`UXDemoScenes.swift` in the same PR (the last PRD standing
-   deletes the files).
+   deletes the files).~~ **Both files were deleted with PRD-18 (2026-07-25),
+   before PRD-11–17 shipped.** Every prototype scene still exists in git and
+   comes back in one command — restore it, ship the production version, delete
+   it again:
+
+   ```bash
+   git show a18cbe3:nine/Sources/App/UXDemoScenes.swift  # CoachDemo, ShieldDemo, ArchiveDemo, …
+   git show a18cbe3:nine/Sources/App/UXDemo.swift        # DemoBoard, DemoData, the -uxdemo flag reader
+   ```
+
+   The screenshots those flags produced are in `.context/ux-audit`, which is
+   what the PRDs reason from anyway.
 5. Engine changes are TDD (`Tests/` first — the suite has 28 green tests; keep
    them green). Tolerant decoding is law: any new persisted field follows the
    `NinePrefs` pattern (`AppModel.swift:231`), because `CouchStored` discards a

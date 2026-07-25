@@ -181,12 +181,22 @@ def seed(udid, prefs):
     blobs = {
         "default.nine.library.json": library,
         "default.nine.prefs.json": json.dumps(prefs, sort_keys=True),
-        # The tutorial is a first-launch screen; the baselines are of the app.
+        # The first run is a first-launch screen; the baselines are of the app.
+        # Both flags, because they are independent: `help.seen` alone would
+        # still raise the welcome ledger over the shelf (PRD-18).
         "default.help.seen.json": "true",
+        "default.welcome.seen.json": "true",
         # Past the drawer grabber's three-session budget, and found anyway —
         # the one piece of chrome designed to vanish is already gone.
         "default.nine.sessionCount.json": "9",
         "default.nine.drawerFound.json": "true",
+        # The three lifetime tips, all spent. A tip is triggered by ordinary
+        # play (placements, a wrong digit standing), and the game baselines are
+        # captured on a mid-game board — so an unspent budget would put a glass
+        # slab in the tree on whichever screen happened to cross a threshold.
+        "default.nine.tips.json": json.dumps(
+            {"shown": ["undo", "pencil", "highlight"]}, sort_keys=True
+        ),
     }
     for name, body in blobs.items():
         with open(os.path.join(store, name), "w") as handle:
