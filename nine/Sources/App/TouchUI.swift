@@ -381,6 +381,18 @@ struct TouchGameScreen: View {
     /// Sticky on purpose — it survives placements so you can chase one
     /// number around the grid; tapping a cell of the same digit clears it.
     @State private var highlightedDigit: Int?
+    /// Pull-down stats drawer (PRD-10 follow-up). Snapped-open state, the
+    /// live finger offset on top of it, and the panel's measured height —
+    /// the three together give `drawerProgress`, which drives every pixel.
+    @State private var drawerOpen = false
+    /// Gesture-owned, not `@State`: SwiftUI restores it on cancellation as
+    /// well as on end, and a pull-down that starts at the screen edge is
+    /// exactly the stroke Notification Center likes to steal mid-flight —
+    /// which delivers no `onEnded` and would strand a half-open scrim.
+    @GestureState private var drawerDrag: CGFloat = 0
+    /// Placeholder until the panel reports its real height. Only read while
+    /// the drawer is visible, and by then the measurement has landed.
+    @State private var drawerHeight: CGFloat = 220
     /// Afterglow: the haptic score and the gravity-tilt source live in the
     /// view layer — AppModel is platform-shared logic; this is presentation.
     @State private var haptics = AfterglowHaptics()
@@ -418,6 +430,31 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
             .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
+            // Above the board and its chips, below the prefs sheet — Settings
+            // must always stack over the drawer, never under it.
+            .overlay(alignment: .top) { statsDrawer }
+            // Attached *above* the drawer overlay, so the drawer's own scrim
+            // is a child of the gesture rather than a lid over it — one
+            // gesture drives both the pull-down and the drag-up dismiss.
+            // The flexible bands around the board are `Color.clear`, which
+            // SwiftUI does not hit-test, so without a content shape the whole
+            // reveal band is a hole and the pull-down never starts. Claiming
+            // the frame costs nothing: children (board, control bar, scrim)
+            // are hit-tested first, and nothing else wants the empty space.
+            .contentShape(Rectangle())
+            // Simultaneous, not a blocking strip across the top: a hit-testing
+            // overlay there would swallow control-bar taps whenever the bar is
+            // the top row (`controlsAtBottom == false`).
+            .simultaneousGesture(drawerRevealGesture)
+            // The drawer is otherwise reachable only by an unhinted pull-down,
+            // so VoiceOver gets a named action. It must honour the same guards
+            // as the drag: opening it under the prefs sheet would scrim the
+            // screen from below, and opening it with no game would measure a
+            // height off an empty panel.
+            .accessibilityAction(named: drawerOpen ? "Hide board stats" : "Show board stats") {
+                guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
+                withAnimation(.couchFast) { drawerOpen.toggle() }
+            }
             .overlay {
                 GlassSheet(isPresented: $showPrefs) {
                     PrefsSheetContent(model: model) { difficulty in
@@ -571,6 +608,83 @@ struct TouchGameScreen: View {
         return "Solved"
     }
 
+    // MARK: Stats drawer
+
+    /// 0 = hidden, 1 = fully open. The snapped state plus whatever the finger
+    /// is currently adding, clamped — so the panel tracks the drag one-to-one
+    /// and every derived value (scrim alpha, panel offset) reads from here.
+    private var drawerProgress: CGFloat {
+        guard drawerHeight > 0 else { return 0 }
+        return min(1, max(0, ((drawerOpen ? drawerHeight : 0) + drawerDrag) / drawerHeight))
+    }
+
+    /// Height of the band at the top of the screen a pull-down may start in.
+    /// Deep enough to catch a deliberate downward drag, shallow enough that
+    /// the board's first row is mostly clear of it.
+    private static let drawerRevealBand: CGFloat = 100
+    /// Projected-open fraction past which the drawer snaps open on release.
+    private static let drawerSnapThreshold: CGFloat = 0.35
+
+    /// May this stroke steer the drawer? `startLocation` is fixed for the
+    /// whole drag, so this answers identically on every update and again at
+    /// the end — which is why the gesture needs no "already claimed" flag.
+    private func acceptsDrawerDrag(_ value: DragGesture.Value) -> Bool {
+        guard rose == nil, !showPrefs, model.game != nil else { return false }
+        // Once open, the whole screen steers it (that is the drag-up
+        // dismiss); closed, the stroke has to begin in the top band.
+        return drawerOpen || value.startLocation.y <= Self.drawerRevealBand
+    }
+
+    private var drawerRevealGesture: some Gesture {
+        // 12pt so a sloppy tap on a board cell never twitches the drawer open;
+        // the board is tap-only, so nothing else on this screen wants a drag.
+        DragGesture(minimumDistance: 12)
+            .updating($drawerDrag) { value, offset, _ in
+                guard acceptsDrawerDrag(value) else { return }
+                offset = value.translation.height
+            }
+            .onEnded { value in
+                guard acceptsDrawerDrag(value) else { return }
+                // Project the flick so a fast short swipe still opens it.
+                let projected = ((drawerOpen ? drawerHeight : 0)
+                                 + value.predictedEndTranslation.height) / drawerHeight
+                withAnimation(.couchFast) {
+                    drawerOpen = projected > Self.drawerSnapThreshold
+                }
+            }
+    }
+
+    private func closeDrawer() {
+        withAnimation(.couchFast) { drawerOpen = false }
+    }
+
+    /// Mirrors `GlassSheet`'s grammar — 0.45 black scrim, `couchGlass` on a
+    /// 28pt continuous rounded rect — but presented off an interactive offset
+    /// instead of a boolean transition, so it follows the finger.
+    @ViewBuilder
+    private var statsDrawer: some View {
+        let progress = drawerProgress
+        if progress > 0 {
+            ZStack(alignment: .top) {
+                Color.black.opacity(0.45 * progress)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeDrawer() }
+                StatsDrawerContent(model: model)
+                    .padding(18)
+                    .frame(maxWidth: 480)
+                    .couchGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .padding(.horizontal, 10)
+                    // Measured before the offset — the panel's real height is
+                    // what the drag maps onto, whatever the stats add up to.
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        drawerHeight = max(1, height)
+                    }
+                    .offset(y: -drawerHeight * (1 - progress))
+            }
+        }
+    }
+
     // MARK: Board + rose
 
     @ViewBuilder
@@ -611,9 +725,6 @@ struct TouchGameScreen: View {
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: scale,
                         onDigit: { commit(digit: $0) },
-                        remainingCounts: rose.pencil
-                            ? nil
-                            : (1...9).map { 9 - game.count(of: $0) },
                         showsErase: !rose.pencil
                             && !game.isGiven(cursor)
                             && game.entry(at: cursor) != 0,

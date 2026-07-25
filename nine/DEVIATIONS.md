@@ -441,6 +441,37 @@ passes `app_platform: "osx"` + the pkg path so pilot doesn't re-ship the iOS
 `.ipa`). Build numbers are `commit-count × 10 + train` (mac train +2), so a
 retry must land on a new commit or it collides with the partial run's uploads.
 
+## PRD-10 petal counts → pull-down stats drawer (2026-07-24)
+
+PRD-10 §"Counts" put an 11 pt "3 left" / "done" caption under every rose
+petal. Shipped, played, and cut: the captions crowded the one surface that
+has to stay calm, and a number that only appears while the rose is open is
+the wrong home for board-wide information. **All captions are removed**
+(`FlickRoseView.countCaption` and the `remainingCounts` parameter are gone;
+petal dimming for completed digits stays). The same information now lives in
+a pull-down drawer on the iPhone game screen — digits 1–9, each in a
+nine-segment ring whose lit segments are the instances still to place —
+alongside four current-board tiles (time, pace, notes, undos). The drawer is
+deliberately unhinted: pull down from the top of the game screen.
+
+Two consequences worth recording:
+
+- The rings count **placed entries, not correct ones** (`9 - count(of:)`),
+  so a wrong digit still closes a segment. This matches the existing petal
+  dimming, which has always used `isDigitComplete` — the alternative would
+  make the rings a free error detector and undercut `errorHighlight`.
+- Pace is elapsed ÷ placements, not the gap between moves: the engine keeps
+  no per-move timestamps by design ("no hidden clocks"). A board that arrives
+  from iCloud therefore shows 0 undos, and its pace is not merely reset but
+  briefly *inflated* — `clearLocalHistory()` empties the move log while
+  `timer` keeps the accumulated seconds (PRD-8 §2), so the first placement
+  after a merge would divide a whole session by one. The drawer suppresses
+  the tile below three placements (`StatsDrawer.paceMinimumPlacements`),
+  which hides the worst of it; the residual skew decays as you play. A true
+  fix needs a per-session placement baseline stored beside the timer, which
+  this change deliberately avoided — no new persisted state, no autosave
+  migration risk.
+
 ## Kept
 
 - Background luminance breath (8–10 %, 60 s) — implemented (`BreathingVoid`),

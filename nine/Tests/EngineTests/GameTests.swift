@@ -177,6 +177,66 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(decoded.entries, game.entries, "board state restores intact")
     }
 
+    // MARK: - Board stats (the pull-down stats drawer)
+
+    func testPencilMarkCountSumsMasks() {
+        XCTAssertEqual(game.pencilMarkCount, 0)
+        let digit = puzzle.solution[hole]
+        let peer = Sudoku.peers[hole].first { puzzle.puzzle[$0] == 0 && $0 != hole }!
+        game.togglePencil(digit, at: hole)
+        game.togglePencil(digit, at: peer)
+        game.togglePencil(digit == 9 ? 1 : digit + 1, at: peer)
+        XCTAssertEqual(game.pencilMarkCount, 3, "one mark per set bit, summed over all cells")
+
+        // Placement auto-erases the cell's own notes *and* the peer's matching
+        // note, so the count drops by more than the one cell being filled.
+        game.place(digit, at: hole)
+        XCTAssertEqual(game.pencilMarkCount, 1, "own notes cleared + peer's matching note erased")
+    }
+
+    func testUndoCountReadsMoveLogEvents() {
+        XCTAssertEqual(game.undoCount, 0)
+        game.undo() // rejected: empty stack, logs nothing
+        XCTAssertEqual(game.undoCount, 0, "an undo with nothing to revert does not count")
+
+        let digit = puzzle.solution[hole]
+        game.place(digit, at: hole)
+        game.undo()
+        game.place(digit, at: hole)
+        game.undo()
+        XCTAssertEqual(game.undoCount, 2)
+    }
+
+    func testPlacementCountExcludesPencilEraseUndo() {
+        let digit = puzzle.solution[hole]
+        let other = (0..<81).first { puzzle.puzzle[$0] == 0 && $0 != hole }!
+        XCTAssertEqual(game.placementCount, 0)
+        game.togglePencil(3, at: hole)   // pencil
+        game.place(digit, at: hole)      // place  → 1
+        game.erase(at: hole)             // erase
+        game.undo()                      // undo
+        game.place(puzzle.solution[other], at: other) // place → 2
+        XCTAssertEqual(game.placementCount, 2, "only .place events count")
+    }
+
+    func testAveragePaceWithInjectedClock() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        XCTAssertNil(game.averageSecondsPerPlacement(at: t0), "no pace before the first placement")
+
+        game.timer.start(at: t0)
+        let other = (0..<81).first { puzzle.puzzle[$0] == 0 && $0 != hole }!
+        game.place(puzzle.solution[hole], at: hole)
+        game.place(puzzle.solution[other], at: other)
+        // Undo the second one: two placements happened, but only one cell is
+        // filled. The divisor must follow the effort, not the board — a
+        // filled-cell divisor would read 60 here instead of 30.
+        game.undo()
+        XCTAssertEqual(game.entry(at: other), 0, "the undone cell is empty again")
+        XCTAssertEqual(game.placementCount, 2, "the log keeps both placements")
+        XCTAssertEqual(game.averageSecondsPerPlacement(at: t0.addingTimeInterval(60)) ?? 0,
+                       30, accuracy: 0.001, "60s over 2 placements, one of them undone")
+    }
+
     // MARK: - Timer (injectable clock)
 
     func testElapsedTimerWithInjectedClock() {
