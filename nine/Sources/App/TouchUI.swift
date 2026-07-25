@@ -33,6 +33,17 @@ struct TouchHomeView: View {
     /// Either half of the first run is still owed (PRD-34 + PRD-18).
     private var showsFirstRun: Bool { !model.welcomeSeen || !model.helpSeen }
 
+    /// A compose is running, so `AppModel.compose` will refuse another one.
+    ///
+    /// This is shown rather than silently swallowed, and PRD-17 is why. The
+    /// guard is old — `compose` has always dropped a second request — but until
+    /// Nocturne every compose was sub-second in Release, so the dead window was
+    /// invisible. Nocturne's p99 is ~11 s on a Mac and an estimated ~34 s on a
+    /// phone (DEVIATIONS), and a shelf where Today and three other cards look
+    /// live and ignore taps for half a minute is not a calm app, it is a broken
+    /// one. Dimming makes the wait legible instead of making the app feel dead.
+    private var composeInFlight: Bool { model.composing != nil }
+
     var body: some View {
         ZStack {
             ScrollView {
@@ -136,6 +147,9 @@ struct TouchHomeView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         }
+        // Composing the daily is its own state on this card, so only a *foreign*
+        // compose disables it.
+        .disabled(composeInFlight && !isComposingDaily)
     }
 
     @ViewBuilder
@@ -251,11 +265,53 @@ struct TouchHomeView: View {
     // MARK: Free play
 
     private var freePlayRow: some View {
-        HStack(spacing: 14) {
-            ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                difficultyCard(difficulty)
+        // Three across, then the deep end on its own line (PRD-17 §3). Not a
+        // hierarchy — a fourth column on a 393pt iPhone leaves each card ~90pt
+        // for a title plus a two-line blurb, which truncates all four rather
+        // than just the new one. Full width is what lets Nocturne keep the same
+        // blurb the other three get.
+        VStack(spacing: 14) {
+            HStack(spacing: 14) {
+                ForEach(Difficulty.rowBands, id: \.self) { difficulty in
+                    difficultyCard(difficulty)
+                }
             }
+            deepEndCard(.nocturne)
         }
+    }
+
+    /// The full-width Nocturne card: same tap target, same MiniBoard, laid out
+    /// along the row instead of down a column. No lock, no badge, no price —
+    /// it is a peer of the three above it and reads like one.
+    private func deepEndCard(_ difficulty: Difficulty) -> some View {
+        TouchCard(action: { model.startFree(difficulty) }) {
+            HStack(spacing: 14) {
+                MiniBoard(difficulty: difficulty, accent: accent)
+                    .frame(width: 64, height: 64)
+                VStack(alignment: .leading, spacing: 4) {
+                    Label {
+                        Text(difficulty.title)
+                    } icon: {
+                        if let glyph = difficulty.glyph { Image(systemName: glyph) }
+                    }
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.primary)
+                    // The composing caption replaces the blurb rather than
+                    // stacking under it: a card that grows a line mid-compose
+                    // shoves the rest of the shelf down while the player watches.
+                    Text(model.composing == .free(difficulty)
+                         ? (difficulty.composeCaption ?? "Composing…")
+                         : difficulty.blurb)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+        }
+        .disabled(composeInFlight && model.composing != .free(difficulty))
+        .accessibilityLabel("\(difficulty.title), \(difficulty.blurb)")
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -278,6 +334,7 @@ struct TouchHomeView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 124)
         }
+        .disabled(composeInFlight && model.composing != .free(difficulty))
     }
 
     // MARK: Variants teaser (PRD-18)

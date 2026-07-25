@@ -9,6 +9,19 @@ struct SolveScoreTests {
         #expect(SolveScore.points(difficulty: .gentle, isDaily: false, streak: 0, seconds: 600) == 100)
         #expect(SolveScore.points(difficulty: .steady, isDaily: false, streak: 0, seconds: 600) == 250)
         #expect(SolveScore.points(difficulty: .sharp, isDaily: false, streak: 0, seconds: 600) == 500)
+        #expect(SolveScore.points(difficulty: .nocturne, isDaily: false, streak: 0, seconds: 600) == 800)
+    }
+
+    /// The table has to stay monotone in `allCases` order, because that is the
+    /// order every picker renders: a band inserted out of order would show a
+    /// harder-looking card worth fewer points, which is the kind of thing nobody
+    /// notices until a player does.
+    @Test func everyBandIsWorthMoreThanTheOneBeforeIt() {
+        let points = Difficulty.allCases.map {
+            SolveScore.points(difficulty: $0, isDaily: false, streak: 0, seconds: 600)
+        }
+        #expect(points == points.sorted())
+        #expect(Set(points).count == points.count, "two bands share a base score")
     }
 
     @Test func dailyAddsStreakBonus() {
@@ -60,7 +73,11 @@ struct SolveHistoryTests {
 
     @Test func capsAtCapacity() {
         var history = SolveHistory()
-        for day in 0..<(SolveHistory.capacity + 25) {
+        // Oldest first, which is the only order a real player produces: a solve
+        // is recorded as it happens. `record(_:)` inserts at the head, so this
+        // builds the newest-first array the type documents — and it is the order
+        // the cap depends on, since it prunes the tail as the oldest.
+        for day in stride(from: SolveHistory.capacity + 25, through: 1, by: -1) {
             history.record(record(daysAgo: day))
         }
         #expect(history.records.count == SolveHistory.capacity)
@@ -74,8 +91,10 @@ struct SolveHistoryTests {
         // A blob written under the old 200 cap must decode intact under the new
         // cap (append-only change, no migration — PRD-9 §3).
         var history = SolveHistory()
-        for day in 0..<200 { history.record(record(daysAgo: day)) }
+        for day in stride(from: 200, through: 1, by: -1) { history.record(record(daysAgo: day)) }
         #expect(history.records.count == 200)
+        #expect(history.records.map(\.date) == history.records.map(\.date).sorted(by: >),
+                "the fixture must be newest-first, like a real log")
 
         let data = try JSONEncoder().encode(history)
         let decoded = try JSONDecoder().decode(SolveHistory.self, from: data)

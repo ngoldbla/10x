@@ -67,7 +67,13 @@ final class GameCenter: NSObject {
                 progress(ID.weekStreak, fraction: Double(streak.best) / 7),
                 progress(ID.monthStreak, fraction: Double(streak.best) / 30),
             ]
-            if history.count(of: .sharp) >= 1 {
+            // Nocturne counts toward the Sharp badge. It is Sharp's chain with a
+            // clue floor, so a player who cleared one has demonstrably done the
+            // thing this badge is for, and gating on `.sharp` alone would leave
+            // a Nocturne-only player unable to earn it. No `nocturne.first` of
+            // its own: that needs an App Store Connect record, and PRD-17 §4
+            // rules separate prestige surfaces out of scope.
+            if history.count(of: .sharp) + history.count(of: .nocturne) >= 1 {
                 achievements.append(progress(ID.firstSharp, fraction: 1))
             }
             if record.seconds > 0, record.seconds < SolveScore.speedBonusThreshold {
