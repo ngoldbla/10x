@@ -1207,3 +1207,185 @@ you chose; the other three simply do nothing if you click them.
   three peers so the row cannot wrap to three lines — but the beat itself was not
   driven on a TV. The four-card *shelf* was (screenshot in the PR); the guide was
   not.
+
+## PRD-23 — the variant engine, and the number that decided its top tier (2026-07-25)
+
+Engine only, behind a channel with no user-facing surface. Nothing on any screen
+changed, no entitlement moved, no persisted key was added. The full write-up is
+[PRD-23.md](PRD-23.md); what follows is what a later reader needs and would not
+otherwise find.
+
+### The golden corpus was run after every commit, and that was the point
+
+Five commits, five 56/56 runs. Not one run at the end — the contract was
+"byte-identical through the entire refactor", and a corpus checked only at the
+end tells you *that* something moved, across five commits' worth of diff, which
+is the expensive time to find out. Corpus run times across the five: 14.97 s
+before any change, then 13.72 / 13.41 / 13.40 / 15.33. The indirection through
+`ConstraintContext` costs nothing measurable on the classic path.
+
+Four independent mechanisms hold it, and it is worth being explicit that they are
+independent, because each one alone would have been a single point of failure:
+
+- `Sudoku.swift` and `BacktrackSolver.swift` are **byte-identical to
+  origin/main**. The prover has a twin, `ConstraintBacktrackSolver`, and classic
+  delegates into the frozen original through one pointer compare. It is not a
+  fast path; for classic it is the only path.
+- `ConstraintContext.classic` is a shared singleton whose `peers`, `units` and
+  `unitsOfCell` **are** the static `Sudoku` arrays. Every loop that used to name
+  them reads them off the context instead — same arrays, same order, same bytes.
+  `compile([])` returns that singleton and `init` is private, so `isClassic` is
+  total rather than a heuristic.
+- **`GeneratedPuzzle` gained no field.** It is inside the golden hash, so a
+  `constraints: []` would have moved all 56 hashes for a value that is empty on
+  every classic board. `VariantPuzzle` is a sibling type — the identical shape to
+  the `band` sibling key `nine.history` grew in PRD-17, for the identical reason.
+- New `Technique` cases are **appended**. `Difficulty.allowedTechniques` is
+  `techniques(upTo: .xWing)` and filters them out by rank; and a classic context
+  has no cages, so they would find nothing anyway. Both are asserted, because on
+  the one enum the golden hash is made of, one mechanism is not enough.
+
+### Sharp's failure was an information problem, not a solver problem
+
+Sharp asks for zero givens — the real killer aesthetic, cages only. It composed
+nothing: 3,000 attempts, no board. The natural reading is "our technique chain is
+too weak", and acting on that reading would have meant a solver PRD.
+
+It was the other cause, and a diagnostic lane written to tell the two apart is
+what said so. With cages up to five cells, the zero-given board is **not uniquely
+determined at all — 0 of 200**. No technique could have closed it, because there
+was nothing to close.
+
+| maxCageSize | cages alone determine the grid | our chain closes it |
+|---|---|---|
+| 2 | 15/40 | 15/40 |
+| 3 | 5/40  | 2/40  |
+| 4 | 1/40  | 0/40  |
+| 5 | 0/40  | 0/40  |
+
+Small cages carry far more information — a two-cell cage summing to 17 admits
+exactly `{8,9}` — so `maxCageSize` became a band parameter and Sharp took 3.
+
+Two readings of that table are load-bearing and easy to lose:
+
+- **At size 2 the two columns are equal.** Whenever the cages determine the grid,
+  our chain closes it. So technique coverage is *not* the binding constraint down
+  there, which is a genuine (and cheerful) result about the technique set. It
+  begins to bind at size 3.
+- **And size-2 boards close on naked singles** — 38 of 40 traces ended on one.
+  Buying uniqueness with small cages spends the difficulty that made the tier
+  worth having. Size 3 is a compromise, not a free lunch, and if PRD-24 wants a
+  harder Sharp the lever is a *designed* cage layout, not a smaller one.
+
+### Compose p95 per tier, Release, and all three meet budget
+
+100 seeds per tier, Apple silicon Mac, `scripts/killer-scan.sh`:
+
+| tier | composed | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| gentle | 100/100 | 0.01 s | **0.02 s** | 0.02 s | 0.02 s |
+| steady | 100/100 | 0.02 s | **0.05 s** | 0.08 s | 0.08 s |
+| sharp  | 100/100 | 0.03 s | **0.14 s** | 0.17 s | 0.17 s |
+
+Nocturne's Mac Release p95 is 5.25 s, so killer's slowest tier is ~37× cheaper
+than a band that already shipped. The ×3 phone estimate puts Sharp's p95 near
+0.4 s. It is an estimate and it is labelled as one — PROGRAM-2.0's nightly lane
+still owes a device number, exactly as it does for Nocturne.
+
+The soak reports the technique mix alongside the clock, deliberately. A tier that
+composes in 20 ms and hands out a board every naked single closes is not a tier,
+and no timing table can say so. All three are cage-driven: `cageCombination`
+fires on 100/100 boards (22–36 steps each) and `innieOutie` on 85–98/100.
+
+### Four things the tests found that review would not have
+
+- **A cage tiling grown on pure geometry.** A region spanning two boxes can hold
+  the same digit twice — legal as a *sum*, illegal as a *cage*. The context then
+  made two cells that legitimately share a digit into mutual peers, the true
+  digit was eliminated, and the contradiction surfaced two steps later inside
+  `hiddenSingle`, a classic technique doing nothing wrong. Cage growth is
+  grid-aware now. The lesson is about the diagnostic, not the fix: the first
+  unsound deduction a fuzz reports is usually downstream of its cause, and
+  "the failing technique is the buggy technique" would have sent someone to
+  rewrite `hiddenSingle`.
+- **`return .none` from a function returning `SolutionCount?`** resolves to
+  `Optional.none` — nil — so every "provably zero solutions" was silently
+  returning "cannot answer". `isUnique` reads false either way, so no call site
+  could see it. Every case is spelled out in full now, and two tests exist purely
+  to tell nil from `.none`.
+- **`String.hashValue` is seeded per process in Swift.** An early `attemptSeed`
+  folded `variant.rawValue.hashValue` into the seed, which would have returned a
+  different board on every launch — the exact property the golden-corpus
+  discipline exists to protect, broken in the one file nobody would have checked
+  it in. The salt is an explicit constant with a test.
+- **`Difficulty.sharp.allowedTechniques == Technique.allCases`** — a shorthand in
+  a test that had shipped since 1.0, true only while every technique was a
+  classic one, and false the moment four were appended. It failed correctly, and
+  it is the reason to note a process point: it fails in `GeneratorTests`, which
+  was not in any of the filters used while iterating, so it went unseen from the
+  commit that introduced it until the first full `swift test`. **Filtered runs
+  verify the thing you changed; only the full suite verifies what you changed it
+  under.** The assertion now spells the six cases out and adds the general form —
+  no `Difficulty` band, ever, reaches a variant technique — because "the whole
+  enum" is exactly the wrong thing for a band frozen by the golden corpus to
+  mean.
+
+### The channel is sealed by a test, not by a comment
+
+`VariantChannel.isOpen` is `false` outright in Release and additionally needs
+`NINE_VARIANTS=1` in Debug, so a developer running the app in Xcode sees nothing.
+Neither of those survives somebody wanting a debug menu, so
+`VariantChannelSealTests` walks `Sources/App`, `Sources/Widgets` and
+`Sources/Shared` and fails if any of them so much as names the variant engine.
+**PRD-24 is the PR that deletes that test**, and deleting it should feel like a
+decision rather than a fix.
+
+### Not done
+
+- **No device-measured compose time.** Mac Release only; the phone figure is a
+  ×3 estimate. Nightly lane.
+- **No persistence at all.** A `VariantPuzzle` has never been written to disk, so
+  there is no `GameKind`, no library entry, no share format and no downgrade
+  drill. When PRD-24 adds them, `EXECUTING-A-PRD.md` §2 applies unchanged: a
+  sibling top-level key or its own `CouchStored` blob, never a field on
+  `LibraryEntry`.
+- **No fast-seed catalog and no `PuzzleForge` pantry.** PROGRAM-2.0 §Pillar B
+  specifies both as cost mitigations for exactly this PRD. At a 0.14 s p95 there
+  is nothing to mitigate; they become interesting if the device number disagrees.
+- **Thermo is implemented but not generated.** The constraint compiles to peer
+  and bound tables and `thermoBound` is a working technique with fixtures and
+  fuzz coverage — an architecture that has only ever seen one constraint kind is
+  not evidence that it generalises. Thermo *supply* is PRD-24's, which is where
+  thermo ships first anyway.
+- **Rule of 45 is single-unit only.** The chute forms (two and three rows at
+  once) are standard killer and are absent. Worth knowing: on a fully tiled board
+  the *innie* branch is unreachable, because every cell is caged — only the outie
+  form ever fires. The innie path is kept and fixture-tested for the
+  partially-caged boards a future variant might produce.
+- **The tier ladder is compressed.** Gentle lands at 6 givens (p50) and Steady at
+  4; they are separated mostly by technique set rather than clue count. Whether
+  that reads as three tiers to a player is a PRD-24 question and nothing here
+  answers it.
+- **`swift test` grew ~10.4 s**, and it is measured per suite rather than
+  inferred from the total, because the total moves with the machine. The eight
+  new suites, idle Mac, Debug:
+
+  | suite | cost |
+  |---|---|
+  | `VariantGeneratorTests` | 8.22 s |
+  | `VariantTechniqueTests` | 1.34 s |
+  | `ConstraintBacktrackSolverTests` | 0.68 s |
+  | `VariantChannelSealTests` | 0.11 s |
+  | `CageTilingTests` | 0.07 s |
+  | `VariantConstraintTests` | 0.02 s |
+  | `ConstraintDelegationTests` | 0.01 s |
+  | `KillerSoakTests` | skipped (opt-in) |
+
+  Almost all of it is `VariantGeneratorTests`' four real composes. The suite now
+  reads **112.5 s** (1:55 wall clock including the build) against the ~120 s
+  budget; the PRD-17 entry recorded 109 s, and the difference between that and
+  112.5 is not 10.4 s because these are different machines-in-different-moods,
+  which is the reason the per-suite table above is the number to trust. The
+  budget was thin before this PRD and the Phase 0 advice still stands: the
+  60 s `testGenerationSoakAcrossDifficulties` and the 24 s
+  `testGenerationIsDeterministic` are where the headroom is, not here.

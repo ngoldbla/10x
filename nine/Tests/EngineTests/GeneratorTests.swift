@@ -72,12 +72,29 @@ final class GeneratorTests: XCTestCase {
                           "difficulty participates in the derived seed")
     }
 
+    /// The classic chain, spelled out.
+    ///
+    /// Sharp used to be asserted as `Technique.allCases`, which was a shorthand
+    /// that held only while every technique was a classic one. PRD-23 appended
+    /// four variant cases, and the shorthand became false — correctly, and this
+    /// is the assertion that said so. It is written out in full now, because
+    /// "the whole enum" is exactly the wrong thing for a classic band to mean:
+    /// `Difficulty` bands are frozen by the golden corpus, and a technique added
+    /// to the enum must never widen one of them by accident.
     func testDifficultyBandsAreExactlyTheChain() {
         XCTAssertEqual(Difficulty.gentle.allowedTechniques, [.nakedSingle, .hiddenSingle])
         XCTAssertEqual(Difficulty.steady.allowedTechniques,
                        [.nakedSingle, .hiddenSingle, .nakedPair, .hiddenPair, .boxLineReduction])
-        XCTAssertEqual(Difficulty.sharp.allowedTechniques, Technique.allCases)
+        XCTAssertEqual(Difficulty.sharp.allowedTechniques,
+                       [.nakedSingle, .hiddenSingle, .nakedPair,
+                        .hiddenPair, .boxLineReduction, .xWing])
         XCTAssertEqual(Difficulty.sharp.floor, .xWing)
+
+        // And the general form: no band, ever, reaches a variant technique.
+        for difficulty in Difficulty.allCases {
+            XCTAssertTrue(difficulty.allowedTechniques.allSatisfy(\.isClassic),
+                          "\(difficulty) reached a variant technique")
+        }
     }
 
     // MARK: - Nocturne (PRD-17)

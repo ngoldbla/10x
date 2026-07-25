@@ -85,7 +85,24 @@ seed — so a quiet change silently re-rolls **every future daily** and breaks
 For PRD-23's variant refactor specifically: `SudokuGrid` stays untouched, classic
 paths delegate to a shared static empty `ConstraintContext` rather than being
 rewritten, and `BacktrackSolver`'s originals stay frozen — they define classic
-dailies forever.
+dailies forever. **That refactor has now landed and the rules held**, so they are
+worth restating as the general lesson they turned out to be:
+
+- Anything inside the golden hash takes a **sibling type or key, never a new
+  field** — `GeneratedPuzzle` would have moved all 56 hashes for a
+  `constraints: []` that is empty on every classic board. `VariantPuzzle` is the
+  sibling. Same rule as `nine.history`'s `band`.
+- **Delegate, don't fork.** `ConstraintContext.classic`'s tables *are* the static
+  `Sudoku` arrays, so the shared loops are unchanged in meaning as well as in
+  text — and a private `init` plus a `compile` that funnels empty input to the
+  singleton makes the "is this classic" check total rather than a heuristic.
+- Run the corpus **after every commit**, not at the end. It tells you *that*
+  generation moved, not where; five commits of diff is the expensive place to
+  start looking. Keep a cheaper tripwire below it that names the link
+  (`ConstraintDelegationTests`).
+- Deterministic seeding never touches `Hashable`. `String.hashValue` is seeded
+  per process in Swift, so a hash folded into a seed returns a different board on
+  every launch.
 
 ---
 

@@ -26,7 +26,8 @@
 | PRD-21 audio + haptics | **haptics shipped** | audio blocked: no recorded samples exist |
 | PRD-22 lens | **fingerprints shipped** | remaining: dark-contrast harness (96-cell matrix), Metal per-petal refraction |
 | PRD-34 first five minutes | **shipped** | new-game routing, drawer grabber, prefs regroup, and now the first run: welcome ledger → one pre-focused cell, "flick to place a 7", skippable from the first frame. Tip budget capped at three ever / one per session, hand-rolled rather than TipKit (see DEVIATIONS). Not done: the Mac has no first run at all |
-| **Waves 2–3** | not started | PRD-23 unblocked — the golden corpus tripwire now exists |
+| PRD-23 variant engine + Killer | **engine shipped, sealed** | Constraint architecture + Killer generation, engine only, behind a channel with no user-facing surface (Release cannot reach it; a test greps the app layer and fails if it does). Classic held byte-identical through all five commits — 56/56 after each, `Sudoku`/`BacktrackSolver` untouched, `GeneratedPuzzle` gained no field. Compose p95 Mac Release: **gentle 0.02 s / steady 0.05 s / sharp 0.14 s**, 100/100 each; Sharp is zero-given. Sharp only composes at all because cage *size* — not technique coverage — was the binding constraint (0 of 200 zero-given boards are unique at maxCageSize 5). Not done: device number, any persistence, catalogs/pantry, thermo supply, chute rule-of-45 |
+| **Waves 2–3** | PRD-23 engine done | Remaining Wave-3 work unchanged. PRD-24 is the PR that opens the channel and deletes the seal test |
 
 Shipped in PR #32 ("Worthy"; TestFlight tvOS 450 / iOS 451 / macOS 452). Every
 deferral above is recorded with its reason in the "Phase 0" and "Worthy"
