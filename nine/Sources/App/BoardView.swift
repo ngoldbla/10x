@@ -26,6 +26,19 @@ enum BoardMetrics {
         return CGPoint(x: (col + 0.5) * unit, y: (row + 0.5) * unit)
     }
 
+    /// The full square a cell occupies, in board-local coordinates. Drawing
+    /// sites rebuild this inline off `size.width`; the accessibility layer
+    /// needs it in view coordinates, so it lives here once and both agree.
+    static func rect(of cell: Int, side: CGFloat) -> CGRect {
+        let unit = side / 9
+        return CGRect(
+            x: CGFloat(cell % 9) * unit,
+            y: CGFloat(cell / 9) * unit,
+            width: unit,
+            height: unit
+        )
+    }
+
     /// The cell index under a board-local point, or nil when outside.
     static func cellIndex(at point: CGPoint, side: CGFloat) -> Int? {
         let unit = side / 9
@@ -102,6 +115,11 @@ struct BoardView: View {
     var side: CGFloat = BoardMetrics.side
     /// Padding between the grid and the glass edge.
     var inset: CGFloat = 28
+    /// PRD-19: the grammar the 81 virtual accessibility children expose.
+    /// Default-constructed it is read-only — the tutorial's boards and the
+    /// solved trophy stay readable without offering moves that would be
+    /// refused. See BoardAccessibility.swift.
+    var axActions = BoardAXActions()
 
     private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
 
@@ -155,6 +173,23 @@ struct BoardView: View {
         .couchGlass(in: RoundedRectangle(cornerRadius: max(18, 36 * side / BoardMetrics.side), style: .continuous))
         .opacity(roseOpen ? 0.82 : 1.0)
         .animation(.couchFast, value: roseOpen)
+        // PRD-19. The Canvas is one opaque drawing to VoiceOver, so the tree
+        // is grafted on rather than derived: 81 synthetic children laid out on
+        // `BoardMetrics`, never rendered. While the rose is open the board
+        // steps out of the tree entirely — the petals are modal, and a focus
+        // that can wander back to the cell underneath would let you commit a
+        // digit to a board you can no longer see the state of.
+        .accessibilityChildren {
+            BoardAXGrid(
+                game: game,
+                cursor: cursor,
+                showErrors: showErrors,
+                side: side,
+                inset: inset,
+                actions: axActions
+            )
+        }
+        .accessibilityHidden(roseOpen)
         .task(id: solvedAt) { await settleWhenDone() }
     }
 

@@ -86,6 +86,12 @@ public struct NineGame: Sendable, Codable, Equatable {
 
     public func pencilDigits(at cell: Int) -> [Int] { Sudoku.digits(in: pencil[cell]) }
 
+    /// Does this cell carry any note? A bit test rather than
+    /// `!pencilDigits(at:).isEmpty`, which allocates an array to answer a
+    /// yes/no question — the accessibility layer asks this for all 81 cells on
+    /// every body evaluation (PRD-19).
+    public func hasPencilMarks(at cell: Int) -> Bool { pencil[cell] != 0 }
+
     /// All 81 cells filled (correct or not).
     public var isComplete: Bool { !entries.contains(0) }
 
