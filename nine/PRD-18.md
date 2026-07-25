@@ -52,8 +52,10 @@ without a single dark pattern.
 
 ## 5. Verification checklist
 
-- [ ] Fresh install: welcome → Begin → legend → home; second launch: neither.
-- [ ] Update-install simulation (flag absent, `helpSeen` true): welcome shows
-      once, legend does not repeat.
-- [ ] Teaser tap chip appears and fades; screenshots of both cards.
-- [ ] tvOS + macOS builds green; `-uxdemo` inventory empty at program end.
+- [x] Fresh install: welcome → Begin → **the playable first beat** (the legend
+      card was replaced by it, see DEVIATIONS) → home; second launch: neither.
+- [x] Update-install simulation (flag absent, `helpSeen` true): welcome shows
+      once, the beat does not run.
+- [x] Teaser tap chip appears and fades; screenshots of both cards.
+- [x] tvOS + macOS builds green; `-uxdemo` inventory empty (both files deleted
+      early — retrieval command in PRD-7 rule 4).

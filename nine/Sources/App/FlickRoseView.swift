@@ -177,6 +177,14 @@ struct TouchRose: View {
     let onDigit: @MainActor (Int) -> Void
     var showsErase: Bool = false
     var onErase: (@MainActor () -> Void)? = nil
+    /// Whether the ring traps assistive focus. True everywhere in the game —
+    /// the rose is a keypad over a board and nothing else on screen applies.
+    /// The first-run beat passes false: its rose sits inside a card that also
+    /// carries the lesson and the **Skip** button, and a modal ring would put
+    /// the only way out of the first run beyond VoiceOver, Switch Control and
+    /// Full Keyboard Access (measured: `describe-ui` listed nine petals and
+    /// nothing else at all).
+    var isModal: Bool = true
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
@@ -229,7 +237,7 @@ struct TouchRose: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(state.pencil ? "Note rose" : "Digit rose")
-            .accessibilityAddTraits(.isModal)
+            .accessibilityAddTraits(isModal ? [.isModal] : [])
         }
         .highPriorityGesture(
             DragGesture(minimumDistance: 24)
