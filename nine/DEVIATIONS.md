@@ -480,3 +480,252 @@ Two consequences worth recording:
   toggleable; timer off by default; one GlassSheet; no text entry; dark-first
   full-bleed; undo on play/pause with a glass toast; hold-click pencil rose;
   four-way fallback rose.
+
+## Phase 0 — engine foundations: a preserving library decode + a golden corpus (2026-07-25)
+
+Two pieces of load-bearing plumbing with no user-visible surface, both aimed at
+making later refactors survivable.
+
+- **`BoardLibrary` decode is hand-written, tolerant and *element*-preserving —
+  and that is where it stops, for a measured reason.** The library persists as
+  ONE `nine.library` blob and `CouchStored` discards the whole blob when decode
+  throws, so the synthesized `[LibraryEntry]` decode meant a single unreadable
+  entry — a future `Difficulty` case, a future `GameKind` discriminator, a
+  newly-required field written by a newer build on another device — destroyed the
+  player's entire library. `init(from:)` decodes each element individually, keeps
+  the ones it understands, and holds the ones it cannot in `quarantined`;
+  `encode(to:)` re-emits both into the same `entries` array. Unknown **top-level
+  sibling keys** of `entries` (a future `schemaVersion`, a future `settings`) are
+  carried the same way, in `carriedTopLevel`. `==` is explicit over `entries` +
+  `quarantined` only — `carriedTopLevel` is an encoding detail, not identity, and
+  `LibrarySync` and the tests compare a hand-built `BoardLibrary(entries:)`
+  against a decoded one. Nothing in the decode path throws. The covenant is
+  written on the type: *never throw out of a container decode; never delete what
+  you cannot read.*
+- **The quarantine is now lazy, and that is a launch-path requirement rather
+  than a style choice.** `RawLibraryEntry` builds the untyped `RawJSON` tree
+  **only when the typed decode failed**. `RawJSON`'s decode walks a `try?` ladder
+  per scalar and Swift's `Codable` failure path allocates a `DecodingError` with
+  a coding-path array on every miss; a `NineGame` is ~250 numbers, so building
+  the untyped tree costs several times what decoding the real type costs.
+  Measured on a full 60-entry library (a 502 KB blob, the `totalCap` worst case),
+  worst of 10 decodes: **49 ms** with no tolerance at all, **950 ms** with an
+  eager tree per element, **~44-49 ms** with the lazy tree. `AppModel.init`
+  decodes this blob synchronously against an 800 ms cold-launch budget, so the
+  eager version was unshippable. A healthy library has zero undecodable elements,
+  so the tolerance now costs essentially nothing until the day it is needed.
+- **Field-level preservation was implemented, measured at 1515 ms, and
+  reverted.** Element-level quarantine does not cover the commonest form of
+  schema evolution: the synthesized decode of `LibraryEntry` *ignores* unknown
+  keys, so a 1.6 entry carrying a new optional `lastHintAt` decodes cleanly on a
+  1.5 device and never reaches the quarantine. The fix — keep every element's raw
+  tree and merge it back underneath the typed encoding on the way out, recursive
+  for objects and typed-wins-wholesale for arrays and scalars — worked and was
+  fully tested, but it needs the untyped tree for **every** element, which is
+  exactly the cost the laziness above exists to avoid: **1515 ms against the
+  49 ms baseline** on the same 60-entry library. It was reverted whole. It also
+  carried a hidden coupling worth remembering: rendering an entry as a tree needs
+  a coder, and an `Encoder` cannot be read back, so the merge had to hardcode
+  `CouchJSON`'s `.iso8601` date strategy — a silent breakage waiting for the day
+  the store's strategy changed. Removing the merge removes that edge too.
+  **So, stated plainly: a field a newer build adds to `LibraryEntry` is NOT
+  protected.** An older build that can still decode the entry will drop the new
+  field on its next autosave — 0.6 s after the older device merely *opened* the
+  library — and a two-device player on mixed versions will lose it repeatedly.
+  Whoever picks this up should start from the constraint, not from `Codable`:
+  the cost is inherent to building an untyped tree through `Codable`, so the
+  route is `JSONSerialization` (or another non-`Codable` reader) **at the
+  CouchKit store layer**, where the blob is already `Data` and the raw tree can
+  be had in one pass without a per-scalar failure ladder. That is a CouchKit
+  change, out of scope for Phase 0.
+- **Sentinel enum cases (`Difficulty.beyond`, `Technique.unrecognized`) were
+  deliberately NOT added.** They are the other obvious way to survive an unknown
+  raw value, and they are the wrong one here: `Difficulty` is `CaseIterable` and
+  feeds every difficulty picker, the daily mapping and `Difficulty.index` (which
+  participates in the derived generation seed); `Technique` is `Comparable` and
+  ordered by rank, and the solver switches over it exhaustively. A sentinel case
+  would leak into pickers and force a meaningless rank on the ordering, for a
+  blast radius across the app — while the entry-level quarantine achieves the
+  same data-safety goal with the damage contained to one entry.
+- **Quarantine is held as a decoded JSON tree (`RawJSON`), not as `Data`.** A
+  `Decoder` never hands out the underlying bytes and an `Encoder` cannot splice
+  pre-encoded bytes back in, so a tree is the only representation that survives a
+  trip *through* the same coder the outer value is using (and so inherits its
+  date strategy). The round trip is therefore value-exact rather than byte-exact:
+  object keys come back sorted, and a whole-valued `1.0` may come back as `1`.
+  Numbers decode through an `Int → UInt64 → Double` ladder specifically so a
+  puzzle `seed` (`UInt64`, can exceed `Int.max`) survives verbatim. Quarantined
+  elements are invisible to `entries`, to `prune()`'s caps and to `sort()` —
+  nothing here can read their `updatedAt`, so on rewrite they are appended after
+  the known entries and the build that *can* read them re-sorts on next decode.
+  There is no cap on the quarantine; it can only grow by one per unreadable
+  element the newer build wrote.
+- **`GoldenCorpusTests` freezes classic generation, 50 (seed, difficulty) pairs
+  deep.** Each pair is generated, encoded with `JSONEncoder(.sortedKeys)` — not
+  `CouchJSON`, so the hash cannot move if the persistence layer changes its
+  formatting — and SHA-256'd; the 50 hashes are frozen in the file. The full
+  `SolveStep` trace is inside the hash, so a solver change that alters the
+  *explanation* while still solving the board also trips it.
+- **The corpus composition is cost-shaped, not uniform** — 30 gentle / 14 steady
+  / 6 sharp, all three difficulties covered. Measured on an M-series Mac,
+  generation costs ~0.03 s gentle, ~0.3 s steady and **0.7–65 s sharp** (scan of
+  seeds 3000...3029: median ~8 s, worst 65 s), because sharp digs for maximal
+  uniqueness and then heals back down. A uniform 17/17/16 split would cost
+  minutes on its own against the `swift test` < 120 s budget. The six sharp seeds
+  are the cheap ones from that scan (0.7–2.5 s each); they exercise the identical
+  pipeline, including the healing pass. **Cost of the whole corpus: 9.5 s** — the
+  pre-existing 25-puzzle `GeneratorTests` soak is 87 s of the same budget, so a
+  future trim should start there, not here.
+- **SHA-256 is implemented in the test file (~50 lines) rather than taking a
+  package dependency.** CryptoKit does not exist on Linux and CI Lane 1 is Linux
+  SwiftPM, so the usual `canImport(CryptoKit)` / swift-crypto shim would mean a
+  new transitive dependency on the engine and on every app target that compiles
+  it in, to hash 50 small blobs in one test. `testSHA256MatchesTheStandardVectors`
+  pins it to the FIPS 180-4 vectors, so a corpus mismatch always means generation
+  moved, never that the hasher did.
+
+- **Preservation goes one level further than the quarantine: unknown *fields*.**
+  Element-level quarantine only catches elements that fail to decode, and the
+  commonest form of schema evolution never fails: the synthesized decode of
+  `LibraryEntry` silently *ignores* keys it has no property for, so a 1.6 entry
+  carrying a new optional field decodes cleanly on 1.5 and would be re-encoded
+  from the typed value — dropping the field 0.6 s after the older device merely
+  *opened* the library. So the decode also keeps the remainder of each element's
+  raw tree (`carriedFields`, subtracted against the entry's own encoded shape,
+  recursive through objects but not arrays) and any unknown sibling of `entries`
+  (`carriedTopLevel`), and `encode(to:)` merges them back *underneath* the typed
+  encoding. Subtracting the shape rather than keeping the whole tree is what
+  stops a cleared `solvedAt` being resurrected on a replay-after-solve.
+- **Two accepted asymmetries in that merge, both deliberate.** (a) *Deletion does
+  not survive a downgrade*: if a newer build removes a field, an older build
+  holding the pre-removal tree resurrects it on rewrite. That is the right way
+  round — a resurrected key is inert to the newer build's decode, a dropped key
+  is lost data — but a build that removes a field must not assume it stays gone.
+  (b) *The merge path re-renders the element through a locally-chosen coder*
+  (`.iso8601` dates, matching `CouchJSON`), because an `Encoder` cannot be read
+  back to discover the caller's date strategy. Only entries that actually carry
+  unknown fields take that path, and `nine.library` is only ever written through
+  `CouchJSON` — but if the store's date strategy ever moves, `tree(of:)` must
+  move with it. That coupling is the single thing a reviewer should push on.
+- **Equality is explicitly `entries` + `quarantined`, excluding the carried
+  trees.** They are an encoding detail, not identity, and excluding them is
+  load-bearing: `LibrarySync` and the tests build a `BoardLibrary(entries:)`
+  (no carried trees, by construction) and compare it against a decoded one.
+
+## "Worthy" (1.5) — accessibility, board fingerprints, IA, iOS haptics (2026-07-25)
+
+The four user-visible halves of Wave 1, each closing a gap a live sim-use audit
+found in the shipped 1.1 build. What each deliberately does *not* do is recorded
+alongside, because the omissions are the decisions.
+
+### PRD-19 — a voice for the board
+
+The board is one `Canvas`, and `describe-ui` on the 1.1 build listed **zero**
+cells: a VoiceOver player could reach every button in the chrome and not one
+square of the game. The Canvas is untouched; `.accessibilityChildren` now hangs
+81 synthetic elements on it, laid out on `BoardMetrics.rect(of:side:)`, and they
+verify in the simulator as 81 `Button`s with values like `"5, given"`,
+`"Empty, notes 2, 5, 9"` and `"4, wrong"`.
+
+- **The actions rotor mirrors the rose rather than replacing it.** Each playable
+  cell carries `Place 1`…`Place 9` (renamed `Note N` when the control bar's
+  pencil toggle is on) plus `Erase` on a filled cell — the same nine digits, the
+  same modes, no new concept (craft charter: one new input concept per release
+  maximum, and this release spends that budget on nothing). Givens carry no
+  actions at all, which also keeps the rotor from being 81 identical menus.
+- **Custom actions are declared in reverse.** UIKit surfaces them in the reverse
+  of declaration order; `describe-ui`'s `custom_actions` list confirmed a
+  naïve `ForEach(1...9)` offered `Place 9` first. Verified, not assumed.
+- **Double-tap moves the cursor and does not bloom the rose.** The petals are a
+  spatial flick grammar with no screen-reader equivalent worth having, and a
+  modal ring reachable by accident is worse than no ring. The rose *is* labelled
+  and `.isModal` for the mixed case (VoiceOver on, a sighted hand flicking), and
+  the board goes `.accessibilityHidden` while it is open so focus cannot wander
+  back to a cell whose board state is dimmed out from under it.
+- **`showErrors: false` is honoured through every channel.** With error
+  highlighting off, `BoardSpeech.cellValue` drops the "wrong" word, the Wrong
+  Digits rotor is empty (an empty rotor does not appear at all), and the error
+  haptic does not fire. A knock the screen is withholding would leak the answer
+  through the fingertips.
+- **Chrome accessibility frames were the other half of the gap.** The audit
+  measured the Home chevron at 9×15pt: SwiftUI derives an image button's AX frame
+  from the SF Symbol's tight glyph bounds, not the 44pt button around it.
+  `.contentShape(.accessibility, Circle())` on `GlassIconButton` and the Boards
+  sheet's icon buttons brings every one to 44×44 — verified in `describe-ui`.
+- **Not done here:** Switch Control group-scan ordering (boxes → cells), a
+  Voice Control cell-addressing pass, and a CI lane that diffs AX-tree dumps per
+  screen. All three want a harness this change does not build.
+
+### PRD-22 — board fingerprints (the shelf's honest zero-state)
+
+CouchKit's `GlassRing` lights its arc with `trim(from: 0, to: progress)`, so a
+board you generated and have not touched drew *nothing* — a dead gray track
+beside the literal text "0%". Three untouched boards were three identical dead
+circles. `BoardFingerprint` draws the board instead: givens as a dot
+constellation in `digitTone`, your entries in the accent, deterministic and free
+because the seed already determines the givens. Three boards on the shelf are now
+three visibly different portraits, and a 98%-full board reads as almost-solid
+accent at 34pt.
+
+- **`BoardProgressCaption` refuses to print a meaningless number.** Below 3%
+  ("2%" on a 51-hole board means *one digit*) it says "Untouched" or "Just
+  started". Honest absence over false precision.
+- **`BoardsSheet.ProgressRing` was deleted, not left dormant.** Its `max(0.02,…)`
+  floor was the right instinct — a board is never *nothing* — but an arc that
+  short is indistinguishable from the next board's. Dead view code drifts.
+- **Not done here:** the full PRD-22 dark-contrast retune against the composited
+  glass (the 96-cell theme × accent matrix and its screenshot-sampling harness),
+  the `accessibilityContrast` hairline variant, and the Metal per-petal
+  refraction shader. Those are the expensive two-thirds of PRD-22 and want their
+  own change.
+
+### PRD-34 — the next board, and where settings live
+
+- **"New game" left Settings on iOS and macOS.** The audit found it at the bottom
+  of the prefs sheet, which is the last place anyone looks for the next board.
+  Its three homes now are the shelf's difficulty cards (already there), a "Fresh
+  board" row at the *top* of the Boards sheet, and an "Another" chip beside
+  "Solved" once the Afterglow has settled (free-play boards only — the daily is
+  one a day, and offering another would be a lie). **tvOS keeps the prefs
+  section**: the TV has no in-game route to the Boards sheet, and its IA wants a
+  pass of its own.
+- **A copy bug went with it.** The old section warned "Starts fresh — the current
+  board is abandoned". `startFree` → `compose` calls `library.create`, which mints
+  a *new* entry; the board you were on stays a resumable partial. The warning had
+  been scaring people off a non-destructive action.
+- **The stats drawer gets a 3pt grabber for three sessions.** PRD-10 shipped the
+  pull-down deliberately unhinted, and the audit found the predictable result:
+  nothing suggests it exists, so nobody pulls. The compromise is the smallest
+  mark that reads as a handle, budgeted in launches (`AppModel.sessionCount`,
+  saturating) and retired the instant the drawer is opened by any route
+  (`drawerFound`) — after that the top of the screen is bare again forever. It is
+  decoration: not a button, and hidden from VoiceOver, which has had a named
+  drawer action since PRD-10.
+- **Prefs regrouped into Play / Feel / Appearance / Layout.** The flat list had
+  drifted into an order nobody could hold — theme at row six, accent at row ten,
+  with resume, haptics and the whole Layout block wedged between the two colour
+  controls. Headings carry `.isHeader`, so VoiceOver's heading rotor works.
+- **Not done here:** the first-launch-is-the-tutorial flow and the TipKit budget.
+  Both are PRD-34's larger half and need the onboarding content designed first.
+
+### PRD-21 — the built haptics, finally wired on iOS
+
+`AfterglowScore.placementTick`, `errorKnock` and `boxDetent` have existed since
+PRD-5 and compile on iOS (the gate is `canImport(CoreHaptics)`), but the only
+class that played them was `ControllerHaptics`, which is `#if os(tvOS)`. On
+iPhone and iPad the game was haptically silent until the solve crescendo. This
+adds the missing player and nothing else — same patterns, same tuned timings.
+
+- **A warm engine, separate from the solve engine.** In-play feedback fires many
+  times a minute, so it cannot pay a cold `CHHapticEngine` start per digit;
+  `resetHandler`/`stoppedHandler` rebuild it after an interruption, without which
+  the first tap after a phone call is silent and so is every one after it.
+  `stop()` tears down both engines on backgrounding.
+- **The solving placement gets no tick.** The crescendo is already queued by
+  `onChange(of: model.solvedAt)`, and a tick under its first beat only muddies it.
+- **`NinePrefs.touchHaptics` gates in-play marks only**, not the solve score:
+  a once-a-board celebration is a different thing from a per-move texture.
+- **Not done here:** the audio identity. `CalmAudio` needs recorded glass-and-felt
+  samples that do not exist yet; shipping synthesised stand-ins would set the
+  wrong sound in players' ears first, which is the one thing an audio identity
+  cannot recover from. The "Feel" prefs group is where it lands when it exists.

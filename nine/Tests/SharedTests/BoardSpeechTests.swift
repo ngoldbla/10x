@@ -1,0 +1,223 @@
+// BoardSpeechTests — the spoken board (PRD-19). These pin three things that
+// are easy to regress and impossible to notice without a screen reader:
+// 1-basing of row/column/box, the singular/plural boundaries in the
+// announcements, and the `showErrors: false` privacy branch — VoiceOver must
+// never reveal a wrong entry the sighted player is not being shown.
+import XCTest
+import NineEngine
+@testable import NineShared
+
+final class BoardSpeechTests: XCTestCase {
+
+    private var puzzle: GeneratedPuzzle!
+    private var game: NineGame!
+    private var hole: Int! // first empty cell
+
+    override func setUp() {
+        super.setUp()
+        puzzle = PuzzleGenerator.generate(seed: 1, difficulty: .gentle)
+        game = NineGame(puzzle: puzzle)
+        hole = (0..<81).first { puzzle.puzzle[$0] == 0 }
+    }
+
+    // MARK: - Cell identity
+
+    func testCellLabelIsOneBasedAtCornersAndCentre() {
+        XCTAssertEqual(BoardSpeech.cellLabel(0), "Row 1, column 1")
+        XCTAssertEqual(BoardSpeech.cellLabel(8), "Row 1, column 9")
+        XCTAssertEqual(BoardSpeech.cellLabel(72), "Row 9, column 1")
+        XCTAssertEqual(BoardSpeech.cellLabel(80), "Row 9, column 9")
+        XCTAssertEqual(BoardSpeech.cellLabel(40), "Row 5, column 5")
+    }
+
+    func testRowColumnAndBoxLabels() {
+        XCTAssertEqual(BoardSpeech.rowLabel(40), "Row 5")
+        XCTAssertEqual(BoardSpeech.columnLabel(40), "Column 5")
+        XCTAssertEqual(BoardSpeech.boxLabel(0), "Box 1")
+        XCTAssertEqual(BoardSpeech.boxLabel(5), "Box 2", "row 1, column 6 sits in the top-middle box")
+        XCTAssertEqual(BoardSpeech.boxLabel(80), "Box 9")
+    }
+
+    func testCellHintCarriesTheBoxAndTheInstruction() {
+        XCTAssertEqual(
+            BoardSpeech.cellHint(5),
+            "Box 2. Flick or use the actions rotor to place a digit."
+        )
+        XCTAssertFalse(
+            BoardSpeech.cellLabel(5).contains("Box"),
+            "the box belongs in the once-per-focus hint, not in all 81 labels"
+        )
+    }
+
+    // MARK: - Cell value branches
+
+    func testGivenCellValueSaysGiven() {
+        let given = (0..<81).first { puzzle.puzzle[$0] != 0 }!
+        XCTAssertEqual(
+            BoardSpeech.cellValue(given, in: game, showErrors: true),
+            "\(puzzle.puzzle[given]), given"
+        )
+    }
+
+    func testEmptyCellValue() {
+        XCTAssertEqual(BoardSpeech.cellValue(hole, in: game, showErrors: true), "Empty")
+    }
+
+    func testEmptyCellWithNotesListsThemAscendingRegardlessOfEntryOrder() {
+        XCTAssertTrue(game.togglePencil(9, at: hole))
+        XCTAssertTrue(game.togglePencil(2, at: hole))
+        XCTAssertTrue(game.togglePencil(5, at: hole))
+        XCTAssertEqual(
+            BoardSpeech.cellValue(hole, in: game, showErrors: true),
+            "Empty, notes 2, 5, 9"
+        )
+    }
+
+    func testCorrectUserEntryIsJustTheDigit() {
+        let digit = puzzle.solution[hole]
+        XCTAssertTrue(game.place(digit, at: hole))
+        XCTAssertEqual(BoardSpeech.cellValue(hole, in: game, showErrors: true), "\(digit)")
+    }
+
+    func testWrongUserEntryIsMarkedWrongWhenErrorsAreShown() {
+        let wrong = wrongDigit(for: hole)
+        XCTAssertTrue(game.place(wrong, at: hole))
+        XCTAssertTrue(game.isError(at: hole))
+        XCTAssertEqual(BoardSpeech.cellValue(hole, in: game, showErrors: true), "\(wrong), wrong")
+    }
+
+    /// The load-bearing privacy test: with mistake-marking off, the AX value is
+    /// indistinguishable from a correct entry. VoiceOver is not a cheat mode.
+    func testWrongUserEntryLeaksNothingWhenErrorsAreHidden() {
+        let wrong = wrongDigit(for: hole)
+        XCTAssertTrue(game.place(wrong, at: hole))
+        XCTAssertEqual(BoardSpeech.cellValue(hole, in: game, showErrors: false), "\(wrong)")
+
+        var correct = NineGame(puzzle: puzzle)
+        XCTAssertTrue(correct.place(puzzle.solution[hole], at: hole))
+        XCTAssertNotEqual(
+            BoardSpeech.cellValue(hole, in: game, showErrors: false),
+            BoardSpeech.cellValue(hole, in: correct, showErrors: false),
+            "different digits still read differently — only the wrongness is hidden"
+        )
+    }
+
+    // MARK: - Placement announcements
+
+    func testPlacementAnnouncementPluralSingularAndCompletionBoundaries() throws {
+        // A digit with at least three holes, so the count walks 7 → 8 → 9.
+        let digit = try XCTUnwrap((1...9).first { d in
+            (0..<81).count(where: { !game.isGiven($0) && puzzle.solution[$0] == d }) >= 3
+        })
+        let holes = (0..<81).filter { !game.isGiven($0) && puzzle.solution[$0] == digit }
+        let word = BoardSpeech.digitWordCapitalized(digit)
+        let plural = BoardSpeech.digitWordPlural(digit)
+        let singular = BoardSpeech.digitWord(digit)
+
+        for cell in holes.dropLast(2) {
+            XCTAssertTrue(game.place(digit, at: cell))
+        }
+        XCTAssertEqual(game.count(of: digit), 7)
+        XCTAssertEqual(
+            BoardSpeech.placementAnnouncement(digit: digit, in: game),
+            "\(word) placed. Two \(plural) remaining."
+        )
+
+        XCTAssertTrue(game.place(digit, at: holes[holes.count - 2]))
+        XCTAssertEqual(
+            BoardSpeech.placementAnnouncement(digit: digit, in: game),
+            "\(word) placed. One \(singular) remaining.",
+            "one left is singular"
+        )
+
+        XCTAssertTrue(game.place(digit, at: holes[holes.count - 1]))
+        XCTAssertTrue(game.isDigitComplete(digit))
+        XCTAssertEqual(
+            BoardSpeech.placementAnnouncement(digit: digit, in: game),
+            "\(word) placed. All \(plural) done."
+        )
+    }
+
+    func testSolvedAnnouncementAndEraseAndNotes() {
+        XCTAssertEqual(BoardSpeech.solvedAnnouncement, "Solved.")
+        XCTAssertEqual(BoardSpeech.eraseAnnouncement(digit: 4), "Four cleared.")
+        XCTAssertEqual(BoardSpeech.noteAnnouncement(digit: 4, added: true), "Note four added.")
+        XCTAssertEqual(BoardSpeech.noteAnnouncement(digit: 4, added: false), "Note four removed.")
+    }
+
+    func testSentencesEndInPeriodsAndValuesDoNot() {
+        XCTAssertTrue(BoardSpeech.eraseAnnouncement(digit: 1).hasSuffix("."))
+        XCTAssertTrue(BoardSpeech.placementAnnouncement(digit: 1, in: game).hasSuffix("."))
+        XCTAssertTrue(BoardSpeech.progressSummary(game).hasSuffix("."))
+        XCTAssertTrue(BoardSpeech.cellHint(0).hasSuffix("."))
+        XCTAssertFalse(BoardSpeech.cellLabel(0).hasSuffix("."))
+        XCTAssertFalse(BoardSpeech.cellValue(hole, in: game, showErrors: true).hasSuffix("."))
+    }
+
+    // MARK: - Progress summary
+
+    func testProgressSummaryCountsFilledHolesAndGatesWrongOnShowErrors() {
+        let holes = puzzle.puzzle.emptyCount
+        XCTAssertEqual(BoardSpeech.progressSummary(game), "0 of \(holes) filled.")
+
+        let empties = (0..<81).filter { !game.isGiven($0) }
+        for cell in empties.prefix(3) {
+            XCTAssertTrue(game.place(puzzle.solution[cell], at: cell))
+        }
+        XCTAssertEqual(BoardSpeech.progressSummary(game), "3 of \(holes) filled.")
+
+        let bad = empties[3]
+        XCTAssertTrue(game.place(wrongDigit(for: bad), at: bad))
+        XCTAssertEqual(game.errorCells.count, 1)
+        XCTAssertEqual(BoardSpeech.progressSummary(game, showErrors: true), "4 of \(holes) filled. 1 wrong.")
+        XCTAssertEqual(
+            BoardSpeech.progressSummary(game, showErrors: false),
+            "4 of \(holes) filled.",
+            "hiding mistakes hides the count too — '0 wrong' would itself be a hint"
+        )
+    }
+
+    // MARK: - Number words
+
+    func testDigitWords() {
+        XCTAssertEqual((1...9).map(BoardSpeech.digitWord), [
+            "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+        ])
+        XCTAssertEqual(BoardSpeech.digitWordCapitalized(7), "Seven")
+        XCTAssertEqual(BoardSpeech.digitWordPlural(6), "sixes", "not 'sixs'")
+        XCTAssertEqual(BoardSpeech.digitNoun(4, count: 1), "four")
+        XCTAssertEqual(BoardSpeech.digitNoun(4, count: 2), "fours")
+        XCTAssertEqual(BoardSpeech.countWord(0), "zero")
+        XCTAssertEqual(BoardSpeech.countWord(12), "12", "past nine we fall back to numerals")
+    }
+
+    // MARK: - Out-of-range safety
+
+    func testOutOfRangeInputsReturnEmptyStringsAndDoNotTrap() {
+        for cell in [-1, 81, 999, Int.min, Int.max] {
+            XCTAssertEqual(BoardSpeech.cellLabel(cell), "")
+            XCTAssertEqual(BoardSpeech.rowLabel(cell), "")
+            XCTAssertEqual(BoardSpeech.columnLabel(cell), "")
+            XCTAssertEqual(BoardSpeech.boxLabel(cell), "")
+            XCTAssertEqual(BoardSpeech.cellHint(cell), "")
+            XCTAssertEqual(BoardSpeech.cellValue(cell, in: game, showErrors: true), "")
+        }
+        for digit in [-1, 0, 10, Int.min, Int.max] {
+            XCTAssertEqual(BoardSpeech.digitWord(digit), "")
+            XCTAssertEqual(BoardSpeech.digitWordCapitalized(digit), "")
+            XCTAssertEqual(BoardSpeech.digitWordPlural(digit), "")
+            XCTAssertEqual(BoardSpeech.placementAnnouncement(digit: digit, in: game), "")
+            XCTAssertEqual(BoardSpeech.remainingClause(digit: digit, in: game), "")
+            XCTAssertEqual(BoardSpeech.eraseAnnouncement(digit: digit), "")
+            XCTAssertEqual(BoardSpeech.noteAnnouncement(digit: digit, added: true), "")
+        }
+    }
+
+    // MARK: - Helpers
+
+    /// A digit that is definitely not the solution for `cell`.
+    private func wrongDigit(for cell: Int) -> Int {
+        let solution = puzzle.solution[cell]
+        return solution == 9 ? 1 : solution + 1
+    }
+}

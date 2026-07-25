@@ -194,8 +194,14 @@ struct TouchRose: View {
             scale: scale,
             showsErase: showsErase
         )
+        .accessibilityHidden(true) // the drawn petals; the targets below speak
         .overlay {
-            // Invisible pointer targets aligned with the drawn petals.
+            // Invisible pointer targets aligned with the drawn petals. They
+            // are also the rose's accessibility tree (PRD-19): the drawing is
+            // hidden above, and these nine carry the labels, so a mixed
+            // session — VoiceOver on, a sighted hand flicking — stays sane.
+            // The board goes `.accessibilityHidden` while the rose is open,
+            // which together with `.isModal` traps focus inside the ring.
             ZStack {
                 ForEach(1...9, id: \.self) { digit in
                     let offset = RoseGeometry.offset(forDigit: digit)
@@ -204,6 +210,10 @@ struct TouchRose: View {
                         .frame(width: max(44, petalSize), height: max(44, petalSize))
                         .onTapGesture { onDigit(digit) }
                         .offset(x: offset.x * spacing, y: offset.y * spacing)
+                        .accessibilityElement()
+                        .accessibilityLabel(state.pencil ? "Note \(digit)" : "Place \(digit)")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { onDigit(digit) }
                 }
                 if showsErase, let onErase {
                     Color.clear
@@ -211,8 +221,15 @@ struct TouchRose: View {
                         .frame(width: max(44, petalSize), height: max(44, petalSize))
                         .onTapGesture { onErase() }
                         .offset(y: spacing + spacing * 0.92)
+                        .accessibilityElement()
+                        .accessibilityLabel("Erase")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { onErase() }
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(state.pencil ? "Note rose" : "Digit rose")
+            .accessibilityAddTraits(.isModal)
         }
         .highPriorityGesture(
             DragGesture(minimumDistance: 24)

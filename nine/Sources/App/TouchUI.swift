@@ -136,9 +136,8 @@ struct TouchHomeView: View {
             statusLabel("Solved", symbol: "checkmark.circle.fill")
         } else if let daily = model.savedDaily {
             HStack(spacing: 12) {
-                GlassRing(progress: daily.fillFraction, lineWidth: 5)
-                    .frame(width: 34, height: 34)
-                Text("Continue")
+                BoardFingerprint(game: daily, accent: accent, side: 34)
+                Text("Continue · \(BoardProgressCaption.text(for: daily))")
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
@@ -154,12 +153,11 @@ struct TouchHomeView: View {
         if let (game, difficulty) = model.savedFree {
             TouchCard(action: { model.continueSaved() }) {
                 HStack(spacing: 16) {
-                    GlassRing(progress: game.fillFraction, lineWidth: 5)
-                        .frame(width: 44, height: 44)
+                    BoardFingerprint(game: game, accent: accent, side: 44)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Continue")
                             .font(CouchTypography.body)
-                        Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%"
+                        Text("\(difficulty.title) · \(BoardProgressCaption.text(for: game))"
                              + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
@@ -217,12 +215,11 @@ struct TouchHomeView: View {
                 ForEach(extraPartials.prefix(3)) { entry in
                     TouchCard(action: { model.resumeEntry(id: entry.id) }) {
                         HStack(spacing: 14) {
-                            GlassRing(progress: entry.game.fillFraction, lineWidth: 4)
-                                .frame(width: 34, height: 34)
+                            BoardFingerprint(game: entry.game, accent: accent, side: 34)
                             Text(boardTitle(entry))
                                 .font(CouchTypography.caption)
                             Spacer()
-                            Text("\(Int(entry.game.fillFraction * 100))%")
+                            Text(BoardProgressCaption.text(for: entry.game))
                                 .font(CouchTypography.caption)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
@@ -430,6 +427,9 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
             .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
+            // The grabber sits *under* the drawer it advertises, so the panel
+            // slides over it rather than the hairline floating on the glass.
+            .overlay(alignment: .top) { drawerGrabber }
             // Above the board and its chips, below the prefs sheet — Settings
             // must always stack over the drawer, never under it.
             .overlay(alignment: .top) { statsDrawer }
@@ -453,15 +453,14 @@ struct TouchGameScreen: View {
             // height off an empty panel.
             .accessibilityAction(named: drawerOpen ? "Hide board stats" : "Show board stats") {
                 guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
+                if !drawerOpen { model.noteDrawerFound() }
                 withAnimation(.couchFast) { drawerOpen.toggle() }
             }
             .overlay {
+                // PRD-34: no `onNewGame` — the next board lives on the shelf,
+                // in the Boards sheet, and in the post-solve "Another" chip.
                 GlassSheet(isPresented: $showPrefs) {
-                    PrefsSheetContent(model: model) { difficulty in
-                        showPrefs = false
-                        highlightedDigit = nil
-                        model.startFree(difficulty)
-                    }
+                    PrefsSheetContent(model: model)
                 }
             }
         }
@@ -589,13 +588,31 @@ struct TouchGameScreen: View {
         }
     }
 
+    /// PRD-34. "New game" used to live only at the bottom of Settings, which
+    /// is nobody's guess for where the next board is. One of its three new
+    /// homes is right here: once the Afterglow has settled — never during it —
+    /// the solved chip is joined by an "Another" that starts a fresh board at
+    /// the difficulty you just finished. Free-play boards only; the daily is
+    /// one a day, and offering "another" one would be a lie.
     @ViewBuilder
     private var completionChip: some View {
         if let solvedAt = model.solvedAt {
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
-                    GlassChip(completionText, systemImage: "checkmark")
-                        .transition(.opacity)
+                    HStack(spacing: 10) {
+                        GlassChip(completionText, systemImage: "checkmark")
+                        if case .free(let difficulty)? = model.kind {
+                            Button {
+                                highlightedDigit = nil
+                                model.startFree(difficulty)
+                            } label: {
+                                GlassChip("Another", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Another \(difficulty.title) board")
+                        }
+                    }
+                    .transition(.opacity)
                 }
             }
         }
@@ -648,14 +665,36 @@ struct TouchGameScreen: View {
                 // Project the flick so a fast short swipe still opens it.
                 let projected = ((drawerOpen ? drawerHeight : 0)
                                  + value.predictedEndTranslation.height) / drawerHeight
-                withAnimation(.couchFast) {
-                    drawerOpen = projected > Self.drawerSnapThreshold
-                }
+                let opening = projected > Self.drawerSnapThreshold
+                if opening { model.noteDrawerFound() }
+                withAnimation(.couchFast) { drawerOpen = opening }
             }
     }
 
     private func closeDrawer() {
         withAnimation(.couchFast) { drawerOpen = false }
+    }
+
+    /// PRD-34. The drawer was shipped deliberately unhinted, and the live sim
+    /// audit found the predictable result: nothing on screen suggests it
+    /// exists, so nobody pulls. The compromise that keeps the calm is a 3pt
+    /// hairline — the smallest mark that reads as a handle — shown for the
+    /// first three sessions, and retired the moment the player opens the
+    /// drawer once. After that the top of the screen is bare again forever.
+    ///
+    /// It is decoration only: it is not a button, and it is hidden from
+    /// VoiceOver, which has had a named action for the drawer since PRD-10.
+    @ViewBuilder
+    private var drawerGrabber: some View {
+        if model.showsDrawerGrabber, model.game != nil, rose == nil, !showPrefs {
+            Capsule()
+                .fill(.secondary)
+                .frame(width: 36, height: 3)
+                .opacity(0.35 * (1 - drawerProgress))
+                .padding(.top, 6)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Mirrors `GlassSheet`'s grammar — 0.45 black scrim, `couchGlass` on a
@@ -705,7 +744,8 @@ struct TouchGameScreen: View {
                 waveOrigin: model.lastPlacedCell,
                 afterglowTilt: { motion.tilt(at: $0) },
                 side: side,
-                inset: inset
+                inset: inset,
+                axActions: axActions
             )
             .contentShape(Rectangle())
             .onTapGesture { location in
@@ -767,6 +807,58 @@ struct TouchGameScreen: View {
         return CGPoint(x: clampX(center.x + inset), y: clampY(center.y + inset))
     }
 
+    // MARK: Accessibility grammar (PRD-19)
+
+    /// The board's VoiceOver actions, mirroring the touch grammar exactly:
+    /// the same nine digits the rose offers, the same pencil toggle from the
+    /// control bar, the same erase that only appears on a filled cell. Nil
+    /// action closures once the board is solved, which turns the 81 elements
+    /// read-only rather than offering moves `AppModel` would refuse.
+    private var axActions: BoardAXActions {
+        guard model.solvedAt == nil else {
+            return BoardAXActions(select: { cursor = $0 })
+        }
+        return BoardAXActions(
+            pencilMode: pencilMode,
+            select: { cursor = $0 },
+            place: { digit, cell in axCommit(digit, at: cell, pencil: false) },
+            note: { digit, cell in axCommit(digit, at: cell, pencil: true) },
+            erase: { cell in
+                guard let game = model.game, game.entry(at: cell) != 0 else { return }
+                let digit = game.entry(at: cell)
+                cursor = cell
+                closeRose()
+                if model.erase(at: cell) { announce(BoardSpeech.eraseAnnouncement(digit: digit)) }
+            }
+        )
+    }
+
+    /// One digit, committed the way the rose would commit it. Announcing the
+    /// result is the whole point: without it VoiceOver re-reads the focused
+    /// cell and a player never learns that the fourth 4 was their last.
+    private func axCommit(_ digit: Int, at cell: Int, pencil: Bool) {
+        guard let game = model.game, model.solvedAt == nil, !game.isGiven(cell) else { return }
+        cursor = cell
+        closeRose()
+        if pencil {
+            let wasSet = game.pencilDigits(at: cell).contains(digit)
+            model.togglePencil(digit, at: cell)
+            announce(BoardSpeech.noteAnnouncement(digit: digit, added: !wasSet))
+        } else {
+            model.place(digit, at: cell)
+            hapticsAfterPlacing(at: cell)
+            guard let after = model.game else { return }
+            announce(model.solvedAt != nil
+                     ? BoardSpeech.solvedAnnouncement
+                     : BoardSpeech.placementAnnouncement(digit: digit, in: after))
+        }
+    }
+
+    private func announce(_ message: String) {
+        guard !message.isEmpty else { return }
+        AccessibilityNotification.Announcement(message).post()
+    }
+
     // MARK: Touch grammar
 
     private func handleBoardTap(at location: CGPoint, side: CGFloat, inset: CGFloat) {
@@ -806,8 +898,28 @@ struct TouchGameScreen: View {
             model.togglePencil(digit, at: cursor)
         } else {
             model.place(digit, at: cursor)
+            hapticsAfterPlacing(at: cursor)
         }
         closeRose()
+    }
+
+    /// The in-play haptic mark for a placement (PRD-21). Both commit paths —
+    /// the rose and the VoiceOver actions rotor — funnel through here so the
+    /// two grammars feel identical in the hand.
+    ///
+    /// Two suppressions matter. On the solving placement the crescendo is
+    /// already queued by `onChange(of: model.solvedAt)`, and a tick under its
+    /// first beat just muddies it. And the error knock is gated on the error
+    /// *highlight* pref: a knock the screen is not also showing would leak,
+    /// through the fingertips, an answer the player asked not to be told.
+    private func hapticsAfterPlacing(at cell: Int) {
+        guard model.prefs.touchHaptics, model.solvedAt == nil,
+              let game = model.game else { return }
+        if model.prefs.errorHighlight, game.isError(at: cell) {
+            haptics.playError()
+        } else {
+            haptics.playPlacement()
+        }
     }
 
     private func eraseCurrentCell() {
@@ -902,6 +1014,13 @@ struct GlassIconButton: View {
                 .overlay {
                     Circle().strokeBorder(accent.opacity(active ? 0.8 : 0), lineWidth: 2)
                 }
+                // PRD-19 / craft charter: without this, SwiftUI derives the
+                // accessibility frame from the SF Symbol's tight glyph bounds,
+                // not the 44pt button — the live audit measured the Home
+                // chevron at 9×15pt. Switch Control and Voice Control target
+                // that rectangle literally, so the visual hit area and the
+                // assistive one have to be the same 44pt circle.
+                .contentShape(.accessibility, Circle())
         }
         .buttonStyle(TouchCardStyle())
         .accessibilityLabel(label)

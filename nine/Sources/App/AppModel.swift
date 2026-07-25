@@ -213,13 +213,18 @@ struct NinePrefs: Codable, Sendable, Equatable {
     /// §2.2). On by default — the whole point is the Afterglow score in hand;
     /// the "Controller haptics" row silences all of it.
     var controllerHaptics = true
+    /// iOS: the in-play haptic marks (PRD-21) — a whisper as a digit lands, a
+    /// soft double-knock when it contradicts the solution. On by default; the
+    /// solve crescendo is deliberately *not* gated by this, being a once-a-
+    /// board celebration rather than a per-move texture.
+    var touchHaptics = true
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case showTimer, errorHighlight, accent, numberHighlight
         case controlsAtBottom, resumeOnLaunch, boardAnchor, ambientSlot
-        case controllerHaptics
+        case controllerHaptics, touchHaptics
         case theme = "appearance"
     }
 
@@ -240,6 +245,7 @@ struct NinePrefs: Codable, Sendable, Equatable {
         boardAnchor = (try? c.decodeIfPresent(BoardAnchor.self, forKey: .boardAnchor)) ?? .center
         ambientSlot = (try? c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot)) ?? .none
         controllerHaptics = try c.decodeIfPresent(Bool.self, forKey: .controllerHaptics) ?? true
+        touchHaptics = try c.decodeIfPresent(Bool.self, forKey: .touchHaptics) ?? true
     }
 }
 
@@ -289,6 +295,29 @@ final class AppModel {
     /// The settings-discoverability chip has flashed this session. Never
     /// persisted — the gentle reminder returns once per launch by design.
     @ObservationIgnored var hintFlashed = false
+    /// Launches counted so far, capped (PRD-34). The stats drawer is opened by
+    /// an unhinted pull-down; a 3pt hairline grabber appears for the first
+    /// few sessions and then fades forever, so the affordance teaches itself
+    /// once and never becomes furniture. Counting stops at the cap so the
+    /// number cannot drift into something else's decision.
+    private(set) var sessionCount: Int {
+        didSet { sessionCountStore.wrappedValue = sessionCount }
+    }
+    /// Sessions during which the drawer grabber is drawn.
+    static let grabberSessions = 3
+    /// Show the one-time drawer affordance? Stops early once the player has
+    /// actually opened the drawer — they know; stop pointing.
+    var showsDrawerGrabber: Bool { sessionCount <= Self.grabberSessions && !drawerFound }
+    /// The drawer has been opened at least once, ever.
+    private(set) var drawerFound: Bool {
+        didSet { drawerFoundStore.wrappedValue = drawerFound }
+    }
+
+    /// Called the first time the drawer opens, by any route.
+    func noteDrawerFound() {
+        guard !drawerFound else { return }
+        drawerFound = true
+    }
     private(set) var streak: StreakState {
         didSet { streakStore.wrappedValue = streak }
     }
@@ -319,6 +348,10 @@ final class AppModel {
         CouchStored(wrappedValue: SaveSlot(), "nine.save")
     @ObservationIgnored private let helpSeenStore =
         CouchStored(wrappedValue: false, "help.seen")
+    @ObservationIgnored private let sessionCountStore =
+        CouchStored(wrappedValue: 0, "nine.sessionCount")
+    @ObservationIgnored private let drawerFoundStore =
+        CouchStored(wrappedValue: false, "nine.drawerFound")
     @ObservationIgnored private let historyStore =
         CouchStored(wrappedValue: SolveHistory(), "nine.history", cloudSynced: true)
 
@@ -472,6 +505,12 @@ final class AppModel {
         library = libraryStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         history = historyStore.wrappedValue
+        drawerFound = drawerFoundStore.wrappedValue
+        // Counted here rather than on scene activation: a launch is the unit
+        // the affordance is budgeted in, and `AppModel` is built exactly once
+        // per launch. Saturates at the cap + 1 so the stored number stays
+        // small and monotone forever.
+        sessionCount = min(Self.grabberSessions + 1, sessionCountStore.wrappedValue + 1)
         // Initialize every platform-specific stored property before the
         // migration below uses `self` (Swift requires all stored props set).
         #if os(tvOS)
@@ -480,6 +519,10 @@ final class AppModel {
         #if os(macOS)
         deskFloating = deskFloatingStore.wrappedValue
         #endif
+        // `didSet` does not fire for assignments inside `init`, so the bumped
+        // session count is written through by hand — otherwise the counter
+        // would reset every launch and the grabber would never fade.
+        sessionCountStore.wrappedValue = sessionCount
 
         // One-time migration: seed the library from a legacy `nine.save` board,
         // then blank that slot (a downgrade sees "no save", never a stale one).

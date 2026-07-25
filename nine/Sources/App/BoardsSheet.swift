@@ -32,6 +32,8 @@ struct BoardsSheetContent: View {
             VStack(alignment: .leading, spacing: 24 * s) {
                 header
 
+                freshBoardSection
+
                 if model.partials.isEmpty && model.playedBoards.isEmpty {
                     Text("Start a board and it lands here — resume it any time, or archive it for later.")
                         .font(CouchTypography.caption)
@@ -79,6 +81,51 @@ struct BoardsSheetContent: View {
         .padding(.bottom, 4)
     }
 
+    // MARK: - Fresh board (PRD-34)
+
+    /// The second of "New game"'s three new homes. This sheet is the one place
+    /// in the app that already means *boards, all of them* — so the row that
+    /// makes one belongs at the top of it, above the list it will add to,
+    /// rather than at the bottom of Settings where the live audit found it.
+    private var freshBoardSection: some View {
+        VStack(alignment: .leading, spacing: 12 * s) {
+            Text("Fresh board")
+                .font(CouchTypography.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10 * s) {
+                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                    Button {
+                        model.startFree(difficulty)
+                        onClose?()
+                    } label: {
+                        Text(difficulty.title)
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(accent)
+                            .frame(maxWidth: .infinity)
+                            // 14, not 12: measured at 40pt in the sim, and the
+                            // craft charter's floor for a tap target is 44.
+                            .padding(.vertical, 14 * s)
+                            // Glass on glass is invisible: inside a GlassSheet
+                            // `couchGlassInteractive` rendered these three as
+                            // bare text with no affordance at all (verified in
+                            // the sim). A tinted fill and hairline is the least
+                            // ink that still reads as "these are buttons".
+                            .background(accent.opacity(0.12), in: Capsule())
+                            .overlay { Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 1) }
+                            .contentShape(.accessibility, Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("New \(difficulty.title) board")
+                }
+            }
+            // The board you are on is never destroyed by this: it stays in
+            // the library, one row below, exactly where you left it.
+            Text("Your current board stays in this list")
+                .font(.system(size: 11 * s, weight: .medium, design: .rounded))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
     // MARK: - In progress
 
     private var inProgressSection: some View {
@@ -99,11 +146,13 @@ struct BoardsSheetContent: View {
                 onClose?()
             } label: {
                 HStack(spacing: 12 * s) {
-                    ProgressRing(fraction: entry.game.fillFraction, accent: accent, scale: s)
+                    // PRD-22: the same board portrait the shelf shows, so a
+                    // row here and a row there are recognisably one board.
+                    BoardFingerprint(game: entry.game, accent: accent, side: 30 * s)
                     VStack(alignment: .leading, spacing: 2 * s) {
                         Text(title(for: entry))
                             .font(CouchTypography.body)
-                        Text("\(Int((entry.game.fillFraction * 100).rounded()))% · \(Self.format(entry.game.timer.elapsed(at: Date())))")
+                        Text("\(BoardProgressCaption.text(for: entry.game)) · \(Self.format(entry.game.timer.elapsed(at: Date())))")
                             .font(.system(size: 11 * s, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -162,6 +211,9 @@ struct BoardsSheetContent: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 44 * s, height: 44 * s)
                 .couchGlass(in: Circle())
+                // Without this the AX frame collapses to the glyph's tight
+                // bounds (~18pt) — see GlassIconButton for the same fix.
+                .contentShape(.accessibility, Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -190,22 +242,9 @@ struct BoardsSheetContent: View {
     }
 }
 
-/// A thin progress ring for a partial's fill fraction.
-private struct ProgressRing: View {
-    let fraction: Double
-    let accent: Color
-    let scale: CGFloat
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.secondary.opacity(0.25), lineWidth: 3 * scale)
-            Circle()
-                .trim(from: 0, to: max(0.02, min(1, fraction)))
-                .stroke(accent, style: StrokeStyle(lineWidth: 3 * scale, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 26 * scale, height: 26 * scale)
-    }
-}
+// PRD-22 retired this file's `ProgressRing` in favour of `BoardFingerprint`.
+// The ring's 0.02 floor was the right instinct — a board is never *nothing* —
+// but an arc that short is indistinguishable from the next board's, and a
+// portrait made of the givens tells you which board it is instead of only how
+// far along it is. Deleted rather than kept dormant: dead view code drifts.
 #endif

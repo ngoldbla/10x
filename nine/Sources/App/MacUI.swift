@@ -468,7 +468,8 @@ struct MacGameScreen: View {
                 waveOrigin: model.lastPlacedCell,
                 afterglowTilt: { pointer.tilt(at: $0) },
                 side: side,
-                inset: inset
+                inset: inset,
+                axActions: axActions
             )
             .contentShape(Rectangle())
             .onContinuousHover(coordinateSpace: .local) { phase in
@@ -560,6 +561,52 @@ struct MacGameScreen: View {
             model.place(digit, at: cursor)
         }
         closeRose()
+    }
+
+    // MARK: Accessibility grammar (PRD-19)
+
+    /// The same nine digits the keyboard and the rose offer, exposed to
+    /// VoiceOver as per-cell actions. Full Keyboard Access already reaches the
+    /// board through `handleKey`; this is the screen-reader half.
+    private var axActions: BoardAXActions {
+        guard model.solvedAt == nil else {
+            return BoardAXActions(select: { cursor = $0 })
+        }
+        return BoardAXActions(
+            pencilMode: pencilMode,
+            select: { cursor = $0 },
+            place: { digit, cell in axCommit(digit, at: cell, pencil: false) },
+            note: { digit, cell in axCommit(digit, at: cell, pencil: true) },
+            erase: { cell in
+                guard let game = model.game, game.entry(at: cell) != 0 else { return }
+                let digit = game.entry(at: cell)
+                cursor = cell
+                closeRose()
+                if model.erase(at: cell) { announce(BoardSpeech.eraseAnnouncement(digit: digit)) }
+            }
+        )
+    }
+
+    private func axCommit(_ digit: Int, at cell: Int, pencil: Bool) {
+        guard let game = model.game, model.solvedAt == nil, !game.isGiven(cell) else { return }
+        cursor = cell
+        closeRose()
+        if pencil {
+            let wasSet = game.pencilDigits(at: cell).contains(digit)
+            model.togglePencil(digit, at: cell)
+            announce(BoardSpeech.noteAnnouncement(digit: digit, added: !wasSet))
+        } else {
+            model.place(digit, at: cell)
+            guard let after = model.game else { return }
+            announce(model.solvedAt != nil
+                     ? BoardSpeech.solvedAnnouncement
+                     : BoardSpeech.placementAnnouncement(digit: digit, in: after))
+        }
+    }
+
+    private func announce(_ message: String) {
+        guard !message.isEmpty else { return }
+        AccessibilityNotification.Announcement(message).post()
     }
 
     // MARK: Keyboard grammar

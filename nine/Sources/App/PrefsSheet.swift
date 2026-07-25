@@ -1,15 +1,26 @@
 // PrefsSheet.swift — the one allowed secondary surface (suite rule): timer
 // on/off (off is the default and the statement), error-highlight on/off,
-// same-number highlight, the theme and accent swatches — and on iOS: control
-// placement, launch resume, plus a "New game" escape hatch so a difficulty
-// is a choice, not a commitment. Lives inside CouchKit's GlassSheet.
+// same-number highlight, haptics, the theme and accent swatches, and on iOS
+// control placement and launch resume. Lives inside CouchKit's GlassSheet.
+//
+// PRD-34 changed two things here. The rows are grouped into four named
+// sections — Play / Feel / Appearance / Layout — because the flat list had
+// drifted into an order
+// nobody could hold in their head (theme at row six, accent at row ten). And
+// "New game" left entirely: a live sim audit found it buried at the bottom of
+// Settings, which is the last place anyone looks for the next board. Its
+// three new homes are the shelf's difficulty cards, the "Fresh board" row at
+// the top of the Boards sheet, and an "Another" chip after the Afterglow
+// settles.
 import SwiftUI
 import CouchKit
 
 struct PrefsSheetContent: View {
     let model: AppModel
-    /// In-game only (iOS): starts a fresh board at the chosen difficulty,
-    /// abandoning the current one. Nil hides the section (tvOS, or no host).
+    /// tvOS only, and only in-game. The TV has no in-game route to the Boards
+    /// sheet — it is reachable from the shelf alone — so the couch keeps its
+    /// escape hatch here until the TV gets an IA pass of its own. iOS and
+    /// macOS pass nil: they have Home in the control bar and the menu bar.
     var onNewGame: (@MainActor (Difficulty) -> Void)? = nil
 
     var body: some View {
@@ -42,6 +53,12 @@ struct PrefsSheetContent: View {
                 .padding(.bottom, 8)
             #endif
 
+            // PRD-34: five named groups — Play, Feel, Appearance, Layout,
+            // About — replacing the flat list the live audit walked, where
+            // theme and accent sat four rows apart with resume, haptics and
+            // the whole Layout block wedged between them.
+            sectionLabel("Play")
+
             prefRow(
                 title: "Timer",
                 detail: model.prefs.showTimer ? "Shown" : "Hidden",
@@ -66,8 +83,6 @@ struct PrefsSheetContent: View {
                 model.prefs.numberHighlight.toggle()
             }
 
-            themeRow
-
             // Resume-on-launch ships on iOS, macOS and tvOS (PRD-4 §2.6,
             // PRD-5 §2.3 parity).
             #if os(iOS) || os(macOS) || os(tvOS)
@@ -77,6 +92,22 @@ struct PrefsSheetContent: View {
                 symbol: model.prefs.resumeOnLaunch ? "play.circle.fill" : "play.circle"
             ) {
                 model.prefs.resumeOnLaunch.toggle()
+            }
+            #endif
+
+            // Feel — everything the board does to your hands. One row today
+            // (PRD-21 haptics); PRD-21's audio identity lands beside it.
+            #if os(iOS) || os(tvOS)
+            sectionLabel("Feel")
+            #endif
+
+            #if os(iOS)
+            prefRow(
+                title: "Haptics",
+                detail: model.prefs.touchHaptics ? "On" : "Off",
+                symbol: model.prefs.touchHaptics ? "hand.tap.fill" : "hand.tap"
+            ) {
+                model.prefs.touchHaptics.toggle()
             }
             #endif
 
@@ -92,13 +123,15 @@ struct PrefsSheetContent: View {
             }
             #endif
 
+            // Appearance — the two colour controls, finally adjacent.
+            sectionLabel("Appearance")
+            themeRow
+            accentRow
+
             #if os(iOS)
             // PRD-2: board anchor + ambient slot, grouped with the existing
             // control-placement pref — all three decide where things sit.
-            Text("Layout")
-                .font(CouchTypography.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 28 * CouchScale.chrome)
+            sectionLabel("Layout")
 
             prefRow(
                 title: "Controls",
@@ -131,11 +164,11 @@ struct PrefsSheetContent: View {
             }
             #endif
 
-            accentRow
-
+            #if os(tvOS)
             if let onNewGame {
                 newGameSection(onNewGame)
             }
+            #endif
 
             Spacer(minLength: 12)
 
@@ -175,8 +208,9 @@ struct PrefsSheetContent: View {
     }
     #endif
 
-    // MARK: - New game
+    // MARK: - New game (tvOS only — see `onNewGame`)
 
+    #if os(tvOS)
     private func newGameSection(_ start: @escaping @MainActor (Difficulty) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("New game")
@@ -198,11 +232,28 @@ struct PrefsSheetContent: View {
                 }
             }
             .padding(.horizontal, 28 * CouchScale.chrome)
-            Text("Starts fresh — the current board is abandoned")
+            // Corrected in PRD-34: `startFree` calls `library.create`, which
+            // mints a *new* entry — the board you are on stays a partial and
+            // is resumable from the shelf. The old copy said it was abandoned,
+            // which scared people off a non-destructive action.
+            Text("Your current board stays on the shelf")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 28 * CouchScale.chrome)
         }
+    }
+    #endif
+
+    // MARK: - Grouping
+
+    /// A group heading. Deliberately the same quiet caption weight as a row's
+    /// detail text — the sheet is a list you scan, not a form you navigate.
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(CouchTypography.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 28 * CouchScale.chrome)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private var accentRow: some View {
