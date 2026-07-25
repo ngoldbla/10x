@@ -117,6 +117,36 @@ public struct NineGame: Sendable, Codable, Equatable {
         return Double(filled) / Double(holes)
     }
 
+    /// Total corner notes standing on the board (one per set bit), for the
+    /// stats drawer. Placement auto-erases peers, so this falls as you solve.
+    public var pencilMarkCount: Int {
+        pencil.reduce(0) { $0 + $1.nonzeroBitCount }
+    }
+
+    /// Undos taken on this device. Read off the append-only log, which records
+    /// undo as an event rather than popping it. A board resumed from iCloud
+    /// starts at 0: `clearLocalHistory()` empties the log on the way out
+    /// (PRD-8 §2 — undo history is device-local and never synced).
+    public var undoCount: Int {
+        moveLog.count(where: { $0.kind == .undo })
+    }
+
+    /// Digits committed to the board over the whole session, corrections
+    /// included — not the same as filled cells, which undo and erase reduce.
+    public var placementCount: Int {
+        moveLog.count(where: { $0.kind == .place })
+    }
+
+    /// Seconds of play per digit placed, or nil before the first placement.
+    /// The engine keeps no move timestamps ("no hidden clocks"), so this is
+    /// total elapsed time divided by placements — a session average, not the
+    /// gap between consecutive moves.
+    public func averageSecondsPerPlacement(at now: Date) -> TimeInterval? {
+        let placements = placementCount
+        guard placements > 0 else { return nil }
+        return timer.elapsed(at: now) / Double(placements)
+    }
+
     // MARK: - Mutations
 
     /// Place a digit. Auto-erases pencil marks of that digit from all peers

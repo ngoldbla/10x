@@ -92,9 +92,6 @@ struct FlickRoseView: View {
     /// Multiplier on every petal metric. 1.0 is the TV rose; the touch rose
     /// passes something near 0.45 so petals sit finger-sized over the board.
     var scale: CGFloat = 1.0
-    /// Per-digit count of that digit still to place (index 0 = digit 1). When
-    /// nil the rose draws no counts — the shared TV/Mac/tutorial default.
-    var remainingCounts: [Int]? = nil
     /// Adds a tenth "erase" petal below the ring. Off for givens/empty cells
     /// and every non-iOS surface.
     var showsErase: Bool = false
@@ -113,11 +110,6 @@ struct FlickRoseView: View {
             ZStack {
                 ForEach(1...9, id: \.self) { digit in
                     petal(for: digit)
-                }
-                if !state.pencil, let counts = remainingCounts {
-                    ForEach(1...9, id: \.self) { digit in
-                        countCaption(for: digit, remaining: counts[digit - 1])
-                    }
                 }
                 if showsErase, !state.pencil {
                     erasePetal
@@ -157,19 +149,6 @@ struct FlickRoseView: View {
             .animation(.couchFast, value: focused)
     }
 
-    /// "N left" (or "done" in the accent) tucked under a petal. iOS-only —
-    /// pencil roses and non-iOS surfaces pass `remainingCounts == nil`.
-    private func countCaption(for digit: Int, remaining: Int) -> some View {
-        let offset = RoseGeometry.offset(forDigit: digit)
-        let complete = remaining <= 0
-        return Text(complete ? "done" : "\(remaining) left")
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(complete ? accent : Color.secondary)
-            .fixedSize()
-            .offset(x: offset.x * spacing,
-                    y: offset.y * spacing + petalSize / 2 + 4)
-    }
-
     /// The tenth petal: an eraser glyph directly below the 7-8-9 row.
     private var erasePetal: some View {
         Image(systemName: "eraser.fill")
@@ -196,7 +175,6 @@ struct TouchRose: View {
     let completedDigits: Set<Int>
     let scale: CGFloat
     let onDigit: @MainActor (Int) -> Void
-    var remainingCounts: [Int]? = nil
     var showsErase: Bool = false
     var onErase: (@MainActor () -> Void)? = nil
 
@@ -214,7 +192,6 @@ struct TouchRose: View {
             completedDigits: completedDigits,
             showsFocusRing: false,
             scale: scale,
-            remainingCounts: remainingCounts,
             showsErase: showsErase
         )
         .overlay {
