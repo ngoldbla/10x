@@ -729,3 +729,154 @@ adds the missing player and nothing else — same patterns, same tuned timings.
   samples that do not exist yet; shipping synthesised stand-ins would set the
   wrong sound in players' ears first, which is the one thing an audio identity
   cannot recover from. The "Feel" prefs group is where it lands when it exists.
+
+## PRD-19 finished — group scan, Voice Control, and a CI lane for the tree (2026-07-25)
+
+The three thirds "Worthy" left on the table, in the order they matter to someone
+who cannot use a touchscreen: a Switch Control user could reach the board and
+not play it, a Voice Control user could not name a cell at all, and nothing
+anywhere would notice if the whole 81-element tree collapsed again.
+
+### Switch Control: nine box groups, and the door they open onto
+
+`BoardAXGrid` was a flat `ForEach(0..<81)`. iOS has no explicit grouping API for
+Switch Control — group scan is derived from the *accessibility container tree* —
+so the fix is structural: nine `.accessibilityElement(children: .contain)`
+containers, laid out on `BoardMetrics.boxRect`, nine cells each. Item scanning a
+flat 81 costs up to 81 switch hits to reach one cell; boxes → cells costs at most
+9 + 9. Each container is labelled "Box 4" and valued "3 empty" / "Filled", which
+is the one fact that makes a nine-stop scan worth having: you can skip a finished
+box without descending into it.
+
+- **The cell frames did not move, on purpose.** Cell rects are board-local and
+  the container is positioned at the box, so the offset subtracts out. The
+  absolute frame of all 81 cells is byte-identical to before the nesting — which
+  is what let the new baselines double as proof that the restructure changed
+  nothing else.
+- **VoiceOver's swipe order is now box-major, and that is the trade.** A child
+  belongs to one container, so a hierarchy that groups by box cannot also
+  traverse by row; `.accessibilitySortPriority` only orders siblings *within* a
+  container. Accepted rather than worked around: every cell announces its own
+  row and column, so orientation costs nothing, boxes are the unit sudoku
+  reasoning actually happens in, and the Empty / Notes / Wrong rotors are
+  unaffected — rotor order follows the declared entry list, which is still
+  strictly ascending. The alternative was leaving switch users at 81 hits a cell.
+- **`Erase` was the first action in the rotor, not the last.** Custom actions are
+  declared in reverse because UIKit surfaces them reversed, and the erase button
+  sat *after* the digit loop — so the reversal put a destructive action under the
+  very first swipe of any filled cell. Found by reading a real `custom_actions`
+  list, not by reasoning about the code. The block now reads bottom-up in full:
+  erase declared first, digits `9...1`, surfacing as `Place 1 … Place 9 | Erase`.
+
+### Voice Control: names you can actually say
+
+`BoardSpeech.cellInputLabels` feeds `.accessibilityInputLabels` on every cell:
+`["Cell 5 5", "Row 5 column 5", "5 5"]`, canonical first because that is the one
+Voice Control draws in "Show Names" — and on this screen Show Names means 81
+badges at once, so the leading name is the shortest thing still unmistakably a
+board cell.
+
+- **Inheriting the VoiceOver label would have left all 81 cells unaddressable.**
+  Voice Control matches against speech-recogniser output, which never contains a
+  comma, and the label is "Row 3, comma, column 5". `testInputLabelsCarryNoPunctuation`
+  looks pedantic and is the highest-value test in the batch: the failure mode is
+  silent, with no crash, no warning and no visible symptom.
+- **Activation now opens the rose for everyone except VoiceOver.** This is the
+  half that makes addressing worth anything. "Tap cell 3 5" moves the cursor
+  through the same AX action VoiceOver uses — and Voice Control, Switch Control
+  and Full Keyboard Access cannot reach a custom action, so all three could name
+  any of 81 cells and then do nothing to one. `TouchGameScreen.axActivate` gates
+  on `UIAccessibility.isVoiceOverRunning`: under VoiceOver it stays exactly the
+  dull cursor move "Worthy" shipped (the rotor is that door, and a modal ring
+  reachable by accident is worse than no ring), and otherwise it does what a
+  finger tap does. Same input concept, not a new one.
+- **macOS deliberately does none of this.** Mac Voice Control can say "Press 5"
+  and `handleKey` places it, so the Mac already has a non-rotor door and
+  activation stays cursor-only there.
+- **Not verifiable in the simulator, and pinned by unit tests instead:** Voice
+  Control does not exist on the iOS Simulator, and `accessibilityUserInputLabels`
+  is absent from the AX API `describe-ui` reads — the input labels appear in no
+  dump. `BoardSpeechTests` pins their content, uniqueness across all 81 cells and
+  punctuation-freedom; the real-device pass is a manual step this change cannot
+  automate.
+
+### The CI lane: `nine/scripts/ax-snapshot.py`
+
+Five screens dumped through `sim-use describe-ui` and diffed against committed
+baselines in `Tests/AXBaselines/`, wired to pull requests in
+`.github/workflows/nine-accessibility.yml`. Deliberately a separate workflow from
+the TestFlight lane: that one ships and must never be blocked by a slow
+simulator boot; this one gates review and is free to be slow.
+
+The tripwire was tested by reintroducing the 1.1 bug — stubbing out the Canvas's
+`.accessibilityChildren` — and it fires with the exact original symptom, all four
+chrome buttons present and not one cell, plus a message that names
+`BoardAccessibility.swift`.
+
+- **The board on screen is frozen, because the daily is not.** A fresh launch
+  shows today's puzzle, so every per-cell value in the baselines would rot
+  overnight. `AXFixtureTests` owns a library blob built from seed 7 / steady — a pair the
+  golden corpus already freezes (it covers steady 1...14; the first draft used
+  seed 19, which is in the corpus only as *gentle*, so the ordering it claimed
+  did not exist), so if generation moves the *engine* test fails first and in
+  engine terms — and the lane seeds it into the simulator
+  container before first launch, where `resumeOnLaunch` opens straight onto it.
+  The board is chosen to carry every `cellValue` branch at once: givens, a
+  correct entry, exactly one wrong entry, empties, and exactly one noted cell.
+  Re-freezing is deliberate and paired: `NINE_FREEZE_AX_FIXTURE=1 swift test
+  --filter AXFixture` then `ax-snapshot.py --record`.
+- **`game-quiet` is the baseline worth the whole exercise.** Same board with
+  `errorHighlight` off, and the wrong cell reads `"9"` where `game.txt` reads
+  `"9, wrong"`. The privacy rule, proven in the shipped tree rather than in a
+  formatter test.
+- **The measuring instruments are in the header.** Line two of every baseline
+  carries the device type, the runtime version and the `sim-use` version. Frames
+  are in points so the device type fixes them, but sheet metrics move between OS
+  releases and CI installs whatever Homebrew has today — so a runner bump
+  announces itself as one line of diff instead of 300 unexplained frame changes.
+- **Two flake sources found by running it, not by reasoning about it.**
+  `simctl terminate` returns when the request is *sent*, and `CouchStored`
+  flushes on a 0.6 s debounce and again from `deinit` — so a dying Nine could
+  rewrite the prefs blob on top of the one just seeded, and `game-quiet` would
+  intermittently photograph `errorHighlight: true`, which reads exactly like the
+  privacy regression that baseline exists to catch. The script now waits for the
+  process to leave `launchctl list` before seeding. Separately, a label enters
+  the tree the instant its view does, which on the prefs sheet is well before
+  the frames stop moving: an early run drifted by one point on nine rows.
+  `settled()` now requires two consecutive identical reads before a dump counts.
+- **A slow accessibility bridge is not a regression, and the script knows it.**
+  `simctl bootstatus` returning is not the same as the AX bridge being up; on a
+  freshly erased simulator the gap is minutes and every probe inside it answers
+  "No translation object returned for simulator", which reads exactly like a
+  collapsed tree. `warm_up_bridge` waits for a real answer before the first
+  screen, and every poll tolerates a failed probe. Taps resolve their coordinates
+  from the tree already in hand rather than through `sim-use tap --label`, whose
+  fresh AX round-trip intermittently cannot find a button that a dump one second
+  either side of it lists.
+- **What the dumps deliberately do not claim.** `describe-ui` finds elements by
+  point hit-test and a hit-test ignores AX modality, so `prefs.txt` lists board
+  cells behind the sheet; that is a structural fingerprint, not an assertion that
+  VoiceOver can reach them. And the JSON entry order is geometric, not traversal
+  order, so the box-major VoiceOver ordering above is *not* what these baselines
+  pin — they pin containment. Grouping the output by container is as close as the
+  instrument gets.
+- **One thing this change moved without being able to check it.** The `Erase`
+  reordering above is justified by a *UIKit* quirk, and `cellActions` is
+  platform-shared — the Mac supplies non-nil `place`/`erase`, so it emits the
+  same action list. Whether AppKit performs the same reversal is unverified:
+  there is no macOS AX-dump harness and a Mac VoiceOver rotor cannot be read
+  from a script. If AppKit does not reverse, the Mac now reads `Erase` first,
+  where it previously read `Place 9` first. Left unforked on purpose — a
+  `#if os(macOS)` split guessed wrong is the same bug with more code — and the
+  Mac's primary grammar is the keyboard, not the rotor. **The check is one
+  manual pass:** turn on VoiceOver, focus a filled cell, open the actions rotor,
+  read the first entry. If it says Erase, swap the two blocks under
+  `#if os(macOS)`.
+- **Not done here:** tvOS and macOS have no lane. `describe-ui` is iOS-only, the
+  tvOS board still passes a default (read-only) `BoardAXActions` and so has no
+  per-cell actions to photograph at all, and the Mac's door is the keyboard. The
+  tvOS gap is the larger of the two and predates this change: PRD-19's audit was
+  an iOS audit, and the TV's accessibility grammar wants a pass of its own.
+- **Five screens, not every screen.** `game`, `game-quiet`, `game-rose`, `prefs`,
+  `home`. The Boards sheet, History and the tutorial are not covered; the
+  selection is the board-bearing screens plus the two the board is reached from.

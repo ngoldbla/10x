@@ -568,6 +568,12 @@ struct MacGameScreen: View {
     /// The same nine digits the keyboard and the rose offer, exposed to
     /// VoiceOver as per-cell actions. Full Keyboard Access already reaches the
     /// board through `handleKey`; this is the screen-reader half.
+    ///
+    /// Activation stays cursor-only for *every* assistive technology here,
+    /// unlike iOS: macOS Voice Control can say "Press 5" and `handleKey` places
+    /// it, so the Mac already has a non-rotor door to the digits and does not
+    /// need activation to bloom the rose. See `TouchGameScreen.axActivate` for
+    /// the iOS case, where the rose is the only door there is.
     private var axActions: BoardAXActions {
         guard model.solvedAt == nil else {
             return BoardAXActions(select: { cursor = $0 })

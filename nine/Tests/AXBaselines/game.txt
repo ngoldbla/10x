@@ -1,0 +1,125 @@
+# nine accessibility tree — screen: game
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+#
+# Regenerate: nine/scripts/ax-snapshot.py --record
+
+Group "Box 1"
+    Button "Row 1, column 1" = "4"  (20,238 40x40)
+    Button "Row 1, column 2" = "5, given"  (60,238 40x40)
+    Button "Row 1, column 3" = "2"  (100,238 40x40)
+    Button "Row 2, column 1" = "Empty, notes 2, 5, 9"  (20,278 40x40)
+    Button "Row 2, column 2" = "Empty"  (60,278 40x40)
+    Button "Row 2, column 3" = "Empty"  (100,278 40x40)
+    Button "Row 3, column 1" = "Empty"  (20,318 40x40)
+    Button "Row 3, column 2" = "Empty"  (60,318 40x40)
+    Button "Row 3, column 3" = "Empty"  (100,318 40x40)
+Group "Box 2"
+    Button "Row 1, column 4" = "1"  (141,238 40x40)
+    Button "Row 1, column 5" = "9, given"  (181,238 40x40)
+    Button "Row 1, column 6" = "Empty"  (221,238 40x40)
+    Button "Row 2, column 4" = "Empty"  (141,278 40x40)
+    Button "Row 2, column 5" = "Empty"  (181,278 40x40)
+    Button "Row 2, column 6" = "Empty"  (221,278 40x40)
+    Button "Row 3, column 4" = "6, given"  (141,318 40x40)
+    Button "Row 3, column 5" = "Empty"  (181,318 40x40)
+    Button "Row 3, column 6" = "Empty"  (221,318 40x40)
+Group "Box 3"
+    Button "Row 1, column 7" = "7, wrong"  (261,238 40x40)
+    Button "Row 1, column 8" = "Empty"  (302,238 40x40)
+    Button "Row 1, column 9" = "7, given"  (342,238 40x40)
+    Button "Row 2, column 7" = "4, given"  (261,278 40x40)
+    Button "Row 2, column 8" = "9, given"  (302,278 40x40)
+    Button "Row 2, column 9" = "3, given"  (342,278 40x40)
+    Button "Row 3, column 7" = "1, given"  (261,318 40x40)
+    Button "Row 3, column 8" = "Empty"  (302,318 40x40)
+    Button "Row 3, column 9" = "5, given"  (342,318 40x40)
+Group "Box 4"
+    Button "Row 4, column 1" = "Empty"  (20,359 40x40)
+    Button "Row 4, column 2" = "Empty"  (60,359 40x40)
+    Button "Row 4, column 3" = "1, given"  (100,359 40x40)
+    Button "Row 5, column 1" = "Empty"  (20,399 40x40)
+    Button "Row 5, column 2" = "7, given"  (60,399 40x40)
+    Button "Row 5, column 3" = "Empty"  (100,399 40x40)
+    Button "Row 6, column 1" = "Empty"  (20,439 40x40)
+    Button "Row 6, column 2" = "Empty"  (60,439 40x40)
+    Button "Row 6, column 3" = "Empty"  (100,439 40x40)
+Group "Box 5"
+    Button "Row 4, column 4" = "8, given"  (141,359 40x40)
+    Button "Row 4, column 5" = "6, given"  (181,359 40x40)
+    Button "Row 4, column 6" = "Empty"  (221,359 40x40)
+    Button "Row 5, column 4" = "4, given"  (141,399 40x40)
+    Button "Row 5, column 5" = "Empty"  (181,399 40x40)
+    Button "Row 5, column 6" = "9, given"  (221,399 40x40)
+    Button "Row 6, column 4" = "Empty"  (141,439 40x40)
+    Button "Row 6, column 5" = "3, given"  (181,439 40x40)
+    Button "Row 6, column 6" = "1, given"  (221,439 40x40)
+Group "Box 6"
+    Button "Row 4, column 7" = "Empty"  (261,359 40x40)
+    Button "Row 4, column 8" = "Empty"  (302,359 40x40)
+    Button "Row 4, column 9" = "Empty"  (342,359 40x40)
+    Button "Row 5, column 7" = "Empty"  (261,399 40x40)
+    Button "Row 5, column 8" = "5, given"  (302,399 40x40)
+    Button "Row 5, column 9" = "Empty"  (342,399 40x40)
+    Button "Row 6, column 7" = "2, given"  (261,439 40x40)
+    Button "Row 6, column 8" = "Empty"  (302,439 40x40)
+    Button "Row 6, column 9" = "Empty"  (342,439 40x40)
+Group "Box 7"
+    Button "Row 7, column 1" = "8, given"  (20,479 40x40)
+    Button "Row 7, column 2" = "Empty"  (60,479 40x40)
+    Button "Row 7, column 3" = "3, given"  (100,479 40x40)
+    Button "Row 8, column 1" = "1, given"  (20,520 40x40)
+    Button "Row 8, column 2" = "6, given"  (60,520 40x40)
+    Button "Row 8, column 3" = "4, given"  (100,520 40x40)
+    Button "Row 9, column 1" = "7, given"  (20,560 40x40)
+    Button "Row 9, column 2" = "Empty"  (60,560 40x40)
+    Button "Row 9, column 3" = "Empty"  (100,560 40x40)
+Group "Box 8"
+    Button "Row 7, column 4" = "Empty"  (141,479 40x40)
+    Button "Row 7, column 5" = "Empty"  (181,479 40x40)
+    Button "Row 7, column 6" = "6, given"  (221,479 40x40)
+    Button "Row 8, column 4" = "Empty"  (141,520 40x40)
+    Button "Row 8, column 5" = "Empty"  (181,520 40x40)
+    Button "Row 8, column 6" = "Empty"  (221,520 40x40)
+    Button "Row 9, column 4" = "Empty"  (141,560 40x40)
+    Button "Row 9, column 5" = "1, given"  (181,560 40x40)
+    Button "Row 9, column 6" = "Empty"  (221,560 40x40)
+Group "Box 9"
+    Button "Row 7, column 7" = "Empty"  (261,479 40x40)
+    Button "Row 7, column 8" = "Empty"  (302,479 40x40)
+    Button "Row 7, column 9" = "Empty"  (342,479 40x40)
+    Button "Row 8, column 7" = "Empty"  (261,520 40x40)
+    Button "Row 8, column 8" = "Empty"  (302,520 40x40)
+    Button "Row 8, column 9" = "Empty"  (342,520 40x40)
+    Button "Row 9, column 7" = "Empty"  (261,560 40x40)
+    Button "Row 9, column 8" = "4, given"  (302,560 40x40)
+    Button "Row 9, column 9" = "Empty"  (342,560 40x40)
+[Bottom]
+  Button "Home"  (14,788 44x44)
+  Button "Pencil marks"  (236,788 44x44)
+  Button "Undo"  (290,788 44x44)
+  Button "Settings"  (344,788 44x44)
+
+# 85 elements in 10 containers
+
+# actions rotor + hint, one cell per value branch
+
+given          "Row 1, column 2"
+  value  "5, given"
+  hint   ""
+  rotor  Show board stats
+correct entry  "Row 1, column 1"
+  value  "4"
+  hint   "Box 1. Flick or use the actions rotor to place a digit."
+  rotor  Place 1 | Place 2 | Place 3 | Place 4 | Place 5 | Place 6 | Place 7 | Place 8 | Place 9 | Erase | Show board stats
+wrong entry    "Row 1, column 7"
+  value  "7, wrong"
+  hint   "Box 3. Flick or use the actions rotor to place a digit."
+  rotor  Place 1 | Place 2 | Place 3 | Place 4 | Place 5 | Place 6 | Place 7 | Place 8 | Place 9 | Erase | Show board stats
+empty          "Row 1, column 6"
+  value  "Empty"
+  hint   "Box 2. Flick or use the actions rotor to place a digit."
+  rotor  Place 1 | Place 2 | Place 3 | Place 4 | Place 5 | Place 6 | Place 7 | Place 8 | Place 9 | Show board stats
+noted          "Row 2, column 1"
+  value  "Empty, notes 2, 5, 9"
+  hint   "Box 1. Flick or use the actions rotor to place a digit."
+  rotor  Place 1 | Place 2 | Place 3 | Place 4 | Place 5 | Place 6 | Place 7 | Place 8 | Place 9 | Show board stats

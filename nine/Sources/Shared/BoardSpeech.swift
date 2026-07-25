@@ -72,6 +72,57 @@ public enum BoardSpeech {
         return "\(boxLabel(cell)). \(Phrase.placeInstruction)"
     }
 
+    // MARK: - Group scan (Switch Control)
+
+    /// "Box 1" for a *box index* rather than a cell. Switch Control's group
+    /// scan steps 9 boxes before it steps 9 cells, so the box is a named stop
+    /// in its own right — `boxLabel` answers "which box is this cell in",
+    /// this answers "which box am I scanning".
+    public static func boxGroupLabel(_ box: Int) -> String {
+        guard isValidBox(box) else { return "" }
+        return Phrase.box(box + 1)
+    }
+
+    /// "3 empty" / "1 empty" / "Filled" — the one fact that makes a nine-stop
+    /// group scan worth having, because it lets a switch user skip a box
+    /// without descending into it.
+    ///
+    /// Deliberately a count of holes and never a verdict: a box full of wrong
+    /// digits reads "Filled", exactly as `cellValue` refuses to say "wrong"
+    /// when the screen is not saying it either. Numerals, not words — this is
+    /// a quantity to compare, like `progressSummary`.
+    public static func boxGroupValue(_ box: Int, in game: NineGame) -> String {
+        guard isValidBox(box) else { return "" }
+        let empty = (0..<81).count(where: { Sudoku.box(of: $0) == box && game.entry(at: $0) == 0 })
+        guard empty > 0 else { return Phrase.boxFilled }
+        return Phrase.boxEmptyCount(empty)
+    }
+
+    // MARK: - Voice Control addressing
+
+    /// The names Voice Control will accept for a cell, canonical first.
+    ///
+    /// Voice Control matches *spoken* text against every entry and draws only
+    /// the first in its "Show Names" overlay, which on this screen means 81
+    /// badges at once — so the leading name is the shortest thing that is
+    /// still unmistakably a board cell ("Cell 5 5"), not the 4-word VoiceOver
+    /// label. The alternates cover the two other things a player actually
+    /// says: the label they just heard, minus the comma no recogniser emits
+    /// ("Row 5 column 5"), and the bare coordinates ("5 5").
+    ///
+    /// Every string is punctuation-free and unique across the 81 cells; both
+    /// are pinned by tests, because a duplicate name makes "Tap cell 5 5"
+    /// choose a cell at random and a comma makes it never match at all.
+    public static func cellInputLabels(_ cell: Int) -> [String] {
+        guard isValidCell(cell) else { return [] }
+        let row = Sudoku.row(of: cell) + 1, column = Sudoku.col(of: cell) + 1
+        return [
+            Phrase.cellAddress(row: row, column: column),
+            Phrase.spokenCellLabel(row: row, column: column),
+            Phrase.bareAddress(row: row, column: column),
+        ]
+    }
+
     // MARK: - Cell contents
 
     /// The VoiceOver *value* for a cell — spoken on every focus move, so short.
@@ -191,6 +242,8 @@ public enum BoardSpeech {
 
     private static func isValidDigit(_ digit: Int) -> Bool { (1...9).contains(digit) }
 
+    private static func isValidBox(_ box: Int) -> Bool { (0..<9).contains(box) }
+
     /// Uppercases the first character only. `String.capitalized` would also
     /// touch later words and is locale-sensitive; this is a display tweak on a
     /// known ASCII word list.
@@ -218,6 +271,16 @@ private enum Phrase {
     static func column(_ n: Int) -> String { "Column \(n)" }
     static func box(_ n: Int) -> String { "Box \(n)" }
     static let placeInstruction = "Flick or use the actions rotor to place a digit."
+
+    // Group scan. A value, so no trailing period.
+    static let boxFilled = "Filled"
+    static func boxEmptyCount(_ count: Int) -> String { "\(count) empty" }
+
+    // Voice Control names. No punctuation anywhere: these are matched against
+    // a speech recogniser's output, which never emits a comma.
+    static func cellAddress(row: Int, column: Int) -> String { "Cell \(row) \(column)" }
+    static func spokenCellLabel(row: Int, column: Int) -> String { "Row \(row) column \(column)" }
+    static func bareAddress(row: Int, column: Int) -> String { "\(row) \(column)" }
 
     // Cell contents
     static func givenValue(_ digit: Int) -> String { "\(digit), given" }

@@ -71,3 +71,7 @@ fastlane/test_output
 */.build-ios/
 */.build-tvos/
 */.build-mac/
+
+# PRD-19 AX-tree lane: what a comparison run actually captured, beside the
+# committed baselines. Only the baselines are the contract.
+nine/Tests/AXBaselines/.captured/

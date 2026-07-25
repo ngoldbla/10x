@@ -1,0 +1,15 @@
+# nine accessibility tree — screen: home
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+#
+# Regenerate: nine/scripts/ax-snapshot.py --record
+
+[Content]
+  Button "Today, <today>, One a day"  (38,164 89x129)
+  Button "4 of 53 filled., Continue, Steady · 7%"  (43,355 321x44)
+  Button "Gentle, Singles & scans"  (44,461 64x126)
+  Button "Steady, Pairs & box lines"  (169,461 64x126)
+  Button "Sharp, X-wings & deep logic"  (294,461 64x126)
+  Button "How to play"  (71,655 73x52)
+  Button "History"  (272,654 45x54)
+
+# 7 elements in 1 container

@@ -49,6 +49,127 @@ final class BoardSpeechTests: XCTestCase {
         )
     }
 
+    // MARK: - Switch Control group labels
+
+    func testBoxGroupLabelIsOneBasedOnTheBoxIndexNotACell() {
+        XCTAssertEqual(BoardSpeech.boxGroupLabel(0), "Box 1")
+        XCTAssertEqual(BoardSpeech.boxGroupLabel(4), "Box 5")
+        XCTAssertEqual(BoardSpeech.boxGroupLabel(8), "Box 9")
+    }
+
+    func testBoxGroupLabelAgreesWithTheCellLevelBoxLabel() {
+        for cell in 0..<81 {
+            XCTAssertEqual(
+                BoardSpeech.boxGroupLabel(Sudoku.box(of: cell)),
+                BoardSpeech.boxLabel(cell),
+                "the group scan and the cell hint must name the same box"
+            )
+        }
+    }
+
+    /// Switch Control group scan lands on a box before its nine cells; the
+    /// value is what makes skipping a finished box possible in one switch hit.
+    func testBoxGroupValueCountsEmptiesAndSaysFilledWhenThereAreNone() {
+        let box = Sudoku.box(of: hole)
+        let empties = (0..<81).count(where: { Sudoku.box(of: $0) == box && game.entry(at: $0) == 0 })
+        XCTAssertEqual(BoardSpeech.boxGroupValue(box, in: game), "\(empties) empty")
+
+        for cell in 0..<81 where Sudoku.box(of: cell) == box && game.entry(at: cell) == 0 {
+            XCTAssertTrue(game.place(puzzle.solution[cell], at: cell))
+        }
+        XCTAssertEqual(BoardSpeech.boxGroupValue(box, in: game), "Filled")
+    }
+
+    func testBoxGroupValueIsSingularForOneEmptyCell() {
+        let box = Sudoku.box(of: hole)
+        let empties = (0..<81).filter { Sudoku.box(of: $0) == box && game.entry(at: $0) == 0 }
+        for cell in empties.dropLast() {
+            XCTAssertTrue(game.place(puzzle.solution[cell], at: cell))
+        }
+        XCTAssertEqual(BoardSpeech.boxGroupValue(box, in: game), "1 empty")
+    }
+
+    /// A box full of wrong digits still reads "Filled" — the group value is a
+    /// count of holes, never a verdict. Same privacy rule as `cellValue`.
+    func testBoxGroupValueNeverJudgesCorrectness() {
+        let box = Sudoku.box(of: hole)
+        for cell in 0..<81 where Sudoku.box(of: cell) == box && game.entry(at: cell) == 0 {
+            XCTAssertTrue(game.place(wrongDigit(for: cell), at: cell))
+        }
+        XCTAssertEqual(BoardSpeech.boxGroupValue(box, in: game), "Filled")
+    }
+
+    func testBoxGroupOutOfRangeIsSilent() {
+        for box in [-1, 9, 99, Int.min, Int.max] {
+            XCTAssertEqual(BoardSpeech.boxGroupLabel(box), "")
+            XCTAssertEqual(BoardSpeech.boxGroupValue(box, in: game), "")
+        }
+    }
+
+    // MARK: - Voice Control addressing
+
+    /// Voice Control speaks the *first* input label in "Show Names" and matches
+    /// against all of them, so the canonical form leads and the alternates
+    /// cover what a player would naturally say.
+    func testCellInputLabelsLeadWithTheCompactSpokenForm() {
+        XCTAssertEqual(
+            BoardSpeech.cellInputLabels(40),
+            ["Cell 5 5", "Row 5 column 5", "5 5"]
+        )
+        XCTAssertEqual(
+            BoardSpeech.cellInputLabels(0).first,
+            "Cell 1 1",
+            "the leading name is the one the Show Names overlay draws on 81 cells"
+        )
+    }
+
+    /// The label VoiceOver reads must be sayable: a player who hears
+    /// "Row 3, column 5" has to be able to speak it at Voice Control, and
+    /// commas are not spoken.
+    func testCellInputLabelsIncludeTheSpokenFormOfTheVoiceOverLabel() {
+        for cell in [0, 5, 40, 72, 80] {
+            let spokenLabel = BoardSpeech.cellLabel(cell)
+                .replacingOccurrences(of: ",", with: "")
+            XCTAssertTrue(
+                BoardSpeech.cellInputLabels(cell).contains(spokenLabel),
+                "\(spokenLabel) is what VoiceOver just said; Voice Control must accept it"
+            )
+        }
+    }
+
+    func testEveryCellHasADistinctSetOfInputLabels() {
+        var seen: Set<String> = []
+        for cell in 0..<81 {
+            let labels = BoardSpeech.cellInputLabels(cell)
+            XCTAssertFalse(labels.isEmpty)
+            for label in labels {
+                XCTAssertTrue(
+                    seen.insert(label).inserted,
+                    "\(label) addresses two cells — Voice Control would pick one at random"
+                )
+            }
+        }
+    }
+
+    /// Voice Control matches spoken text, so a name containing punctuation the
+    /// recogniser never emits can never be matched.
+    func testInputLabelsCarryNoPunctuation() {
+        for cell in 0..<81 {
+            for label in BoardSpeech.cellInputLabels(cell) {
+                XCTAssertNil(
+                    label.rangeOfCharacter(from: CharacterSet.punctuationCharacters),
+                    "\(label) is not sayable"
+                )
+            }
+        }
+    }
+
+    func testCellInputLabelsOutOfRangeAreEmpty() {
+        for cell in [-1, 81, 999, Int.min, Int.max] {
+            XCTAssertEqual(BoardSpeech.cellInputLabels(cell), [])
+        }
+    }
+
     // MARK: - Cell value branches
 
     func testGivenCellValueSaysGiven() {
