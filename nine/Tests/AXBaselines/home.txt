@@ -9,9 +9,9 @@
   Button "Gentle, Singles & scans"  (44,461 64x126)
   Button "Steady, Pairs & box lines"  (169,461 64x126)
   Button "Sharp, X-wings & deep logic"  (294,461 64x126)
-  Button "How to play"  (71,655 73x52)
-  Button "History"  (272,654 45x54)
+  Button "Nocturne, Fewer clues, deeper logic"  (38,637 212x64)
 [Bottom]
-  Button "Killer · Thermo, New variants, coming soon."  (45,773 318x39)
+  Button "How to play"  (71,769 73x52)
+  Button "History"  (272,768 45x54)
 
 # 8 elements in 2 containers

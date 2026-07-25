@@ -957,3 +957,253 @@ experience them as two: the welcome and the first flick are one sequence.
   shows its remote legend and the Mac still has no first-run screen at all. The
   Mac is the odd one out and wants its own pass: a buyer who lands on the Mac
   first sees nothing about what they bought.
+
+## PRD-17 — Nocturne, and what measuring it cost (2026-07-25)
+
+A fourth difficulty, and the first schema change Nine has shipped since Phase 0
+— which is the point of it. Two findings reframed the PRD before a line of UI
+was written, and both are numbers rather than opinions.
+
+### The compose numbers in this file were Debug numbers
+
+**`swift test` builds Debug, and generation runs ~50× slower in Debug than in
+the Release configuration that ships.** Measured on one machine, same seeds:
+
+| seed | Release | Debug | ratio |
+|---|---|---|---|
+| sharp 3000 | 0.017 s | 0.824 s | 48× |
+| sharp 3004 | 0.428 s | 30.8 s | 72× |
+
+So the Phase 0 entry's "**0.7–65 s sharp**, median ~8 s" is a Debug figure. The
+shipping figure, over a 500-seed Release scan, is **p50 0.11 s, p95 0.42 s, max
+0.71 s**. That is a 20× error in the number the program has been reasoning about,
+and it is the difference between "Nocturne is obviously unshippable" and the
+result below. `scripts/compose-scan.sh` exists so nobody re-derives a compose
+figure from a Debug run again; it refuses to run in any other configuration.
+
+### Nocturne's compose budget, measured
+
+200 seeds, Release, Apple silicon, `scripts/compose-scan.sh 200`:
+
+| p50 | p75 | p90 | p95 | p99 | max | mean |
+|---|---|---|---|---|---|---|
+| 0.98 s | 2.04 s | 3.60 s | 5.25 s | 11.21 s | 12.08 s | 1.60 s |
+
+Every one of the 200 boards cleared the band: 0 over the clue ceiling, 0 under
+the density floor. Givens landed 24/25/26 (20/20/160).
+
+**On device this is an estimate, and it is labelled as one.** A phone's
+single-core throughput is roughly a third of an M-series Mac's on this workload,
+which puts an iPhone at **p50 ~3 s, p95 ~16 s, p99 ~34 s**. PRD-17 §3 budgets
+"tens of seconds" and pairs it with a caption, so this composes inside its own
+PRD's budget — but the p99 is a 30-second wait, and an estimate is not a
+measurement. **A real device number belongs in PROGRAM-2.0's nightly perf lane
+before anyone treats 16 s as the p95.** If it comes back materially worse, the
+fix is not to loosen the band: it is the fast-seed catalog and forge pantry
+PROGRAM-2.0 §Pillar B already specifies, because a mined seed composes in
+milliseconds and the band stays honest.
+
+### The band spec is measured, not chosen — and PRD §1's premise was half wrong
+
+PRD-17 §1 says Nocturne "*requires* X-wing/box-line usage (not merely allows)".
+Sharp already requires one: `Difficulty.sharp.floor == .xWing` has shipped since
+1.0, and the verifier rejects any sharp board a lesser chain can solve. So that
+axis was already spent, and the only headroom for a generator-parameter band is
+**fewer clues** and **more advanced steps**. Both were priced:
+
+| spec | Mac Release p50 | max | verdict |
+|---|---|---|---|
+| ≤26 givens, ≥3 advanced steps | **0.98 s** | 12.1 s | shipped |
+| ≤26 givens, ≥4 advanced steps | 1.92 s | 16.2 s | ~2× for one more deduction |
+| ≤24 givens, ≥1 X-wing | ~6 s | 26.7 s | 13× — the clue floor is a cliff |
+| ≤26 givens, ≥2 X-wings | ~6 s | 53 s+ | 16× — pure rejection, ~6% of boards |
+
+The cliff at 24 givens and the one at two X-wings have the same cause and
+different shapes. The **Nocturne-only re-dig pass** (offer each orbit that
+healing restored back to the hole, keep it out if the board stays unique and
+inside the chain) drives the clue count to a local minimum *by construction*, so
+26 is nearly free and 24 is not — 24 is below where the re-dig lands, so it
+reverts to rejection sampling. A second X-wing was never anything but rejection:
+only ~6% of sharp-grade boards have one, and no dig strategy here can aim at it.
+
+`BandDemands` is the one-line seam if the product call changes. What it must not
+become is a *tuning* knob for compose time — see the next entry for why.
+
+### The attempt budget was calibrated against the wrong quantity, and it lied
+
+PRD-23's never-spin rule says a band with demands needs an attempt ceiling.
+The first one was **500**, reasoned from wall-clock: "p50 is 0.75 s, so a compose
+is a handful of attempts." It is not. Most Nocturne attempts cost **~0.4 ms**
+because the dig degenerates early and `verify` rejects on the X-wing floor before
+the expensive part; roughly **one attempt in 500** clears everything. So the
+budget fired on nearly every seed and handed out Sharp-grade boards wearing a
+Nocturne label — 31 givens, one X-wing — **while the wall-clock p95 improved from
+4.7 s to 0.44 s.** A compose-time test would have called that a win and shipped
+it.
+
+Two things came out of that:
+
+- The budget is now **200,000**, an order of magnitude above the measured p95 of
+  ~12,000 attempts, and its doc comment states the quantity it bounds.
+- `NocturneSoakTests` asserts on **the product** — givens, density, uniqueness,
+  trace, symmetry — and only *prints* the timing. A compose-time threshold in a
+  test is a flake on shared CI hardware, and worse, it is a metric that improves
+  when the feature breaks.
+
+The backstop's fallback is a board that is genuinely unique, inside Sharp's chain
+and past the X-wing floor, and only short on density — never a stall, never an
+unproven puzzle. At the current budget it is unreachable in practice.
+
+### `nine.history` was the soft blob, and tolerance in *this* build cannot fix it
+
+Phase 0 hardened `nine.library` and stopped there, which left the history the
+most dangerous blob Nine persists: `SolveHistory` shipped with a **synthesized**
+decode, so one record carrying an unknown `Difficulty` raw value threw the whole
+`[SolveRecord]` array, `CouchStore`'s `try?` swallowed the throw, and the player
+lost **every solve they had ever recorded**. It is `cloudSynced`, so it would
+have gone from the old device to every device, LWW.
+
+The trap is that adding tolerance here fixes nothing: **the build that throws is
+already on TestFlight** (tvOS 450 / iOS 451 / macOS 452). So the fix is on the
+wire, and it is the same sibling-key lesson the library taught:
+
+> A band added after 1.5 persists **two** keys. `difficulty` holds the nearest
+> band an old build can read (`Difficulty.wireBand` — Nocturne writes `sharp`),
+> and `band` holds the true identity. Every shipped `Codable` decode ignores an
+> unknown key, so the old build reads a complete history with the new solve shown
+> as Sharp; this build reads `band` first and gets Nocturne back.
+
+The three 1.5 bands write no sibling, so their bytes are unchanged.
+
+**The accepted cost, asserted as a test rather than left as a footnote:** an old
+build re-encodes from its typed value, so once a downgraded device *writes the
+history back*, the sibling is gone and that solve is permanently Sharp. The
+solve, its date, its time and its 800 points all survive — only the label is
+lost. `anOldBuildRewriteDemotesNocturneToSharpButLosesNoSolve` is that sentence.
+
+`SolveHistory` also got Phase 0's covenant proper — per-element quarantine and
+`carriedTopLevel` — so the *next* schema change is a per-record loss at worst.
+
+### The library needed nothing, and that is the Phase 0 dividend
+
+A Nocturne board fails the old build's `LibraryEntry` decode twice over
+(`GameKind.free`, and the puzzle's own `difficulty`), so Phase 0's quarantine
+holds it verbatim and hands it back on upgrade. No bridge, no new code. The
+cost is that the board is **invisible while the player is on the old build** —
+strictly better than the alternative, because nothing is lost, but worth knowing.
+Deliberately *not* bridged: `GeneratedPuzzle.difficulty` is inside the golden
+corpus hash, and rewriting it to smuggle a sibling would move every frozen
+Nocturne hash for no data-safety gain the quarantine does not already provide.
+
+### The drill runs against real old code, and it has been falsified
+
+`DowngradeDrillTests` models the old build with `Legacy*` mirror types, which is
+a *claim* about code that is not in the tree. `scripts/downgrade-drill.sh` is the
+check on that claim: it writes fixtures from this tree, checks the base ref into
+a throwaway worktree, copies `scripts/downgrade-drill/LegacyDrillTests.swift`
+into it, and runs the assertions against that release's own source. It refuses
+to run if the base ref already knows about Nocturne, because a drill that
+compares a build against itself proves nothing.
+
+Both halves were falsified before being believed: with `wireBand` disabled,
+`origin/main` fails `testTheOldBuildKeepsItsWholeHistory` and the in-tree suite
+fails 6 assertions — and the *library* half still passes, which is the clean
+demonstration that the two blobs are protected by two different mechanisms.
+
+PROGRAM-2.0 Phase 0 §3 asked for this scripted. It now is.
+
+### Three things a review caught that the tests had not
+
+- **`SolveHistory.init(from:)` did not restore newest-first.** `records` is
+  newest-first by contract — `capacity` prunes the tail as the oldest,
+  `trend(window:)` reads `prefix` as the most recent, the History sheet shows
+  `prefix(15)`, `WidgetBridge` takes `first` — and quarantined elements are
+  necessarily re-emitted *after* the readable ones, because this build cannot
+  read their dates. Without a sort on the way back in, a future build's
+  recovered records (the player's *newest* solves) would land at the tail: shown
+  last, excluded from the trend, invisible to the widget, and the first ones
+  `removeLast` deletes at capacity. `BoardLibrary.init(from:)` closes this exact
+  loop; `SolveHistory` now does too. The sort also exposed a pre-existing
+  fixture bug — `legacyTwoHundredRecordBlobDecodesUnchanged` built its 200
+  records in reverse-chronological order, producing an oldest-first array that
+  violated the invariant its own sibling test asserts.
+- **The band stand-in a *future* build chooses is now carried, not rewritten.**
+  A later band need not degrade to Sharp: one pitched between Steady and Sharp
+  would write `{"difficulty":"steady","band":"dusk"}`. The first version forced
+  `.sharp` on any unrecognised band, which restated that record as Sharp for
+  every build downstream — and, since Nocturne now counts toward `sharp.first`,
+  inflated an achievement with a band nobody had played. `carriedWireBand` holds
+  the writer's own choice and re-emits it verbatim.
+- **A `difficulty` that is no longer a string is quarantined rather than
+  flattened.** `try?` on the string decode meant a future record whose *shape*
+  changed decoded as Sharp with everything else intact, never reached
+  `RawSolveRecord`'s quarantine, and was overwritten on the next autosave — the
+  precise failure the covenant exists to prevent, hiding behind a `try?`. That
+  decode now throws so the element is held verbatim.
+
+### The compose guard became visible, because Nocturne made it long
+
+`AppModel.compose` has always dropped a second request while one is in flight
+(`guard composing == nil else { return }`), and every entry point routes through
+it: all four shelf cards, the Mac ⌘N menu, the Boards sheet's Fresh board row,
+the tvOS New game row, and Today. Sub-second that guard was invisible. At
+Nocturne's measured tail it is a shelf where Today and three other cards look
+live and silently ignore taps for tens of seconds.
+
+The cards that are *not* composing are now `.disabled` on iOS and macOS while a
+compose runs, so the wait is legible instead of the app feeling broken. **tvOS
+was deliberately left alone:** `.disabled` removes focusability, and disabling
+the card that currently holds focus moves focus somewhere else mid-compose — a
+focus-management change that wants its own pass and its own AX baseline, not a
+drive-by in a difficulty PRD. The TV still shows the composing chip on the card
+you chose; the other three simply do nothing if you click them.
+
+### Deviations from the PRD text, and why
+
+- **The blurb is "Fewer clues, deeper logic", not §3's "X-wings, chains — the
+  deep end".** Chains are precisely what Nocturne does not have — §1 of the same
+  PRD rules new solver techniques out of scope — and a band that advertises a
+  technique the verifier cannot prove is a claim the engine would have to break.
+  The copy says the two things true of every Nocturne board.
+- **Points base 800 as specified**, plus a new test that the whole table stays
+  monotone in `allCases` order, since that is the order every picker renders.
+- **Nocturne counts toward the existing `sharp.first` achievement** rather than
+  getting its own. Its own needs an App Store Connect record, and §4 rules
+  separate prestige surfaces out of scope — but gating on `.sharp` alone would
+  leave a Nocturne-only player unable to earn it.
+- **The composing caption replaces the blurb rather than stacking under it.** A
+  card that grows a line mid-compose shoves the rest of the shelf down while the
+  player is watching it.
+- **The Mac's New Game menu is now `ForEach(Difficulty.allCases)`.** It was three
+  hand-written `Button`s, and a missing one is not a compile error the way a
+  missing `switch` case is — this would have shipped a Mac with no way to start a
+  Nocturne board. ⌘N stays on Steady; moving it would retrain a shipped habit.
+- **The iOS variants teaser is now below the fold.** The full-width Nocturne card
+  costs ~130 pt, and the teaser is what fell off the first screen (re-recorded in
+  `Tests/AXBaselines/home.txt`). It is still reachable by scrolling, it is the
+  least load-bearing thing on the shelf, and it carries a 2026-10-25 remove-by
+  date anyway — but it is a real change to what a new buyer sees first.
+
+### Not done
+
+- **No device-measured compose time.** Every number here is Mac Release; the
+  iPhone figures are a ×3 estimate. Nightly lane.
+- **No Nocturne daily** (PRD §4 non-goal — the daily stays `.steady`), no
+  separate leaderboard, no new solver techniques.
+- **The Nocturne golden pairs are the six cheapest seeds of 200.** They exercise
+  the identical pipeline including the re-dig, but a Debug-affordable seed is by
+  definition an unrepresentative one — a median Nocturne seed would cost ~50 s in
+  Debug on its own. Breadth lives in the Release soak, not the corpus.
+- **`swift test` is now 109 s against a ~120 s budget** (idle machine; it reads
+  116 s with simulators booted, which is worth knowing before blaming a commit).
+  Nocturne added ~9 s of that — 6.5 s of golden-corpus pairs and ~2 s for the one
+  Debug-affordable compose. The other ~100 s was already there: 60 s of
+  `testGenerationSoakAcrossDifficulties` and 25 s of `testGenerationIsDeterministic`.
+  The headroom is thin and it is not Nocturne's doing; whoever needs some should
+  start with the 25-puzzle soak, exactly as the Phase 0 entry already said.
+- **The tvOS difficulty guide was mitigated, not verified.** `PadDifficultyGuide`
+  is a fixed-height beat with no `ScrollView`, and a fourth row is exactly what
+  could push it off screen. The Nocturne `explainer` was cut to the length of its
+  three peers so the row cannot wrap to three lines — but the beat itself was not
+  driven on a TV. The four-card *shelf* was (screenshot in the PR); the guide was
+  not.

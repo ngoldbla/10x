@@ -8,16 +8,25 @@
 // every daily and breaks every shared seed. GeneratorTests proves the invariants
 // (unique, technique-bounded, symmetric); this file proves the *bytes*.
 //
-// Composition (50 pairs, full difficulty coverage) is cost-shaped, not uniform:
-// generation costs ~0.03 s gentle, ~0.3 s steady, and 0.7–65 s sharp on the same
-// machine, because sharp digs for maximal uniqueness and then heals back down.
-// A uniform 17/17/16 split would cost several minutes on its own and blow the
-// `swift test` < 120 s budget (DEVIATIONS.md, 10k-soak entry). So:
-//   • gentle — seeds 1...30
-//   • steady — seeds 1...14
-//   • sharp  — six seeds picked out of a cost scan of 3000...3029 for being the
-//     cheap ones (0.7–2.5 s each). They are as much a proof of the sharp path as
-//     any others would be: same pipeline, same healing pass, frozen bytes.
+// Composition (56 pairs, full difficulty coverage) is cost-shaped, not uniform,
+// and the shape is dominated by one fact worth stating before the numbers:
+// **`swift test` builds Debug, and generation runs ~50× slower in Debug than in
+// the Release configuration that ships** (measured, sharp seed 3004: 0.428 s
+// release, 30.8 s debug). Every per-seed cost in this file is therefore a Debug
+// cost, and the seeds are chosen to be affordable in Debug rather than to be
+// representative of what a player waits for. A uniform split across the four
+// bands would cost many minutes on its own and blow the `swift test` < 120 s
+// budget (DEVIATIONS.md, 10k-soak entry). So:
+//   • gentle   — seeds 1...30
+//   • steady   — seeds 1...14
+//   • sharp    — six seeds picked out of a cost scan of 3000...3029 for being
+//     the cheap ones. They are as much a proof of the sharp path as any others
+//     would be: same pipeline, same healing pass, frozen bytes.
+//   • nocturne — six seeds from the head of a 200-seed Release cost scan
+//     (0.003–0.04 s each there). Nocturne's median seed costs ~1 s in Release
+//     and so ~50 s in Debug; these six are the ones that fit. They exercise the
+//     identical pipeline including the Nocturne-only re-dig pass, and every one
+//     of them clears the band's demands.
 // The list is written out explicitly below so it is frozen with the hashes.
 //
 // Re-freezing (only ever deliberately, see the failure message):
@@ -41,6 +50,8 @@ final class GoldenCorpusTests: XCTestCase {
         (11, .steady), (12, .steady), (13, .steady), (14, .steady),
         (3002, .sharp), (3003, .sharp), (3007, .sharp),
         (3013, .sharp), (3015, .sharp), (3017, .sharp),
+        (67, .nocturne), (186, .nocturne), (117, .nocturne),
+        (185, .nocturne), (180, .nocturne), (9, .nocturne),
     ]
 
     /// SHA-256 of the canonical JSON encoding of each generated puzzle, in
@@ -97,6 +108,12 @@ final class GoldenCorpusTests: XCTestCase {
         "9d4ecf31cfc3909cc6e96cc4f2c1ec226b551e6e523340f52d09efe90017e102", // 3013 sharp
         "a7a9a8643cd5f14b6cf8fac3f421500dcbfa8def0b080721cf6fbdca6fdfbce3", // 3015 sharp
         "3c79792eb5bcdf4e0f781d51f76b8918758971a9c38884aa2116b6ccb0a5248f", // 3017 sharp
+        "c75a53d763436e70ec146f3e76a2c66e9a5dd7bf16e42965fd53a5c050443190", // 67 nocturne
+        "44013ad175d04987c826574ee4f3725498d9b35bf608c78db3159923598a1f65", // 186 nocturne
+        "98c47a1042fd2909530827da25fe127c95a79bcf8c2c28eadbf06496de10dba3", // 117 nocturne
+        "3581f13722d4f7fb57c4659412943b7e59caa1b676bf56c2f52ca226060bc59d", // 185 nocturne
+        "de89af8d1a8e4f98e7e8a4404b8243735361ca9e339f05a73aa5807b4a343f4c", // 180 nocturne
+        "7b4596313106aed231f260108de71c7884cccc826a09301cd239d2610d062f9a", // 9 nocturne
     ]
 
     /// What a mismatch means, spelled out at the failure site: this is the one

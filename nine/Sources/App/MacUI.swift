@@ -228,9 +228,13 @@ struct MacHomeView: View {
                         MiniBoard(difficulty: difficulty, accent: accent)
                             .frame(width: 64, height: 64)
                         if model.composing == .free(difficulty) {
-                            statusLabel("Composing…", symbol: "sparkles")
+                            statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
                         } else {
-                            Text(difficulty.title)
+                            Label {
+                                Text(difficulty.title)
+                            } icon: {
+                                if let glyph = difficulty.glyph { Image(systemName: glyph) }
+                            }
                                 .font(CouchTypography.caption)
                             Text(difficulty.blurb)
                                 .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -241,6 +245,10 @@ struct MacHomeView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 124)
                 }
+                // A compose in flight makes `AppModel.compose` refuse the next
+                // request. Sub-second that was invisible; at Nocturne's measured
+                // tail it is a shelf that ignores clicks. Same rule as iOS.
+                .disabled(model.composing != nil && model.composing != .free(difficulty))
             }
         }
     }
@@ -743,11 +751,23 @@ struct NineCommands: Commands {
     var body: some Commands {
         // Game
         CommandMenu("Game") {
+            // Driven off `allCases`, not written out: the hand-written list this
+            // replaces would have silently shipped a Mac with no way to start a
+            // Nocturne board from the menu bar, because a missing `Button` is
+            // not a compile error the way a missing `switch` case is.
             Menu("New Game") {
-                Button("Gentle") { model.startFree(.gentle) }
-                Button("Steady") { model.startFree(.steady) }
-                    .keyboardShortcut("n", modifiers: .command)
-                Button("Sharp") { model.startFree(.sharp) }
+                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                    // ⌘N stays on Steady — it is the "just give me a board"
+                    // default, and moving it would retrain a shipped habit.
+                    // `.keyboardShortcut` takes no optional, so the branch is on
+                    // the modifier rather than on the key.
+                    if difficulty == .steady {
+                        Button(difficulty.title) { model.startFree(difficulty) }
+                            .keyboardShortcut("n", modifiers: .command)
+                    } else {
+                        Button(difficulty.title) { model.startFree(difficulty) }
+                    }
+                }
             }
             Button("Today's Puzzle") { model.openToday() }
                 .keyboardShortcut("t", modifiers: .command)

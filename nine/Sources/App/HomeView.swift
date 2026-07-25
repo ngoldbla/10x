@@ -201,16 +201,24 @@ struct HomeView: View {
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
+        // Four cards at 360 + three 44pt gaps is 1572pt inside a 1920pt shelf's
+        // 1800pt safe area, so the row still fits and stays centred. Focus
+        // travel is unchanged — it follows the HStack.
         ShelfCard(width: 360, height: 300, action: { model.startFree(difficulty) }) {
             VStack(spacing: 20) {
                 MiniBoard(difficulty: difficulty, accent: accent)
                     .frame(width: 132, height: 132)
                 if model.composing == .free(difficulty) {
-                    statusLabel("Composing…", symbol: "sparkles")
+                    statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
                 } else {
-                    Text(difficulty.title)
-                        .font(CouchTypography.body)
-                        .foregroundStyle(.primary)
+                    Label {
+                        Text(difficulty.title)
+                    } icon: {
+                        if let glyph = difficulty.glyph { Image(systemName: glyph) }
+                    }
+                    .font(CouchTypography.body)
+                    .foregroundStyle(.primary)
+                    .labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -244,6 +252,14 @@ extension Difficulty {
         case .gentle: return "Singles & scans"
         case .steady: return "Pairs & box lines"
         case .sharp: return "X-wings & deep logic"
+        // PRD-17 §3's blurb was "X-wings, chains — the deep end", and chains are
+        // exactly what Nocturne does not have: §1 of the same PRD rules new
+        // solver techniques out of scope. A band that advertises a technique the
+        // verifier cannot prove is a claim the engine would have to break, so
+        // this says the two things that *are* true of every Nocturne board: it
+        // is dug to 26 clues or fewer, and its proof needs at least three
+        // deductions at box-line or above.
+        case .nocturne: return "Fewer clues, deeper logic"
         }
     }
 
@@ -253,7 +269,29 @@ extension Difficulty {
         case .gentle: return "Every step is a single: one place a digit can go. A calm first board."
         case .steady: return "Needs naked pairs and box-line eliminations. Pencil marks start to pay."
         case .sharp: return "Demands X-wings and layered deductions. Bring notes and patience."
+        // Kept to the length of its three peers on purpose: the tvOS difficulty
+        // guide is a fixed-height beat with no ScrollView, and a fourth row
+        // carrying a three-line explainer is what would push it off the screen.
+        case .nocturne: return "Sharp's logic at the clue floor: fewer givens, more of the hard steps."
         }
+    }
+
+    /// The bands that share the free-play row on touch. Nocturne sits below
+    /// them as its own full-width card (PRD-17 §3) — a peer presented apart,
+    /// not a fourth column squeezed into an iPhone's width.
+    static var rowBands: [Difficulty] { allCases.filter { $0 != .nocturne } }
+
+    /// The SF Symbol that stands for the band, where one is wanted. Only the
+    /// deep end has one: the moon is Nocturne's identity, and handing the other
+    /// three a glyph each would turn a calm row into a badge collection.
+    var glyph: String? { self == .nocturne ? "moon.stars" : nil }
+
+    /// Composing honesty (PRD-17 §3). A band whose compose is measured in
+    /// seconds rather than milliseconds says so *while* the player waits.
+    /// Driven off `demands`, not off the case, so the next deep band inherits
+    /// the caption by being expensive rather than by being remembered.
+    var composeCaption: String? {
+        demands == nil ? nil : "\(title) takes a moment to compose"
     }
 }
 
@@ -364,6 +402,10 @@ struct MiniBoard: View {
         case .gentle: return 0.30
         case .steady: return 0.48
         case .sharp: return 0.68
+        // Above Sharp, but not saturated: at 1.0 the field stops reading as a
+        // board and starts reading as a solid square, which loses the one thing
+        // the preview is for. 0.84 is the last step that still shows holes.
+        case .nocturne: return 0.84
         }
     }
 

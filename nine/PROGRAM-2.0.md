@@ -17,10 +17,10 @@
 | PRD-14 daily archive | written, **not shipped** | replay entry surface for PRD-26 |
 | PRD-15 feedback | **half shipped** | haptics landed as PRD-21; sound still blocked on assets |
 | PRD-16 themes/icons | written, **not shipped** | |
-| PRD-17 Nocturne | written, **not shipped** | first live test of Phase 0 tolerance; stresses the chain PRD-23 generalizes |
+| PRD-17 Nocturne | **shipped** | fourth band: Sharp's chain at a 26-clue floor with ≥3 advanced steps. Compose p95 **5.25 s** (200 seeds, Mac **Release** — and the discovery that every prior compose figure in DEVIATIONS was a ~50× slower Debug number). Phase 0 paid off: the library needed no change, `nine.history` did — a `band` sibling key, because the throwing build is already on TestFlight. Downgrade drill scripted against a real checkout and falsified. Not done: a device-measured compose number, Nocturne dailies |
 | PRD-18 welcome + teaser + UXDemo deletion | **shipped** | welcome ledger (iOS), variants teaser with a 2026-10-25 remove-by date, both `UXDemo` files deleted — every prototype scene is `git show a18cbe3:…` away (PRD-7 rule 4). Not done: tvOS/macOS welcome parity |
 | **Wave 1 — "Worthy"** | | |
-| Phase 0 foundations | **partly shipped** | element-level quarantine + 50-pair golden corpus in. Field-level preservation implemented, measured at 1515 ms vs 49 ms, reverted — see DEVIATIONS |
+| Phase 0 foundations | **partly shipped** | element-level quarantine + 56-pair golden corpus in; PRD-17 extended the quarantine to `nine.history` and scripted the downgrade drill (§3). Field-level preservation implemented, measured at 1515 ms vs 49 ms, reverted — see DEVIATIONS |
 | PRD-19 accessibility | **shipped** | 81 AX children in 9 box containers (Switch Control group scan), rotors, actions, 44 pt chrome, Voice Control cell names, `describe-ui` baselines diffed per screen on every PR. Not done: a tvOS/macOS lane (`describe-ui` is iOS-only), and the tvOS board still has no per-cell actions |
 | PRD-20 localization | not started | needs translators, not infrastructure |
 | PRD-21 audio + haptics | **haptics shipped** | audio blocked: no recorded samples exist |
