@@ -39,6 +39,30 @@ enum BoardMetrics {
         )
     }
 
+    /// The 3×3 block a box occupies, in board-local coordinates. Only the
+    /// accessibility layer needs it — the Canvas draws box borders as
+    /// luminance steps rather than framed regions — but Switch Control's group
+    /// scan highlights a real rectangle, so the nine groups need real frames
+    /// (PRD-19). Boxes are numbered in reading order, matching `Sudoku.box`.
+    static func boxRect(of box: Int, side: CGFloat) -> CGRect {
+        let unit = side / 9
+        return CGRect(
+            x: CGFloat(box % 3) * 3 * unit,
+            y: CGFloat(box / 3) * 3 * unit,
+            width: 3 * unit,
+            height: 3 * unit
+        )
+    }
+
+    /// The nine cells of a box, in reading order — the order Switch Control
+    /// steps them once the group is entered.
+    static func cells(inBox box: Int) -> [Int] {
+        let firstRow = (box / 3) * 3, firstCol = (box % 3) * 3
+        return (0..<3).flatMap { dr in
+            (0..<3).map { dc in (firstRow + dr) * 9 + firstCol + dc }
+        }
+    }
+
     /// The cell index under a board-local point, or nil when outside.
     static func cellIndex(at point: CGPoint, side: CGFloat) -> Int? {
         let unit = side / 9

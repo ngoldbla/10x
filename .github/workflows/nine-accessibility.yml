@@ -1,0 +1,108 @@
+# Nine's accessibility tree, diffed per screen (PRD-19).
+#
+# The board is one `Canvas` with 81 synthetic accessibility children hung off it.
+# When that tree collapses nothing on screen changes — the game looks identical
+# and plays identically, and a blind player finds a blank rectangle where the
+# puzzle used to be. It has already happened once: `describe-ui` on the shipped
+# 1.1 build listed zero cells, and the only reason anyone noticed was a manual
+# audit months later. This lane is that audit, on every PR.
+#
+# It is deliberately NOT part of the TestFlight workflow. That one ships, runs on
+# merge to main, and must never be blocked by a simulator that took too long to
+# boot; this one gates review, runs on pull requests, and is free to be slow.
+#
+# Three tripwires, cheapest first:
+#   1. `BoardSpeechTests` — every string the board speaks, on Linux-speed CPU.
+#   2. `AXFixtureTests` — the frozen board the dumps are photographs of.
+#   3. `ax-snapshot.py` — the trees themselves, per screen, diffed.
+name: Accessibility (Nine)
+
+on:
+  pull_request:
+    paths:
+      - 'nine/**'
+      - 'couchkit/**'
+      - '.github/workflows/nine-accessibility.yml'
+  workflow_dispatch:
+
+# A stale run tells you about a commit nobody is reviewing any more. Unlike the
+# upload lane, cancelling this one costs nothing.
+concurrency:
+  group: nine-accessibility-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ax-tree:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26+
+        run: |
+          set -euo pipefail
+          XC=""
+          for d in /Applications/Xcode_26*.app; do [ -e "$d" ] && XC="$d"; done
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; fi
+          xcodebuild -version
+
+      - name: Install XcodeGen and sim-use
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          # describe-ui is the measuring instrument. Its version is recorded in
+          # every baseline header, so a Homebrew bump that changes the shape of a
+          # dump shows up as line two of the diff rather than as 300 mystery
+          # frame changes.
+          brew install lycorp-jp/tap/sim-use
+          sim-use --version
+
+      # The strings the dump cannot see: `accessibilityUserInputLabels` is
+      # absent from the AX API describe-ui reads, and no dump carries the wording
+      # of an announcement. These run first because they cost seconds.
+      - name: Spoken board + Voice Control names
+        working-directory: nine
+        run: swift test --filter 'BoardSpeechTests|AXFixtureTests'
+
+      - name: Generate the project
+        working-directory: nine
+        env:
+          # Falls back to the literal so this lane also runs on forks, which
+          # cannot see repository secrets. Nothing here signs anything — the
+          # team ID only lands in DEVELOPMENT_TEAM, which a simulator build with
+          # CODE_SIGNING_ALLOWED=NO never reads. It is in the docs already.
+          COUCH_TEAM_ID: ${{ secrets.COUCH_TEAM_ID || 'XC6FN96MA8' }}
+        run: xcodegen generate
+
+      # Signing is irrelevant on a simulator, and requiring it here would make
+      # this lane depend on the match secrets the upload lane needs.
+      - name: Build for the simulator
+        working-directory: nine
+        run: |
+          set -euo pipefail
+          xcodebuild -project Nine.xcodeproj -scheme Nine \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Diff the accessibility trees
+        working-directory: nine
+        run: |
+          set -euo pipefail
+          python3 scripts/ax-snapshot.py \
+            --app build/Build/Products/Debug-iphonesimulator/Nine.app \
+            --out-dir "$RUNNER_TEMP/ax-captured"
+
+      # On failure this is the whole review: the captured dump to diff against
+      # the baseline, and a screenshot of what the app was actually showing when
+      # an anchor never appeared.
+      - name: Upload what was captured
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-ax-captured
+          path: ${{ runner.temp }}/ax-captured
+          if-no-files-found: warn

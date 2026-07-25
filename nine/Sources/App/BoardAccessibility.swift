@@ -16,6 +16,9 @@
 //    the "wrong" word in the spoken value and the Conflicts rotor alike; with
 //    error highlighting off, VoiceOver is exactly as much in the dark as the
 //    screen is.
+//
+// The tree is two levels deep, not flat, and that is the whole Switch Control
+// story: nine box containers, nine cells each. See `BoardAXGrid.body`.
 import SwiftUI
 import CouchKit
 
@@ -31,8 +34,12 @@ struct BoardAXActions {
     /// control bar's pencil toggle; the action names change with it, because
     /// "Place 4" doing something other than placing a 4 is a lie.
     var pencilMode: Bool = false
-    /// Move the cursor. VoiceOver focus and the visible cursor ring must not
-    /// drift apart, or a sighted helper looking over a shoulder sees nothing.
+    /// Activate a cell: move the cursor, and — for the assistive technologies
+    /// that have no actions rotor — open the digit ring, exactly as a tap
+    /// does. The screen decides which half applies; see `TouchGameScreen`.
+    ///
+    /// VoiceOver focus and the visible cursor ring must not drift apart, or a
+    /// sighted helper looking over a shoulder sees nothing.
     var select: (@MainActor (Int) -> Void)?
     var place: (@MainActor (_ digit: Int, _ cell: Int) -> Void)?
     var note: (@MainActor (_ digit: Int, _ cell: Int) -> Void)?
@@ -50,8 +57,9 @@ struct BoardAXGrid: View {
     let cursor: Int
     let showErrors: Bool
     /// Side of the drawing plane; `inset` is the glass padding around it.
-    /// `BoardMetrics` is board-local, the children are laid out in the padded
-    /// frame, so every rect shifts by `inset` on the way out.
+    /// `BoardMetrics` is board-local and the children are laid out in the
+    /// padded frame, so the nine box containers shift by `inset` on the way out
+    /// and each cell is then placed relative to its own box.
     let side: CGFloat
     let inset: CGFloat
     let actions: BoardAXActions
@@ -59,9 +67,20 @@ struct BoardAXGrid: View {
     @Namespace private var rotorSpace
 
     var body: some View {
+        // Nine box containers, nine cells each — nested rather than flat
+        // because that hierarchy *is* Switch Control's group scan (there is no
+        // separate grouping API; iOS derives groups from the accessibility
+        // container tree). Item scanning a flat 81 costs up to 81 switch hits
+        // to reach one cell; boxes → cells costs at most 9 + 9.
+        //
+        // VoiceOver's swipe order follows the same tree, so it now reads
+        // box-major instead of row-major. That is a deliberate trade — see
+        // DEVIATIONS — and the cost is nil for orientation because every cell
+        // still announces its own row and column, while the Empty / Notes /
+        // Wrong rotors below stay strictly row-major.
         ZStack(alignment: .topLeading) {
-            ForEach(0..<81, id: \.self) { cell in
-                element(for: cell)
+            ForEach(0..<9, id: \.self) { box in
+                boxGroup(box)
             }
         }
         .frame(width: side + 2 * inset, height: side + 2 * inset, alignment: .topLeading)
@@ -82,26 +101,60 @@ struct BoardAXGrid: View {
         }
     }
 
+    // MARK: One box
+
+    /// A group-scan stop. The container is laid out on the real 3×3 block, so
+    /// Switch Control's group highlight frames the box the player can see
+    /// rather than the whole board, and the nine cells inside keep their exact
+    /// absolute frames (box origin + cell offset within the box).
+    ///
+    /// `children: .contain` makes it a *container*, not an element: VoiceOver
+    /// walks straight through to the cells and never adds nine extra stops.
+    private func boxGroup(_ box: Int) -> some View {
+        let frame = BoardMetrics.boxRect(of: box, side: side)
+        return ZStack(alignment: .topLeading) {
+            ForEach(BoardMetrics.cells(inBox: box), id: \.self) { cell in
+                element(for: cell, in: frame)
+            }
+        }
+        .frame(width: frame.width, height: frame.height, alignment: .topLeading)
+        .position(x: frame.midX + inset, y: frame.midY + inset)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(BoardSpeech.boxGroupLabel(box))
+        .accessibilityValue(BoardSpeech.boxGroupValue(box, in: game))
+    }
+
     // MARK: One cell
 
-    private func element(for cell: Int) -> some View {
+    /// - Parameter box: the enclosing box's board-local block. Cell rects are
+    ///   board-local, the container is placed at the box, so the offset
+    ///   subtracts out — the absolute frame is unchanged by the nesting, which
+    ///   is what keeps the AX-tree baselines stable across this refactor.
+    private func element(for cell: Int, in box: CGRect) -> some View {
         let rect = BoardMetrics.rect(of: cell, side: side)
         let given = game.isGiven(cell)
         let playable = actions.isInteractive && !given
 
         return Color.clear
             .frame(width: rect.width, height: rect.height)
-            .position(x: rect.midX + inset, y: rect.midY + inset)
+            .position(x: rect.midX - box.minX, y: rect.midY - box.minY)
             .accessibilityElement()
             .accessibilityLabel(BoardSpeech.cellLabel(cell))
             .accessibilityValue(BoardSpeech.cellValue(cell, in: game, showErrors: showErrors))
             .accessibilityHint(playable ? BoardSpeech.cellHint(cell) : "")
             .accessibilityAddTraits(traits(cell: cell, given: given, playable: playable))
+            // Voice Control's vocabulary for the cell. Without these it would
+            // inherit the label — "Row 3, comma, column 5" — which a speech
+            // recogniser can never produce, leaving all 81 cells unaddressable.
+            .accessibilityInputLabels(BoardSpeech.cellInputLabels(cell))
             .accessibilityRotorEntry(id: cell, in: rotorSpace)
-            // Double-tap moves the cursor and nothing else. It deliberately
-            // does *not* bloom the rose: the petals are a spatial flick
-            // grammar with no VoiceOver equivalent worth having, and the
-            // actions rotor below is the honest door to the same nine digits.
+            // Under VoiceOver, activation moves the cursor and nothing else:
+            // the petals are a spatial flick grammar with no VoiceOver
+            // equivalent worth having, and the actions rotor below is the
+            // honest door to the same nine digits. Voice Control, Switch
+            // Control and Full Keyboard Access have no rotor, so for them the
+            // same activation also blooms the rose — see `select`'s doc and
+            // `TouchGameScreen.axActivate`.
             .accessibilityAction { actions.select?(cell) }
             .accessibilityActions { cellActions(cell: cell, playable: playable) }
     }
@@ -120,10 +173,27 @@ struct BoardAXGrid: View {
     @ViewBuilder
     private func cellActions(cell: Int, playable: Bool) -> some View {
         if playable {
-            // Reversed: UIKit surfaces custom actions in the reverse of the
-            // order they are declared, and a rotor that offers 9 before 1 is
-            // eight extra swipes for the commonest case. Verified against
-            // `describe-ui`'s `custom_actions` list, not assumed.
+            // Declared backwards, on purpose. UIKit surfaces custom actions in
+            // the reverse of declaration order, so this whole block reads
+            // bottom-up: erase first here means erase *last* in the rotor, and
+            // `9...1` here means `Place 1` is the first thing offered. A rotor
+            // that offers 9 before 1 is eight extra swipes for the commonest
+            // case, and one that offers Erase before any digit puts a
+            // destructive action under the very first swipe of a filled cell.
+            // Verified against `describe-ui`'s `custom_actions` list and
+            // frozen in the AX baselines, not assumed — on iOS. **The reversal
+            // is a UIKit behaviour and this block is platform-shared**: the Mac
+            // supplies non-nil `place`/`erase` too, so it emits the same list,
+            // and whether AppKit reverses it is unverified (there is no macOS
+            // AX-dump harness, and VoiceOver's Mac rotor cannot be read from a
+            // script). If it does not reverse, the Mac reads Erase first. Left
+            // unforked deliberately rather than split on a guess — a `#if` that
+            // guessed wrong would be the same bug with more code. Recorded in
+            // DEVIATIONS; the fix, if a manual pass shows it, is a one-line
+            // `#if os(macOS)` swap of these two blocks.
+            if game.entry(at: cell) != 0 {
+                Button(Self.eraseAction) { actions.erase?(cell) }
+            }
             ForEach(Array((1...9).reversed()), id: \.self) { digit in
                 Button(digitActionName(digit)) {
                     if actions.pencilMode {
@@ -132,9 +202,6 @@ struct BoardAXGrid: View {
                         actions.place?(digit, cell)
                     }
                 }
-            }
-            if game.entry(at: cell) != 0 {
-                Button(Self.eraseAction) { actions.erase?(cell) }
             }
         }
     }

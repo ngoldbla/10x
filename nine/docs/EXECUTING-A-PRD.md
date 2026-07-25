@@ -91,25 +91,49 @@ dailies forever.
 
 ## 4. Accessibility is a regression surface now
 
-The board is one `Canvas` with 81 synthetic accessibility children
-(`Sources/App/BoardAccessibility.swift`), labelled by the pure formatter in
-`Sources/Shared/BoardSpeech.swift`. Any change to `BoardView` or the game screens
-can silently flatten that tree.
+The board is one `Canvas` with 81 synthetic accessibility children in 9 box
+containers (`Sources/App/BoardAccessibility.swift`), labelled by the pure
+formatter in `Sources/Shared/BoardSpeech.swift`. Any change to `BoardView` or the
+game screens can silently flatten that tree, and nothing on screen changes when
+it does.
 
-Check it, every time:
+CI now diffs it for you, per screen, on every PR touching `nine/`:
 
 ```bash
-sim-use describe-ui --udid $UDID | grep -c "Row "          # must be 81
-sim-use describe-ui --udid $UDID --point X,Y --json \
+python3 nine/scripts/ax-snapshot.py             # diff against Tests/AXBaselines/
+python3 nine/scripts/ax-snapshot.py --record    # re-record, deliberately
+```
+
+A drift is a bug until proven otherwise. When it *is* intended, re-record and
+say so in the PR — the baselines are the paper trail. Two coupled re-freezes:
+changing the seeded board means
+`NINE_FREEZE_AX_FIXTURE=1 swift test --filter AXFixture` **and** `--record`,
+together, or the baselines are photographs of a board that no longer exists.
+
+Reading a tree by hand is still the fastest way to answer "what does this one
+cell say":
+
+```bash
+sim-use describe-ui --device $UDID | grep -c "Row "        # must be 81
+sim-use describe-ui --device $UDID --point X,Y --json \
   | python3 -c "import sys,json; d=json.load(sys.stdin)['data']['raw']; print(d['AXValue'], d['custom_actions'])"
 ```
 
 The plain listing shows labels and frames only — **values and custom actions are
 visible only with `--json`**, so a regression there is invisible without it.
 
-Three gotchas worth knowing before you fight them:
+Two things no dump can see, so they live in `Tests/SharedTests/BoardSpeechTests.swift`
+instead: Voice Control input labels (`accessibilityUserInputLabels` is absent
+from the AX API `describe-ui` reads) and the wording of any announcement.
 
-- UIKit surfaces `.accessibilityActions` in **reverse** declaration order.
+Four gotchas worth knowing before you fight them:
+
+- UIKit surfaces `.accessibilityActions` in **reverse** declaration order — so
+  the whole `cellActions` block reads bottom-up, and putting `Erase` last in the
+  rotor means declaring it first.
+- Switch Control's group scan has **no API**: it is derived from the
+  accessibility *container* tree. Nesting is the only lever, and a child belongs
+  to one parent, so a grouping choice is also a VoiceOver traversal-order choice.
 - SwiftUI derives an image-only `Button`'s accessibility frame from the SF
   Symbol's tight glyph bounds, not its `.frame(44, 44)`. Fix with
   `.contentShape(.accessibility, Circle())`.

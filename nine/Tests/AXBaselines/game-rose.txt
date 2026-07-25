@@ -1,0 +1,17 @@
+# nine accessibility tree — screen: game-rose
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+#
+# Regenerate: nine/scripts/ax-snapshot.py --record
+
+Group "Digit rose"
+    Button "Place 1"  (168,220 46x46)
+    Button "Place 2"  (218,220 46x46)
+    Button "Place 3"  (268,220 46x46)
+    Button "Place 4"  (168,270 46x46)
+    Button "Place 5"  (218,270 46x46)
+    Button "Place 6"  (269,270 46x46)
+    Button "Place 8"  (218,320 46x46)
+    Button "Place 9"  (268,320 46x46)
+    Button "Place 7"  (168,321 46x46)
+
+# 9 elements in 1 container

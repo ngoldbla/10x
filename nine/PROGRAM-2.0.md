@@ -21,7 +21,7 @@
 | PRD-18 welcome + teaser + UXDemo deletion | written, **not shipped** | `UXDemo.swift` still present |
 | **Wave 1 — "Worthy"** | | |
 | Phase 0 foundations | **partly shipped** | element-level quarantine + 50-pair golden corpus in. Field-level preservation implemented, measured at 1515 ms vs 49 ms, reverted — see DEVIATIONS |
-| PRD-19 accessibility | **mostly shipped** | 81 AX children, rotors, actions, 44 pt chrome. Remaining: Switch Control scan order, Voice Control pass, AX-dump CI lane |
+| PRD-19 accessibility | **shipped** | 81 AX children in 9 box containers (Switch Control group scan), rotors, actions, 44 pt chrome, Voice Control cell names, `describe-ui` baselines diffed per screen on every PR. Not done: a tvOS/macOS lane (`describe-ui` is iOS-only), and the tvOS board still has no per-cell actions |
 | PRD-20 localization | not started | needs translators, not infrastructure |
 | PRD-21 audio + haptics | **haptics shipped** | audio blocked: no recorded samples exist |
 | PRD-22 lens | **fingerprints shipped** | remaining: dark-contrast harness (96-cell matrix), Metal per-petal refraction |

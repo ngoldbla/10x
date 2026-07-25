@@ -820,7 +820,7 @@ struct TouchGameScreen: View {
         }
         return BoardAXActions(
             pencilMode: pencilMode,
-            select: { cursor = $0 },
+            select: { axActivate($0) },
             place: { digit, cell in axCommit(digit, at: cell, pencil: false) },
             note: { digit, cell in axCommit(digit, at: cell, pencil: true) },
             erase: { cell in
@@ -831,6 +831,30 @@ struct TouchGameScreen: View {
                 if model.erase(at: cell) { announce(BoardSpeech.eraseAnnouncement(digit: digit)) }
             }
         )
+    }
+
+    /// Activating a cell, for whichever assistive technology is driving.
+    ///
+    /// Under VoiceOver this is unchanged and deliberately dull: move the
+    /// cursor, touch nothing else. The petals are a spatial flick grammar with
+    /// no screen-reader equivalent worth having, and VoiceOver's door to the
+    /// same nine digits is the actions rotor on the cell.
+    ///
+    /// Voice Control ("Tap cell 3 5"), Switch Control's select and Full
+    /// Keyboard Access all activate through the very same AX action — and none
+    /// of them can reach a custom action. Without this branch the board is
+    /// perfectly addressable and completely unplayable for all three: you can
+    /// name any of 81 cells and then do nothing to it. So for them, activation
+    /// runs the finger-tap path itself — `tapCell`, the same function the
+    /// gesture calls, highlight and all. Not a parallel implementation that
+    /// will drift: the same door.
+    private func axActivate(_ cell: Int) {
+        guard !UIAccessibility.isVoiceOverRunning else {
+            // The cursor ring follows VoiceOver focus and nothing else moves.
+            cursor = cell
+            return
+        }
+        tapCell(cell)
     }
 
     /// One digit, committed the way the rose would commit it. Announcing the
@@ -862,9 +886,16 @@ struct TouchGameScreen: View {
     // MARK: Touch grammar
 
     private func handleBoardTap(at location: CGPoint, side: CGFloat, inset: CGFloat) {
-        guard let game = model.game, model.solvedAt == nil, rose == nil else { return }
         let boardPoint = CGPoint(x: location.x - inset, y: location.y - inset)
         guard let cell = BoardMetrics.cellIndex(at: boardPoint, side: side) else { return }
+        tapCell(cell)
+    }
+
+    /// Everything a tap on a cell does. Shared with `axActivate`, which is what
+    /// Voice Control and Switch Control reach the board through — a second
+    /// implementation of "what a tap does" would drift within one release.
+    private func tapCell(_ cell: Int) {
+        guard let game = model.game, model.solvedAt == nil, rose == nil else { return }
         cursor = cell
         // Tap a placed digit → light up all of its kind (notes included).
         // Tap it again → lights off. Givens are finally tappable: they're
@@ -875,14 +906,17 @@ struct TouchGameScreen: View {
                 highlightedDigit = (highlightedDigit == digit) ? nil : digit
             }
         }
-        openRose()
+        openRose(at: cell)
     }
 
-    private func openRose() {
-        guard let game = model.game, !game.isGiven(cursor) else { return }
+    /// `cell` must be the cursor — the rose is positioned off `cursor` at
+    /// render time — but taking it explicitly keeps the caller from depending
+    /// on the ordering of a `@State` write it made two lines earlier.
+    private func openRose(at cell: Int) {
+        guard let game = model.game, !game.isGiven(cell) else { return }
         // Notes only make sense in empty cells; a filled cell opens the
         // normal rose even in pencil mode (same rule as tvOS hold-click).
-        let pencil = pencilMode && game.entry(at: cursor) == 0
+        let pencil = pencilMode && game.entry(at: cell) == 0
         withAnimation(.couchFast) {
             rose = RoseState(pencil: pencil)
         }
