@@ -1974,9 +1974,11 @@ in both themes instead.
 
 ### Numbers
 
-`swift test`: **278 tests, 3 skipped, 0 failures, 1:51 wall** at load average
-2.31 — inside the ~120 s budget, and worth contrasting with PRD-14's 342 s and
-520 s at load 189 for whoever next reads a slow number as a cost. Golden corpus
+`swift test`: **278 tests, 3 skipped, 0 failures.** 111 s wall at load average
+2.31 and 135 s at load 7.96, same tree — which is the contention factor showing
+up again on a quiet machine, and worth setting beside PRD-14's 342 s and 520 s
+at load 189 for whoever next reads a slow number as a cost. This PR's own tests
+are all sub-second. Golden corpus
 **56/56** after every engine commit. iOS, tvOS and macOS builds green; iOS
 Release archive green. Share-card render **38–70 ms**, iPhone 17 Pro simulator,
 Debug.
