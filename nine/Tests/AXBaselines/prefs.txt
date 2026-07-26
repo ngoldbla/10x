@@ -106,8 +106,10 @@ Group "Box 9"
   Button "Blueprint"  (197,760 24x24)
   Button "Forest"  (236,760 24x24)
   Button "Home"  (14,788 44x44)
-  Button "Pencil marks"  (236,788 44x44)
-  Button "Undo"  (290,788 44x44)
+  Button "Hint"  (144,788 44x44)
+  Button "Pencil marks"  (194,788 44x44)
+  Button "Auto notes"  (244,788 44x44)
+  Button "Undo"  (294,788 44x44)
   Button "Settings"  (344,788 44x44)
   StaticText "Accent"  (43,813 44x16)
   StaticText "Glacier"  (304,813 44x16)
@@ -120,4 +122,4 @@ Group "Box 9"
   Button "Teal"  (248,846 20x20)
   Button "Magenta"  (282,846 20x20)
 
-# 105 elements in 11 containers
+# 107 elements in 11 containers

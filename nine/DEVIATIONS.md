@@ -1389,3 +1389,177 @@ decision rather than a fix.
   budget was thin before this PRD and the Phase 0 advice still stands: the
   60 s `testGenerationSoakAcrossDifficulties` and the 24 s
   `testGenerationIsDeterministic` are where the headroom is, not here.
+
+## PRD-11 — the coach explains itself, and the two covenant clauses it spends (2026-07-25)
+
+Both halves in one PR (11a coach, 11b auto notes), because they share
+`TouchUI.swift` and EXECUTING-A-PRD §7 allows only one owner of that file at a
+time. The design doc is
+[docs/superpowers/specs/2026-07-25-prd-11-coach-design.md](../docs/superpowers/specs/2026-07-25-prd-11-coach-design.md);
+what follows is what a later reader needs and would not otherwise find.
+
+### PRD-11 predates the constitution it now lives under, and two clauses lost
+
+`PROGRAM-2.0.md`'s anti-bloat constitution says 2.0 will never "let the coach
+place a digit" or "add a fifth control button". PRD-11 §2.1 does both. The
+rulings, taken deliberately rather than drifted into:
+
+- **`Place it` and `Mark it` stay.** The clause is read as "the coach never
+  *auto-solves*", which remains true: nothing in `Coach.swift` runs unprompted,
+  and `applyCoachStep` only ever executes because the player pressed a button.
+  It routes through the ordinary `model.place`, so the wave, the error rules,
+  the haptics and persistence are exactly what the rose would have left.
+- **The control bar went from four buttons to six.** An override, not an
+  oversight. What it cost is in the next section.
+
+### "No fifth control button" turned out to be geometry, not taste
+
+The bar could not hold six buttons *and* the timer chip. Measured, not
+estimated: six 44 pt targets are 264 pt, the timer chip measures ~82, and with
+gaps and padding the row wanted **~422 pt — wider than any iPhone made**.
+`sim-use describe-ui` caught `Settings` running to x=395 on a **375 pt** iPhone
+SE (20 pt off-screen) *and* on a **393 pt** iPhone 17 (2 pt off). Closing the
+gaps from 10 pt to 6 was not enough, and shrinking the targets was never
+available — the craft charter's 44 pt floor is the reason the AX frames are
+`.contentShape(.accessibility, Circle())` in the first place.
+
+So **the timer chip moved out of the control bar into the PRD-2 free band**,
+which was sized for exactly this ambient chrome and already hosts
+`AmbientSlotView`. The bar is controls only now, and 6×44 + 5×6 + padding =
+322 pt clears the smallest phone by 53 pt (verified: `Settings` ends at 361 of
+375). Both band occupants stand down while the coach card is up, since the card
+parks in that same band.
+
+Worth stating plainly for whoever picks up PRD-12, the next `TouchUI` owner:
+**the control bar is now full.** A seventh button does not fit at 44 pt on a
+375 pt phone, whatever the taste argument.
+
+### The coach cannot read the solution, and that is structural
+
+PRD-11 §2.1 wanted the contradiction card to say "check the coral cells". Coral
+comes from `NineGame.isError`, which compares against `puzzle.solution` — and
+`errorHighlight` is a setting the player can switch off. Pointing at coral
+would leak, through the one surface a stuck player is most likely to open,
+precisely what PRD-19 spent a release teaching the AX layer to refuse to say.
+
+A `CoachAdvice.contradiction` is therefore a **peer clash** (a filled cell whose
+value duplicates a peer's) or a **dead cell** (an empty cell with no candidates
+left). Both are provable from what is already on screen, so the sentence is
+identical with the setting on or off — verified live on the frozen fixture
+board: with `errorHighlight` off, the coral underline and dot vanish, the coach
+still lights **both** 7s in row 1 and still says "Two of these squares disagree",
+and it never reveals which of them is the mistake.
+
+The guarantee is a signature rather than a comment: **`BoardSpeech.coachSentence`
+takes no `NineGame`**, and nothing in `Coach.swift` takes one either. There is
+nothing for the solution to leak through even by accident.
+
+The peer-clash check also closed a real gap. `CandidateState.init` zeroes
+candidates for filled cells and never compares filled cells to *each other*, so
+**two 7s in one row were invisible to the solver's state** — the coach would
+have returned a confident, valid-looking step on a board that cannot be
+finished. A coach that lies is worse than one that declines, so contradiction is
+checked before `nextStep`, not after.
+
+### Nothing new went inside `SolveStep`, `LibraryEntry`, or `NineMove.Kind`
+
+Three separate applications of the same rule, and each would have been a quiet
+disaster:
+
+- **`CoachStep` wraps `SolveStep`**, carrying the `patternUnit` / `targetUnit`
+  the sentences name. `SolveStep` lives in `GeneratedPuzzle.steps` and so inside
+  the golden-corpus hash; a field that is nil on every classic board would have
+  moved all 56 frozen hashes. Corpus ran 56/56 after every engine commit.
+- **`CoachLedger` is a sibling top-level blob** (`nine.coach`), never a
+  `LibraryEntry` field — the 1515 ms vs 49 ms finding in EXECUTING-A-PRD §2
+  already settled that, and §2 names PRD-11's "hints used" as its example.
+- **`applyAutoNotes` adds no `NineMove.Kind` case.** `Kind` is persisted inside
+  every autosaved `NineGame`, `init(from:)` decodes `undoStack` without a
+  `try?`, and builds 450/451/452 are already on TestFlight — an unknown raw
+  value would throw and lose the board. A bulk fill is instead a `.pencil` move
+  carrying many `PencilSnapshot`s; a toggle always carries exactly one, so the
+  count discriminates them with nothing new on the wire.
+
+  The dividend is worth naming: `undo()` already restores every snapshot
+  regardless of kind, so **an older build undoes both a bulk fill and an
+  auto-notes placement correctly, with no change at all.** A test pins it.
+
+### The wand is a real mode, which is more than §2.2 asked for
+
+§2.2 calls it a toggle but describes a one-shot. It could not have been one:
+`place` already prunes the placed digit from peer marks, so "recompute after a
+placement" is a no-op in isolation. **`erase` is where the mode earns its keep** —
+it widens the candidate set, and nothing re-derived marks after it until now.
+
+Consequences accepted deliberately:
+
+- While on, marks are **replaced**, not merged. Hand-made notes are overwritten
+  by the next placement. That is what "the marks are the machine's" means.
+- **`Mark it` is suppressed while auto notes is on.** Its eliminations would be
+  recomputed away one move later, and a button whose effect is erased that fast
+  is a button that lies.
+- The flag is per-board in `nine.coach`, not view state: a mode that silently
+  stopped updating marks after a relaunch would be worse than no mode.
+- Undoing the bulk fill also switches the mode off, or the next placement
+  refills exactly what the player just took back.
+
+### Verified by driving it, not by a green suite
+
+`swift test` **1:52.98** wall, 0 failures (the budget is ~120 s; PRD-23 left it
+at 112.5 s, and this PRD's tests are all sub-second — the movement is
+machine mood, not new cost). iOS/tvOS/macOS builds green, Release archive green,
+golden corpus 56/56, channel seal intact (`LogicSolver.advice` takes `context:`
+as a defaulted parameter, so no app-layer file names `ConstraintContext`).
+
+On an iPhone SE simulator, seeded with the frozen AX fixture: the coach found
+the fixture's deliberate wrong 7 as a peer clash and lit both cells; on a
+`--debug-fill` board it offered "Naked Single — Row 9, column 9 has one
+candidate left: six", and `Place it` completed the board through the normal
+path (Afterglow, "Solved", the PRD-34 "Another" chip). Auto notes filled 149
+candidates with the chip to say so, and **one** undo took all 149 back and
+switched the wand off.
+
+### The AX lane is flaky at launch, and it is not this PRD's doing
+
+Three of five `ax-snapshot.py --record` runs failed to capture `prefs`, twice
+with `cannot tap 'Settings' — not in the tree` and once by silently recording
+the game screen *over* the prefs baseline (105 → 87 elements, which is exactly
+`game.txt`). Driving the app by hand showed the same thing from the other side:
+the first `sim-use tap` after `simctl launch` was swallowed three times in a
+row, on three different buttons.
+
+So it is a launch-timing race in the harness, not a regression — a
+`--only prefs` run against the same build captured the correct tree on the
+first try. Two things follow for whoever hits it next:
+
+- **Check the element count before trusting a `--record`.** A silent
+  screen-for-screen substitution looks like a successful recording, and the
+  count is the only thing in the file that gives it away.
+- `--only <screen>` re-records one screen without risking the other four, and
+  `Tests/AXBaselines/.captured/` holds the last capture, so a verified good
+  dump can be promoted rather than re-rolled.
+
+The drift itself is +2 buttons and nothing else, identical across `game`,
+`game-quiet` and `prefs`: 85 → 87, 85 → 87, 105 → 107, with the 10/10/11
+container counts unmoved — which is the proof the 81-cell board tree did not
+flatten.
+
+### Not done
+
+- **No `moveLog` entry for auto notes.** `LoggedMove.Kind` carries the identical
+  downgrade hazard (`decodeIfPresent` still throws on a present-but-unknown
+  value), and there is no honest single `(cell, digit)` for a bulk fill. PRD-26
+  is already adding `LoggedMove` v2 fields and should design the representation
+  with a consumer in hand rather than have one guessed now. Consequence: a
+  PRD-26 replay will show marks appearing without a cause.
+- **`Mark it` applies eliminations one `togglePencil` at a time**, so each is its
+  own undo entry. Eliminations are rarely more than three; the alternative is a
+  second bulk-move helper in the engine.
+- **No tvOS or macOS coach** (PRD-11 §3 non-goal — the band layout is iOS).
+- **No sentences for the four variant techniques.** They fall to a `default:`
+  returning "", because naming them in `Sources/Shared` would trip the PRD-23
+  channel seal and they are unreachable on a classic board. PRD-24 adds them.
+- **The coach is capped at the board's difficulty ceiling**, so a Gentle board
+  that the player has made harder than Gentle can reach `.exhausted` and say
+  "nothing at this board's level follows from here". That is honest but it is a
+  dead end; PRD-25's "show me the next why" is where it stops being one.

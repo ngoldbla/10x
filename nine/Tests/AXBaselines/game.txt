@@ -95,11 +95,13 @@ Group "Box 9"
     Button "Row 9, column 9" = "Empty"  (342,560 40x40)
 [Bottom]
   Button "Home"  (14,788 44x44)
-  Button "Pencil marks"  (236,788 44x44)
-  Button "Undo"  (290,788 44x44)
+  Button "Hint"  (144,788 44x44)
+  Button "Pencil marks"  (194,788 44x44)
+  Button "Auto notes"  (244,788 44x44)
+  Button "Undo"  (294,788 44x44)
   Button "Settings"  (344,788 44x44)
 
-# 85 elements in 10 containers
+# 87 elements in 10 containers
 
 # actions rotor + hint, one cell per value branch
 

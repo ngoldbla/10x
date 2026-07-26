@@ -582,10 +582,17 @@ struct TouchGameScreen: View {
 
     /// Six buttons now (PRD-11 added the lightbulb and the wand), which is two
     /// past what PROGRAM-2.0's anti-bloat constitution allows — a deliberate
-    /// override, recorded in DEVIATIONS.md. The spacing came down from 10 to 6
-    /// to pay for them: six 44pt targets plus the timer chip do not fit a
-    /// 375pt iPhone at 10, and a control bar that clips on the smallest phone
-    /// would be a shipping bug rather than a taste question.
+    /// override, recorded in DEVIATIONS.md.
+    ///
+    /// It cost the timer its seat. The rule turns out not to be only an
+    /// aesthetic one: six 44pt targets are 264pt, the timer chip measures ~82,
+    /// and with gaps and padding the row wanted ~422pt — wider than any iPhone,
+    /// and measured clipping `Settings` 20pt off a 375pt SE *and* 2pt off a
+    /// 393pt iPhone 17. Shrinking the targets was never an option (the craft
+    /// charter's 44pt floor), so the timer moved to the free band, which PRD-2
+    /// sized for exactly this kind of ambient chrome. The bar is now controls
+    /// only, and 6×44 + 5×6 + padding = 322pt fits the smallest phone with
+    /// 53pt to spare.
     private var controlBar: some View {
         HStack(spacing: 6) {
             GlassIconButton(symbol: "chevron.left", label: "Home") {
@@ -593,8 +600,6 @@ struct TouchGameScreen: View {
                 motion.stop()
                 model.goHome()
             }
-            Spacer()
-            timerChip
             Spacer()
             GlassIconButton(
                 symbol: "lightbulb",
@@ -650,10 +655,27 @@ struct TouchGameScreen: View {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
-                    if showAmbient(in: edge, freeSpace: freeSpace) {
-                        AmbientSlotView(model: model)
+                    // The coach card parks in this same band, so the band's
+                    // own chrome stands down while it is up rather than
+                    // showing through the glass behind it.
+                    HStack(spacing: 10) {
+                        if edge == chromeEdge, coachAdvice == nil { timerChip }
+                        if showAmbient(in: edge, freeSpace: freeSpace) {
+                            AmbientSlotView(model: model)
+                        }
                     }
                 }
+        }
+    }
+
+    /// The band the optional chrome lives in: opposite the anchor, and
+    /// opposite the control bar on a centered board, so turning a chip on is
+    /// never a silent no-op behind the controls.
+    private var chromeEdge: VerticalEdge {
+        switch model.prefs.boardAnchor {
+        case .top: return .bottom
+        case .bottom: return .top
+        case .center: return model.prefs.controlsAtBottom ? .top : .bottom
         }
     }
 
@@ -662,17 +684,11 @@ struct TouchGameScreen: View {
     /// and only when the band is tall enough and the composing chip (which
     /// overlays at .top) is down.
     private func showAmbient(in edge: VerticalEdge, freeSpace: CGFloat) -> Bool {
-        guard model.prefs.ambientSlot != .none, model.composing == nil else { return false }
-        let anchor = model.prefs.boardAnchor
-        let ambientEdge: VerticalEdge
-        switch anchor {
-        case .top: ambientEdge = .bottom
-        case .bottom: ambientEdge = .top
-        case .center: ambientEdge = model.prefs.controlsAtBottom ? .top : .bottom
-        }
-        guard edge == ambientEdge else { return false }
+        guard model.prefs.ambientSlot != .none, model.composing == nil,
+              coachAdvice == nil else { return false }
+        guard edge == chromeEdge else { return false }
         // Centered boards split the free space between both bands.
-        let bandHeight = anchor == .center ? freeSpace / 2 : freeSpace
+        let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
         return bandHeight >= 100
     }
 
