@@ -268,7 +268,7 @@ struct PrefsSheetContent: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 28 * CouchScale.chrome)
-            HStack(spacing: 14 * CouchScale.chrome) {
+            SwatchFlow(spacing: 14 * CouchScale.chrome) {
                 ForEach(AccentChoice.allCases, id: \.self) { choice in
                     Button {
                         model.prefs.accent = choice
@@ -284,7 +284,14 @@ struct PrefsSheetContent: View {
                             .padding(6 * CouchScale.chrome)
                     }
                     .buttonStyle(.plain)
+                    // SwiftUI derives a shape-only Button's accessibility frame
+                    // from the drawn circle, so these read as 20×20 pt in
+                    // Tests/AXBaselines/prefs.txt — under the craft charter's
+                    // 44 pt floor. The touch target was always the padded
+                    // square; this makes the AX frame agree with it.
+                    .contentShape(.accessibility, Circle().size(width: 44, height: 44))
                     .accessibilityLabel(choice.title)
+                    .accessibilityAddTraits(choice == model.prefs.accent ? [.isSelected] : [])
                 }
             }
             .padding(.horizontal, 22 * CouchScale.chrome)
@@ -304,7 +311,7 @@ struct PrefsSheetContent: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 28 * CouchScale.chrome)
-            HStack(spacing: 14 * CouchScale.chrome) {
+            SwatchFlow(spacing: 14 * CouchScale.chrome) {
                 ForEach(ThemeChoice.allCases, id: \.self) { choice in
                     Button {
                         model.prefs.theme = choice
@@ -325,7 +332,12 @@ struct PrefsSheetContent: View {
                             .padding(6 * CouchScale.chrome)
                     }
                     .buttonStyle(.plain)
+                    .contentShape(
+                        .accessibility,
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .size(width: 44, height: 44))
                     .accessibilityLabel(choice.title)
+                    .accessibilityAddTraits(choice == model.prefs.theme ? [.isSelected] : [])
                 }
             }
             .padding(.horizontal, 22 * CouchScale.chrome)
@@ -347,6 +359,83 @@ struct PrefsSheetContent: View {
             Text("9")
                 .font(.system(size: 22 * CouchScale.chrome, weight: .semibold, design: .rounded))
                 .foregroundStyle(choice == .auto ? .gray : dark.digitTone)
+        }
+    }
+
+    /// A left-aligned flow that wraps onto as many lines as it needs. PRD-16
+    /// took the theme row from six swatches to nine and the accent row from
+    /// eight to ten; a plain `HStack` still fits an iPhone by about 30 pt,
+    /// which is the kind of margin that turns into a clipped swatch on the
+    /// release that adds a tenth theme.
+    ///
+    /// A `Layout` rather than a `LazyVGrid` because the two rows use different
+    /// swatch sizes (44 pt themes, 36 pt accents) and an adaptive grid would
+    /// column-align them into a table; each row is a wrapped sentence, not a
+    /// grid. tvOS focus is derived from geometry, so wrapping needs no focus
+    /// work of its own.
+    struct SwatchFlow: Layout {
+        var spacing: CGFloat
+
+        func sizeThatFits(
+            proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        ) -> CGSize {
+            let width = proposal.width ?? .infinity
+            let rows = rows(subviews: subviews, width: width)
+            return CGSize(
+                width: proposal.width ?? rows.map(\.width).max() ?? 0,
+                height: rows.last.map { $0.y + $0.height } ?? 0)
+        }
+
+        func placeSubviews(
+            in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        ) {
+            for row in rows(subviews: subviews, width: bounds.width) {
+                var x = bounds.minX
+                for index in row.range {
+                    let size = subviews[index].sizeThatFits(.unspecified)
+                    subviews[index].place(
+                        at: CGPoint(x: x, y: bounds.minY + row.y),
+                        anchor: .topLeading,
+                        proposal: ProposedViewSize(size))
+                    x += size.width + spacing
+                }
+            }
+        }
+
+        private struct Row {
+            var range: Range<Int>
+            var y: CGFloat
+            var width: CGFloat
+            var height: CGFloat
+        }
+
+        private func rows(subviews: Subviews, width: CGFloat) -> [Row] {
+            var rows: [Row] = []
+            var start = 0
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var lineHeight: CGFloat = 0
+
+            for index in subviews.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                if index > start, x + size.width > width {
+                    rows.append(
+                        Row(range: start..<index, y: y, width: x - spacing, height: lineHeight))
+                    y += lineHeight + spacing
+                    start = index
+                    x = 0
+                    lineHeight = 0
+                }
+                x += size.width + spacing
+                lineHeight = max(lineHeight, size.height)
+            }
+            if start < subviews.count {
+                rows.append(
+                    Row(
+                        range: start..<subviews.count, y: y, width: x - spacing,
+                        height: lineHeight))
+            }
+            return rows
         }
     }
 
