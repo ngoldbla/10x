@@ -21,6 +21,7 @@ struct TouchHomeView: View {
     @State private var showHistory = false
     @State private var showTutorial = false
     @State private var showBoards = false
+    @State private var showArchive = false
     /// The variants teaser's answer, swapped in place of its own subtitle so
     /// the shelf never grows a floating chip nobody asked for.
     @State private var variantsChip = false
@@ -78,6 +79,11 @@ struct TouchHomeView: View {
         .animation(.couchFast, value: model.helpSeen)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
+        .overlay {
+            GlassSheet(isPresented: $showArchive) {
+                ArchiveSheetContent(model: model, onClose: { showArchive = false })
+            }
+        }
         .overlay {
             if showTutorial {
                 TutorialView(accent: accent) {
@@ -145,11 +151,39 @@ struct TouchHomeView: View {
                 Spacer(minLength: 12)
                 todayStatus
             }
+            // Room for the archive glyph, so a long status line never runs
+            // under it.
+            .padding(.trailing, 44)
             .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         }
         // Composing the daily is its own state on this card, so only a *foreign*
         // compose disables it.
         .disabled(composeInFlight && !isComposingDaily)
+        // PRD-14. An **overlay on** the card, never a button **inside** it: a
+        // Button nested in `TouchCard`'s Button is merged by SwiftUI, and the
+        // merge takes the inner frame — measured live, the Today card's own
+        // accessibility element collapsed from 89×129 to the glyph's 44×44 and
+        // the archive button disappeared from the tree entirely. Nothing on
+        // screen changes when that happens, which is exactly the failure
+        // EXECUTING-A-PRD §4 exists for. As an overlay the two are siblings.
+        //
+        // (The Continue card's discard ✕ is nested and has the same defect —
+        // its own element is absent from `home.txt` too. Out of scope here, and
+        // recorded in DEVIATIONS.)
+        .overlay(alignment: .topTrailing) {
+            Button { showArchive = true } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.accessibility, Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Archive")
+            .accessibilityHint("Every past daily, on a month grid")
+            .padding(.trailing, 8)
+            .padding(.top, 8)
+        }
     }
 
     @ViewBuilder
@@ -257,7 +291,9 @@ struct TouchHomeView: View {
 
     private func boardTitle(_ entry: LibraryEntry) -> String {
         switch entry.kind {
-        case .daily: return "Daily · \(entry.createdAt.formatted(date: .abbreviated, time: .omitted))"
+        // The daily's own day, not `createdAt` — the second of the two places
+        // that made the same assumption (PRD-14; see `BoardsSheet.title`).
+        case .daily(let day): return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
         case .free(let difficulty): return difficulty.title
         }
     }
@@ -392,8 +428,12 @@ struct TouchHomeView: View {
         .foregroundStyle(.secondary)
     }
 
+    /// **Today's** daily, not any daily. Since PRD-14 a `.daily(day:)` compose
+    /// may be for 12 July, and matching the case alone made the Today card
+    /// announce "Composing…" for a board that is not its own — then hand the
+    /// player a different day when it landed.
     private var isComposingDaily: Bool {
-        if case .daily? = model.composing { return true }
+        if case .daily(let day)? = model.composing { return day == model.todayOrdinal }
         return false
     }
 }
@@ -687,6 +727,11 @@ struct TouchGameScreen: View {
         guard model.prefs.ambientSlot != .none, model.composing == nil,
               coachAdvice == nil else { return false }
         guard edge == chromeEdge else { return false }
+        // PRD-14: the archive chip takes the same `.top` overlay slot, and
+        // unlike a compose — which lasts seconds — it is up for the whole
+        // board. It only stands the ambient chip down when the two would
+        // actually share the top band, rather than for every archive session.
+        if model.archiveDay != nil, chromeEdge == .top { return false }
         // Centered boards split the free space between both bands.
         let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
         return bandHeight >= 100
@@ -699,6 +744,20 @@ struct TouchGameScreen: View {
     private var composingChip: some View {
         if model.composing != nil, model.game != nil {
             GlassChip("Composing…", systemImage: "sparkles")
+                .transition(.opacity)
+        } else if let day = model.archiveDay, model.game != nil, coachAdvice == nil {
+            // PRD-14. A past day is pixel-identical to today's board, so this
+            // is the only thing on screen telling the player which one they are
+            // on — and, by saying "Archive" rather than a bare date, that this
+            // one is not the daily their streak depends on.
+            //
+            // `coachAdvice == nil` for the same reason the timer chip carries
+            // it: the coach card parks in the band directly under this overlay,
+            // and driving the app caught the chip printed straight across the
+            // card's title. A persistent chip has to yield to a card the player
+            // just asked for.
+            GlassChip("Archive · \(ArchiveCalendar.shortLabel(forDayOrdinal: day))",
+                      systemImage: "calendar")
                 .transition(.opacity)
         }
     }

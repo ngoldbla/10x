@@ -310,6 +310,12 @@ final class AppModel {
     private(set) var coach: CoachLedger {
         didSet { coachStore.wrappedValue = coach }
     }
+    /// Which dailies are solved (PRD-14) — the archive grid's checkmarks.
+    /// Written only by `finishSolve` and the launch backfill; the library
+    /// cannot hold this, because `prune()` caps solved boards at 20.
+    private(set) var archive: ArchiveLedger {
+        didSet { archiveStore.wrappedValue = archive }
+    }
     /// A tip has already been shown during this launch. Never persisted: the
     /// "one per session" half of the budget is a property of the launch, and
     /// the lifetime half is what the ledger is for.
@@ -396,6 +402,13 @@ final class AppModel {
         CouchStored(wrappedValue: false, "nine.drawerFound")
     @ObservationIgnored private let historyStore =
         CouchStored(wrappedValue: SolveHistory(), "nine.history", cloudSynced: true)
+    /// Which dailies are solved (PRD-14). Its own blob for the reason above,
+    /// and *not* a sibling key of `nine.history`: `SolveHistory` is an ordered
+    /// record array with a capacity prune and a quarantine, and a set of day
+    /// ordinals shares none of that. Cloud-synced unlike `nine.coach` — a
+    /// checkmark is a property of the player, not of the hand that earned it.
+    @ObservationIgnored private let archiveStore =
+        CouchStored(wrappedValue: ArchiveLedger(), "nine.archive", cloudSynced: true)
 
     /// The CloudKit boundary (PRD-8). Nil when the store isn't created; when
     /// present but no iCloud account exists the app stays purely local — sync
@@ -549,6 +562,7 @@ final class AppModel {
         welcomeSeen = welcomeSeenStore.wrappedValue
         tips = tipsStore.wrappedValue
         coach = coachStore.wrappedValue
+        archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit
@@ -581,6 +595,9 @@ final class AppModel {
             legacySaveStore.wrappedValue = SaveSlot()
             try? legacySaveStore.flushNow()
         }
+
+        // After the migration, so a legacy board's solved daily is seen too.
+        backfillArchiveLedger()
 
         #if os(tvOS)
         startPadReader()
@@ -642,6 +659,29 @@ final class AppModel {
 
     var todaySolved: Bool { streak.hasCompleted(day: todayOrdinal) }
 
+    /// The past day the board on screen belongs to — nil for today's daily and
+    /// for free play. Drives the in-game "Archive · Jul 12" chip, which is the
+    /// only thing telling the player they are not on today's board.
+    ///
+    /// Keyed on provenance rather than on the clock, for the same reason the
+    /// streak guard is: `day < todayOrdinal` alone would grow an "Archive ·
+    /// Jul 25" chip on the board a player is *actively finishing* the moment
+    /// local midnight passes under them.
+    var archiveDay: Int? {
+        guard case .daily(let day)? = kind, day < todayOrdinal,
+              openedOn(day: day) > day else { return nil }
+        return day
+    }
+
+    /// The day ordinal the board on screen was created on, which is what tells
+    /// an archive board from an ordinary daily. Falls back to `day` — "not an
+    /// archive board" — when there is no entry to ask, so a missing record can
+    /// never invent one.
+    private func openedOn(day: Int) -> Int {
+        guard let id = currentEntryID, let entry = library.entry(id: id) else { return day }
+        return DailySeed.dayOrdinal(for: entry.createdAt)
+    }
+
     /// The saved board, when it is today's daily and still in progress.
     var savedDaily: NineGame? {
         library.inProgressDaily(day: todayOrdinal)?.game
@@ -690,6 +730,44 @@ final class AppModel {
             // No in-progress daily (fresh, or replay-after-solve): compose one.
             // adoptDaily replaces the day slot; recordCompletion is idempotent.
             compose(kind: .daily(day: day), seed: DailySeed.seed(for: Date()), difficulty: .steady)
+        }
+    }
+
+    /// Open any past daily from the archive (PRD-14).
+    ///
+    /// Mirrors `openToday` without its two today-only concerns. No widget
+    /// ingestion: `WidgetBridge.publishDailyBoard` reads
+    /// `inProgressDaily(day: todayOrdinal)`, so an archive board is
+    /// structurally invisible to the widget and needs no guard. And no streak
+    /// write — `finishSolve` passes `today:` to the guarded overload.
+    ///
+    /// Today routes back through `openToday` rather than composing its own
+    /// board, so "today via the archive" and "today via the Today card" are the
+    /// same library entry: one daily a day, no duplicates (PRD-14 §5).
+    ///
+    /// Resume needs nothing new. `inProgressDaily(day:)` is keyed on an
+    /// arbitrary day, so a half-finished 12 July is a partial like any other,
+    /// and it syncs through PRD-8 as an ordinary `.daily` entry.
+    func openArchiveDay(_ day: Int) {
+        guard day <= todayOrdinal else { return }   // the future is not offered
+        // Nine served no daily before it shipped, so the days before the first
+        // one are not "past days you could have played" — they are content
+        // dressed as history. The floor is a day, not a month, because the
+        // first daily landed mid-month.
+        guard day >= ArchiveCalendar.floorDayOrdinal else { return }
+        // A compose already in flight calls `startEntry` when it lands, so
+        // resuming a partial underneath one yanks the player off this board
+        // mid-move seconds later; and `compose` itself refuses a second
+        // request, so the other branch would be a silent dead tap. The sheet
+        // disables its cells for the same window.
+        guard composing == nil else { return }
+        guard day != todayOrdinal else { return openToday() }
+        if let entry = library.inProgressDaily(day: day) {
+            startEntry(entry.id)
+        } else {
+            compose(kind: .daily(day: day),
+                    seed: DailySeed.seed(forDayOrdinal: day),
+                    difficulty: .steady)
         }
     }
 
@@ -895,6 +973,37 @@ final class AppModel {
         persistProgress()
     }
 
+    // MARK: - Archive (PRD-14)
+
+    /// Seed the checkmark ledger from what is still knowable, every launch.
+    ///
+    /// Idempotent (`markSolved` is a set insert), O(library), and self-healing:
+    /// a solved daily that arrives later from CloudKit picks up its check on
+    /// the next launch. It cannot recover days the library pruned before this
+    /// build shipped — nothing can, and the alternative to saying so is holes
+    /// in the grid that look exactly like unplayed days.
+    ///
+    /// `.solved` only, not `status != .inProgress`: `archiveEntry(id:)` archives
+    /// *partials* too, and an abandoned board is not a solved one.
+    private func backfillArchiveLedger() {
+        var ledger = archive
+        var changed = false
+        if let last = streak.lastCompletedDay {
+            changed = ledger.markSolved(day: last) || changed
+        }
+        for entry in library.entries where entry.status == .solved {
+            if case .daily(let day) = entry.kind {
+                changed = ledger.markSolved(day: day) || changed
+            }
+        }
+        guard changed else { return }
+        archive = ledger
+        // Called from `init`, where `didSet` observers are unreliable — the
+        // same reason `sessionCountStore` is written through by hand above.
+        // A redundant write if the observer did fire; a lost backfill if not.
+        archiveStore.wrappedValue = ledger
+    }
+
     /// Every ledger write prunes to the live library, so the blob tracks it
     /// rather than accumulating the ids of boards deleted months ago.
     private func writeCoach(_ mutate: (inout CoachLedger) -> Void) {
@@ -985,8 +1094,25 @@ final class AppModel {
         var isDaily = false
         if case .daily(let day)? = kind {
             isDaily = true
-            streak.recordCompletion(day: day)
+            // A past-day solve must never rewrite streak state (PRD-14 §2).
+            // The guard lives in the Engine because the one-argument form
+            // cannot enforce it: its `day > last` check does nothing while
+            // `lastCompletedDay` is nil, so a fresh install solving yesterday
+            // from the archive would come away with a streak nobody earned.
+            //
+            // `openedOn`, not `todayOrdinal`: a clock read here is wrong on the
+            // ORDINARY path, throwing away the streak of anyone who opens the
+            // daily at 23:55 and finishes it at 00:03.
+            streak.recordCompletion(day: day, openedOn: openedOn(day: day))
             try? streakStore.flushNow()
+            // Every daily solve, not only archive ones — a day solved from the
+            // Today card has to carry a check in the grid too, or the archive
+            // is right about the past and wrong about the present.
+            var ledger = archive
+            if ledger.markSolved(day: day) {
+                archive = ledger
+                try? archiveStore.flushNow()
+            }
         }
         let difficulty: Difficulty
         switch kind {
@@ -1121,8 +1247,23 @@ final class AppModel {
             // per day, and pendingSolve is cleared below, so a same-day
             // re-ingest no-ops.
             if !streak.hasCompleted(day: shared.dayOrdinal) {
-                streak.recordCompletion(day: shared.dayOrdinal)
+                // `shared.isCurrent(today:)` above already pins dayOrdinal to
+                // today, so this board can never be an archive one — but say so
+                // in the call rather than leaving it to a guard three lines up.
+                streak.recordCompletion(day: shared.dayOrdinal, openedOn: shared.dayOrdinal)
                 try? streakStore.flushNow()
+                // The archive's checkmark, which `finishSolve` writes for every
+                // other solve. Without it a daily finished entirely in the
+                // widget shows no check until the next COLD LAUNCH's backfill —
+                // and `BoardLibrary.prune()`'s 20-entry cap can eat the library
+                // entry that backfill reads before that launch ever happens,
+                // losing the day permanently. This is the app's only other
+                // solve path; it needed the same line.
+                var ledger = archive
+                if ledger.markSolved(day: shared.dayOrdinal) {
+                    archive = ledger
+                    try? archiveStore.flushNow()
+                }
                 let record = SolveRecord(
                     date: pending.solvedAt,
                     difficulty: .steady, // the daily composes at steady

@@ -4,6 +4,7 @@
 # Regenerate: nine/scripts/ax-snapshot.py --record
 
 [Content]
+  Button "Archive"  (330,154 44x44)
   Button "Today, <today>, One a day"  (38,164 89x129)
   Button "4 of 53 filled., Continue, Steady · 7%"  (43,355 321x44)
   Button "Gentle, Singles & scans"  (44,461 64x126)
@@ -14,4 +15,4 @@
   Button "How to play"  (71,769 73x52)
   Button "History"  (272,768 45x54)
 
-# 8 elements in 2 containers
+# 9 elements in 2 containers

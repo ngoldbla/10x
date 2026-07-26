@@ -221,8 +221,12 @@ struct BoardsSheetContent: View {
 
     private func title(for entry: LibraryEntry) -> String {
         switch entry.kind {
-        case .daily:
-            return "Daily · \(entry.createdAt.formatted(date: .abbreviated, time: .omitted))"
+        case .daily(let day):
+            // The daily's own day, not `createdAt` (PRD-14). The two were the
+            // same date for every board that could exist before the archive, so
+            // reading `createdAt` was invisibly wrong; open 13 July from the
+            // archive today and the tracker listed it as "Daily · Jul 26".
+            return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
         case .free(let difficulty):
             return difficulty.title
         }

@@ -474,12 +474,16 @@ public enum RawJSON: Codable, Sendable, Equatable, Hashable {
     }
 
     /// String-only coding key: JSON objects have no integer keys.
-    struct RawKey: CodingKey {
-        let stringValue: String
-        var intValue: Int? { nil }
-        init(_ string: String) { stringValue = string }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { return nil }
+    /// Public because `RawJSON` is: carrying an unknown tree from another
+    /// module means building a keyed container with arbitrary string keys, and
+    /// that is impossible without this. `NineShared`'s `ArchiveLedger` is the
+    /// first outside user (PRD-14).
+    public struct RawKey: CodingKey {
+        public let stringValue: String
+        public var intValue: Int? { nil }
+        public init(_ string: String) { stringValue = string }
+        public init?(stringValue: String) { self.stringValue = stringValue }
+        public init?(intValue: Int) { return nil }
     }
 }
 

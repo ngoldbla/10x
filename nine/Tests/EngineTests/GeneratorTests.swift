@@ -201,4 +201,48 @@ final class GeneratorTests: XCTestCase {
         XCTAssertEqual(DailySeed.dayOrdinal(for: tomorrow, calendar: calendar),
                        DailySeed.dayOrdinal(for: morning, calendar: calendar) + 1)
     }
+
+    // MARK: - Archive: the ordinal → seed inverse (PRD-14)
+
+    /// The daily mapping is a forever-contract — every daily Nine will ever
+    /// serve and every shared seed is `(day → seed) → puzzle`. Nothing pinned it
+    /// absolutely before this; the relative test above can pass while the whole
+    /// mapping shifts by a day.
+    func testDailySeedForAKnownDayIsFrozen() {
+        let july12 = DailySeed.utcCalendar.date(
+            from: DateComponents(year: 2026, month: 7, day: 12)
+        )!
+        XCTAssertEqual(
+            DailySeed.seed(for: july12, calendar: DailySeed.utcCalendar), 2_063_382_953_672_419_813
+        )
+        XCTAssertEqual(
+            DailySeed.seed(forDayOrdinal: DailySeed.dayOrdinal(for: july12, calendar: DailySeed.utcCalendar)),
+            2_063_382_953_672_419_813
+        )
+    }
+
+    /// The archive composes from an ordinal and the Today card from a `Date`.
+    /// They must be the same puzzle, or "today via the archive" is a second
+    /// board — and every past day would be a board nobody else ever saw.
+    func testSeedForDayOrdinalMatchesSeedForDate() {
+        for offsetHours in [0, -8, 5, 13] {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: offsetHours * 3600)!
+            let start = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+            for dayOffset in 0..<400 {
+                let date = calendar.date(byAdding: .day, value: dayOffset, to: start)!
+                let ordinal = DailySeed.dayOrdinal(for: date, calendar: calendar)
+                XCTAssertEqual(
+                    DailySeed.seed(forDayOrdinal: ordinal),
+                    DailySeed.seed(for: date, calendar: calendar),
+                    "GMT\(offsetHours) day \(dayOffset)"
+                )
+            }
+        }
+    }
+
+    func testSeedForDayOrdinalIsDistinctAcrossConsecutiveDays() {
+        let seeds = (9_300...9_400).map { DailySeed.seed(forDayOrdinal: $0) }
+        XCTAssertEqual(Set(seeds).count, seeds.count)
+    }
 }

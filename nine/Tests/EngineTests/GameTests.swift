@@ -293,6 +293,59 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(streak.displayedStreak(today: 103), 0, "older chains lapse")
     }
 
+    // MARK: - Streaks: the archive can never write one (PRD-14)
+
+    /// The bug the guarded form exists for, and the reason it is a fix rather
+    /// than defence in depth. `recordCompletion(day:)`'s `day > last` check
+    /// cannot fire when nothing has been completed yet — so a fresh install
+    /// that solved yesterday from the archive would come away showing a
+    /// one-day streak it never earned, on the one number that has to be true.
+    func testArchiveSolveOfYesterdayLeavesAFreshStreakAtZero() {
+        var streak = StreakState()
+        // Opened today (9_500), for yesterday: an archive board.
+        streak.recordCompletion(day: 9_499, openedOn: 9_500)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 0)
+        XCTAssertNil(streak.lastCompletedDay)
+        XCTAssertEqual(streak.current, 0)
+        XCTAssertEqual(streak.best, 0)
+    }
+
+    /// And the same guard on a live streak: working backwards through a whole
+    /// month of the archive leaves every field of the state untouched.
+    func testArchiveSolveNeverDisturbsALiveStreak() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_499, openedOn: 9_499)
+        streak.recordCompletion(day: 9_500, openedOn: 9_500)
+        let before = streak
+        for pastDay in 9_400..<9_500 {
+            streak.recordCompletion(day: pastDay, openedOn: 9_500)
+        }
+        XCTAssertEqual(streak, before)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 2)
+    }
+
+    func testTodayStillRecordsThroughTheGuardedForm() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_500, openedOn: 9_500)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 1)
+        XCTAssertEqual(streak.lastCompletedDay, 9_500)
+    }
+
+    /// The regression a clock-based guard caused, and the reason the guard is
+    /// keyed on provenance instead: a daily opened at 23:55 and finished at
+    /// 00:03 is still that day's daily, and must still extend the streak.
+    /// `guard day >= todayOrdinal` threw this away on the ordinary path.
+    func testADailySolvedAcrossMidnightStillCountsForItsOwnDay() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_499, openedOn: 9_499)
+        // Board opened on 9_500 for 9_500; the clock is 9_501 by the time the
+        // last digit lands, but the board's provenance has not changed.
+        streak.recordCompletion(day: 9_500, openedOn: 9_500)
+        XCTAssertEqual(streak.current, 2)
+        XCTAssertEqual(streak.lastCompletedDay, 9_500)
+        XCTAssertEqual(streak.displayedStreak(today: 9_501), 2, "the chain is alive on the new day")
+    }
+
     // MARK: - Auto notes (PRD-11 11b)
 
     func testAutoNotesFillsEveryEmptyCellWithItsLegalCandidates() {
