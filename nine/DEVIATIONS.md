@@ -1814,3 +1814,192 @@ run — a ~3.5× factor that applies uniformly across the three expensive suites
   the real daily was never opened, and `GameCenter.reportSolve` submits it as a
   daily. **Whoever revisits this should start from `isDaily` being one flag doing
   four jobs**, not from the points formula.
+
+## PRD-12 + PRD-13 — the gift and the held streak (2026-07-26)
+
+Two small PRDs in one PR because they share `TouchUI.swift` and EXECUTING-A-PRD
+§7 allows one owner of that file at a time. The plan is
+[docs/superpowers/plans/2026-07-26-prd-12-13-share-and-grace.md](../docs/superpowers/plans/2026-07-26-prd-12-13-share-and-grace.md);
+what follows is what a later reader needs and would not otherwise find.
+
+### PRD-13 §2's two rules contradict each other, and the chip is where it shows
+
+§2 gives the bridge rule and the display rule independently:
+
+- grace applies iff `lastGraceDay == nil || lastCompletedDay > lastGraceDay + 1`
+- `displayedStreak(today:)` shows the streak while `last >= today - 2`
+
+Compose them at the state where the bridge is already spent — `lastCompletedDay
+== lastGraceDay + 1` — and the shelf shows "12 day streak" through the silent
+day, the player solves, and **the chip flips to 1**, because non-stacking
+refuses the second bridge. The app would punish them at the exact instant of
+success. That is the churn cliff PRD-13 exists to remove, moved one day later
+and made worse by being a surprise.
+
+So the display window is gated on `graceAvailable`. The consequence is that a
+player whose bridge is spent sees the chip lapse quietly a day earlier than §2's
+wording implies — which is also the kinder behaviour, because nothing announces
+it. **`swift test` cannot catch a rule that is individually correct and jointly
+wrong**, so the property is pinned directly:
+`testTheChipNeverPromisesAStreakTheNextSolveWouldBreak` sweeps all sixteen
+two-completion gap pairs and asserts that a nonzero chip never precedes a solve
+that shortens the chain.
+
+The invariant that makes this cheap is that `standsOnGrace == !graceAvailable`
+**exactly**: a bridge leaves `lastCompletedDay == lastGraceDay + 1`, and the
+next natural completion makes it `> lastGraceDay + 1` in the same move that
+re-earns the grace. One predicate therefore drives the bridge rule, the display
+window, the shield glyph and the card, and the four cannot disagree.
+
+### `lastGraceDay` is on `StreakState`, and the downgrade is unpreventable
+
+EXECUTING-A-PRD §2 bans new fields on `LibraryEntry` — an *element inside* a
+container. `nine.streak` is a blob whose **root** is `StreakState`, so the rule
+does not reach it, but the hazard partly does: builds 450/451/452 are on
+TestFlight with a *synthesized* decode, so a downgrade strips `lastGraceDay` on
+its next write no matter what this build does. `carriedTopLevel` protects
+against *future* keys, not past builds.
+
+The consequence is bounded and it errs kind — a returning player is offered one
+bridge they had already spent — and it is pinned by
+`aDowngradeStripsTheBridgeAndErrsKind`. The alternative considered was a
+separate `nine.grace` blob, which a downgrade genuinely could not touch. It was
+rejected because it cannot be written in the same flush as the streak it guards,
+and **two ledgers that disagree about one streak is the bug PRD-14 shipped a fix
+for** — its clock-based guard left the archive grid checkmarked for a day the
+streak recorded as missed, permanently.
+
+While adding the field, `StreakState` also gained a hand-written tolerant decode
+it should have had all along. It had synthesized `Codable`: one malformed byte
+threw, `CouchStored` discarded the blob, and the player's streak silently reset
+to zero.
+
+### The widget had a *third* copy of the streak rule, and PRD-13 made it wrong
+
+`WidgetSnapshot.displayedStreak` is a deliberate duplicate with a cross-check
+test, so it was found immediately. `BoardIntents` had a second, hand-rolled copy
+for dailies finished entirely inside the widget, with no test at all — found
+only by grepping `lastCompletedDay`. Solve in the widget after one missed day
+and it reset the streak to 1 while the app's next ingest bridged it back to 13:
+**the widget would have been the app's one streak-shaming surface**, on the
+screen a player is least likely to look at twice.
+
+It is `WidgetSnapshot.recordOptimisticSolve(day:)` now, driven against the
+Engine across every gap in a test rather than written out a third time. The
+lesson generalises: a duplicated rule is safe only when a test drives both
+copies from the same input — the copy with the cross-check survived PRD-13, the
+copy without it did not.
+
+`currentSchemaVersion` deliberately did **not** move. `WidgetSnapshotStore.load`
+rejects `schemaVersion > current`, so a bump blanks the widget rather than
+degrading it; an additive optional field decodes to nil on a pre-grace file,
+which reads as "a bridge is there" — the same answer a fresh install gives.
+
+### The shield replaces the flame rather than joining it
+
+PRD-13 §3 asks for a chip that "gains" a `shield.lefthalf.filled`. `GlassChip`
+renders exactly one `systemImage`, and both ways to obey the wording are worse:
+a badge overlaid on a capsule clips at the top Dynamic Type sizes, and a second
+chip beside the first is the accretion the anti-bloat constitution exists to
+refuse. Replacing reads truer anyway — the flame is the streak burning, the
+shield is the streak being held — and the header keeps exactly the width it had.
+
+The four call sites that had grown the same chip literal (iOS, tvOS and macOS
+headers plus the iOS ambient slot) now share `StreakChip`. Its label is
+`BoardSpeech.streakChip`, because unlabelled VoiceOver reads the SF Symbol's own
+name — "shield, left half filled, 12 day streak" — announcing a mechanic the
+covenant says does not exist. A test bans `shield`, `remaining`, `left`,
+`missed`, `lost` and `danger` from that string.
+
+### The card is a chrome with a slot, because PRD-26 is going to fill it
+
+PROGRAM-2.0 commits the 5-second comet loop to becoming this card's animated
+body. So `ShareCard` is generic over its centre, `ShareCardMetrics` owns the
+body's side and the margins around it, and `SolvedGridThumb` is merely what
+fills the slot today. Swapping in a comet is a call-site change: no caption
+moves, no margin is re-derived, and still and loop are laid out by the same code
+because they are laid out by the same type.
+
+`SolveCardFacts` is the other half of that seam — a pure value in
+`Sources/Shared`, Linux-tested beside `BoardSpeech`, holding every word the card
+says. The card leaves the app as a PNG and is then seen only where nobody here
+can correct it, so its captions are pinned rather than previewed once; PRD-26's
+debrief is captioned from the same value, so the still and the loop cannot
+drift.
+
+Deliberately **not** `BoardView`: the live board carries the Afterglow's Metal
+pipeline, the rose, selection, error state, pencil marks and 81 accessibility
+children, none of which survives being flattened to a PNG. Fixed 1080×1350 at
+`scale = 1`, so the file is identical on every device and at every Dynamic Type
+setting — a share card is a picture, not a screen, and must not reflow.
+
+### Two defects only driving the app could find, on one feature
+
+EXECUTING-A-PRD §5 again, and this time the artifacts actively lied: the PNG was
+on disk, correct, 1080×1350, while the button to reach it was not on screen.
+
+- **The `@State` read was inside `TimelineView`'s escaping content closure.** It
+  therefore captured a snapshot of the view struct from before the render landed
+  ~70 ms after the solve. Instrumented, the renderer logged `assigned,
+  shareCard=set` **once** and the button logged `shareCard=nil` on all **30**
+  subsequent evaluations. The card is now read in the body and passed into the
+  closure as a parameter. The pair of logs is what localised it — one alone
+  reads as a render failure or a UI failure; both together name the read.
+- **A 2.4 s `Task.sleep` inside `.task(id: model.solvedAt)`**, so the render
+  would land after the Afterglow. `Task.sleep` returns immediately on
+  cancellation, so any view churn in that window left `shareCard` nil with no
+  restart to repair it — the button then never appeared for that solve. It is a
+  synchronous `onChange` now, **measured at 38–70 ms** for the full
+  1080×1350 pass. The wait was never buying anything: the button lives inside
+  the completion chip's own `> 2.4 s` gate, which was already doing the work the
+  sleep was credited with.
+
+Both are invisible to a green suite, to three clean platform builds, and to
+reading the code. A feature that works four times in five is worse than one that
+is absent, because nobody can report it.
+
+### The AX lane does not cover either new element, and says so
+
+`ax-snapshot.py` reports **all five trees matching their baselines** — not
+because nothing was added, but because neither new element is reachable in the
+states the lane captures: `game.txt` is a partially-filled fixture board, never
+a solved one, so the completion chip and its share button do not exist; and the
+lane's streak is unbridged, so the grace card does not either. No baseline was
+re-recorded, and the count is the proof that nothing else moved.
+
+Extending the lane means a sixth seeded state (a solved board) and a seventh
+(a bridged streak). Worth doing when something else needs a solved-board tree;
+not worth a fixture rig on its own here, where both surfaces were driven by hand
+in both themes instead.
+
+### Numbers
+
+`swift test`: **278 tests, 3 skipped, 0 failures, 1:51 wall** at load average
+2.31 — inside the ~120 s budget, and worth contrasting with PRD-14's 342 s and
+520 s at load 189 for whoever next reads a slow number as a cost. Golden corpus
+**56/56** after every engine commit. iOS, tvOS and macOS builds green; iOS
+Release archive green. Share-card render **38–70 ms**, iPhone 17 Pro simulator,
+Debug.
+
+### Not done
+
+- **No tvOS share.** There is no share sheet on tvOS (PRD-12 §3). The card
+  itself is unfenced and compiles there, so PRD-26's ambient screensaver
+  inherits it.
+- **No tvOS or macOS grace card.** Both wear the shield glyph; the one-time card
+  is iOS-only, per PRD-13 §3's scoping to the home shelf.
+- **The share sheet's preview thumbnail is generic.** Passing
+  `SharePreview(_:image:)` was tried and reverted while chasing the bug above —
+  it turned out to be innocent, but by then the button was fixed without it and
+  re-adding it is a change with no evidence behind it. `ShareCardExport` still
+  carries the rendered `Image`, so it is one argument away.
+- **Nothing to delete.** PRD-12 §4.3 and PRD-13 §5.3 ask for `ShareCardDemo` and
+  `ShieldDemo` to go; PRD-18 already deleted the entire `-uxdemo` rig, so
+  `UXDemoScenes.swift` does not exist on `main` (`git show a18cbe3:` restores
+  it).
+- **No `nine.graceSeen` pruning.** It is one `Int` and PRD-13's non-stacking rule
+  guarantees one live bridge at a time, so there is nothing to grow.
+- **The header streak chip is a 102×16 AX element**, below the craft charter's
+  44 pt floor. Pre-existing on every `GlassChip` in the header and not this PR's
+  surface; it is non-interactive decoration, but it is worth a sweep with the
+  points chip beside it.
