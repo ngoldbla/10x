@@ -118,6 +118,14 @@ struct StatsDrawerContent: View {
                         tile(paceText(game, at: timeline.date), "pace")
                         tile("\(game.pencilMarkCount)", "notes")
                         tile("\(game.undoCount)", "undos")
+                        // Only once a hint has actually been spent (PRD-11 §6).
+                        // A player who never opens the coach never sees coach
+                        // chrome, and a fifth tile reading "0" would be a
+                        // reproach rather than a fact — honest absence over
+                        // fake data, per the craft charter.
+                        if model.coachHints > 0 {
+                            tile("\(model.coachHints)", "hints")
+                        }
                     }
                 }
             }
