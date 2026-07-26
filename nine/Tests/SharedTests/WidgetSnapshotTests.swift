@@ -50,7 +50,8 @@ final class WidgetSnapshotTests: XCTestCase {
             let snapshot = WidgetSnapshot(
                 streakCurrent: streak.current,
                 streakBest: streak.best,
-                lastCompletedDay: streak.lastCompletedDay
+                lastCompletedDay: streak.lastCompletedDay,
+                lastGraceDay: streak.lastGraceDay
             )
             for vantage in (today - 2)...(today + 3) {
                 XCTAssertEqual(
@@ -58,17 +59,94 @@ final class WidgetSnapshotTests: XCTestCase {
                     streak.displayedStreak(today: vantage),
                     "\(label) at vantage \(vantage)"
                 )
+                XCTAssertEqual(
+                    snapshot.graceAvailable, streak.graceAvailable,
+                    "\(label): the bridge must be spent on both sides or neither"
+                )
             }
         }
 
         assertAgreement("empty streak")
+        streak.recordCompletion(day: today - 5)
         streak.recordCompletion(day: today - 4)
-        streak.recordCompletion(day: today - 3)
         assertAgreement("lapsed chain")
+        streak.recordCompletion(day: today - 2)      // bridges today - 3
+        assertAgreement("alive via a bridge")
         streak.recordCompletion(day: today - 1)
-        assertAgreement("alive via yesterday")
+        assertAgreement("a natural day re-earns the bridge")
         streak.recordCompletion(day: today)
         assertAgreement("solved today")
+        streak.recordCompletion(day: today + 2)      // bridges today + 1
+        assertAgreement("second bridge, after natural days")
+    }
+
+    /// The widget must not offer a bridge the app has already spent — the
+    /// mirror is only worth having if it is wrong in the same places.
+    func testSnapshotRefusesAStackedBridgeExactlyAsTheEngineDoes() {
+        let today = 9_200
+        var streak = StreakState()
+        streak.recordCompletion(day: today - 4)
+        streak.recordCompletion(day: today - 2)      // bridge spent on today - 3
+        let snapshot = WidgetSnapshot(
+            streakCurrent: streak.current,
+            streakBest: streak.best,
+            lastCompletedDay: streak.lastCompletedDay,
+            lastGraceDay: streak.lastGraceDay
+        )
+        XCTAssertEqual(snapshot.displayedStreak(today: today), 0)
+        XCTAssertEqual(
+            snapshot.displayedStreak(today: today),
+            streak.displayedStreak(today: today)
+        )
+    }
+
+    // MARK: - The widget's own solve path (PRD-3 §2 × PRD-13)
+
+    /// A daily finished entirely inside the widget takes a different code path
+    /// from every other solve, and it had its own hand-rolled copy of the
+    /// streak rule — which PRD-13 silently made wrong. Driven against the
+    /// Engine rather than against hand-written expectations.
+    func testOptimisticWidgetSolveMatchesTheEngineIncludingTheBridge() {
+        let base = 9_200
+        // Every gap a second solve can arrive after, bridgeable or not.
+        for gap in 1...3 {
+            var streak = StreakState()
+            streak.recordCompletion(day: base)
+            var snapshot = WidgetSnapshot(
+                streakCurrent: streak.current,
+                streakBest: streak.best,
+                lastCompletedDay: streak.lastCompletedDay,
+                lastGraceDay: streak.lastGraceDay
+            )
+
+            streak.recordCompletion(day: base + gap)
+            snapshot.recordOptimisticSolve(day: base + gap)
+
+            XCTAssertEqual(snapshot.streakCurrent, streak.current, "gap \(gap)")
+            XCTAssertEqual(snapshot.streakBest, streak.best, "gap \(gap)")
+            XCTAssertEqual(snapshot.lastCompletedDay, streak.lastCompletedDay, "gap \(gap)")
+            XCTAssertEqual(snapshot.lastGraceDay, streak.lastGraceDay, "gap \(gap)")
+        }
+    }
+
+    func testOptimisticWidgetSolveIgnoresARepeatOfTheSameDay() {
+        var snapshot = WidgetSnapshot(streakCurrent: 4, streakBest: 9, lastCompletedDay: 9_200)
+        snapshot.recordOptimisticSolve(day: 9_200)
+        XCTAssertEqual(snapshot.streakCurrent, 4, "solving today twice is not a two-day streak")
+        snapshot.recordOptimisticSolve(day: 9_199)
+        XCTAssertEqual(snapshot.streakCurrent, 4, "and time travel is also a no-op")
+    }
+
+    /// The specific regression: finish the daily in the widget after one missed
+    /// day. The old code reset to 1 while the app's next ingest bridged to 13,
+    /// so the widget was the app's one streak-shaming surface.
+    func testAWidgetSolveAfterOneMissedDayBridgesRatherThanShames() {
+        var snapshot = WidgetSnapshot(
+            streakCurrent: 12, streakBest: 12, lastCompletedDay: 9_200
+        )
+        snapshot.recordOptimisticSolve(day: 9_202)   // 9_201 missed
+        XCTAssertEqual(snapshot.streakCurrent, 13)
+        XCTAssertEqual(snapshot.lastGraceDay, 9_201)
     }
 
     // MARK: - Persistence
@@ -129,8 +207,13 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertFalse(snapshot.isInProgress(today: today + 1))
         XCTAssertEqual(snapshot.displayedStreak(today: today + 1), 5)
 
-        // Two days later without a solve: the flame lapses.
-        XCTAssertEqual(snapshot.displayedStreak(today: today + 2), 0)
+        // Two days later without a solve: one silent day is bridged (PRD-13),
+        // so the flame is still lit — and the app agrees, because a solve now
+        // really would extend the chain.
+        XCTAssertEqual(snapshot.displayedStreak(today: today + 2), 5)
+
+        // Three days later: two silent days, and the flame lapses.
+        XCTAssertEqual(snapshot.displayedStreak(today: today + 3), 0)
     }
 
     func testInProgressOnlyForTodaysBoard() {
