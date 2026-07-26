@@ -50,6 +50,7 @@ struct TouchHomeView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     header
+                    graceCard
                     todayCard
                     continueCard
                     boardsSection
@@ -77,6 +78,7 @@ struct TouchHomeView: View {
         }
         .animation(.couchFast, value: model.welcomeSeen)
         .animation(.couchFast, value: model.helpSeen)
+        .animation(.couchFast, value: model.pendingGraceDay)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
         .overlay {
@@ -135,6 +137,52 @@ struct TouchHomeView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 74)
             }
+        }
+    }
+
+    // MARK: Streak grace
+
+    /// PRD-13 §3. The morning after a bridged miss: one sentence, once ever per
+    /// bridge, and then gone forever.
+    ///
+    /// It sits directly under the header on purpose — the shield it is
+    /// explaining is one row above it, and the adjacency *is* the explanation.
+    ///
+    /// Deliberately not a card that starts a board. An action here would turn
+    /// the missed day into a prompt to play, which is the nagging PRD-13 exists
+    /// so the app never has to do; PRD-30 cites this feature by name as the
+    /// reason Live Activities will never carry a streak-endangered warning.
+    /// Tapping it only makes it go away.
+    @ViewBuilder
+    private var graceCard: some View {
+        if model.pendingGraceDay != nil {
+            Button {
+                withAnimation(.couchFast) { model.acknowledgeGrace() }
+            } label: {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .accessibilityHidden(true) // decoration; the sentence says it
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(Phrase.graceTitle)
+                            .font(CouchTypography.body)
+                        Text(Phrase.graceBody)
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .couchGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(Phrase.graceTitle). \(Phrase.graceBody)")
+            .accessibilityHint(Phrase.graceHint)
+            .transition(.opacity)
         }
     }
 
@@ -1430,5 +1478,16 @@ private enum Phrase {
     static func undidPlacement(_ digit: Int) -> String { "Undid \(digit)" }
     static func restored(_ digit: Int) -> String { "Restored \(digit)" }
     static func undidNote(_ digit: Int) -> String { "Undid note \(digit)" }
+
+    // PRD-13 §3. "Won't cost you" rather than "you're safe": nothing was at
+    // risk, because nothing here is a resource. No count, no "1 of 1 used", and
+    // no naming the day that was missed.
+    static let graceTitle = "Your streak held"
+    static let graceBody = "You took yesterday off; one rest day won't cost you."
+    static let graceHint = "Dismisses this card"
+
+    // PRD-12.
+    static let share = "Share"
+    static let shareLabel = "Share your solve"
 }
 #endif
