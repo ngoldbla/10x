@@ -95,6 +95,11 @@ struct FlickRoseView: View {
     /// Adds a tenth "erase" petal below the ring. Off for givens/empty cells
     /// and every non-iOS surface.
     var showsErase: Bool = false
+    /// The board underneath is refracting through these petals (PRD-22), so
+    /// they draw as a rim and a glyph rather than as a material. False keeps
+    /// today's `.couchGlassInteractive` disc, which is what Reduce Motion and
+    /// every surface without a lens get.
+    var lensed: Bool = false
 
     @State private var bloomed = false
 
@@ -136,9 +141,9 @@ struct FlickRoseView: View {
 
         return Text("\(digit)")
             .font(.system(size: (state.pencil ? 38 : 52) * scale, weight: .semibold, design: .rounded))
-            .foregroundStyle(complete ? Color.white.opacity(0.28) : Color.primary)
+            .foregroundStyle(complete ? Color.primary.opacity(0.30) : Color.primary)
             .frame(width: petalSize, height: petalSize)
-            .couchGlassInteractive(in: Circle())
+            .modifier(PetalSurface(lensed: lensed, scale: scale))
             .overlay {
                 Circle()
                     .strokeBorder(accent.opacity(focused ? 0.95 : 0), lineWidth: max(2, 4 * scale))
@@ -155,8 +160,53 @@ struct FlickRoseView: View {
             .font(.system(size: (state.pencil ? 26 : 34) * scale, weight: .semibold))
             .foregroundStyle(accent)
             .frame(width: petalSize, height: petalSize)
-            .couchGlassInteractive(in: Circle())
+            .modifier(PetalSurface(lensed: lensed, scale: scale))
             .offset(y: spacing + eraseDrop)
+    }
+}
+
+/// A petal's own surface.
+///
+/// Lensed, it is a rim and a breath of body and nothing else: the board's
+/// Canvas is already bending and magnifying underneath (`rosePetalLens` in
+/// Afterglow.metal), and a material on top of that would be exactly the opaque
+/// disc PRD-22 exists to remove — the live audit's finding was "rose petals are
+/// opaque `.glassEffect` discs, not the PRD's true glass petals lensing the
+/// board beneath."
+///
+/// Unlensed it is byte-for-byte today's interactive glass, which is what Reduce
+/// Motion gets and what every surface that does not pass a lens keeps.
+private struct PetalSurface: ViewModifier {
+    let lensed: Bool
+    let scale: CGFloat
+
+    /// The rim has to be drawn *against* the board, and the board is bright on
+    /// Paper and Camel. A white rim there is a rim nobody can see: the contrast
+    /// harness would still report the petal's glyph at 18:1 and be right, and
+    /// the player would still be looking at nine floating digits with no ring
+    /// around them. Glyph legibility and *shape* legibility are two claims, and
+    /// only one of them is a contrast ratio.
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var edge: Color { colorScheme == .light ? .black : .white }
+
+    func body(content: Content) -> some View {
+        if lensed {
+            content
+                // Just enough body to lift a glyph off a busy board cell
+                // without becoming the disc this PRD removes.
+                .background(Circle().fill(edge.opacity(0.10)))
+                .overlay {
+                    Circle().strokeBorder(
+                        LinearGradient(
+                            colors: [edge.opacity(0.60), edge.opacity(0.14)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: max(1, 1.6 * scale))
+                }
+                .clipShape(Circle())
+        } else {
+            content.couchGlassInteractive(in: Circle())
+        }
     }
 }
 
@@ -185,6 +235,8 @@ struct TouchRose: View {
     /// Full Keyboard Access (measured: `describe-ui` listed nine petals and
     /// nothing else at all).
     var isModal: Bool = true
+    /// See `FlickRoseView.lensed`.
+    var lensed: Bool = false
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
@@ -200,7 +252,8 @@ struct TouchRose: View {
             completedDigits: completedDigits,
             showsFocusRing: false,
             scale: scale,
-            showsErase: showsErase
+            showsErase: showsErase,
+            lensed: lensed
         )
         .accessibilityHidden(true) // the drawn petals; the targets below speak
         .overlay {

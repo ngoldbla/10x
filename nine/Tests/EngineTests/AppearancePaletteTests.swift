@@ -46,7 +46,7 @@ final class AppearancePaletteTests: XCTestCase {
         ("ember",   (1.00, 0.56, 0.20)),
         ("meadow",  (0.36, 0.84, 0.48)),
         ("lilac",   (0.66, 0.50, 0.98)),
-        ("crimson", (0.93, 0.29, 0.50)),
+        ("crimson", (1.00, 0.36, 0.56)),
         ("gold",    (0.98, 0.75, 0.18)),
         ("teal",    (0.15, 0.80, 0.76)),
         ("magenta", (0.88, 0.42, 0.90)),
@@ -54,10 +54,35 @@ final class AppearancePaletteTests: XCTestCase {
         ("orchid",  (0.94, 0.38, 0.68)),
     ]
 
+    /// Every accent's *light-ground* variant, in declaration order. New in
+    /// PRD-22: these existed since 1.1 and nothing measured them, because the
+    /// floors below were written against the vivid set. The contrast harness
+    /// measured them on the composited glass and found every one of them below
+    /// WCAG AA on Paper and Camel — Gold at **2.24:1**. These are the retuned
+    /// values.
+    static let lightAccents: [(name: String, rgb: RGB)] = [
+        ("glacier", (0.07, 0.34, 0.66)),
+        ("ember",   (0.57, 0.25, 0.02)),
+        ("meadow",  (0.08, 0.40, 0.20)),
+        ("lilac",   (0.39, 0.26, 0.70)),
+        ("crimson", (0.67, 0.11, 0.28)),
+        ("gold",    (0.46, 0.32, 0.01)),
+        ("teal",    (0.02, 0.39, 0.37)),
+        ("magenta", (0.58, 0.16, 0.58)),
+        ("moss",    (0.27, 0.38, 0.04)),
+        ("orchid",  (0.66, 0.08, 0.39)),
+    ]
+
+    /// The coral error marker's light-ground twin (PRD-22). The vivid coral is
+    /// 1.92:1 on Camel's composited board — an error marker nobody can see.
+    static let coralOnLight: RGB = (0.72, 0.13, 0.06)
+
     /// Every dark-leaning theme's board tones. Light-leaning themes (Paper,
-    /// Camel) are excluded from the contrast floors: their coral ratios are
-    /// 2.28 and 1.32, a pre-existing debt PRD-22 owns (the retune has to be
-    /// measured against the *composited* glass, which no unit test can see).
+    /// Camel) are still excluded from the *raw* contrast floors below, and now
+    /// for a sharper reason than before: PRD-22 measured them on the composited
+    /// glass and fixed them there. `Tests/ContrastBaselines/matrix.txt` is where
+    /// their numbers live, because the raw constants were never the thing the
+    /// board draws.
     static let darkThemes: [(name: String, background: RGB, gridTone: RGB, digitTone: RGB)] = [
         ("dark",      (0.00, 0.00, 0.00), (1.00, 1.00, 1.00), (0.93, 0.90, 0.84)),
         ("blueprint", (0.05, 0.14, 0.33), (0.75, 0.85, 1.00), (0.86, 0.92, 1.00)),
@@ -78,13 +103,29 @@ final class AppearancePaletteTests: XCTestCase {
     /// not become the new worst pair.
     static let separationFloor = 5.9
 
-    /// The one shipped accent/theme pair that is below WCAG AA, measured at
-    /// **4.23:1**. It predates PRD-16 by four releases and belongs to PRD-22's
-    /// composited-glass retune, not here — so it is grandfathered by name and
-    /// pinned to its current value rather than waved through by a lowered
-    /// floor. If it improves, tighten this; if it degrades, something moved
-    /// that should not have.
-    static let grandfathered = (accent: "crimson", theme: "blueprint", ratio: 4.23)
+    /// PRD-16 shipped one grandfathered sub-AA pair — crimson on blueprint at
+    /// 4.23:1 — and explicitly handed it to PRD-22. **PRD-22 retired it.**
+    ///
+    /// It was worse than 4.23 suggested. On the composited glass the shipped
+    /// crimson measured below AA on *five* of the six dark themes, not one, and
+    /// the raw number had simply never been the number the board drew. Crimson
+    /// moved to (1.00, 0.36, 0.56): the closest value to the shipped tint (CIE76
+    /// ΔE 5.84) that clears 4.5 on Blueprint — the binding ground for all ten
+    /// accents — without becoming the palette's new worst dichromat pair. The
+    /// obvious brighter candidate, (0.98, 0.40, 0.58), collides with Orchid
+    /// under tritanopia at **ΔE 3.77**, which is the separation floor below
+    /// doing exactly the job PRD-16 built it for.
+    ///
+    /// There is no exception now. A pair below AA is a regression.
+
+    /// The light variants' worst dichromat pair, pinned rather than floored.
+    /// They have never been under `separationFloor` and they are not now:
+    /// deepening a palette compresses it, and the shipped light set was at ΔE
+    /// **1.44** (glacier/lilac, deuteranopia). PRD-22's retune moves the worst
+    /// pair to 3.17 — strictly better, still short of the vivid palette's 5.98,
+    /// and recorded rather than closed because closing it is a palette redesign
+    /// and not a contrast retune. Tighten this when it improves.
+    static let lightSeparationFloor = 3.1
 
     // MARK: - Source parity
 
@@ -178,24 +219,60 @@ final class AppearancePaletteTests: XCTestCase {
         for theme in Self.darkThemes {
             for accent in Self.accents {
                 let ratio = contrast(accent.rgb, theme.background)
-                guard
-                    accent.name != Self.grandfathered.accent
-                        || theme.name != Self.grandfathered.theme
-                else {
-                    // Pinned, not skipped: the exception may not quietly widen.
-                    XCTAssertEqual(
-                        ratio, Self.grandfathered.ratio, accuracy: 0.01,
-                        "the one grandfathered sub-AA pair moved — see PRD-22")
-                    continue
-                }
                 XCTAssertGreaterThanOrEqual(
                     ratio, 4.5,
-                    "\(accent.name) on \(theme.name) is \(String(format: "%.2f", ratio)):1, below "
-                        + "WCAG AA for text. Exactly one such pair ships "
-                        + "(\(Self.grandfathered.accent)/\(Self.grandfathered.theme) at "
-                        + "\(Self.grandfathered.ratio)); a second is a regression, not a "
-                        + "precedent.")
+                    "\(accent.name) on \(theme.name) is \(String(format: "%.2f", ratio)):1, "
+                        + "below WCAG AA for text. PRD-22 retired the one grandfathered "
+                        + "exception this palette used to carry; there is no precedent to "
+                        + "appeal to. Note this measures the *raw* constants — "
+                        + "nine/scripts/contrast-harness.py measures what the board draws.")
             }
+        }
+    }
+
+    /// The light variants are not measurable against a theme constant the way
+    /// the vivid ones are — Paper and Camel reach the board through the glass,
+    /// and that is `contrast-harness.py`'s job. What *is* checkable here is that
+    /// they stayed deep: the retune's whole mechanism on light grounds is
+    /// luminance, so a light variant drifting brighter is the regression.
+    func testEveryLightAccentStaysDeep() {
+        for accent in Self.lightAccents {
+            let luminance = relativeLuminance(accent.rgb)
+            XCTAssertLessThanOrEqual(
+                luminance, 0.105,
+                "\(accent.name)'s light variant is \(String(format: "%.3f", luminance)) "
+                    + "relative luminance. PRD-22 solved these to 0.098 so the worst cell of "
+                    + "the composited matrix (Camel) clears WCAG AA; brighter than 0.105 and "
+                    + "it does not. See Tests/ContrastBaselines/matrix.txt.")
+        }
+        XCTAssertLessThanOrEqual(relativeLuminance(Self.coralOnLight), 0.13,
+                                 "the light coral is the error marker on Paper and Camel")
+    }
+
+    func testLightVariantsAreNoLessSeparableThanTheyWere() {
+        var palette = Self.lightAccents
+        palette.append((name: "CORAL", rgb: Self.coralOnLight))
+        for mode in Simulation.allCases {
+            let seen = palette.map { (name: $0.name, rgb: simulate($0.rgb, mode)) }
+            for i in seen.indices {
+                for j in seen.indices where j > i {
+                    XCTAssertGreaterThanOrEqual(
+                        deltaE(seen[i].rgb, seen[j].rgb), Self.lightSeparationFloor,
+                        "\(seen[i].name)/\(seen[j].name) under \(mode) — see "
+                            + "`lightSeparationFloor`, which is a pin, not a target.")
+                }
+            }
+        }
+    }
+
+    func testEveryLightAccentLiteralMatchesTheTable() throws {
+        let source = try Self.appModelSource
+        for (name, rgb) in Self.lightAccents {
+            let expected =
+                "case .\(name): return Color(red: \(lit(rgb.r)), green: \(lit(rgb.g)), blue: \(lit(rgb.b)))"
+            XCTAssertTrue(
+                source.contains(expected),
+                "AccentChoice.color(isLight:)'s \(name) no longer reads `\(expected)`.")
         }
     }
 
@@ -229,6 +306,8 @@ final class AppearancePaletteTests: XCTestCase {
     private func luminance(_ c: RGB) -> Double {
         0.2126 * linearize(c.r) + 0.7152 * linearize(c.g) + 0.0722 * linearize(c.b)
     }
+
+    func relativeLuminance(_ c: RGB) -> Double { luminance(c) }
 
     func contrast(_ a: RGB, _ b: RGB) -> Double {
         let (x, y) = (luminance(a), luminance(b))

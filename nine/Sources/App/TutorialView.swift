@@ -31,10 +31,30 @@ struct TutorialView: View {
     @State private var highlighted: Int?
     @State private var stepDone = false
 
+    // PRD-22. The tutorial used to be un-themed chrome over a themed board: a
+    // flat black scrim and system-grey text, whatever the app's ground was. On
+    // Paper and Camel that is a black wash over a paper app; on Blueprint it is
+    // the "muddy dark composite" the 1.1 audit named. Both now come off the
+    // board's own tones, so the lesson looks like the game it is teaching.
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+    /// Secondary and tertiary text, tinted to the board rather than to the
+    /// system's neutral grey — on Ember a cool grey caption over a rust ground
+    /// reads as a different app's card.
+    private var quiet: Color { tones.digitTone.opacity(0.72) }
+    private var quieter: Color { tones.digitTone.opacity(0.5) }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.black.opacity(0.55)
+                // A light theme needs *less* scrim, not the same amount: the
+                // card is glass over paper, and a heavy wash turns the page
+                // grey. A dark one needs more, because the void behind it is
+                // already dark and the card has to separate from it.
+                tones.background.opacity(tones.isLight ? 0.42 : 0.62)
                     .ignoresSafeArea()
                     .onTapGesture { } // swallow — dismissal is the ✕ / Done
 
@@ -70,7 +90,7 @@ struct TutorialView: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(quieter)
                     .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
@@ -85,12 +105,12 @@ struct TutorialView: View {
                 .font(CouchTypography.body)
             Text(instructionDetail)
                 .font(CouchTypography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(quiet)
                 .fixedSize(horizontal: false, vertical: true)
             if step == .place || step == .pencil || step == .highlight {
                 Text(grammar.advanceHint)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(quieter)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -139,7 +159,7 @@ struct TutorialView: View {
             // Escape hatch so nobody is ever stuck in a lesson.
             Button("Skip this step") { advance() }
                 .font(CouchTypography.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(quieter)
                 .buttonStyle(.plain)
         }
     }
@@ -162,6 +182,7 @@ struct TutorialView: View {
         if let game {
             let inset: CGFloat = 10
             let side = max(200, min(geo.size.width - 104, geo.size.height * 0.52))
+            let lens = rose.map { roseLens(side: side, inset: inset, rose: $0) }
             let board = BoardView(
                 game: game,
                 cursor: cursor,
@@ -169,6 +190,7 @@ struct TutorialView: View {
                 showErrors: true,
                 solvedAt: nil,
                 roseOpen: rose != nil,
+                roseLens: reduceMotion ? nil : lens,
                 previewDigit: nil,
                 previewPencil: false,
                 highlightDigit: highlighted,
@@ -180,8 +202,7 @@ struct TutorialView: View {
                 handleTap(at: location, side: side, inset: inset)
             }
             .overlay {
-                if let rose {
-                    let scale = min(0.62, ((side / 9) * 1.15) / 116)
+                if let rose, let lens {
                     Color.black.opacity(0.001)
                         .contentShape(Rectangle())
                         .onTapGesture { withAnimation(.couchFast) { self.rose = nil } }
@@ -189,10 +210,11 @@ struct TutorialView: View {
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        scale: scale,
-                        onDigit: { commit(digit: $0) }
+                        scale: lens.scale,
+                        onDigit: { commit(digit: $0) },
+                        lensed: !reduceMotion
                     )
-                    .position(rosePosition(side: side, inset: inset, scale: scale))
+                    .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
             }
             #if os(macOS)
@@ -211,15 +233,17 @@ struct TutorialView: View {
         }
     }
 
-    /// Same clamping as the game screen: the rose never leaves the board.
-    private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
-        let center = BoardMetrics.center(of: cursor, side: side)
-        let radius = 126 * scale + (116 * scale) / 2
-        let frameSide = side + 2 * inset
-        let clamp: (CGFloat) -> CGFloat = { value in
-            min(max(value, radius - 6), frameSide - radius + 6)
-        }
-        return CGPoint(x: clamp(center.x + inset), y: clamp(center.y + inset))
+    /// Same geometry as the game screen, from the same value: the rose never
+    /// leaves the board, and the board bends where the petals are (PRD-22).
+    private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
+        RoseLens(
+            cursor: cursor,
+            side: Double(side),
+            inset: Double(inset),
+            pencil: rose.pencil,
+            showsErase: false,
+            scale: RoseLens.scale(forSide: Double(side))
+        )
     }
 
     private func handleTap(at location: CGPoint, side: CGFloat, inset: CGFloat) {
@@ -352,7 +376,7 @@ struct TutorialView: View {
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(quiet)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -360,14 +384,14 @@ struct TutorialView: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "sun.max")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(quiet)
                     .frame(width: 40)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Today")
                         .font(CouchTypography.body)
                     Text("One shared Steady board a day. Solve it daily to grow your streak — streaks multiply your points.")
                         .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(quiet)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -545,9 +569,19 @@ struct PadTutorialView: View {
     let accent: Color
     var grammar: TutorialGrammar = .pad
 
+    // PRD-22, same as the touch tutorial: the scrim and the quiet text come
+    // off the board's tones rather than off black and system grey.
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+    private var quiet: Color { tones.digitTone.opacity(0.72) }
+    private var quieter: Color { tones.digitTone.opacity(0.5) }
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea()
+            tones.background.opacity(tones.isLight ? 0.46 : 0.66).ignoresSafeArea()
             VStack(spacing: 28) {
                 header
                 instruction
@@ -584,12 +618,12 @@ struct PadTutorialView: View {
                 .font(CouchTypography.body)
             Text(instructionDetail)
                 .font(CouchTypography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(quiet)
                 .fixedSize(horizontal: false, vertical: true)
             if model.step == .place || model.step == .pencil || model.step == .highlight {
                 Text(grammar.advanceHint)
                     .font(CouchTypography.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(quieter)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -624,6 +658,13 @@ struct PadTutorialView: View {
     private var boardArea: some View {
         if let game = model.game {
             let side: CGFloat = 560
+            // `clamped: false` matches the TV game screen: PRD-22 is a
+            // rendering change, and moving where the ring blooms is not.
+            let lens = model.learningRose.map {
+                RoseLens(cursor: model.cursor, side: Double(side), inset: 20,
+                         pencil: $0.pencil, showsErase: false,
+                         scale: 0.6, clamped: false)
+            }
             BoardView(
                 game: game,
                 cursor: model.cursor,
@@ -631,6 +672,7 @@ struct PadTutorialView: View {
                 showErrors: true,
                 solvedAt: nil,
                 roseOpen: model.learningRose != nil,
+                roseLens: reduceMotion ? nil : lens,
                 previewDigit: model.previewDigit,
                 previewPencil: model.learningRose?.pencil ?? false,
                 highlightDigit: model.highlighted,
@@ -638,16 +680,16 @@ struct PadTutorialView: View {
                 inset: 20
             )
             .overlay {
-                if let rose = model.learningRose {
-                    let center = BoardMetrics.center(of: model.cursor, side: side)
+                if let lens {
                     FlickRoseView(
-                        state: rose,
+                        state: model.learningRose ?? RoseState(pencil: false),
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         showsFocusRing: true,
-                        scale: 0.6
+                        scale: lens.scale,
+                        lensed: !reduceMotion
                     )
-                    .position(x: center.x + 20, y: center.y + 20)
+                    .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
             }
             .frame(width: side + 40, height: side + 40)
@@ -676,6 +718,11 @@ struct PadTutorialView: View {
 private struct PadDifficultyGuide: View {
     let accent: Color
 
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var quiet: Color { theme.tones(for: colorScheme).digitTone.opacity(0.72) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             ForEach(Difficulty.allCases, id: \.self) { difficulty in
@@ -687,7 +734,7 @@ private struct PadDifficultyGuide: View {
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(quiet)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

@@ -84,6 +84,17 @@ struct RootView: View {
                 TutorialView(accent: accent, grammar: .keyboard) {
                     model.macShowTutorial = false
                 }
+                // PRD-22. `.environment(\.nineTheme,…)` above writes into the
+                // *modified* view's subtree, and an overlay's content is a
+                // sibling of that view rather than a descendant — so the Mac
+                // tutorial and the BoardView inside it were reading
+                // `NineThemeKey.defaultValue`, i.e. `.auto`. Symptom: on Camel
+                // the app is light-pinned, `.auto` resolves to Paper, and the
+                // tutorial drew a Paper board inside a Camel app. iOS and tvOS
+                // were never affected — their hosts are themselves descendants
+                // of the write. Re-applied here rather than reordered, because
+                // the reorder also moves `preferredColorScheme` off the window.
+                .environment(\.nineTheme, model.prefs.theme)
                 .transition(.opacity)
             }
         }

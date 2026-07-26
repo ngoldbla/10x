@@ -15,7 +15,15 @@
 #   1. `BoardSpeechTests` — every string the board speaks, on Linux-speed CPU.
 #   2. `AXFixtureTests` — the frozen board the dumps are photographs of.
 #   3. `ax-snapshot.py` — the trees themselves, per screen, diffed.
-name: Accessibility (Nine)
+#   4. `contrast-harness.py` — what the board's contrast actually is, sampled
+#      from screenshots of the composited glass rather than computed from the
+#      theme constants the board never draws (PRD-22).
+#
+# The two harnesses share `scripts/simrig.py`: the dedicated simulator, the
+# erase, the bridge warm-up, the seeded container, the settle-before-you-read
+# discipline. Every one of those exists because of a specific way the naive
+# version was flaky.
+name: Accessibility + contrast (Nine)
 
 on:
   pull_request:
@@ -37,7 +45,11 @@ permissions:
 jobs:
   ax-tree:
     runs-on: macos-latest
-    timeout-minutes: 60
+    # 60 was right when this lane was the AX trees alone. A manual dispatch now
+    # also measures the whole contrast matrix — 88 relaunch-screenshot-sample
+    # cycles — and a timeout kill skips the `if: failure()` artifact upload, so
+    # the one run you dispatched on purpose is the one you learn nothing from.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -99,10 +111,30 @@ jobs:
       # On failure this is the whole review: the captured dump to diff against
       # the baseline, and a screenshot of what the app was actually showing when
       # an anchor never appeared.
+      # The composited surface, not the constants. PRD-22's floors: given
+      # digits >= 7:1, your entries >= 4.5:1, the coral error marker >= 3:1,
+      # and the rose's petal glyphs at AA now that they have no opaque disc.
+      #
+      # `--quick` on pull requests: the subset is every theme against one
+      # accent plus every accent against the two grounds that have historically
+      # failed, and the harness prints what it did *not* cover, so a green
+      # subset never reads as a green matrix. A manual dispatch runs the whole
+      # matrix plus the Increase Contrast pass.
+      - name: Measure contrast on the composited glass
+        working-directory: nine
+        run: |
+          set -euo pipefail
+          python3 scripts/contrast-harness.py \
+            --app build/Build/Products/Debug-iphonesimulator/Nine.app \
+            --out-dir "$RUNNER_TEMP/contrast" \
+            ${{ github.event_name == 'pull_request' && '--quick' || '--contrast' }}
+
       - name: Upload what was captured
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: nine-ax-captured
-          path: ${{ runner.temp }}/ax-captured
+          path: |
+            ${{ runner.temp }}/ax-captured
+            ${{ runner.temp }}/contrast
           if-no-files-found: warn

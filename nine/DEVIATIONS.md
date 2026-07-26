@@ -2144,3 +2144,284 @@ the floors Blueprint set (12.41 / 10.45 / 5.64).
   case; the prefs equivalent is in-process only. The blast radius is a single
   local field on a non-synced blob, which is why that was judged enough.
 - **No tvOS or macOS alternate icons** (unsupported), and no seasonal icons.
+
+## PRD-22 — the lens, and the number the palette test could not see (2026-07-26)
+
+The expensive two-thirds PRD-22's fingerprints half left behind: contrast
+measured on the *composited* glass by an automated screenshot-sampling harness,
+the retune that measurement demanded, an `accessibilityContrast` hairline board,
+the tutorial routed through the theme system, and the rose's petals made true
+glass by a third Metal shader on the board Canvas's existing pipeline.
+
+### The board never drew the colours the palette test was measuring
+
+`AppearancePaletteTests` computes contrast against `ThemeChoice`'s declared
+`background`. `scripts/contrast-harness.py` screenshots the running app and
+samples the pixels. Solving the two box-wash opacities in `BoardView.draw` back
+out of nine per-box grounds recovers the plane the board actually sits on, and
+the nine boxes agree to within a level:
+
+| theme | declared background | what reaches the board |
+|---|---|---|
+| Void | (0, 0, 0) | **(19, 19, 19)** |
+| Paper | (240, 237, 230) | (247, 245, 238) |
+| Camel | (204, 178, 140) | **(250, 230, 200)** |
+| Blueprint | (13, 36, 84) | (17, 33, 67) |
+| Forest | (13, 33, 23) | (20, 34, 27) |
+| Ember | (36, 13, 8) | (39, 23, 19) |
+| Tide | (5, 31, 36) | (14, 33, 36) |
+| Mono | (28, 28, 31) | (29, 29, 32) |
+
+`couchGlass` is a *material*, so what it draws is dominated by the system's own
+glass and only tinted by the colour behind it. Void's true black arrives as 7%
+grey; Camel's tan arrives nearly white. **Mono barely moves**, which is the
+control that says the model is a model and not a fudge — Mono's declared ground
+is already the material's own luminance.
+
+The ink, by contrast, is exact. Void's givens sample as `(237, 229, 214)`, which
+is `CouchPalette.paper` × 255 to the byte, because `.glassEffect` renders glass
+*behind* its content and the Canvas draws on top at full alpha. So only the
+ground is composited — which is what made the retune solvable arithmetically
+instead of by thirty-minute trial and error.
+
+### What the harness found on its first run, against unmodified code
+
+| | measured | floor |
+|---|---|---|
+| Camel entries (Glacier) | **3.36:1** | 4.5 |
+| Paper entries (Ember) | **3.04:1** | 4.5 |
+| Camel coral | **1.92:1** | 3.0 |
+| Paper coral | **2.10:1** | 3.0 |
+| Crimson on Blueprint | **3.88:1** | 4.5 |
+| Givens, every theme | 10.26–13.16:1 | 7.0 |
+
+PRD-16 shipped exactly one grandfathered sub-AA pair — crimson on blueprint at
+4.23:1 on the raw constants — and handed it to PRD-22 by name. On the surface
+the board actually draws, that pair measured **3.88:1**, and it was not alone.
+Modelling the other five dark grounds from their recovered planes put Forest at
+4.04, Tide 4.09, Mono 4.13 and Ember 4.25 — only Void cleared, at 4.52
+measured. So the exception PRD-16 recorded as one pair was **five**, and the raw
+number was never the number. (The model is the one validated below to within
+0.15 against measurement; `Tests/ContrastBaselines/matrix.txt` is the measured
+record for every cell.)
+
+### The retune is solved, not tuned
+
+Every value below was derived from the measured planes and then verified by
+re-measuring, rather than nudged until it looked right.
+
+- **Crimson moved to (1.00, 0.36, 0.56).** That is the *closest* value to the
+  shipped tint — CIE76 ΔE 5.84 — that clears 4.5 on Blueprint, which is the
+  binding ground for all ten accents, without becoming the palette's new worst
+  dichromat pair. The obvious brighter candidate, (0.98, 0.40, 0.58), reads 5.16
+  on the worst dark theme and collides with **Orchid under tritanopia at ΔE
+  3.77** against a floor of 5.9. PRD-16 built that floor to catch exactly this,
+  and it caught it on the first candidate tried. The palette's worst pair is
+  unmoved at 5.98 — still Meadow/Teal under tritanopia, as it has been since 1.1.
+- **All ten light-ground accent variants were deepened** to a relative-luminance
+  ceiling of 0.098, solved from Camel's composited ground (the worse of the two
+  light themes). Every one of them was below AA: Glacier measured 3.36 on Camel
+  and 3.67 on Paper, Ember 3.04 on Paper. Gold moved furthest — (0.76, 0.53,
+  0.02) → (0.46, 0.32, 0.01) — from a modelled 2.24:1, the palette's worst cell
+  anywhere.
+- **Coral became a theme tone.** It had been one constant on `BoardView` since
+  1.0 and had never been checked against a light ground. `ThemeTones.coralOnLight`
+  is (0.72, 0.13, 0.06): 1.92 → 4.65 on Camel, 2.10 → 5.07 on Paper.
+- **`ThemeTones.plane`** puts a measured amount of the theme's own ground back
+  under the board, between the glass and the Canvas.
+
+### The plane is zero on light themes, and that is the measurement talking
+
+The obvious symmetric move — wash every theme's ground back under its board —
+is wrong, and the harness is why anyone would know. Every mark a light theme
+draws (givens, accents, coral) is *darker* than its ground, so restoring the
+ground lowers its luminance and costs contrast on all three at once. A 0.58
+wash on Camel moved givens **10.28 → 8.15** and bought nothing. Light themes are
+fixed by deepening the ink instead.
+
+Blueprint is the same lesson in reverse and is the one theme with a `plane`
+override. Its backdrop is a saturated blue that reads well full-bleed and is
+*lighter* than the composited glass, so the default wash made it worse (crimson
+3.93 → 3.79). Blueprint's backdrop and Blueprint's board ground are two
+different jobs, and now two different values.
+
+### The lens: nine centres derived, not passed
+
+`rosePetalLens` is the third `[[stitchable]]` function on the board Canvas's
+existing pipeline. It takes five uniforms — ring centre, pitch, radius,
+magnification, bloom — and derives the nine petal centres itself by rounding
+into the 3×3 grid, because the ring *is* rigid and nine passed centres would be
+nine chances for the bend to drift from the paint. The core magnifies uniformly
+and the outer quarter compresses hard; that compressed rim band is what makes
+glass read as glass rather than as a zoom.
+
+`FlickRoseView` drops `.couchGlassInteractive` for a rim and a glyph when the
+lens is live, which is the 1.1 audit's finding closed ("rose petals are opaque
+`.glassEffect` discs, not the PRD's true glass petals lensing the board
+beneath"). **Reduce Motion keeps today's material at every one of the six call
+sites**, and `BoardView.lensActive` checks it a second time.
+
+Two deliberate departures from PRD-22's literal wording, both in the same
+direction — fewer things that can disagree with each other:
+
+- The PRD asks for "9 centers + radius + magnification uniforms". The centres
+  are *derived* instead, from the same ring pitch `RoseLens` hands the petals.
+  Nine passed centres are nine chances for the bend to drift from the paint, and
+  the ring is a rigid 3x3 grid by construction; componentwise rounding into it
+  finds the nearest petal exactly, at one rounding rather than nine distance
+  tests.
+- The PRD says "SwiftUI draws only glyphs and rims above". There is also a
+  10%-alpha body, because a glyph with nothing behind it over a bright board
+  cell is a glyph you cannot read, and the harness's petal column is where that
+  shows up. It is a breath, not a disc — the board is plainly visible bending
+  through it in `.context/prd22/rose-lensed.png`.
+
+The rim's compression was tuned down before it shipped, and a screenshot is why.
+The first version ran `smoothstep(0.74, 1.0)` to a 1.85 squeeze, and a board
+digit caught in a band that wide and that steep smears into a double image —
+an artifact rather than glass, and a board that asks for attention under your
+thumb is the thing the idle-pixel test exists to stop. It ships at
+`smoothstep(0.80, 1.0)` to 1.42. That number and `lensMagnification` are the
+only two in this PRD set by taste rather than by measurement, and they are
+adjacent on purpose.
+
+### One value now owns the rose's geometry
+
+The bend has to land exactly where the petal is drawn, and the placement
+arithmetic was six copies: `TouchUI`, `MacUI`, `FirstRun`, `TutorialView` twice
+and `GameScreen` each recomputed `126 * scale`, the `184 * scale` clamp and
+`centre + inset` by hand. `Sources/Shared/RoseLens.swift` is the one copy, in
+the Linux-clean tree so Lane 1 tests it without a simulator — the `BoardSpeech`
+pattern. Consolidating found a latent disagreement: iOS clamped the rose for the
+eraser using `pencilMode` while it *drew* the eraser using `rose.pencil`, so a
+rose opened before a pencil toggle reserved space for a petal it was not showing.
+
+### The hairline board made contrast worse, and only the second column said so
+
+The first `accessibilityContrast` variant *deepened* the box washes — more
+separation between the boxes is more contrast, obviously. The harness measured
+every Increase Contrast cell coming out **below** its standard twin: Void
+14.72 → 13.62, Paper's coral 5.06 → 4.43, Camel's 4.63 → 4.50. The setting that
+exists to help was hurting, on all eight themes, and nothing on screen said so —
+the board looked *more* structured, which is what made it convincing.
+
+A box wash is a wash toward `gridTone`, and `gridTone` is the ink's end of the
+scale on a dark theme and the ground's on a light one. Either way it drags the
+ground toward the digits and every ratio in that box falls. The mode that asks
+for more contrast has to **remove** the wash, not thicken it, and let the box
+*borders* — which is what "hairline variant" meant all along — carry the
+structure the step was standing in for. With both washes at zero:
+
+| | standard | Increase Contrast |
+|---|---|---|
+| Void givens | 14.72 | **16.48** |
+| Paper givens | 11.42 | **13.45** |
+| Camel coral | 4.63 | **5.77** |
+| Blueprint entries | 6.80 | **7.73** |
+
+That invariant is a gate now, not an observation: `gate_increased` fails the run
+if any increased cell reads below its standard one. Recording a number does not
+make it true, so `--record` runs it too and refuses to bless a regression.
+
+### Three things that only measuring could have found
+
+1. **A blank launch screen is both "changed" and "stable".** The harness's first
+   readiness check was change-then-settle, and on its fourth cell it photographed
+   a white window, printed a row of dashes, and was believed. `drawn()` — a
+   strided luminance-spread test — is the fix, and a missing column is now a
+   hard failure rather than an em dash, because the frozen board has givens,
+   entries and a wrong digit by construction.
+2. **The tap gets dropped.** On a machine at load 258 `sim-use tap` intermittently
+   does not open the rose, and "did the ring change" cannot tell that from a
+   cursor move — both change pixels. `moved()` thresholds at 15% of the ring,
+   which a rose exceeds and a cursor does not.
+3. **Pixel-stability was the wrong stability.** The interactive glass never
+   settles frame to frame, so a resting rose "never stopped changing"; the retry
+   that provoked then tapped an *open* rose, closed it, and measured the board's
+   digits through the petal frames as 2.21:1. The gate is now on the
+   measurement, not the pixels: the median petal ratio has to come out the same
+   twice. Median, not minimum — *which* petal is worst flips between frames, and
+   two readings of a perfectly stable rose came out 14.40 and 15.21.
+
+### The macOS tutorial was reading the wrong theme, and had been
+
+`.environment(\.nineTheme,…)` writes into the modified view's subtree, and an
+overlay's content is a sibling of that view rather than a descendant. The Mac
+tutorial is attached with `.overlay` *after* that write in `NineApp`, so it and
+the `BoardView` inside it were reading `NineThemeKey.defaultValue` — `.auto`.
+With Camel selected the app is light-pinned, `.auto` resolves to Paper, and the
+tutorial drew a Paper board inside a Camel app. iOS and tvOS were never affected;
+their hosts are themselves descendants of the write.
+
+### 96 is not 96
+
+PRD-22 says "6 themes × 8 accents × light/dark". That was written before PRD-16
+shipped Ember, Tide and Mono and the Moss and Orchid accents. The shipped matrix
+is **8 concrete themes × 10 accents = 80 composites**, doubled to 160 by the
+Increase Contrast pass. `auto` is not a cell: `ThemeChoice.tones(for:)` delegates
+it to Void or Paper by construction, so measuring it would photograph one of
+those twice and report the matrix as larger than it is. Light and dark are both
+covered — by Paper and Camel, and by the six dark themes.
+
+### Numbers
+
+The retune, measured on the composited glass before and after:
+
+| | before | after | floor |
+|---|---|---|---|
+| Void givens | 13.02 | **14.72** | 7.0 |
+| Void entries (Crimson) | 4.52 | **6.30** | 4.5 |
+| Void coral | 6.11 | **6.91** | 3.0 |
+| Paper entries (Glacier) | 3.67 | **5.59** | 4.5 |
+| Paper coral | 2.10 | **5.06** | 3.0 |
+| Camel entries (Glacier) | 3.36 | **5.11** | 4.5 |
+| Camel coral | 1.92 | **4.63** | 3.0 |
+| Void petal glyph | 14.99 | 12.31 | 4.5 |
+
+The petal column *fell* and that is the change working: the opaque disc is gone,
+so the glyph is now measured against the board bending underneath it rather than
+against a frosted plate. 12.12 is still 2.7× the floor.
+
+The predictive model built from the recovered planes reproduced the measured
+board to within **0.15** on every cell it was checked against, and to within
+0.02 on the two that mattered most — Camel coral predicted 4.65 / measured 4.63,
+Camel entries 5.05 / 5.11; Void givens 14.84 / 14.72; Camel givens 10.28 /
+10.26. That agreement is why the retune could be *solved* once rather than
+searched for at twenty minutes a guess, and it is the whole return on having
+recovered the planes instead of nudging constants.
+
+Harness cost, and the load it was measured at, because a number without one is
+not a number: **20.7 s per cell** at load average 16, **~110 s per cell** at load
+average 260 with five other agents on the same machine. `describe-ui` is the
+expensive call and the harness now makes exactly **two per run** rather than four
+per cell — the board's 81 frames and the ring's ten do not move between cells.
+
+### Not done
+
+- **No tvOS or macOS contrast lane.** `describe-ui` is iOS-only, and every
+  sample rectangle in the harness comes from an accessibility frame. The TV
+  board is a fixed 900pt plane so its geometry could be hard-coded instead, but
+  a lane that cannot classify its own cells is not the same instrument.
+- **The light variants' dichromat separation is pinned, not fixed.** They have
+  never been under `separationFloor`; measured, the shipped set's worst pair was
+  ΔE **1.44** (glacier/lilac, deuteranopia). Deepening them for AA compresses
+  the palette further in principle and in fact improved it, to 3.17. That is
+  better and still well short of the vivid palette's 5.98. Closing it is a
+  palette redesign — the vivid set needed two accents rejected to hold 5.9 — and
+  it is not a contrast retune.
+- **The tvOS rose is still unclamped.** The audit found it can hang 156pt past
+  the board edge on a corner cursor, where the lens has nothing to bend. Both TV
+  call sites build their `RoseLens` with `clamped: false`, which reproduces
+  today's placement exactly. Moving where the ring blooms is a UX change and
+  PRD-22 is a rendering change; it belongs with the TV's IA pass.
+- **The petal column cannot separate the petal's glyph from the board's.** With
+  no opaque disc there is nothing to tell them apart, so on a petal over dense
+  givens the measured ink may be the magnified board digit. It is a floor on
+  legibility rather than a measurement of the glyph — wrong in the safe
+  direction, and not the same claim.
+- **`--rose-all` is not what CI runs.** The petal column is measured once per
+  theme, on that theme's first accent, because the glyph is `Color.primary` over
+  a theme-coloured board and the accent does not move it. Ten roses per theme
+  cost most of the harness's wall clock to say the same thing ten times.
+- **The Increase Contrast pass is one accent per theme** for the same reason:
+  the mode moves grounds, never ink.

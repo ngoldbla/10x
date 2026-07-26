@@ -52,7 +52,7 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .ember: return Color(red: 1.00, green: 0.56, blue: 0.20)
         case .meadow: return Color(red: 0.36, green: 0.84, blue: 0.48)
         case .lilac: return Color(red: 0.66, green: 0.50, blue: 0.98)
-        case .crimson: return Color(red: 0.93, green: 0.29, blue: 0.50)
+        case .crimson: return Color(red: 1.00, green: 0.36, blue: 0.56)
         case .gold: return Color(red: 0.98, green: 0.75, blue: 0.18)
         case .teal: return Color(red: 0.15, green: 0.80, blue: 0.76)
         case .magenta: return Color(red: 0.88, green: 0.42, blue: 0.90)
@@ -70,7 +70,7 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .ember: return (1.00, 0.56, 0.20)
         case .meadow: return (0.36, 0.84, 0.48)
         case .lilac: return (0.66, 0.50, 0.98)
-        case .crimson: return (0.93, 0.29, 0.50)
+        case .crimson: return (1.00, 0.36, 0.56)
         case .gold: return (0.98, 0.75, 0.18)
         case .teal: return (0.15, 0.80, 0.76)
         case .magenta: return (0.88, 0.42, 0.90)
@@ -83,16 +83,16 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
     func color(isLight: Bool) -> Color {
         guard isLight else { return color }
         switch self {
-        case .glacier: return Color(red: 0.10, green: 0.45, blue: 0.85)
-        case .ember: return Color(red: 0.82, green: 0.38, blue: 0.05)
-        case .meadow: return Color(red: 0.13, green: 0.58, blue: 0.30)
-        case .lilac: return Color(red: 0.48, green: 0.32, blue: 0.85)
-        case .crimson: return Color(red: 0.78, green: 0.13, blue: 0.33)
-        case .gold: return Color(red: 0.76, green: 0.53, blue: 0.02)
-        case .teal: return Color(red: 0.04, green: 0.55, blue: 0.53)
-        case .magenta: return Color(red: 0.70, green: 0.20, blue: 0.70)
-        case .moss: return Color(red: 0.36, green: 0.50, blue: 0.06)
-        case .orchid: return Color(red: 0.74, green: 0.09, blue: 0.44)
+        case .glacier: return Color(red: 0.07, green: 0.34, blue: 0.66)
+        case .ember: return Color(red: 0.57, green: 0.25, blue: 0.02)
+        case .meadow: return Color(red: 0.08, green: 0.40, blue: 0.20)
+        case .lilac: return Color(red: 0.39, green: 0.26, blue: 0.70)
+        case .crimson: return Color(red: 0.67, green: 0.11, blue: 0.28)
+        case .gold: return Color(red: 0.46, green: 0.32, blue: 0.01)
+        case .teal: return Color(red: 0.02, green: 0.39, blue: 0.37)
+        case .magenta: return Color(red: 0.58, green: 0.16, blue: 0.58)
+        case .moss: return Color(red: 0.27, green: 0.38, blue: 0.04)
+        case .orchid: return Color(red: 0.66, green: 0.08, blue: 0.39)
         }
     }
 }
@@ -108,6 +108,77 @@ struct ThemeTones {
     let digitTone: Color
     /// Light-leaning themes flip the wash opacities and deepen the accent.
     let isLight: Bool
+    /// The error marker (PRD-22). Was one constant on `BoardView` for four
+    /// releases, and `scripts/contrast-harness.py` measured what that cost on
+    /// the two light themes it had never been checked against: **1.92:1** on
+    /// Camel. Deepened for light grounds exactly the way
+    /// `AccentChoice.color(isLight:)` already deepens the accents.
+    let coral: Color
+    /// The wash the board Canvas lays down between the glass and the drawing
+    /// (PRD-22).
+    ///
+    /// `couchGlass` is a *material*: what it draws is dominated by the system's
+    /// own glass, not by the colour behind it. Solved back through the two box
+    /// wash opacities from screenshots — and the nine boxes agree to within a
+    /// level — Void's `(0, 0, 0)` reaches the board as `(19, 19, 19)` and
+    /// Camel's `(204, 178, 140)` as `(250, 230, 200)`. So every number the
+    /// palette test computed was against a ground the board never had, and the
+    /// theme's own hue was barely present under it. Mono is the control: its
+    /// declared `(28, 28, 31)` arrives as `(29, 29, 32)`, because it already
+    /// *was* the material's luminance.
+    ///
+    /// This puts a measured amount of the ground back. It is drawn *beside* the
+    /// Canvas rather than inside it, so the two Afterglow shaders keep sampling
+    /// drawn content only and the celebration is untouched.
+    let plane: Color
+    /// Box borders under Increase Contrast (PRD-22). The board's borders are
+    /// luminance steps by design (PRD §4.2) — a wash you read as an edge rather
+    /// than a line — which is the right default and the wrong answer for
+    /// someone who has asked the system for more contrast.
+    let hairline: Color
+
+    /// The shipped error coral, unchanged. Measured on the composited glass at
+    /// 5.20–6.11:1 across the six dark themes — comfortably past PRD-22's 3:1.
+    static let coralOnDark = Color(red: 1.00, green: 0.45, blue: 0.38)
+    /// …and its light-ground twin. The vivid one is 1.92:1 on Camel, which is
+    /// an error marker nobody can see; this is the same hue taken down to where
+    /// it reads on paper.
+    static let coralOnLight = Color(red: 0.72, green: 0.13, blue: 0.06)
+
+    /// The three derived tones have defaults rather than nine hand-written
+    /// copies: a theme that wants the usual treatment says nothing, and the one
+    /// that does not is visible as an override at its own case.
+    init(
+        background: Color,
+        gridTone: Color,
+        digitTone: Color,
+        isLight: Bool,
+        coral: Color? = nil,
+        plane: Color? = nil,
+        planeOpacity: Double? = nil,
+        hairline: Color? = nil
+    ) {
+        self.background = background
+        self.gridTone = gridTone
+        self.digitTone = digitTone
+        self.isLight = isLight
+        self.coral = coral ?? (isLight ? Self.coralOnLight : Self.coralOnDark)
+        // How much of the theme's own ground reaches the board. Not 1.0 on
+        // purpose: the wash covers the grid square only, so the 12–28pt inset
+        // stays pure material and the board still reads as a pane of glass
+        // with a screen inside it rather than as a painted rectangle.
+        //
+        // **Zero on light themes, and that is measured, not an oversight.**
+        // Every mark a light theme draws — givens, accents, the coral — is
+        // *darker* than its ground, so restoring the theme's ground lowers the
+        // ground's luminance and costs contrast on all three at once. On Camel
+        // a 0.58 wash took givens from 10.28:1 to 8.15:1 and bought nothing.
+        // Light themes are fixed by deepening the ink instead
+        // (`AccentChoice.color(isLight:)` and `coralOnLight`).
+        self.plane = (plane ?? background)
+            .opacity(planeOpacity ?? (isLight ? 0 : 0.70))
+        self.hairline = hairline ?? gridTone.opacity(isLight ? 0.42 : 0.34)
+    }
 }
 
 /// Color scheme for the whole app — both platforms. `auto` follows the
@@ -170,7 +241,18 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
                 background: Color(red: 0.05, green: 0.14, blue: 0.33),
                 gridTone: Color(red: 0.75, green: 0.85, blue: 1.00),
                 digitTone: Color(red: 0.86, green: 0.92, blue: 1.00),
-                isLight: false
+                isLight: false,
+                // The one theme whose backdrop and whose board ground are
+                // different jobs, and the only theme where the default wash
+                // made things *worse*. Blueprint's backdrop is a saturated blue
+                // that reads well full-bleed and is lighter than the composited
+                // glass — so putting it back under the board raised the ground
+                // and pulled every accent down (crimson 3.93 → 3.79). This is
+                // the same hue taken to where a board wants it; Blueprint is
+                // the binding ground for all ten accents in the matrix, so the
+                // whole palette's worst cell is set here.
+                plane: Color(red: 0.022, green: 0.065, blue: 0.165),
+                planeOpacity: 0.80
             )
         case .forest:
             return ThemeTones(
