@@ -21,6 +21,7 @@ struct TouchHomeView: View {
     @State private var showHistory = false
     @State private var showTutorial = false
     @State private var showBoards = false
+    @State private var showArchive = false
     /// The variants teaser's answer, swapped in place of its own subtitle so
     /// the shelf never grows a floating chip nobody asked for.
     @State private var variantsChip = false
@@ -78,6 +79,11 @@ struct TouchHomeView: View {
         .animation(.couchFast, value: model.helpSeen)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
+        .overlay {
+            GlassSheet(isPresented: $showArchive) {
+                ArchiveSheetContent(model: model, onClose: { showArchive = false })
+            }
+        }
         .overlay {
             if showTutorial {
                 TutorialView(accent: accent) {
@@ -137,11 +143,30 @@ struct TouchHomeView: View {
     private var todayCard: some View {
         TouchCard(action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Today")
-                    .couchText(CouchTypography.title)
-                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Today")
+                            .couchText(CouchTypography.title)
+                        Text(Date.now.formatted(date: .abbreviated, time: .omitted))
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    // PRD-14. Nested inside the card exactly as the Continue
+                    // card's discard ✕ is: the archive is a property of the
+                    // daily, so it belongs on the daily's card rather than
+                    // taking a seventh row on a shelf that is already long.
+                    Button { showArchive = true } label: {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(.accessibility, Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Archive")
+                    .accessibilityHint("Every past daily, on a month grid")
+                }
                 Spacer(minLength: 12)
                 todayStatus
             }
@@ -687,6 +712,11 @@ struct TouchGameScreen: View {
         guard model.prefs.ambientSlot != .none, model.composing == nil,
               coachAdvice == nil else { return false }
         guard edge == chromeEdge else { return false }
+        // PRD-14: the archive chip takes the same `.top` overlay slot, and
+        // unlike a compose — which lasts seconds — it is up for the whole
+        // board. It only stands the ambient chip down when the two would
+        // actually share the top band, rather than for every archive session.
+        if model.archiveDay != nil, chromeEdge == .top { return false }
         // Centered boards split the free space between both bands.
         let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
         return bandHeight >= 100
@@ -699,6 +729,14 @@ struct TouchGameScreen: View {
     private var composingChip: some View {
         if model.composing != nil, model.game != nil {
             GlassChip("Composing…", systemImage: "sparkles")
+                .transition(.opacity)
+        } else if let day = model.archiveDay, model.game != nil {
+            // PRD-14. A past day is pixel-identical to today's board, so this
+            // is the only thing on screen telling the player which one they are
+            // on — and, by saying "Archive" rather than a bare date, that this
+            // one is not the daily their streak depends on.
+            GlassChip("Archive · \(ArchiveCalendar.shortLabel(forDayOrdinal: day))",
+                      systemImage: "calendar")
                 .transition(.opacity)
         }
     }
