@@ -1563,3 +1563,179 @@ flatten.
   that the player has made harder than Gentle can reach `.exhausted` and say
   "nothing at this board's level follows from here". That is honest but it is a
   dead end; PRD-25's "show me the next why" is where it stops being one.
+
+## PRD-14 — the daily archive, and the checkmark that had nowhere to live (2026-07-26)
+
+A month grid of every daily Nine has served, regenerated from `DailySeed`
+rather than stored. The design doc is
+[docs/superpowers/specs/2026-07-26-prd-14-daily-archive-design.md](../docs/superpowers/specs/2026-07-26-prd-14-daily-archive-design.md);
+what follows is what a later reader needs and would not otherwise find.
+
+### PRD-14 §2 sources the checkmark from three places, and none of them can hold it
+
+The spec says solved days come "from `library.dailyEntry(day:)` + solve
+records". Both were checked and neither works:
+
+- **`BoardLibrary.prune()` caps solved+archived entries at 20** (`playedCap`)
+  and evicts oldest-`updatedAt` first. The 21st archive solve silently erases
+  the earliest checks — from the one view the feature exists to show, and
+  "hundreds of hours of content" is PRD-14 §1's own pitch.
+- **`SolveRecord` carries the *solve* date, never the puzzle's day ordinal.**
+  That is deliberate and PRD-14 §2 asks for it, so the PRD-9 heat grid buckets
+  by when you played rather than by what you played. It also means history
+  cannot answer the archive's question at all, 200-record cap or no.
+- **`StreakState` holds one `lastCompletedDay`,** not a set.
+
+So `ArchiveLedger` is the one piece of new persisted state in this PR: a
+sorted, deduplicated set of solved day ordinals in its own **cloud-synced
+`nine.archive` blob**. Not a `LibraryEntry` field (EXECUTING-A-PRD §2's 1515 ms
+vs 49 ms finding settles that), and not a sibling key of `nine.history` either —
+`SolveHistory` is an ordered record array with a capacity prune and a
+quarantine, and a set of ordinals shares none of that. The same call
+`nine.coach` made one PRD ago, except cloud-synced: a checkmark is a property
+of the player, not of the hand that earned it.
+
+**A sorted `[Int]` rather than ranges, with the number written down so the next
+person starts from a measurement:** one ordinal is five digits and a comma, so
+ten years of unbroken daily play is ~3 650 entries ≈ **22 KB** against a 1 MB
+KVS budget already carrying 200 history records. Range compression wins on the
+contiguous case and *loses* on the alternating one, for real code and real
+tests.
+
+The launch backfill seeds the ledger from `streak.lastCompletedDay` and every
+`.solved` `.daily` entry — `.solved` specifically, not `status != .inProgress`,
+because `archiveEntry(id:)` archives *partials* too and an abandoned board is
+not a solved one. It is idempotent, O(library), and self-healing when a solved
+daily arrives later from CloudKit. **It cannot recover days the library pruned
+before this build shipped.** Nothing can, and the alternative to saying so is
+holes in the grid that look exactly like unplayed days.
+
+### The past-day streak guard is a bug fix, not defence in depth
+
+PRD-14 §2 files it under "defense in depth; TDD". It is neither optional nor
+theoretical. `finishSolve` calls `recordCompletion` for **every** `.daily(day:)`
+board, and that function's `guard day > last` only protects a player who
+already has a streak — with `lastCompletedDay` nil it never runs:
+
+```
+fresh install → open the archive → solve yesterday
+  → lastCompletedDay = yesterday, current = 1
+  → displayedStreak(today:) reports 1
+```
+
+A one-day streak nobody earned, on the one number a streak app owes the player.
+The guard is a `StreakState.recordCompletion(day:today:)` overload rather than
+an `if` in `AppModel`, because `AppModel` has no test target and this is exactly
+the rule that has to be provable. Verified live as well: solving 12 July from
+the archive moved points 100 → 450 and left the shelf with no streak chip at
+all, and the completion chip read "Solved" rather than "Solved · N day streak".
+
+### The ordinal → seed inverse is exact, and the mapping is now frozen
+
+`seed(forDayOrdinal:)` needs no calendar round-trip. `seed(for:)` hashes the
+**local** y/m/d and `dayOrdinal` takes that same local y/m/d and reinterprets it
+as a **UTC** midnight — so an ordinal already *is* the player's calendar day,
+re-encoded, and reading it back in UTC recovers precisely the components that
+were hashed. Pinned across GMT-8/+0/+5/+13 for 400 consecutive days.
+
+Extracting the shared constant also surfaced a gap worth naming: **the daily
+mapping had never been pinned absolutely.** Every daily Nine will ever serve and
+every shared seed is `(day → seed) → puzzle`, and the only test guarding it
+compared days *to each other* — it would have passed with the entire mapping
+shifted by one. `testDailySeedForAKnownDayIsFrozen` now nails 12 July 2026 to a
+literal. Golden corpus ran 56/56 after every engine commit.
+
+### A day ordinal is a UTC midnight, and that is a rendering trap
+
+Every formatter in `ArchiveCalendar` is pinned to UTC. Left on the device's own
+timezone they render 12 July as "Jul 11" for every player west of Greenwich —
+no crash, no warning, and invisible to anyone developing in UTC+0. The stability
+sweep is unconditional; the English wording is a separate test that skips off an
+English locale, because a Linux CI container's `Locale.current` is not the
+developer's and a red lane over a month name says nothing true about the code.
+
+### Progress and position are orthogonal, and a flat enum could not say so
+
+The cell state started as five mutually exclusive cases (solved / inProgress /
+today / unplayed / future) and could not represent **"today, and already
+solved"** — which is what every player sees for most of every evening. Two axes
+instead: the background renders position, the mark renders progress. Simpler and
+strictly more informative.
+
+That refactor paid twice, because it made `ArchiveDayState` and the
+accessibility label pure. **The archive is the one screen that can never have an
+AX baseline** — every label in it is derived from today's date and would rot
+overnight, and `AXFixtureTests` can freeze a board but nothing can freeze
+"today". So the wording is pinned in `ArchiveCalendarTests` instead, which is
+the move PRD-19 already made for the Voice Control input labels no dump can see.
+`home.txt` is re-recorded for the new button; no `archive` screen is added to
+the lane.
+
+The grid's one deliberate move: **a solved day loses its number.** The checkmark
+takes the date's place rather than sitting beside it, so a month reads as a
+record of what you have done rather than a calendar wearing badges. 44 pt cells
+with 2 pt gaps is 320 pt against the 336 pt a 380-wide `GlassSheet` leaves — the
+craft charter's touch floor fixes the cell size, not taste.
+
+### Three defects that only driving the app could find
+
+EXECUTING-A-PRD §5 says a green suite is not evidence that a reshaped surface
+works. Three for three, none visible to `swift test`:
+
+- **The Today card's accessibility element collapsed.** A `Button` nested inside
+  `TouchCard`'s `Button` is merged by SwiftUI, and the merge takes the *inner*
+  frame: `describe-ui` measured the card at **44×44** where the committed
+  baseline has **89×129**, with the archive button absent from the tree
+  entirely. Nothing on screen changes when that happens. Moving it to an overlay
+  *on* the card rather than a button *in* it makes the two siblings, and the
+  card's frame is byte-identical to the baseline again.
+  **Worth knowing: the Continue card's discard ✕ is nested the same way and has
+  the same defect** — its element is missing from `home.txt` too, and has been
+  since it shipped. Left alone here; it is not this PR's surface.
+- **The archive chip printed across the coach card's title.** The coach parks in
+  the band directly beneath that `.top` overlay, which is why the timer chip
+  already carries `coachAdvice == nil`. A chip that is up for the whole board
+  has to yield to a card the player just asked for. For the same reason the
+  ambient slot stands down — but only when the two would actually share the top
+  band, not for every archive session.
+- **The board tracker dated every archive board today, in two places.**
+  `BoardsSheet.title` and `TouchUI.boardTitle` both read `entry.createdAt`
+  instead of the `.daily(day:)` payload. Those were the same date for every
+  board that could exist before this PR, so the bug was invisibly correct until
+  the archive made them diverge: 13 July opened today listed as "Daily · Jul
+  26". Both now read the day.
+
+### `swift test` is 0 failures; the wall clock is not measurable right now
+
+252 tests, 3 skipped, 0 failures — but **342 s** against a ~120 s budget, on a
+machine at **load average 189** (several agents in parallel worktrees). The
+number is contention, not cost, and the cheapest proof is that the golden
+corpus read **14.7 s standalone** in the same session and **50.8 s** inside that
+run — a ~3.5× factor that applies uniformly across the three expensive suites
+(`testGenerationSoakAcrossDifficulties` 167.8 s against its recorded 60 s,
+`testGenerationIsDeterministic` 66.1 s against 24 s). **This PR's own cost is
+27 tests in 0.035 s.** Whoever needs real headroom should still start with the
+25-puzzle soak, exactly as the Phase 0 entry has said since.
+
+### Not done
+
+- **The PRD-9 heat-grid tap seam** (PRD-14 §4.4, "wired if PRD-9 is merged").
+  `HistorySheet.swift` is iOS + macOS + tvOS and the archive sheet is iOS-only,
+  so wiring the tap means either a platform-gated tap in shared code or a sheet
+  opening a sheet — against the one-secondary-surface rule. Documented instead,
+  which §4.4 explicitly allows.
+- **No tvOS or macOS archive** (PRD-14 §3 non-goal). Both still show archive
+  boards in their board trackers as ordinary `.daily` entries, correctly dated
+  now.
+- **No per-day stats and no calendar-app integration** (PRD-14 §3 non-goals).
+- **Nothing to delete.** PRD-14 §4.4 asks for `ArchiveDemo` + its flag to go;
+  PRD-18 already deleted the entire `-uxdemo` rig, so `UXDemoScenes.swift` does
+  not exist on `main`.
+- **The archive floor is a constant, not a preference.** `ArchiveMonth(2026, 7)`
+  — the month Nine's first daily existed. `DailySeed` will happily seed 2019,
+  but a day before Nine shipped was never anybody's daily, and offering it is
+  content dressed as history.
+- **Points still carry the daily bonus and the current streak multiplier on an
+  archive solve** (PRD-14 §2 asks for "record normally"). A player working
+  through the archive during a long streak banks more than one starting fresh.
+  Left as specified rather than quietly changed.
