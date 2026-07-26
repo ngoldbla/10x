@@ -1806,4 +1806,11 @@ run — a ~3.5× factor that applies uniformly across the three expensive suites
 - **Points still carry the daily bonus and the current streak multiplier on an
   archive solve** (PRD-14 §2 asks for "record normally"). A player working
   through the archive during a long streak banks more than one starting fresh.
-  Left as specified rather than quietly changed.
+  Left as specified rather than quietly changed — but §2 wrote that clause
+  before the archive existed to test it, and a reviewer found the consequence it
+  did not anticipate: `SolveRecord.isDaily` feeds three other consumers, not just
+  points. `SolveHistory.solvesByDay` sets `DaySolves.hasDaily` for the *solve*
+  date, so an archive solve lights the PRD-9 heat grid's daily marker on a day
+  the real daily was never opened, and `GameCenter.reportSolve` submits it as a
+  daily. **Whoever revisits this should start from `isDaily` being one flag doing
+  four jobs**, not from the points formula.

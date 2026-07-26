@@ -428,8 +428,12 @@ struct TouchHomeView: View {
         .foregroundStyle(.secondary)
     }
 
+    /// **Today's** daily, not any daily. Since PRD-14 a `.daily(day:)` compose
+    /// may be for 12 July, and matching the case alone made the Today card
+    /// announce "Composing…" for a board that is not its own — then hand the
+    /// player a different day when it landed.
     private var isComposingDaily: Bool {
-        if case .daily? = model.composing { return true }
+        if case .daily(let day)? = model.composing { return day == model.todayOrdinal }
         return false
     }
 }
