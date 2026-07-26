@@ -293,6 +293,43 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(streak.displayedStreak(today: 103), 0, "older chains lapse")
     }
 
+    // MARK: - Streaks: the archive can never write one (PRD-14)
+
+    /// The bug the guarded form exists for, and the reason it is a fix rather
+    /// than defence in depth. `recordCompletion(day:)`'s `day > last` check
+    /// cannot fire when nothing has been completed yet — so a fresh install
+    /// that solved yesterday from the archive would come away showing a
+    /// one-day streak it never earned, on the one number that has to be true.
+    func testArchiveSolveOfYesterdayLeavesAFreshStreakAtZero() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_499, today: 9_500)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 0)
+        XCTAssertNil(streak.lastCompletedDay)
+        XCTAssertEqual(streak.current, 0)
+        XCTAssertEqual(streak.best, 0)
+    }
+
+    /// And the same guard on a live streak: working backwards through a whole
+    /// month of the archive leaves every field of the state untouched.
+    func testArchiveSolveNeverDisturbsALiveStreak() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_499, today: 9_499)
+        streak.recordCompletion(day: 9_500, today: 9_500)
+        let before = streak
+        for pastDay in 9_400..<9_500 {
+            streak.recordCompletion(day: pastDay, today: 9_500)
+        }
+        XCTAssertEqual(streak, before)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 2)
+    }
+
+    func testTodayStillRecordsThroughTheGuardedForm() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_500, today: 9_500)
+        XCTAssertEqual(streak.displayedStreak(today: 9_500), 1)
+        XCTAssertEqual(streak.lastCompletedDay, 9_500)
+    }
+
     // MARK: - Auto notes (PRD-11 11b)
 
     func testAutoNotesFillsEveryEmptyCellWithItsLegalCandidates() {

@@ -381,6 +381,20 @@ public struct StreakState: Sendable, Codable, Equatable {
         best = max(best, current)
     }
 
+    /// Record a daily completion that is allowed to count only when it is not
+    /// in the past (PRD-14 §2). Every app-layer call goes through this form.
+    ///
+    /// The daily archive lets any past day be played, and a past solve must
+    /// never rewrite streak state. `recordCompletion(day:)` cannot enforce that
+    /// on its own: its `day > last` guard does nothing while `lastCompletedDay`
+    /// is nil, so a fresh install solving *yesterday* from the archive would
+    /// set `lastCompletedDay = yesterday` and `displayedStreak(today:)` would
+    /// report a one-day streak nobody earned.
+    public mutating func recordCompletion(day: Int, today: Int) {
+        guard day >= today else { return }
+        recordCompletion(day: day)
+    }
+
     /// The streak shown on the shelf: yesterday's chain is still alive today,
     /// anything older has lapsed to 0.
     public func displayedStreak(today: Int) -> Int {
