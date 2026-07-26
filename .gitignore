@@ -75,3 +75,8 @@ fastlane/test_output
 # PRD-19 AX-tree lane: what a comparison run actually captured, beside the
 # committed baselines. Only the baselines are the contract.
 nine/Tests/AXBaselines/.captured/
+
+# PRD-22 contrast lane, same shape — except these are 12 MB screenshots each,
+# so leaving them untracked is not a preference. `matrix.txt` beside them is
+# the contract and is committed.
+nine/Tests/ContrastBaselines/.captured/
