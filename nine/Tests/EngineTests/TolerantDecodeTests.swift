@@ -318,4 +318,81 @@ struct TolerantDecodeTests {
         let twice = try CouchJSON.encode(CouchJSON.decode(BoardLibrary.self, from: once))
         #expect(once == twice)
     }
+
+    // MARK: - StreakState (PRD-13)
+    //
+    // `nine.streak` is its own blob with `StreakState` as its *root*, and that
+    // root had synthesized `Codable` until PRD-13 added `lastGraceDay`. A
+    // synthesized decode throws on a malformed blob, `CouchStored` discards the
+    // whole file when it does, and the player's streak silently resets to zero.
+
+    @Test func streakDecodesAPreGraceBlobUnchanged() throws {
+        let legacy = Data(#"{"current":12,"best":30,"lastCompletedDay":9500}"#.utf8)
+        let streak = try CouchJSON.decode(StreakState.self, from: legacy)
+        #expect(streak.current == 12)
+        #expect(streak.best == 30)
+        #expect(streak.lastCompletedDay == 9_500)
+        #expect(streak.lastGraceDay == nil)
+        #expect(streak.graceAvailable, "no recorded bridge means one is there to spend")
+    }
+
+    @Test func streakSurvivesGarbageInEveryField() throws {
+        let junk = Data(#"{"current":"twelve","best":null,"lastCompletedDay":[1],"lastGraceDay":{}}"#.utf8)
+        let streak = try CouchJSON.decode(StreakState.self, from: junk)
+        #expect(streak == StreakState(), "unreadable reads as fresh, never as a thrown blob")
+    }
+
+    @Test func streakSurvivesAnEntirelyUnkeyedBlob() throws {
+        for blob in ["[]", "null", #""nope""#, "{}"] {
+            let streak = try CouchJSON.decode(StreakState.self, from: Data(blob.utf8))
+            #expect(streak == StreakState(), "blob \(blob)")
+        }
+    }
+
+    @Test func streakRepairsABestBelowItsOwnCurrent() throws {
+        let tampered = Data(#"{"current":9,"best":2,"lastCompletedDay":9500}"#.utf8)
+        let streak = try CouchJSON.decode(StreakState.self, from: tampered)
+        #expect(streak.best == 9, "best is a high-water mark by definition")
+    }
+
+    @Test func streakCarriesAnUnknownSiblingKeyThroughARewrite() throws {
+        let future = Data(#"{"current":3,"best":3,"lastCompletedDay":9500,"restDays":[9499]}"#.utf8)
+        var streak = try CouchJSON.decode(StreakState.self, from: future)
+        streak.recordCompletion(day: 9_501)
+        let rewritten = try CouchJSON.encode(streak)
+        let tree = try #require(
+            JSONSerialization.jsonObject(with: rewritten) as? [String: Any]
+        )
+        #expect(tree["restDays"] != nil, "a newer build's key survives this build's autosave")
+        #expect(tree["current"] as? Int == 4)
+    }
+
+    @Test func streakRoundTripsAGraceBridge() throws {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_500)
+        streak.recordCompletion(day: 9_502)
+        let decoded = try CouchJSON.decode(StreakState.self, from: CouchJSON.encode(streak))
+        #expect(decoded == streak)
+        #expect(decoded.lastGraceDay == 9_501)
+        #expect(decoded.standsOnGrace)
+    }
+
+    /// The downgrade this build cannot prevent, pinned so nobody is surprised
+    /// by it later: builds 450/451/452 have a synthesized decode with no
+    /// `lastGraceDay` property, so their next write drops the bridge. The
+    /// consequence is one extra kindness, never a lost streak.
+    @Test func aDowngradeStripsTheBridgeAndErrsKind() throws {
+        var streak = StreakState()
+        streak.recordCompletion(day: 9_500)
+        streak.recordCompletion(day: 9_502)      // bridge spent on 9_501
+        #expect(!streak.graceAvailable)
+
+        // What an older build writes back: the three keys it knows about.
+        let downgraded = try CouchJSON.decode(
+            StreakState.self,
+            from: Data(#"{"current":2,"best":2,"lastCompletedDay":9502}"#.utf8)
+        )
+        #expect(downgraded.graceAvailable, "the spent bridge is gone")
+        #expect(downgraded.current == 2, "but the streak itself is intact")
+    }
 }
