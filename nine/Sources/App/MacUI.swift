@@ -530,6 +530,7 @@ struct MacGameScreen: View {
     @ViewBuilder
     private func boardArea(side: CGFloat, inset: CGFloat) -> some View {
         if let game = model.game {
+            let lens = rose.map { roseLens(side: side, inset: inset, rose: $0) }
             BoardView(
                 game: game,
                 cursor: cursor,
@@ -537,6 +538,7 @@ struct MacGameScreen: View {
                 showErrors: model.prefs.errorHighlight,
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
+                roseLens: reduceMotion || model.solvedAt != nil ? nil : lens,
                 previewDigit: nil,
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
@@ -562,8 +564,7 @@ struct MacGameScreen: View {
                 handleClick(at: location, side: side, inset: inset)
             }
             .overlay {
-                if let rose, model.solvedAt == nil {
-                    let scale = roseScale(side: side)
+                if let rose, let lens, model.solvedAt == nil {
                     Color.black.opacity(0.001)
                         .contentShape(Rectangle())
                         .onTapGesture { closeRose() }
@@ -571,10 +572,11 @@ struct MacGameScreen: View {
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        scale: scale,
-                        onDigit: { commit(digit: $0) }
+                        scale: lens.scale,
+                        onDigit: { commit(digit: $0) },
+                        lensed: !reduceMotion
                     )
-                    .position(rosePosition(side: side, inset: inset, scale: scale))
+                    .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
             }
         } else {
@@ -583,19 +585,19 @@ struct MacGameScreen: View {
         }
     }
 
-    private func roseScale(side: CGFloat) -> CGFloat {
-        let cell = side / 9
-        return min(0.62, (cell * 1.15) / 116)
-    }
-
-    private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
-        let center = BoardMetrics.center(of: cursor, side: side)
-        let radius = 126 * scale + (116 * scale) / 2
-        let frameSide = side + 2 * inset
-        let clamp: (CGFloat) -> CGFloat = { value in
-            min(max(value, radius - 6), frameSide - radius + 6)
-        }
-        return CGPoint(x: clamp(center.x + inset), y: clamp(center.y + inset))
+    /// Where the petals are drawn, and — through `BoardView.roseLens` — where
+    /// the board bends under them (PRD-22). The Mac rose has no eraser petal:
+    /// ⌫ erases, and a tenth petal would be a fifth control the keyboard
+    /// already covers.
+    private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
+        RoseLens(
+            cursor: cursor,
+            side: Double(side),
+            inset: Double(inset),
+            pencil: rose.pencil,
+            showsErase: false,
+            scale: RoseLens.scale(forSide: Double(side))
+        )
     }
 
     // MARK: Pointer grammar

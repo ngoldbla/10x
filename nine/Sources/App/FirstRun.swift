@@ -177,6 +177,8 @@ private struct FirstFlickBeat: View {
     @State private var rose: RoseState? = RoseState(pencil: false)
     @State private var placed = false
     @State private var exitTask: Task<Void, Never>?
+    /// PRD-22: the petal lens is motion, so Reduce Motion keeps the material.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var targetDigit: Int {
         game?.puzzle.solution.cells[targetCell] ?? 7
@@ -247,6 +249,7 @@ private struct FirstFlickBeat: View {
             // over the instruction's last line.
             let cardWidth = min(geo.size.width - 32, 560)
             let side = max(200, min(cardWidth - 64, geo.size.height * 0.52))
+            let lens = rose.map { roseLens(side: side, inset: inset, rose: $0) }
             BoardView(
                 game: game,
                 cursor: targetCell,
@@ -254,6 +257,7 @@ private struct FirstFlickBeat: View {
                 showErrors: true,
                 solvedAt: nil,
                 roseOpen: rose != nil,
+                roseLens: reduceMotion ? nil : lens,
                 previewDigit: nil,
                 previewPencil: false,
                 highlightDigit: nil,
@@ -269,19 +273,19 @@ private struct FirstFlickBeat: View {
                 withAnimation(.couchFast) { rose = RoseState(pencil: false) }
             }
             .overlay {
-                if let rose {
-                    let scale = min(0.62, ((side / 9) * 1.15) / 116)
+                if let rose, let lens {
                     TouchRose(
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        scale: scale,
+                        scale: lens.scale,
                         onDigit: { commit(digit: $0) },
                         // Not modal here: Skip and the lesson share this card
                         // with the ring, and they have to stay reachable.
-                        isModal: false
+                        isModal: false,
+                        lensed: !reduceMotion
                     )
-                    .position(rosePosition(side: side, inset: inset, scale: scale))
+                    .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
             }
         } else {
@@ -302,15 +306,17 @@ private struct FirstFlickBeat: View {
         }
     }
 
-    /// Same clamping as the game screen: the rose never leaves the board.
-    private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
-        let center = BoardMetrics.center(of: targetCell, side: side)
-        let radius = 126 * scale + (116 * scale) / 2
-        let frameSide = side + 2 * inset
-        let clamp: (CGFloat) -> CGFloat = { value in
-            min(max(value, radius - 6), frameSide - radius + 6)
-        }
-        return CGPoint(x: clamp(center.x + inset), y: clamp(center.y + inset))
+    /// Same geometry as the game screen, from the same value: the rose never
+    /// leaves the board, and the board bends where the petals are (PRD-22).
+    private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
+        RoseLens(
+            cursor: targetCell,
+            side: Double(side),
+            inset: Double(inset),
+            pencil: rose.pencil,
+            showsErase: false,
+            scale: RoseLens.scale(forSide: Double(side))
+        )
     }
 
     private func commit(digit: Int) {

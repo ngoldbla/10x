@@ -1098,6 +1098,7 @@ struct TouchGameScreen: View {
     @ViewBuilder
     private func boardArea(side: CGFloat, inset: CGFloat) -> some View {
         if let game = model.game {
+            let lens = rose.map { roseLens(side: side, inset: inset, rose: $0) }
             BoardView(
                 game: game,
                 cursor: cursor,
@@ -1105,6 +1106,7 @@ struct TouchGameScreen: View {
                 showErrors: model.prefs.errorHighlight,
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
+                roseLens: reduceMotion || model.solvedAt != nil ? nil : lens,
                 previewDigit: nil, // touch petals are direct — nothing to preview
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
@@ -1122,8 +1124,7 @@ struct TouchGameScreen: View {
                 handleBoardTap(at: location, side: side, inset: inset)
             }
             .overlay {
-                if let rose, model.solvedAt == nil {
-                    let scale = roseScale(side: side)
+                if let rose, let lens, model.solvedAt == nil {
                     // Scrim: any touch beside the rose cancels it — and blocks
                     // board taps from landing under an open rose.
                     Color.black.opacity(0.001)
@@ -1133,14 +1134,13 @@ struct TouchGameScreen: View {
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        scale: scale,
+                        scale: lens.scale,
                         onDigit: { commit(digit: $0) },
-                        showsErase: !rose.pencil
-                            && !game.isGiven(cursor)
-                            && game.entry(at: cursor) != 0,
-                        onErase: { eraseCurrentCell() }
+                        showsErase: lens.eraseDrop != nil,
+                        onErase: { eraseCurrentCell() },
+                        lensed: !reduceMotion
                     )
-                    .position(rosePosition(side: side, inset: inset, scale: scale))
+                    .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
             }
         } else {
@@ -1150,31 +1150,23 @@ struct TouchGameScreen: View {
         }
     }
 
-    /// Petals sized for fingers: a hair wider than a board cell, whatever the
-    /// board's size on this screen.
-    private func roseScale(side: CGFloat) -> CGFloat {
-        let cell = side / 9
-        return min(0.62, (cell * 1.15) / 116)
-    }
-
-    /// The rose blooms on the selected cell, nudged inward so no petal ever
-    /// leaves the board frame (screen edges would otherwise clip it).
-    private func rosePosition(side: CGFloat, inset: CGFloat, scale: CGFloat) -> CGPoint {
-        let center = BoardMetrics.center(of: cursor, side: side)
-        let radius = 126 * scale + (116 * scale) / 2
-        let showsErase = model.game.map {
-            !$0.isGiven(cursor) && $0.entry(at: cursor) != 0
-                && !(pencilMode && $0.entry(at: cursor) == 0)
-        } ?? false
-        let bottomExtra = showsErase ? 126 * scale * 0.92 : 0
-        let frameSide = side + 2 * inset
-        let clampX: (CGFloat) -> CGFloat = { value in
-            min(max(value, radius - 6), frameSide - radius + 6)
-        }
-        let clampY: (CGFloat) -> CGFloat = { value in
-            min(max(value, radius - 6), frameSide - radius - bottomExtra + 6)
-        }
-        return CGPoint(x: clampX(center.x + inset), y: clampY(center.y + inset))
+    /// The rose's geometry: where the petals are drawn, and — through
+    /// `BoardView.roseLens` — where the board bends under them (PRD-22). It
+    /// blooms on the selected cell, nudged inward so no petal ever leaves the
+    /// board frame (screen edges would otherwise clip it). One value rather
+    /// than the pair of `roseScale`/`rosePosition` helpers this replaced,
+    /// because paint and lens disagreeing by four points is visible.
+    private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
+        RoseLens(
+            cursor: cursor,
+            side: Double(side),
+            inset: Double(inset),
+            pencil: rose.pencil,
+            showsErase: model.game.map {
+                !$0.isGiven(cursor) && $0.entry(at: cursor) != 0
+            } ?? false,
+            scale: RoseLens.scale(forSide: Double(side))
+        )
     }
 
     // MARK: Accessibility grammar (PRD-19)

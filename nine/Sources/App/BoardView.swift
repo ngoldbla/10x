@@ -106,6 +106,13 @@ struct BoardView: View {
     /// Dim the board content a touch while the rose is open, so the petals
     /// (true glass, lensing the board) are the brightest thing on screen.
     let roseOpen: Bool
+    /// The open rose's geometry, or nil (PRD-22). Non-nil arms the third layer
+    /// effect: the board's own digits bend and magnify under each petal, and
+    /// `FlickRoseView` draws only a glyph and a rim above instead of an opaque
+    /// disc. Every call site leaves it nil under Reduce Motion, which restores
+    /// today's material exactly — the fallback is the current design, not a
+    /// degraded one.
+    var roseLens: RoseLens? = nil
     /// While the four-way rose walks petals, the focused digit ghosts into
     /// the selected cell — see the digit before you commit. Nil on eight-way
     /// remotes (flicks place instantly, nothing to preview).
@@ -150,15 +157,32 @@ struct BoardView: View {
     /// refused. See BoardAccessibility.swift.
     var axActions = BoardAXActions()
 
-    private static let coral = Color(red: 1.0, green: 0.45, blue: 0.38)
-
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Increase Contrast (PRD-22). SwiftUI surfaces the setting as
+    /// `colorSchemeContrast`; there is no `accessibilityContrast` key.
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     /// The celebration has reached its resting state — nothing animates
     /// anymore, so the 60fps timeline can stop (tvOS and Reduce Motion; the
     /// iOS trophy keeps polling the gyro until the screen goes away).
     @State private var afterglowSettled = false
+    /// The petal lens growing in, 0…1. Driven by the same `.couchFast` spring
+    /// `FlickRoseView` blooms its petals with, so the bend arrives under the
+    /// glass rather than before or after it.
+    @State private var lensBloom: Double = 0
+
+    /// How much bigger a digit reads through a petal.
+    ///
+    /// This one is taste, not measurement, and it is the only number in PRD-22
+    /// that is. The floor is set by the covenant rather than by a ratio: at 1.0
+    /// there is no lens and the petals are just transparent, and somewhere past
+    /// about 1.6 the board starts *performing* under your thumb, which fails
+    /// the idle-pixel test the moment you hold a rose open while thinking.
+    /// 1.34 is enough that a digit under a petal is legibly bent and not enough
+    /// to notice as an effect. Tune it here; the rim's compression is the other
+    /// half and lives in `rosePetalLens`.
+    static let lensMagnification: Double = 1.34
 
     /// The theme decides the board's neutral tones; callers pass an accent
     /// already resolved for the theme's leaning.
@@ -166,36 +190,16 @@ struct BoardView: View {
     private var isLight: Bool { tones.isLight }
     private var gridTone: Color { tones.gridTone }
     private var digitTone: Color { tones.digitTone }
+    /// The player asked the system for more contrast, so the board's borders
+    /// stop being luminance steps and become lines (PRD-22).
+    private var increased: Bool { colorSchemeContrast == .increased }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil || afterglowSettled)) { timeline in
-            let phase = afterglowPhase(now: timeline.date)
-            // Both layer effects apply to the Canvas only — inside couchGlass
-            // — so digits and grid refract while the glass material and the
-            // void behind it stay optically still.
-            Canvas { context, size in
-                draw(in: &context, size: size, now: timeline.date)
+            ZStack {
+                plane
+                refracted(now: timeline.date)
             }
-            .layerEffect(
-                ShaderLibrary.afterglowWave(
-                    .float2(originPoint),
-                    .float(phase.waveProgress ?? 0),
-                    .float(maxRadius),
-                    .float(waveAmplitude)
-                ),
-                maxSampleOffset: CGSize(width: waveAmplitude + 4, height: waveAmplitude + 4),
-                isEnabled: phase.waveActive
-            )
-            .layerEffect(
-                ShaderLibrary.afterglowSheen(
-                    .float2(side, side),
-                    .float(phase.sheenPos),
-                    .float2(phase.sheenTilt.x, phase.sheenTilt.y),
-                    .float(phase.sheenStrength)
-                ),
-                maxSampleOffset: CGSize(width: 6, height: 6),
-                isEnabled: phase.sheenActive
-            )
         }
         .frame(width: side, height: side)
         .padding(inset)
@@ -220,6 +224,93 @@ struct BoardView: View {
         }
         .accessibilityHidden(roseOpen)
         .task(id: solvedAt) { await settleWhenDone() }
+        // The lens grows and shrinks with the petals, not instead of them.
+        .onChange(of: roseLens) { _, lens in
+            withAnimation(.couchFast) { lensBloom = lens == nil ? 0 : 1 }
+        }
+        .onAppear { lensBloom = roseLens == nil ? 0 : 1 }
+    }
+
+    /// The theme's own ground, put back between the glass and the drawing
+    /// (PRD-22). It covers the grid square only — the 12–28pt inset stays pure
+    /// material — and it is a sibling of the Canvas rather than the Canvas's
+    /// first fill for one specific reason: `afterglowWave` scales its glint by
+    /// `color.a` so the celebration rides drawn content and never fogs empty
+    /// board. An opaque fill *inside* the Canvas makes alpha 1 everywhere, and
+    /// the wave would wash the whole grid instead of lighting the digits.
+    private var plane: some View {
+        RoundedRectangle(cornerRadius: 18 * side / BoardMetrics.side, style: .continuous)
+            .fill(tones.plane)
+    }
+
+    /// The board's drawing, and the three shaders that bend it. All three apply
+    /// to the Canvas only — inside `couchGlass`, above `plane` — so digits and
+    /// grid refract while the glass material, the theme wash and the void
+    /// behind them stay optically still.
+    private func refracted(now: Date) -> some View {
+        let phase = afterglowPhase(now: now)
+        return Canvas { context, size in
+            draw(in: &context, size: size, now: now)
+        }
+        .layerEffect(
+            ShaderLibrary.afterglowWave(
+                .float2(originPoint),
+                .float(phase.waveProgress ?? 0),
+                .float(maxRadius),
+                .float(waveAmplitude)
+            ),
+            maxSampleOffset: CGSize(width: waveAmplitude + 4, height: waveAmplitude + 4),
+            isEnabled: phase.waveActive
+        )
+        .layerEffect(
+            ShaderLibrary.afterglowSheen(
+                .float2(side, side),
+                .float(phase.sheenPos),
+                .float2(phase.sheenTilt.x, phase.sheenTilt.y),
+                .float(phase.sheenStrength)
+            ),
+            maxSampleOffset: CGSize(width: 6, height: 6),
+            isEnabled: phase.sheenActive
+        )
+        // PRD-22, third in the chain and last on purpose: during a celebration
+        // the board is a trophy and the rose is closed, so the two never
+        // overlap in practice — but if they ever did, the Afterglow is the
+        // thing the player is being shown.
+        .layerEffect(
+            ShaderLibrary.rosePetalLens(
+                .float2(lensCentre),
+                .float(roseLens?.spacing ?? 0),
+                .float(roseLens?.petalRadius ?? 0),
+                .float(Self.lensMagnification),
+                .float(lensBloom),
+                .float(roseLens?.eraseDrop ?? 0)
+            ),
+            maxSampleOffset: CGSize(width: lensReach, height: lensReach),
+            isEnabled: lensActive
+        )
+    }
+
+    // MARK: - The petal lens (PRD-22)
+
+    /// Reduce Motion never reaches the shader — every call site already leaves
+    /// `roseLens` nil there, and this is the second lock on the same door.
+    private var lensActive: Bool {
+        roseLens != nil && !reduceMotion && lensBloom > 0.001
+    }
+
+    private var lensCentre: CGPoint {
+        guard let roseLens else { return .zero }
+        return CGPoint(x: roseLens.centre.x, y: roseLens.centre.y)
+    }
+
+    /// How far the shader may sample outside a pixel's own position. The worst
+    /// case is a rim pixel: `|delta| * (squeeze - 1)` with `|delta|` at the
+    /// radius and `squeeze` at its 1.42 ceiling, so 0.42 radii. This is 1.9,
+    /// deliberately loose — under-sizing it clips the compressed band into a
+    /// hard edge, visible only where petals sit near the plane's border, which
+    /// is exactly where `RoseLens`'s clamp puts them.
+    private var lensReach: CGFloat {
+        CGFloat((roseLens?.petalRadius ?? 0) * 1.9)
     }
 
     // MARK: - Afterglow choreography
@@ -283,7 +374,11 @@ struct BoardView: View {
         let scale = size.width / BoardMetrics.side
 
         // 1. Box luminance steps: alternating boxes get a slightly brighter
-        //    wash — the step itself reads as the border.
+        //    wash — the step itself reads as the border. Under Increase
+        //    Contrast the step deepens and step 2.4 draws the border the step
+        //    stands in for (PRD-22).
+        let brightWash = increased ? (isLight ? 0.13 : 0.10) : (isLight ? 0.07 : 0.055)
+        let dimWash = increased ? 0.0 : (isLight ? 0.028 : 0.02)
         for boxRow in 0..<3 {
             for boxCol in 0..<3 {
                 let bright = (boxRow + boxCol) % 2 == 0
@@ -295,7 +390,7 @@ struct BoardView: View {
                 )
                 context.fill(
                     Path(roundedRect: rect, cornerRadius: 6 * scale),
-                    with: .color(gridTone.opacity(bright ? (isLight ? 0.07 : 0.055) : (isLight ? 0.028 : 0.02)))
+                    with: .color(gridTone.opacity(bright ? brightWash : dimWash))
                 )
             }
         }
@@ -309,7 +404,28 @@ struct BoardView: View {
             lines.move(to: CGPoint(x: 0, y: offset))
             lines.addLine(to: CGPoint(x: size.width, y: offset))
         }
-        context.stroke(lines, with: .color(gridTone.opacity(isLight ? 0.07 : 0.05)), lineWidth: 1)
+        context.stroke(
+            lines,
+            with: .color(gridTone.opacity(
+                increased ? (isLight ? 0.20 : 0.16) : (isLight ? 0.07 : 0.05))),
+            lineWidth: 1)
+
+        // 2.4 Box borders, Increase Contrast only. The rest of the time these
+        //     are the luminance step above — a wash you read as an edge, which
+        //     is the calmer thing and the wrong thing for someone who has told
+        //     the system they need edges to be edges.
+        if increased {
+            var boxes = Path()
+            for i in 0...3 {
+                let offset = CGFloat(i) * 3 * cell
+                boxes.move(to: CGPoint(x: offset, y: 0))
+                boxes.addLine(to: CGPoint(x: offset, y: size.height))
+                boxes.move(to: CGPoint(x: 0, y: offset))
+                boxes.addLine(to: CGPoint(x: size.width, y: offset))
+            }
+            context.stroke(boxes, with: .color(tones.hairline),
+                           lineWidth: max(1.5, 2 * scale))
+        }
 
         // 2.5 Same-number highlight: an accent wash on every cell holding the
         //     digit; cells whose pencil notes contain it get a quiet accent
@@ -408,7 +524,7 @@ struct BoardView: View {
                 let isGiven = game.isGiven(index)
                 var color = isGiven ? digitTone : accent
                 let isError = showErrors && game.isError(at: index)
-                if isError { color = Self.coral }
+                if isError { color = tones.coral }
 
                 // Completion wave: a luminance crest. With the Afterglow
                 // shader running, the phase is radial from the winning cell
@@ -443,15 +559,16 @@ struct BoardView: View {
                     // Coral underline…
                     let underline = CGRect(
                         x: center.x - cell * 0.24, y: center.y + cell * 0.30,
-                        width: cell * 0.48, height: max(2, 4 * scale)
+                        width: cell * 0.48,
+                        height: increased ? max(3, 6 * scale) : max(2, 4 * scale)
                     )
-                    context.fill(Path(roundedRect: underline, cornerRadius: 2 * scale), with: .color(Self.coral))
+                    context.fill(Path(roundedRect: underline, cornerRadius: 2 * scale), with: .color(tones.coral))
                     // …paired with a dot marker so color is never the sole signal.
                     let dot = CGRect(
                         x: center.x + cell * 0.30, y: center.y - cell * 0.38,
                         width: max(5, 10 * scale), height: max(5, 10 * scale)
                     )
-                    context.fill(Path(ellipseIn: dot), with: .color(Self.coral))
+                    context.fill(Path(ellipseIn: dot), with: .color(tones.coral))
                 }
             } else {
                 // Corner notes: a mini 3×3 keypad of pencil digits. A note of
