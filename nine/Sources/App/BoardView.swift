@@ -374,10 +374,20 @@ struct BoardView: View {
         let scale = size.width / BoardMetrics.side
 
         // 1. Box luminance steps: alternating boxes get a slightly brighter
-        //    wash — the step itself reads as the border. Under Increase
-        //    Contrast the step deepens and step 2.4 draws the border the step
-        //    stands in for (PRD-22).
-        let brightWash = increased ? (isLight ? 0.13 : 0.10) : (isLight ? 0.07 : 0.055)
+        //    wash — the step itself reads as the border.
+        //
+        //    Under Increase Contrast both washes go to **zero** and step 2.4
+        //    draws the border the step was standing in for (PRD-22). The first
+        //    version deepened the step instead, on the reasoning that more
+        //    contrast between the boxes is more contrast — and the harness
+        //    measured every single Increase Contrast cell coming out *below*
+        //    its standard counterpart (Void 14.72 → 13.62, Paper's coral
+        //    5.06 → 4.43). A wash is a wash toward `gridTone`, which is the
+        //    ink's own end of the scale on a dark theme and the ground's on a
+        //    light one; either way it moves the ground toward the digits and
+        //    every ratio in the box falls. The setting that asks for more
+        //    contrast has to *remove* the wash, not thicken it.
+        let brightWash = increased ? 0.0 : (isLight ? 0.07 : 0.055)
         let dimWash = increased ? 0.0 : (isLight ? 0.028 : 0.02)
         for boxRow in 0..<3 {
             for boxCol in 0..<3 {

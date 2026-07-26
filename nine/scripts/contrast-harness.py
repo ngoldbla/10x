@@ -638,6 +638,20 @@ def cell_key(theme, accent, mode):
     return "%s/%s/%s" % (theme, accent, mode)
 
 
+def shape(rows):
+    """What the file covers, computed from the rows in it rather than from the
+    arguments of whichever run wrote it last — the file outlives the run."""
+    themes = {t for (t, _, _), _ in rows}
+    standard = [r for r in rows if r[0][2] == "standard"]
+    increased = [r for r in rows if r[0][2] == "increased"]
+    petals = [r for r in standard if r[1].get("petal") is not None]
+    return ("%d standard cells over %d themes; %d Increase Contrast cells "
+            "(one accent per theme — the mode moves grounds, not ink); "
+            "%d petal readings (one per theme). `auto` is not a cell: "
+            "ThemeChoice.tones(for:) delegates it to Void or Paper."
+            % (len(standard), len(themes), len(increased), len(petals)))
+
+
 def render(rows, runtime, covered):
     lines = [
         "# nine board contrast — measured on the composited glass (PRD-22)",
@@ -674,6 +688,35 @@ def parse(text):
             values[name] = None if raw == "—" else float(raw)
         out[cell_key(theme, accent, mode)] = values
     return out
+
+
+def gate_increased(rows):
+    """Increase Contrast must never measure *below* standard contrast.
+
+    This is the whole reason the mode is a column rather than a screenshot
+    someone looked at. The first hairline board deepened the box washes on the
+    reasoning that more separation between boxes is more contrast, and every
+    single cell came out worse than its standard twin — a wash is a wash toward
+    `gridTone`, which moves the ground toward the ink whichever way the theme
+    leans. Nothing on screen says so; only the two columns side by side do."""
+    standard = {(t, a): v for (t, a, m), v in rows if m == "standard"}
+    failures = []
+    for (theme, accent, mode), values in rows:
+        if mode != "increased":
+            continue
+        was = standard.get((theme, accent))
+        if not was:
+            continue
+        for column in COLUMNS:
+            now, before = values.get(column), was.get(column)
+            if now is None or before is None:
+                continue
+            if now < before - 0.05:
+                failures.append(
+                    "%-10s %-9s %-7s Increase Contrast measures %.2f:1 against "
+                    "%.2f:1 standard — the setting made it worse"
+                    % (theme, accent, column, now, before))
+    return failures
 
 
 def gate(rows, recorded):
@@ -815,11 +858,29 @@ def main():
                check=False)
     elapsed = time.time() - started
 
-    text = render(rows, runtime["version"], covered)
     if args.record:
+        # Merge rather than overwrite. A run that re-measures eight cells should
+        # update eight rows, not replace a matrix of eighty-eight with a file
+        # that silently claims the other eighty no longer exist.
+        merged = parse(open(MATRIX).read()) if os.path.exists(MATRIX) else {}
+        for (theme, accent, mode), values in rows:
+            merged[cell_key(theme, accent, mode)] = values
+        kept = sorted(
+            ((k.split("/")[0], k.split("/")[1], k.split("/")[2]), v)
+            for k, v in merged.items())
+        kept.sort(key=lambda r: (r[0][2] != "standard",
+                                 THEMES.index(r[0][0]) if r[0][0] in THEMES else 99,
+                                 ACCENTS.index(r[0][1]) if r[0][1] in ACCENTS else 99))
         with open(MATRIX, "w") as handle:
-            handle.write(text)
-        print("\nrecorded %s in %.0f s" % (os.path.relpath(MATRIX, REPO), elapsed))
+            handle.write(render(kept, runtime["version"], shape(kept)))
+        broke = gate_increased(kept)
+        print("\nrecorded %d rows in %s (%d measured this run, %.0f s)"
+              % (len(kept), os.path.relpath(MATRIX, REPO), len(rows), elapsed))
+        if broke:
+            print("\n".join(broke), file=sys.stderr)
+            sys.exit("\nrecorded, but the Increase Contrast pass is below the "
+                     "standard one — that is a defect in the board, not in the "
+                     "baseline, and recording it does not make it true.")
         if not args.no_erase:
             simrig.run(["xcrun", "simctl", "shutdown", udid], check=False)
         return
@@ -828,7 +889,7 @@ def main():
     with open(captured, "w") as handle:
         handle.write(text)
     recorded = parse(open(MATRIX).read()) if os.path.exists(MATRIX) else {}
-    failures = gate(rows, recorded)
+    failures = gate(rows, recorded) + gate_increased(rows)
     if not args.no_erase:
         simrig.run(["xcrun", "simctl", "shutdown", udid], check=False)
 

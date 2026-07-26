@@ -188,7 +188,19 @@ def wait_for(udid, label, timeout=40.0, hint_for_missing_board=True):
         time.sleep(0.5)
     seen = sorted({e.get("label", "") for e in (last or {}).get("entries", [])})
     hint = ""
-    if (hint_for_missing_board and label.startswith("Row ")
+    if not seen:
+        # The accessibility bridge never answered, which is a *machine* problem
+        # and not a Nine one. Saying otherwise is how a lane earns its
+        # reputation for crying wolf: this exact path once printed the PRD-19
+        # board-collapse hint below on a contended host that simply never got
+        # a dump back, which reads as the one regression the lane exists for.
+        hint = (
+            "\n\nThe tree was empty on every read, so this is the bridge and not "
+            "the app: nothing was reachable, not even the chrome. Re-run when the "
+            "host is quieter, or without --no-erase so the bridge is warmed from "
+            "a known state.\n"
+        )
+    elif (hint_for_missing_board and label.startswith("Row ")
             and not any(s.startswith("Row ") for s in seen)):
         hint = (
             "\n\nNot one board cell is in the tree, but the chrome is — this is "

@@ -2261,6 +2261,30 @@ lens is live, which is the 1.1 audit's finding closed ("rose petals are opaque
 beneath"). **Reduce Motion keeps today's material at every one of the six call
 sites**, and `BoardView.lensActive` checks it a second time.
 
+Two deliberate departures from PRD-22's literal wording, both in the same
+direction — fewer things that can disagree with each other:
+
+- The PRD asks for "9 centers + radius + magnification uniforms". The centres
+  are *derived* instead, from the same ring pitch `RoseLens` hands the petals.
+  Nine passed centres are nine chances for the bend to drift from the paint, and
+  the ring is a rigid 3x3 grid by construction; componentwise rounding into it
+  finds the nearest petal exactly, at one rounding rather than nine distance
+  tests.
+- The PRD says "SwiftUI draws only glyphs and rims above". There is also a
+  10%-alpha body, because a glyph with nothing behind it over a bright board
+  cell is a glyph you cannot read, and the harness's petal column is where that
+  shows up. It is a breath, not a disc — the board is plainly visible bending
+  through it in `.context/prd22/rose-lensed.png`.
+
+The rim's compression was tuned down before it shipped, and a screenshot is why.
+The first version ran `smoothstep(0.74, 1.0)` to a 1.85 squeeze, and a board
+digit caught in a band that wide and that steep smears into a double image —
+an artifact rather than glass, and a board that asks for attention under your
+thumb is the thing the idle-pixel test exists to stop. It ships at
+`smoothstep(0.80, 1.0)` to 1.42. That number and `lensMagnification` are the
+only two in this PRD set by taste rather than by measurement, and they are
+adjacent on purpose.
+
 ### One value now owns the rose's geometry
 
 The bend has to land exactly where the petal is drawn, and the placement
@@ -2271,6 +2295,33 @@ the Linux-clean tree so Lane 1 tests it without a simulator — the `BoardSpeech
 pattern. Consolidating found a latent disagreement: iOS clamped the rose for the
 eraser using `pencilMode` while it *drew* the eraser using `rose.pencil`, so a
 rose opened before a pencil toggle reserved space for a petal it was not showing.
+
+### The hairline board made contrast worse, and only the second column said so
+
+The first `accessibilityContrast` variant *deepened* the box washes — more
+separation between the boxes is more contrast, obviously. The harness measured
+every Increase Contrast cell coming out **below** its standard twin: Void
+14.72 → 13.62, Paper's coral 5.06 → 4.43, Camel's 4.63 → 4.50. The setting that
+exists to help was hurting, on all eight themes, and nothing on screen said so —
+the board looked *more* structured, which is what made it convincing.
+
+A box wash is a wash toward `gridTone`, and `gridTone` is the ink's end of the
+scale on a dark theme and the ground's on a light one. Either way it drags the
+ground toward the digits and every ratio in that box falls. The mode that asks
+for more contrast has to **remove** the wash, not thicken it, and let the box
+*borders* — which is what "hairline variant" meant all along — carry the
+structure the step was standing in for. With both washes at zero:
+
+| | standard | Increase Contrast |
+|---|---|---|
+| Void givens | 14.72 | **16.48** |
+| Paper givens | 11.42 | **13.45** |
+| Camel coral | 4.63 | **5.77** |
+| Blueprint entries | 6.80 | **7.73** |
+
+That invariant is a gate now, not an observation: `gate_increased` fails the run
+if any increased cell reads below its standard one. Recording a number does not
+make it true, so `--record` runs it too and refuses to bless a regression.
 
 ### Three things that only measuring could have found
 
@@ -2321,17 +2372,23 @@ The retune, measured on the composited glass before and after:
 | Void givens | 13.02 | **14.72** | 7.0 |
 | Void entries (Crimson) | 4.52 | **6.30** | 4.5 |
 | Void coral | 6.11 | **6.91** | 3.0 |
-| Void petal glyph | 14.99 | 12.12 | 4.5 |
+| Paper entries (Glacier) | 3.67 | **5.59** | 4.5 |
+| Paper coral | 2.10 | **5.06** | 3.0 |
+| Camel entries (Glacier) | 3.36 | **5.11** | 4.5 |
+| Camel coral | 1.92 | **4.63** | 3.0 |
+| Void petal glyph | 14.99 | 12.31 | 4.5 |
 
 The petal column *fell* and that is the change working: the opaque disc is gone,
 so the glyph is now measured against the board bending underneath it rather than
 against a frosted plate. 12.12 is still 2.7× the floor.
 
 The predictive model built from the recovered planes reproduced the measured
-board to within **0.15** on every cell it was checked against (Void givens
-predicted 14.84 / measured 14.72; Camel givens 10.28 / 10.26; Void coral 6.93 /
-6.91), which is why the retune could be solved once rather than searched for at
-twenty minutes a guess.
+board to within **0.15** on every cell it was checked against, and to within
+0.02 on the two that mattered most — Camel coral predicted 4.65 / measured 4.63,
+Camel entries 5.05 / 5.11; Void givens 14.84 / 14.72; Camel givens 10.28 /
+10.26. That agreement is why the retune could be *solved* once rather than
+searched for at twenty minutes a guess, and it is the whole return on having
+recovered the planes instead of nudging constants.
 
 Harness cost, and the load it was measured at, because a number without one is
 not a number: **20.7 s per cell** at load average 16, **~110 s per cell** at load
