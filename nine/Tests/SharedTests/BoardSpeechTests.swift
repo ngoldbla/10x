@@ -334,11 +334,165 @@ final class BoardSpeechTests: XCTestCase {
         }
     }
 
+    // MARK: - Coach sentences (PRD-11)
+
+    func testUnitLabelFollowsTheEnginesUnitsConvention() {
+        XCTAssertEqual(BoardSpeech.unitLabel(0), "Row 1")
+        XCTAssertEqual(BoardSpeech.unitLabel(8), "Row 9")
+        XCTAssertEqual(BoardSpeech.unitLabel(9), "Column 1")
+        XCTAssertEqual(BoardSpeech.unitLabel(17), "Column 9")
+        XCTAssertEqual(BoardSpeech.unitLabel(18), "Box 1")
+        XCTAssertEqual(BoardSpeech.unitLabel(26), "Box 9")
+        XCTAssertEqual(BoardSpeech.unitLabel(27), "", "a variant unit has no classic label")
+        XCTAssertEqual(BoardSpeech.unitLabel(-1), "")
+        XCTAssertEqual(BoardSpeech.unitLabel(Int.max), "")
+    }
+
+    func testNakedSingleNamesTheCellAndTheDigit() {
+        let advice = Self.advice(.nakedSingle, cells: [40], digits: [7],
+                                 placement: Placement(cell: 40, digit: 7))
+        XCTAssertEqual(BoardSpeech.coachTitle(advice), "Naked Single")
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Row 5, column 5 has one candidate left: seven."
+        )
+    }
+
+    func testHiddenSingleNamesTheUnitThatConfinesTheDigit() {
+        let advice = Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                 placement: Placement(cell: 40, digit: 7), patternUnit: 22)
+        XCTAssertEqual(BoardSpeech.coachTitle(advice), "Hidden Single")
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Only one square in Box 5 can take a seven."
+        )
+    }
+
+    func testHiddenSingleFallsBackToTheCellWhenNoUnitWasDerived() {
+        let advice = Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                 placement: Placement(cell: 40, digit: 7))
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Row 5, column 5 is the only square left that can take a seven."
+        )
+    }
+
+    func testNakedPairNamesBothDigitsAndTheUnitTheyClear() {
+        let advice = Self.advice(.nakedPair, cells: [0, 1], digits: [3, 7],
+                                 eliminations: [Elimination(cell: 2, digit: 3)],
+                                 patternUnit: 18, targetUnit: 0)
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Three and seven fill these two squares between them, "
+                + "so neither can go anywhere else in Row 1."
+        )
+    }
+
+    func testHiddenPairNamesTheUnitTheDigitsAreConfinedTo() {
+        let advice = Self.advice(.hiddenPair, cells: [0, 1], digits: [3, 7],
+                                 eliminations: [Elimination(cell: 0, digit: 5)],
+                                 targetUnit: 0)
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Three and seven fit only these two squares in Row 1, so nothing else fits there."
+        )
+    }
+
+    func testBoxLineReductionNamesTheSourceUnitThenTheClearedOne() {
+        let advice = Self.advice(.boxLineReduction, cells: [0, 1], digits: [7],
+                                 eliminations: [Elimination(cell: 5, digit: 7)],
+                                 patternUnit: 18, targetUnit: 0)
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(advice),
+            "Every seven still possible in Box 1 sits in Row 1, "
+                + "so no other square in Row 1 can be a seven."
+        )
+    }
+
+    func testXWingOrientationComesFromTheVictimsNotTheCorners() {
+        // The four corners span two rows *and* two columns either way, so only
+        // the victims can say which axis was the base.
+        let rowBased = Self.advice(
+            .xWing, cells: [1, 5, 37, 41], digits: [7],
+            eliminations: [Elimination(cell: 19, digit: 7), Elimination(cell: 23, digit: 7)]
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(rowBased),
+            "Sevens in these two rows can only sit in two columns, "
+                + "so no other square in those columns can be a seven."
+        )
+        // Same corners, victims sharing the rows instead.
+        let columnBased = Self.advice(
+            .xWing, cells: [1, 5, 37, 41], digits: [7],
+            eliminations: [Elimination(cell: 3, digit: 7), Elimination(cell: 39, digit: 7)]
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(columnBased),
+            "Sevens in these two columns can only sit in two rows, "
+                + "so no other square in those rows can be a seven."
+        )
+    }
+
+    func testContradictionExhaustedAndSolvedWording() {
+        XCTAssertEqual(BoardSpeech.coachTitle(.contradiction(cells: [0, 5])), "A slip somewhere")
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(.contradiction(cells: [0, 5])),
+            "Two of these squares disagree, so nothing can follow from here."
+        )
+        XCTAssertEqual(BoardSpeech.coachTitle(.exhausted), "Nothing follows")
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(.exhausted),
+            "Nothing at this board's level follows from here."
+        )
+        XCTAssertEqual(BoardSpeech.coachTitle(.solved), "Done")
+        XCTAssertEqual(BoardSpeech.coachSentence(.solved), BoardSpeech.solvedAnnouncement)
+    }
+
+    /// The privacy rule PRD-19 established, held for the coach: the sentence is
+    /// a function of the advice alone. There is no `NineGame` parameter, so
+    /// there is nothing for `puzzle.solution` to leak through — and a wrong
+    /// digit standing on the board cannot change a word of it.
+    func testCoachSentenceIsIndependentOfBoardState() {
+        let advice = Self.advice(.nakedSingle, cells: [40], digits: [7],
+                                 placement: Placement(cell: 40, digit: 7))
+        let before = BoardSpeech.coachSentence(advice)
+        XCTAssertTrue(game.place(wrongDigit(for: hole), at: hole))
+        XCTAssertEqual(BoardSpeech.coachSentence(advice), before)
+        XCTAssertFalse(before.contains("wrong"))
+    }
+
+    func testMalformedStepsReturnEmptyRatherThanTrapping() {
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [], digits: [])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.hiddenPair, cells: [0, 1], digits: [])), "")
+    }
+
     // MARK: - Helpers
 
     /// A digit that is definitely not the solution for `cell`.
     private func wrongDigit(for cell: Int) -> Int {
         let solution = puzzle.solution[cell]
         return solution == 9 ? 1 : solution + 1
+    }
+
+    /// Advice built by hand, so a sentence test never depends on which
+    /// technique a generated board happens to offer next.
+    private static func advice(
+        _ technique: Technique,
+        cells: [Int],
+        digits: [Int],
+        placement: Placement? = nil,
+        eliminations: [Elimination] = [],
+        patternUnit: Int? = nil,
+        targetUnit: Int? = nil
+    ) -> CoachAdvice {
+        .step(CoachStep(
+            step: SolveStep(
+                technique: technique, cells: cells, digits: digits,
+                placement: placement, eliminations: eliminations
+            ),
+            patternUnit: patternUnit,
+            targetUnit: targetUnit
+        ))
     }
 }

@@ -25,6 +25,22 @@ public struct NineMove: Sendable, Codable, Equatable {
         let cell: Int
         let mask: UInt16
     }
+
+    /// A bulk auto-notes move rather than a single toggle (PRD-11 11b).
+    ///
+    /// Discriminated by snapshot count, not by a new `Kind` case, and that is
+    /// not a shortcut. `Kind` is persisted inside every autosaved `NineGame`,
+    /// `NineGame.init(from:)` decodes `undoStack` without a `try?`, and the
+    /// builds already on TestFlight would throw on an unknown raw value and
+    /// lose the whole board. A single toggle always snapshots exactly one cell,
+    /// so the count is unambiguous — and an older build's `undo()` restores
+    /// every snapshot regardless of kind, so it handles these moves correctly
+    /// with no change at all.
+    ///
+    /// The `kind` half is not redundant: an ordinary `.place` snapshots the
+    /// cell plus every peer whose notes held that digit, which is routinely
+    /// more than one. Only a `.pencil` move with several snapshots is a fill.
+    public var isBulkNotes: Bool { kind == .pencil && previousPencil.count > 1 }
 }
 
 /// One entry in the append-only move log: what the player did, in order.
@@ -129,6 +145,22 @@ public struct NineGame: Sendable, Codable, Equatable {
         pencil.reduce(0) { $0 + $1.nonzeroBitCount }
     }
 
+    /// Every empty cell's legal candidates as a pencil mask; 0 for filled
+    /// cells. The auto-notes source of truth (PRD-11 11b), and pure board
+    /// arithmetic — like everything the coach touches, it never consults
+    /// `puzzle.solution`, so it cannot hand the player an answer.
+    public var autoNoteMarks: [UInt16] {
+        var marks = [UInt16](repeating: 0, count: 81)
+        for cell in 0..<81 where entries[cell] == 0 {
+            var mask = Sudoku.allDigitsMask
+            for peer in Sudoku.peers[cell] where entries[peer] != 0 {
+                mask &= ~Sudoku.bit(entries[peer])
+            }
+            marks[cell] = mask
+        }
+        return marks
+    }
+
     /// Undos taken on this device. Read off the append-only log, which records
     /// undo as an event rather than popping it. A board resumed from iCloud
     /// starts at 0: `clearLocalHistory()` empties the log on the way out
@@ -158,8 +190,14 @@ public struct NineGame: Sendable, Codable, Equatable {
     /// Place a digit. Auto-erases pencil marks of that digit from all peers
     /// and every mark in the cell itself; all of it undoes as one move.
     /// Returns false (no-op) on givens or when re-placing the same digit.
+    ///
+    /// `autoNotes` is the wand's mode (PRD-11 11b): with it on, every empty
+    /// cell's marks are re-derived afterwards and folded into *this* move, so
+    /// the placement and the marks it implies undo together. Defaulted off, so
+    /// every call site that existed before PRD-11 is unchanged in meaning as
+    /// well as in text.
     @discardableResult
-    public mutating func place(_ digit: Int, at cell: Int) -> Bool {
+    public mutating func place(_ digit: Int, at cell: Int, autoNotes: Bool = false) -> Bool {
         guard (1...9).contains(digit), !isGiven(cell), entries[cell] != digit else { return false }
         var snapshots: [NineMove.PencilSnapshot] = []
         if pencil[cell] != 0 {
@@ -177,6 +215,7 @@ public struct NineGame: Sendable, Codable, Equatable {
         ))
         entries[cell] = digit
         moveLog.append(LoggedMove(kind: .place, cell: cell, digit: digit))
+        if autoNotes { foldAutoNotesIntoLastMove() }
         return true
     }
 
@@ -195,8 +234,13 @@ public struct NineGame: Sendable, Codable, Equatable {
     }
 
     /// Clear a user entry. No-op on givens and empty cells.
+    ///
+    /// This is where auto notes earns its keep: `place` already prunes the
+    /// placed digit from peer marks, but nothing re-widens them when a digit
+    /// comes back off the board. With `autoNotes` on, erasing hands those
+    /// candidates back — folded into this same move, so it all undoes together.
     @discardableResult
-    public mutating func erase(at cell: Int) -> Bool {
+    public mutating func erase(at cell: Int, autoNotes: Bool = false) -> Bool {
         guard !isGiven(cell), entries[cell] != 0 else { return false }
         let digit = entries[cell]
         undoStack.append(NineMove(
@@ -205,7 +249,51 @@ public struct NineGame: Sendable, Codable, Equatable {
         ))
         entries[cell] = 0
         moveLog.append(LoggedMove(kind: .erase, cell: cell, digit: digit))
+        if autoNotes { foldAutoNotesIntoLastMove() }
         return true
+    }
+
+    /// Set every empty cell's notes to its candidates, as one undoable move.
+    /// Returns false — pushing nothing — when the marks already match, so a
+    /// second press is a no-op rather than a phantom undo entry.
+    @discardableResult
+    public mutating func applyAutoNotes() -> Bool {
+        let target = autoNoteMarks
+        let snapshots = pencilSnapshots(changingTo: target)
+        guard let first = snapshots.first else { return false }
+        undoStack.append(NineMove(
+            kind: .pencil, cell: first.cell, digit: 0,
+            previousEntry: entries[first.cell], previousPencil: snapshots
+        ))
+        pencil = target
+        return true
+    }
+
+    /// Cells whose mask differs from `target`, snapshotted pre-change.
+    private func pencilSnapshots(changingTo target: [UInt16]) -> [NineMove.PencilSnapshot] {
+        (0..<81).compactMap { cell in
+            pencil[cell] == target[cell] ? nil : .init(cell: cell, mask: pencil[cell])
+        }
+    }
+
+    /// Fold an auto-notes re-derivation into the move on top of the stack, so
+    /// a placement and the marks it implies are one undo rather than two.
+    ///
+    /// Snapshots the move already carries win: it recorded the *pre-move* mask,
+    /// which is what undo has to restore, and re-snapshotting now would capture
+    /// the post-prune value instead.
+    private mutating func foldAutoNotesIntoLastMove() {
+        guard let move = undoStack.popLast() else { return }
+        let target = autoNoteMarks
+        let alreadyHeld = Set(move.previousPencil.map(\.cell))
+        let extra = pencilSnapshots(changingTo: target)
+            .filter { !alreadyHeld.contains($0.cell) }
+        undoStack.append(NineMove(
+            kind: move.kind, cell: move.cell, digit: move.digit,
+            previousEntry: move.previousEntry,
+            previousPencil: move.previousPencil + extra
+        ))
+        pencil = target
     }
 
     /// Revert the latest move (entry and any auto-erased pencil marks).

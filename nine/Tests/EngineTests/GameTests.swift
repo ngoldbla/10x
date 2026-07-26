@@ -292,4 +292,112 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(streak.displayedStreak(today: 102), 2, "yesterday's chain is alive")
         XCTAssertEqual(streak.displayedStreak(today: 103), 0, "older chains lapse")
     }
+
+    // MARK: - Auto notes (PRD-11 11b)
+
+    func testAutoNotesFillsEveryEmptyCellWithItsLegalCandidates() {
+        XCTAssertTrue(game.applyAutoNotes())
+        for cell in 0..<81 where game.entry(at: cell) == 0 {
+            let marks = game.pencilDigits(at: cell)
+            XCTAssertFalse(marks.isEmpty, "cell \(cell) should carry candidates")
+            for digit in marks {
+                XCTAssertFalse(
+                    Sudoku.peers[cell].contains { game.entry(at: $0) == digit },
+                    "cell \(cell) noted \(digit), which a peer already holds"
+                )
+            }
+        }
+        for cell in 0..<81 where game.entry(at: cell) != 0 {
+            XCTAssertFalse(game.hasPencilMarks(at: cell), "filled cells carry no notes")
+        }
+    }
+
+    func testAutoNotesUndoesInExactlyOneStep() {
+        let before = game.pencil
+        XCTAssertTrue(game.applyAutoNotes())
+        XCTAssertEqual(game.undoStack.count, 1, "a bulk fill is one undoable move")
+        let move = game.undo()
+        XCTAssertEqual(move?.kind, .pencil, "no new NineMove.Kind raw value exists")
+        XCTAssertEqual(move?.isBulkNotes, true)
+        XCTAssertEqual(game.pencil, before, "undo restores every touched cell")
+    }
+
+    func testAutoNotesIsANoOpWhenTheMarksAlreadyMatch() {
+        XCTAssertTrue(game.applyAutoNotes())
+        XCTAssertFalse(game.applyAutoNotes(), "nothing changed, so nothing is pushed")
+        XCTAssertEqual(game.undoStack.count, 1)
+    }
+
+    func testASingleNoteIsNeverMistakenForABulkFill() {
+        XCTAssertTrue(game.togglePencil(4, at: hole))
+        XCTAssertEqual(game.undoStack.last?.isBulkNotes, false,
+                       "the discriminator is snapshot count, and a toggle snapshots one cell")
+    }
+
+    func testPlaceWithAutoNotesFoldsTheRecomputeIntoTheSameMove() {
+        XCTAssertTrue(game.applyAutoNotes())
+        let stackBefore = game.undoStack.count
+        let pencilBefore = game.pencil
+        let digit = puzzle.solution[hole]
+        XCTAssertTrue(game.place(digit, at: hole, autoNotes: true))
+        XCTAssertEqual(game.undoStack.count, stackBefore + 1, "one move, not two")
+        _ = game.undo()
+        XCTAssertEqual(game.pencil, pencilBefore, "undo restores the pre-placement marks")
+        XCTAssertEqual(game.entry(at: hole), 0)
+    }
+
+    func testPlaceWithoutAutoNotesIsByteIdenticalToToday() {
+        var control = NineGame(puzzle: puzzle)
+        var subject = NineGame(puzzle: puzzle)
+        let digit = puzzle.solution[hole]
+        XCTAssertTrue(control.place(digit, at: hole))
+        XCTAssertTrue(subject.place(digit, at: hole, autoNotes: false))
+        XCTAssertEqual(control, subject, "the default must not move a single existing call site")
+    }
+
+    func testEraseWithAutoNotesRederivesTheWidenedCandidates() {
+        let digit = puzzle.solution[hole]
+        XCTAssertTrue(game.applyAutoNotes())
+        // Pick a peer that genuinely *had* the mark: an arbitrary empty peer
+        // may never have carried `digit` at all, because one of its own peers
+        // already holds it — in which case this test would prove nothing.
+        let peer = Sudoku.peers[hole].first {
+            game.entry(at: $0) == 0 && game.pencilDigits(at: $0).contains(digit)
+        }
+        guard let peer else { return XCTFail("no peer of \(hole!) carries a \(digit) note") }
+        XCTAssertTrue(game.place(digit, at: hole, autoNotes: true))
+        XCTAssertFalse(game.pencilDigits(at: peer).contains(digit), "placing pruned it")
+        XCTAssertTrue(game.erase(at: hole, autoNotes: true))
+        XCTAssertTrue(
+            game.pencilDigits(at: peer).contains(digit),
+            "erasing widens the candidate set, and re-deriving it is the toggle's whole job"
+        )
+    }
+
+    func testTurningAutoNotesOffClearsNothing() {
+        XCTAssertTrue(game.applyAutoNotes())
+        let marks = game.pencil
+        let digit = puzzle.solution[hole]
+        // "Off" is simply the absence of the flag at the call site — there is no
+        // engine call for it, which is exactly why nothing can be cleared.
+        XCTAssertTrue(game.place(digit, at: hole, autoNotes: false))
+        for cell in 0..<81 where cell != hole && !Sudoku.peers[hole].contains(cell) {
+            XCTAssertEqual(game.pencil[cell], marks[cell], "untouched cells keep their notes")
+        }
+    }
+
+    /// The downgrade property this whole design exists for: an older build's
+    /// `undo()` restores every snapshot regardless of kind, so it handles both
+    /// a bulk fill and an auto-notes placement correctly without any change.
+    func testBulkMovesUndoThroughThePlainKindPath() {
+        XCTAssertTrue(game.applyAutoNotes())
+        let filled = game.pencil
+        let digit = puzzle.solution[hole]
+        XCTAssertTrue(game.place(digit, at: hole, autoNotes: true))
+        let move = game.undoStack.last!
+        XCTAssertEqual(move.kind, .place, "still one of the three shipped raw values")
+        XCTAssertGreaterThan(move.previousPencil.count, 1, "and it carries the whole recompute")
+        _ = game.undo()
+        XCTAssertEqual(game.pencil, filled)
+    }
 }

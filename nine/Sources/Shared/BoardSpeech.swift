@@ -236,6 +236,105 @@ public enum BoardSpeech {
         capitalizedFirst(countWord(count))
     }
 
+    // MARK: - Coach (PRD-11)
+
+    /// A unit's name from its index in the engine's `units` table: `0..<9`
+    /// rows, `9..<18` columns, `18..<27` boxes. Anything else — a variant
+    /// unit, a bad index — returns "" and the caller's sentence falls back.
+    public static func unitLabel(_ unitIndex: Int) -> String {
+        switch unitIndex {
+        case 0..<9:   return Phrase.row(unitIndex + 1)
+        case 9..<18:  return Phrase.column(unitIndex - 9 + 1)
+        case 18..<27: return Phrase.box(unitIndex - 18 + 1)
+        default:      return ""
+        }
+    }
+
+    /// The coach card's heading — the technique's name, or the state's.
+    public static func coachTitle(_ advice: CoachAdvice) -> String {
+        switch advice {
+        case .step(let coach): return coach.step.technique.displayName
+        case .contradiction:   return Phrase.coachSlipTitle
+        case .exhausted:       return Phrase.coachExhaustedTitle
+        case .solved:          return Phrase.coachSolvedTitle
+        }
+    }
+
+    /// The one sentence the card shows *and* VoiceOver speaks.
+    ///
+    /// Deliberately takes no `NineGame`. The coach must never be able to reach
+    /// `puzzle.solution`, and the cheapest way to guarantee that is to give it
+    /// nothing to reach it through — the rule becomes a signature rather than a
+    /// comment somebody has to remember.
+    public static func coachSentence(_ advice: CoachAdvice) -> String {
+        switch advice {
+        case .contradiction:   return Phrase.coachSlip
+        case .exhausted:       return Phrase.coachExhausted
+        case .solved:          return solvedAnnouncement
+        case .step(let coach): return stepSentence(coach)
+        }
+    }
+
+    private static func stepSentence(_ coach: CoachStep) -> String {
+        let step = coach.step
+        let digit = step.digits.first ?? 0
+        switch step.technique {
+        case .nakedSingle:
+            guard let cell = step.cells.first, isValidDigit(digit) else { return "" }
+            return Phrase.coachNakedSingle(cellLabel(cell), digitWord(digit))
+
+        case .hiddenSingle:
+            guard let cell = step.cells.first, isValidDigit(digit) else { return "" }
+            let unit = unitLabel(coach.patternUnit ?? -1)
+            guard !unit.isEmpty else {
+                return Phrase.coachHiddenSingleFallback(cellLabel(cell), digitWord(digit))
+            }
+            return Phrase.coachHiddenSingle(unit, digitWord(digit))
+
+        case .nakedPair:
+            guard step.digits.count == 2 else { return "" }
+            return Phrase.coachNakedPair(
+                digitWordCapitalized(step.digits[0]), digitWord(step.digits[1]),
+                unitLabel(coach.targetUnit ?? -1)
+            )
+
+        case .hiddenPair:
+            guard step.digits.count == 2 else { return "" }
+            return Phrase.coachHiddenPair(
+                digitWordCapitalized(step.digits[0]), digitWord(step.digits[1]),
+                unitLabel(coach.targetUnit ?? -1)
+            )
+
+        case .boxLineReduction:
+            guard isValidDigit(digit) else { return "" }
+            return Phrase.coachBoxLine(
+                digitWord(digit),
+                unitLabel(coach.patternUnit ?? -1),
+                unitLabel(coach.targetUnit ?? -1)
+            )
+
+        case .xWing:
+            guard isValidDigit(digit) else { return "" }
+            // The four corners span two rows *and* two columns whichever axis
+            // was the base, so they cannot say which it was. The victims can: a
+            // row-based X-wing eliminates down the shared columns.
+            let corners = Set(step.cells.map(Sudoku.col(of:)))
+            let victims = Set(step.eliminations.map { Sudoku.col(of: $0.cell) })
+            let baseIsRow = victims.isSubset(of: corners)
+            return Phrase.coachXWing(
+                digitWordPlural(digit),
+                base: baseIsRow ? Phrase.rowsWord : Phrase.columnsWord,
+                cover: baseIsRow ? Phrase.columnsWord : Phrase.rowsWord,
+                digitWord(digit)
+            )
+
+        default:
+            // The four variant techniques (PRD-23). Naming them here would trip
+            // the channel seal, and they are unreachable on a classic board.
+            return ""
+        }
+    }
+
     // MARK: - Guards
 
     private static func isValidCell(_ cell: Int) -> Bool { (0..<81).contains(cell) }
@@ -304,6 +403,47 @@ private enum Phrase {
     // Board summary
     static func filled(_ filled: Int, of total: Int) -> String { "\(filled) of \(total) filled." }
     static func wrongCount(_ count: Int) -> String { "\(count) wrong." }
+
+    // Coach (PRD-11). Every one of these is a claim about the board the player
+    // could check by hand — not one of them consults the solution, which is why
+    // the wording is identical whether "show mistakes" is on or off.
+    static let coachSlipTitle = "A slip somewhere"
+    static let coachSlip = "Two of these squares disagree, so nothing can follow from here."
+    static let coachExhaustedTitle = "Nothing follows"
+    static let coachExhausted = "Nothing at this board's level follows from here."
+    static let coachSolvedTitle = "Done"
+    static let rowsWord = "rows"
+    static let columnsWord = "columns"
+    static func coachNakedSingle(_ cell: String, _ digit: String) -> String {
+        "\(cell) has one candidate left: \(digit)."
+    }
+    static func coachHiddenSingle(_ unit: String, _ digit: String) -> String {
+        "Only one square in \(unit) can take a \(digit)."
+    }
+    static func coachHiddenSingleFallback(_ cell: String, _ digit: String) -> String {
+        "\(cell) is the only square left that can take a \(digit)."
+    }
+    static func coachNakedPair(_ first: String, _ second: String, _ unit: String) -> String {
+        "\(first) and \(second) fill these two squares between them, "
+            + "so neither can go anywhere else in \(unit)."
+    }
+    static func coachHiddenPair(_ first: String, _ second: String, _ unit: String) -> String {
+        "\(first) and \(second) fit only these two squares in \(unit), so nothing else fits there."
+    }
+    static func coachBoxLine(_ digit: String, _ source: String, _ target: String) -> String {
+        "Every \(digit) still possible in \(source) sits in \(target), "
+            + "so no other square in \(target) can be a \(digit)."
+    }
+    static func coachXWing(_ plural: String, base: String, cover: String, _ digit: String) -> String {
+        "\(sentenceCased(plural)) in these two \(base) can only sit in two \(cover), "
+            + "so no other square in those \(cover) can be a \(digit)."
+    }
+    /// `BoardSpeech.capitalizedFirst` is private to the formatter above; the
+    /// phrase book needs the same tweak for a sentence-initial plural.
+    private static func sentenceCased(_ word: String) -> String {
+        guard let first = word.first else { return word }
+        return String(first).uppercased() + word.dropFirst()
+    }
 
     // Number words. Index 0 is the digit 1 — there is no zero digit on a board,
     // and `zeroWord` is only ever a *count*.

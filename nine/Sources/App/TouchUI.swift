@@ -441,6 +441,13 @@ struct TouchGameScreen: View {
     @State private var tipDismissal: Task<Void, Never>?
     @State private var pencilEverToggled = false
     @State private var highlightEverUsed = false
+    /// The hint on screen, if any (PRD-11). Held here rather than in AppModel
+    /// because a card is a presentation: dismissing it changes no board state,
+    /// and nothing about it should survive leaving the screen.
+    @State private var coachAdvice: CoachAdvice?
+    /// The one chip auto notes shows when it fills a board.
+    @State private var autoNotesChip: String?
+    @State private var chipDismissal: Task<Void, Never>?
     /// Same-number highlight: the digit currently lit across the board.
     /// Sticky on purpose — it survives placements so you can chase one
     /// number around the grid; tapping a cell of the same digit clears it.
@@ -494,6 +501,11 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
+            .overlay(alignment: .bottom) {
+                autoNotesChipView.padding(.bottom, controlsAtBottom ? 84 : 20)
+            }
+            // Above the board, below the drawer and the prefs sheet.
+            .overlay { coachView }
             .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
             // The grabber sits *under* the drawer it advertises, so the panel
             // slides over it rather than the hairline floating on the glass.
@@ -532,6 +544,11 @@ struct TouchGameScreen: View {
                 }
             }
         }
+        // A hint describes one position, so any move makes it stale. Retiring
+        // it beats leaving a card on screen that is quietly no longer true.
+        .onChange(of: model.game?.entries) { _, _ in
+            if coachAdvice != nil { dismissCoach() }
+        }
         .onChange(of: model.solvedAt) { _, solved in
             guard solved != nil else { return }
             // The haptic score plays even under Reduce Motion (haptics are
@@ -555,21 +572,43 @@ struct TouchGameScreen: View {
             // next appearance of this screen with nothing left to dismiss it.
             tipDismissal?.cancel()
             tip = nil
+            chipDismissal?.cancel()
+            autoNotesChip = nil
+            coachAdvice = nil
         }
     }
 
     // MARK: Chrome
 
+    /// Six buttons now (PRD-11 added the lightbulb and the wand), which is two
+    /// past what PROGRAM-2.0's anti-bloat constitution allows — a deliberate
+    /// override, recorded in DEVIATIONS.md.
+    ///
+    /// It cost the timer its seat. The rule turns out not to be only an
+    /// aesthetic one: six 44pt targets are 264pt, the timer chip measures ~82,
+    /// and with gaps and padding the row wanted ~422pt — wider than any iPhone,
+    /// and measured clipping `Settings` 20pt off a 375pt SE *and* 2pt off a
+    /// 393pt iPhone 17. Shrinking the targets was never an option (the craft
+    /// charter's 44pt floor), so the timer moved to the free band, which PRD-2
+    /// sized for exactly this kind of ambient chrome. The bar is now controls
+    /// only, and 6×44 + 5×6 + padding = 322pt fits the smallest phone with
+    /// 53pt to spare.
     private var controlBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             GlassIconButton(symbol: "chevron.left", label: "Home") {
                 haptics.stop()
                 motion.stop()
                 model.goHome()
             }
             Spacer()
-            timerChip
-            Spacer()
+            GlassIconButton(
+                symbol: "lightbulb",
+                label: "Hint",
+                active: coachAdvice != nil,
+                accent: accent
+            ) {
+                toggleCoach()
+            }
             GlassIconButton(
                 symbol: "pencil",
                 label: "Pencil marks",
@@ -579,6 +618,14 @@ struct TouchGameScreen: View {
                 pencilMode.toggle()
                 pencilEverToggled = true
                 dismissTip()
+            }
+            GlassIconButton(
+                symbol: "wand.and.stars",
+                label: "Auto notes",
+                active: model.autoNotes,
+                accent: accent
+            ) {
+                toggleAutoNotes()
             }
             GlassIconButton(symbol: "arrow.uturn.backward", label: "Undo") { performUndo() }
                 .simultaneousGesture(
@@ -608,10 +655,27 @@ struct TouchGameScreen: View {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
-                    if showAmbient(in: edge, freeSpace: freeSpace) {
-                        AmbientSlotView(model: model)
+                    // The coach card parks in this same band, so the band's
+                    // own chrome stands down while it is up rather than
+                    // showing through the glass behind it.
+                    HStack(spacing: 10) {
+                        if edge == chromeEdge, coachAdvice == nil { timerChip }
+                        if showAmbient(in: edge, freeSpace: freeSpace) {
+                            AmbientSlotView(model: model)
+                        }
                     }
                 }
+        }
+    }
+
+    /// The band the optional chrome lives in: opposite the anchor, and
+    /// opposite the control bar on a centered board, so turning a chip on is
+    /// never a silent no-op behind the controls.
+    private var chromeEdge: VerticalEdge {
+        switch model.prefs.boardAnchor {
+        case .top: return .bottom
+        case .bottom: return .top
+        case .center: return model.prefs.controlsAtBottom ? .top : .bottom
         }
     }
 
@@ -620,17 +684,11 @@ struct TouchGameScreen: View {
     /// and only when the band is tall enough and the composing chip (which
     /// overlays at .top) is down.
     private func showAmbient(in edge: VerticalEdge, freeSpace: CGFloat) -> Bool {
-        guard model.prefs.ambientSlot != .none, model.composing == nil else { return false }
-        let anchor = model.prefs.boardAnchor
-        let ambientEdge: VerticalEdge
-        switch anchor {
-        case .top: ambientEdge = .bottom
-        case .bottom: ambientEdge = .top
-        case .center: ambientEdge = model.prefs.controlsAtBottom ? .top : .bottom
-        }
-        guard edge == ambientEdge else { return false }
+        guard model.prefs.ambientSlot != .none, model.composing == nil,
+              coachAdvice == nil else { return false }
+        guard edge == chromeEdge else { return false }
         // Centered boards split the free space between both bands.
-        let bandHeight = anchor == .center ? freeSpace / 2 : freeSpace
+        let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
         return bandHeight >= 100
     }
 
@@ -747,7 +805,9 @@ struct TouchGameScreen: View {
     /// whole drag, so this answers identically on every update and again at
     /// the end — which is why the gesture needs no "already claimed" flag.
     private func acceptsDrawerDrag(_ value: DragGesture.Value) -> Bool {
-        guard rose == nil, !showPrefs, model.game != nil else { return false }
+        // The coach card parks in the same band the drawer slides over, so the
+        // two must never be on screen together.
+        guard rose == nil, !showPrefs, coachAdvice == nil, model.game != nil else { return false }
         // Once open, the whole screen steers it (that is the drag-up
         // dismiss); closed, the stroke has to begin in the top band.
         return drawerOpen || value.startLocation.y <= Self.drawerRevealBand
@@ -840,6 +900,7 @@ struct TouchGameScreen: View {
                 previewDigit: nil, // touch petals are direct — nothing to preview
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
+                coachFocus: coachAdvice.flatMap(CoachFocus.init),
                 // Afterglow: the wave detonates from the winning cell, and
                 // after the sweep the gyro steers the trophy sheen.
                 waveOrigin: model.lastPlacedCell,
@@ -1041,6 +1102,82 @@ struct TouchGameScreen: View {
         considerTip()
     }
 
+    // MARK: Coach (PRD-11)
+
+    /// The lightbulb is a toggle, not a dispenser: pressing it again puts the
+    /// card away rather than spending another hint on the same position.
+    private func toggleCoach() {
+        guard model.game != nil, model.solvedAt == nil else { return }
+        guard coachAdvice == nil else { return dismissCoach() }
+        guard let advice = model.requestCoachAdvice() else { return }
+        dismissTip()
+        closeDrawer()
+        withAnimation(.couchFast) { coachAdvice = advice }
+        announce("\(BoardSpeech.coachTitle(advice)). \(BoardSpeech.coachSentence(advice))")
+    }
+
+    private func dismissCoach() {
+        withAnimation(.couchFast) { coachAdvice = nil }
+    }
+
+    /// The wand. Turning it on fills every empty cell's notes; turning it off
+    /// clears nothing at all, which is the promise that makes it safe to try.
+    private func toggleAutoNotes() {
+        guard let before = model.game?.pencilMarkCount, model.solvedAt == nil else { return }
+        let turningOn = !model.autoNotes
+        model.autoNotes = turningOn
+        dismissTip()
+        guard turningOn, let after = model.game?.pencilMarkCount else { return }
+        showChip(Phrase.autoNotesChip(max(0, after - before)))
+    }
+
+    private func showChip(_ text: String) {
+        withAnimation(.couchFast) { autoNotesChip = text }
+        chipDismissal?.cancel()
+        chipDismissal = Task {
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.couchAmbient) { autoNotesChip = nil }
+        }
+    }
+
+    /// The card, parked in the free band opposite the controls — PRD-2 sized
+    /// that band precisely so a panel could appear there without the board
+    /// moving a pixel. A tap anywhere else dismisses it, through the same
+    /// near-invisible scrim the rose uses.
+    @ViewBuilder
+    private var coachView: some View {
+        if let coachAdvice {
+            ZStack(alignment: model.prefs.controlsAtBottom ? .top : .bottom) {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismissCoach() }
+                CoachCardContent(
+                    advice: coachAdvice,
+                    accent: accent,
+                    actionTitle: coachAdvice.actionTitle(autoNotes: model.autoNotes)
+                ) {
+                    if case .step(let step) = coachAdvice { model.applyCoachStep(step) }
+                    dismissCoach()
+                }
+                .padding(.horizontal, 20)
+                .padding(model.prefs.controlsAtBottom ? .top : .bottom, 8)
+                .transition(.opacity.combined(
+                    with: .move(edge: model.prefs.controlsAtBottom ? .top : .bottom)
+                ))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var autoNotesChipView: some View {
+        if let autoNotesChip {
+            GlassChip(autoNotesChip, systemImage: "wand.and.stars")
+                .transition(.opacity)
+        }
+    }
+
     // MARK: Tips (PRD-34)
 
     /// The whole of Nine's unprompted teaching, gathered in one call site so
@@ -1119,10 +1256,14 @@ struct TouchGameScreen: View {
         // say, the toast is the more useful thing in that spot right now.
         dismissTip()
         let text: String
-        switch move.kind {
-        case .place: text = "Undid \(move.digit)"
-        case .erase: text = "Restored \(move.digit)"
-        case .pencil: text = "Undid note \(move.digit)"
+        if move.isBulkNotes {
+            text = Phrase.undidAutoNotes
+        } else {
+            switch move.kind {
+            case .place: text = Phrase.undidPlacement(move.digit)
+            case .erase: text = Phrase.restored(move.digit)
+            case .pencil: text = Phrase.undidNote(move.digit)
+            }
         }
         let next = UndoToastState(text: text)
         withAnimation(.couchFast) { toast = next }
@@ -1214,5 +1355,17 @@ struct GlassIconButton: View {
         .buttonStyle(TouchCardStyle())
         .accessibilityLabel(label)
     }
+}
+
+/// The strings PRD-11 added, plus the undo toast's, gathered in one block —
+/// the seam PRD-20 converts to `LocalizedStringResource`. This file predates
+/// that discipline and still has literals elsewhere; sweeping all of them is
+/// PRD-20's job and would bury this diff.
+private enum Phrase {
+    static func autoNotesChip(_ count: Int) -> String { "Auto notes · filled \(count) candidates" }
+    static let undidAutoNotes = "Undid auto notes"
+    static func undidPlacement(_ digit: Int) -> String { "Undid \(digit)" }
+    static func restored(_ digit: Int) -> String { "Restored \(digit)" }
+    static func undidNote(_ digit: Int) -> String { "Undid note \(digit)" }
 }
 #endif
