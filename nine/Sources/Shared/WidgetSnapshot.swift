@@ -26,6 +26,16 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var streakBest: Int
     /// Day ordinal of the last completed daily (streak bookkeeping).
     public var lastCompletedDay: Int?
+    /// The single missed day the streak's bridge is spent on, mirrored from
+    /// `StreakState.lastGraceDay` (PRD-13). Never rendered — the widget shows
+    /// no shield — but `displayedStreak` cannot be honest without it.
+    ///
+    /// Additive and optional on purpose: `schemaVersion` stays at 1, because
+    /// `load` rejects a snapshot newer than the reader and a bump would blank
+    /// the widget rather than degrade it. A pre-grace file decodes this as nil,
+    /// which reads as "a bridge is there" — the same answer a fresh install
+    /// gives.
+    public var lastGraceDay: Int?
     public var totalPoints: Int
     public var generatedAt: Date
 
@@ -37,6 +47,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         streakCurrent: Int = 0,
         streakBest: Int = 0,
         lastCompletedDay: Int? = nil,
+        lastGraceDay: Int? = nil,
         totalPoints: Int = 0,
         generatedAt: Date = Date()
     ) {
@@ -47,6 +58,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.streakCurrent = streakCurrent
         self.streakBest = streakBest
         self.lastCompletedDay = lastCompletedDay
+        self.lastGraceDay = lastGraceDay
         self.totalPoints = totalPoints
         self.generatedAt = generatedAt
     }
@@ -63,12 +75,55 @@ extension WidgetSnapshot {
         !isSolved(today: today) && dailyDayOrdinal == today && dailyFillFraction != nil
     }
 
-    /// The streak a widget shows at `today`: yesterday's chain is still
-    /// alive, anything older has lapsed to 0. Mirrors
-    /// `StreakState.displayedStreak` (cross-checked by unit test).
+    /// Mirrors `StreakState.graceAvailable` (cross-checked by unit test).
+    public var graceAvailable: Bool {
+        guard let bridged = lastGraceDay, let last = lastCompletedDay else { return true }
+        return last > bridged + 1
+    }
+
+    /// The streak a widget shows at `today`: yesterday's chain is still alive,
+    /// one silent missed day is bridged while a bridge remains (PRD-13 §2), and
+    /// anything older has lapsed to 0. Mirrors `StreakState.displayedStreak`
+    /// (cross-checked by unit test).
+    ///
+    /// The mirror has to move with the original or the widget shows a lapsed
+    /// flame the app still shows lit — on the one surface a player glances at
+    /// without opening anything.
     public func displayedStreak(today: Int) -> Int {
-        guard let last = lastCompletedDay, last >= today - 1 else { return 0 }
-        return streakCurrent
+        guard let last = lastCompletedDay else { return 0 }
+        if last >= today - 1 { return streakCurrent }
+        if last == today - 2, graceAvailable { return streakCurrent }
+        return 0
+    }
+
+    /// Optimistically fold a solve made **entirely inside the widget** into the
+    /// streak fields, so the glanceable widgets are honest before the app next
+    /// activates and records the real thing (PRD-3 §2).
+    ///
+    /// Mirrors `StreakState.recordCompletion(day:)`, bridge included, and lives
+    /// here rather than in `BoardIntents` because it used to live there — as a
+    /// third hand-rolled copy of the rule, which PRD-13 promptly made wrong.
+    /// Finish a daily in the widget after one missed day and the old code took
+    /// the `else` branch and reset the streak to 1, while the app's next ingest
+    /// bridged it back to 12. The widget would have been the app's one
+    /// streak-shaming surface, on the screen a player is least likely to look
+    /// twice at. Cross-checked against the Engine by unit test.
+    public mutating func recordOptimisticSolve(day: Int) {
+        if let last = lastCompletedDay {
+            guard day > last else { return }
+            if day == last + 1 {
+                streakCurrent += 1
+            } else if day == last + 2, graceAvailable {
+                streakCurrent += 1
+                lastGraceDay = day - 1
+            } else {
+                streakCurrent = 1
+            }
+        } else {
+            streakCurrent = 1
+        }
+        lastCompletedDay = day
+        streakBest = max(streakBest, streakCurrent)
     }
 
     /// Coarse digest gating `WidgetCenter` reloads: state bucket

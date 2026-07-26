@@ -290,7 +290,125 @@ final class GameTests: XCTestCase {
         streak.recordCompletion(day: 101)
         XCTAssertEqual(streak.displayedStreak(today: 101), 2)
         XCTAssertEqual(streak.displayedStreak(today: 102), 2, "yesterday's chain is alive")
-        XCTAssertEqual(streak.displayedStreak(today: 103), 0, "older chains lapse")
+        // PRD-13 moved this cliff out by one day: with a bridge unspent, one
+        // silent missed day no longer lapses the chip.
+        XCTAssertEqual(streak.displayedStreak(today: 103), 2, "one silent day is bridgeable")
+        XCTAssertEqual(streak.displayedStreak(today: 104), 0, "two silent days lapse")
+    }
+
+    // MARK: - Streak grace (PRD-13 §2)
+
+    func testOneMissedDayBridgesInsteadOfBreaking() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 101)
+        streak.recordCompletion(day: 103)           // 102 missed
+        XCTAssertEqual(streak.current, 3, "the chain extends across the gap")
+        XCTAssertEqual(streak.lastGraceDay, 102)
+        XCTAssertTrue(streak.standsOnGrace)
+    }
+
+    func testBridgeThenNaturalThenBridgeIsAllowed() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 102)           // bridges 101
+        XCTAssertTrue(streak.standsOnGrace)
+        XCTAssertFalse(streak.graceAvailable)
+        streak.recordCompletion(day: 103)           // a natural day re-earns it
+        XCTAssertFalse(streak.standsOnGrace)
+        XCTAssertTrue(streak.graceAvailable)
+        streak.recordCompletion(day: 105)           // bridges 104
+        XCTAssertEqual(streak.current, 4)
+        XCTAssertEqual(streak.lastGraceDay, 104)
+    }
+
+    func testTwoBridgesBackToBackBreakTheStreak() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 102)           // bridges 101
+        XCTAssertEqual(streak.current, 2)
+        XCTAssertFalse(streak.graceAvailable, "no natural day has been earned since")
+        streak.recordCompletion(day: 104)           // would bridge 103 — refused
+        XCTAssertEqual(streak.current, 1, "non-stacking: the chain restarts")
+        XCTAssertEqual(streak.best, 2)
+    }
+
+    func testTwoConsecutiveMissedDaysAlwaysBreak() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 101)
+        streak.recordCompletion(day: 104)           // 102 and 103 missed
+        XCTAssertEqual(streak.current, 1)
+        XCTAssertNil(streak.lastGraceDay, "a gap too wide to bridge spends nothing")
+    }
+
+    func testGraceCountsTowardBestLikeAnyOtherChain() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 102)
+        XCTAssertEqual(streak.best, 2, "best counts the chain, bridge included")
+    }
+
+    /// A broken chain leaves its spent bridge behind, and it stays harmless:
+    /// `graceAvailable` compares against `lastCompletedDay`, which has moved
+    /// past it, so the new chain gets its bridge without a clearing step that
+    /// would be one more rule to keep true.
+    func testABrokenChainStartsWithItsBridgeAvailableAgain() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 102)           // bridges 101
+        streak.recordCompletion(day: 110)           // far gap: breaks
+        XCTAssertEqual(streak.current, 1)
+        XCTAssertTrue(streak.graceAvailable)
+        XCTAssertFalse(streak.standsOnGrace, "a fresh 1 does not stand on a bridge")
+        streak.recordCompletion(day: 112)           // bridges 111
+        XCTAssertEqual(streak.current, 2)
+        XCTAssertEqual(streak.lastGraceDay, 111)
+    }
+
+    /// The display rule and the bridge rule read the same predicate, so the
+    /// chip can never promise a streak the next solve would break.
+    func testDisplayedStreakHoldsThroughAGapOnlyWhileABridgeRemains() {
+        var streak = StreakState()
+        streak.recordCompletion(day: 100)
+        streak.recordCompletion(day: 101)
+        XCTAssertEqual(streak.displayedStreak(today: 103), 2, "one silent day is bridgeable")
+        XCTAssertEqual(streak.displayedStreak(today: 104), 0, "two is not")
+
+        var spent = StreakState()
+        spent.recordCompletion(day: 100)
+        spent.recordCompletion(day: 102)            // bridge spent on 101
+        XCTAssertEqual(spent.displayedStreak(today: 103), 2, "alive: yesterday")
+        XCTAssertEqual(
+            spent.displayedStreak(today: 104), 0,
+            "the bridge is spent, so solving today would restart at 1 — say so now"
+        )
+    }
+
+    /// The property that makes the whole feature safe to reason about: what the
+    /// chip shows today is what a solve today would leave behind. Swept over
+    /// every reachable state rather than argued.
+    func testTheChipNeverPromisesAStreakTheNextSolveWouldBreak() {
+        // Every (gap, gap) pair reachable in two completions, from a base day.
+        for firstGap in 1...4 {
+            for secondGap in 1...4 {
+                var streak = StreakState()
+                streak.recordCompletion(day: 100)
+                streak.recordCompletion(day: 100 + firstGap)
+                let last = 100 + firstGap
+                let today = last + secondGap
+                let shown = streak.displayedStreak(today: today)
+                var after = streak
+                after.recordCompletion(day: today)
+                XCTAssertFalse(
+                    shown > 0 && after.current < streak.current,
+                    """
+                    gaps (\(firstGap), \(secondGap)): chip showed \(shown) and \
+                    the solve dropped the chain \(streak.current) → \(after.current)
+                    """
+                )
+            }
+        }
     }
 
     // MARK: - Streaks: the archive can never write one (PRD-14)

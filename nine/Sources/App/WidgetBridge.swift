@@ -122,6 +122,7 @@ enum WidgetBridge {
             streakCurrent: model.streak.current,
             streakBest: model.streak.best,
             lastCompletedDay: model.streak.lastCompletedDay,
+            lastGraceDay: model.streak.lastGraceDay,
             totalPoints: model.totalPoints,
             generatedAt: now
         )

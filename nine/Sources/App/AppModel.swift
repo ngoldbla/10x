@@ -355,6 +355,10 @@ final class AppModel {
     private(set) var streak: StreakState {
         didSet { streakStore.wrappedValue = streak }
     }
+    /// The bridged day whose card has been acknowledged (PRD-13 §3).
+    private(set) var graceSeenDay: Int {
+        didSet { graceSeenStore.wrappedValue = graceSeenDay }
+    }
     /// The full board library: the daily (one per day) plus unlimited free-play
     /// partials, solved boards retained for the "previously played" log.
     /// Local-only — iCloud KVS is 1 MB total and already carries the streak and
@@ -409,6 +413,17 @@ final class AppModel {
     /// checkmark is a property of the player, not of the hand that earned it.
     @ObservationIgnored private let archiveStore =
         CouchStored(wrappedValue: ArchiveLedger(), "nine.archive", cloudSynced: true)
+    /// The `lastGraceDay` whose "your streak held" card has already been seen,
+    /// or 0 for none (PRD-13 §3).
+    ///
+    /// A bare `Int` rather than a ledger, because PRD-13's non-stacking rule
+    /// guarantees there is exactly one live bridge at a time — so the ordinal
+    /// *is* the whole state, and `CouchStored` already falls back to the
+    /// default when an `Int` fails to decode, which is the tolerance a richer
+    /// type would have had to hand-write. Cloud-synced beside `nine.streak`:
+    /// the card is a thing said to the player once, not once per device.
+    @ObservationIgnored private let graceSeenStore =
+        CouchStored(wrappedValue: 0, "nine.graceSeen", cloudSynced: true)
 
     /// The CloudKit boundary (PRD-8). Nil when the store isn't created; when
     /// present but no iCloud account exists the app stays purely local — sync
@@ -557,6 +572,7 @@ final class AppModel {
     init() {
         prefs = prefsStore.wrappedValue
         streak = streakStore.wrappedValue
+        graceSeenDay = graceSeenStore.wrappedValue
         library = libraryStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         welcomeSeen = welcomeSeenStore.wrappedValue
@@ -709,6 +725,31 @@ final class AppModel {
     var extraPartialCount: Int { max(0, freePartials.count - 1) }
 
     var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
+
+    /// The streak on screen is standing on a grace bridge right now (PRD-13
+    /// §3) — which is exactly when the chip wears a shield instead of a flame.
+    ///
+    /// Guarded on `displayedStreak` as well as on the state, so a bridge that
+    /// has since lapsed cannot put a shield on a chip that is no longer drawn.
+    var streakHeld: Bool { displayedStreak > 0 && streak.standsOnGrace }
+
+    /// The bridged day still owed its card, or nil.
+    ///
+    /// One card per bridge, ever: the day ordinal is the identity, so a
+    /// relaunch, a re-solve and a second device all resolve to the same one and
+    /// the player is told once. Nothing here is a count, and nothing renders it
+    /// as one — PRD-13 §3 rules out "shields remaining" everywhere.
+    var pendingGraceDay: Int? {
+        guard streakHeld, let day = streak.lastGraceDay, day != graceSeenDay else { return nil }
+        return day
+    }
+
+    /// Dismiss the card for the current bridge. Idempotent.
+    func acknowledgeGrace() {
+        guard let day = streak.lastGraceDay else { return }
+        graceSeenDay = day
+        try? graceSeenStore.flushNow()
+    }
 
     var totalPoints: Int { history.totalPoints }
 

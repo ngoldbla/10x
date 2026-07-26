@@ -5,15 +5,15 @@
 > [docs/EXECUTING-A-PRD.md](docs/EXECUTING-A-PRD.md). The plan body below is
 > unchanged from the approved version — only the status table is maintained.
 
-## Execution status (updated 2026-07-25)
+## Execution status (updated 2026-07-26)
 
 | Item | State | Notes |
 |---|---|---|
 | **Wave 0 backlog** | | |
 | PRD-6 Watch | written, **not shipped** | needs a new target + provisioning |
 | PRD-11 coach hints + auto-notes | written, **not shipped** | UI substrate for PRD-25 |
-| PRD-12 share card | written, **not shipped** | substrate for PRD-26's comet |
-| PRD-13 streak grace | written, **not shipped** | |
+| PRD-12 share card | **shipped** | Glass card (1080×1350 PNG) one tap from the completion chip, iOS + macOS. `ShareCard` is generic over its body at `ShareCardMetrics.bodySide` and `SolveCardFacts` holds every caption — PRD-26's comet replaces the body at the same frame, captioned from the same value. Two defects found only by driving it: a `@State` read inside `TimelineView`'s escaping closure, and a cancellable 2.4 s sleep. Not done: tvOS (no share sheet), image thumbnail in the sheet |
+| PRD-13 streak grace | **shipped** | One missed day bridges; two always break. `displayedStreak` deviates from §2's literal wording, which composed with §2's own non-stacking rule would have flipped a 12-day chip to 1 at the instant of a successful solve. Shield replaces the flame (GlassChip is single-glyph). Found a third copy of the streak rule in `BoardIntents` that PRD-13 made shame the player. Not done: tvOS/macOS grace card (glyph only) |
 | PRD-14 daily archive | written, **not shipped** | replay entry surface for PRD-26 |
 | PRD-15 feedback | **half shipped** | haptics landed as PRD-21; sound still blocked on assets |
 | PRD-16 themes/icons | written, **not shipped** | |

@@ -151,7 +151,7 @@ struct MacHomeView: View {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+                StreakChip(days: model.displayedStreak, held: model.streakHeld)
             }
         }
         .padding(.top, 8)
@@ -330,6 +330,9 @@ struct MacGameScreen: View {
     @State private var pencilMode = false
     @State private var toast: UndoToastState?
     @State private var toastDismissal: Task<Void, Never>?
+    /// The rendered share card (PRD-12); nil while rendering, and nil for
+    /// good if it failed — in which case the button never appears.
+    @State private var shareCard: ShareCardExport?
     @State private var highlightedDigit: Int?
     @State private var hoverCell: Int?
     @State private var deskHovering = false
@@ -355,6 +358,7 @@ struct MacGameScreen: View {
             .overlay(alignment: .topTrailing) { if !isDesk { statusChips.padding(20) } }
             .overlay(alignment: .bottom) { toastView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, isDesk ? 40 : 72) }
+            .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .top) { composingChip.padding(.top, isDesk ? 8 : 16) }
             .overlay(alignment: .bottomTrailing) { if isDesk { deskCornerGlyph.padding(10) } }
         }
@@ -424,10 +428,16 @@ struct MacGameScreen: View {
     @ViewBuilder
     private var completionChip: some View {
         if let solvedAt = model.solvedAt {
+            // Read in the body, never inside the closure — see
+            // `TouchUI.completionChip` for the 30-evaluations-of-nil this cost.
+            let card = shareCard
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
-                    GlassChip(completionText, systemImage: "checkmark")
-                        .transition(.opacity)
+                    HStack(spacing: 10) {
+                        GlassChip(completionText, systemImage: "checkmark")
+                        shareButton(card)
+                    }
+                    .transition(.opacity)
                 }
             }
         }
@@ -438,6 +448,64 @@ struct MacGameScreen: View {
             return "Solved · \(model.displayedStreak) day streak"
         }
         return "Solved"
+    }
+
+    // MARK: Share (PRD-12)
+
+    /// PRD-12 §3 scopes the share to iOS and allows macOS "if free". It is:
+    /// `ShareLink` presents the standard `NSSharingServicePicker` here, and the
+    /// card, its facts and its renderer are all cross-platform already — this
+    /// file supplies a button and a temp-file URL and nothing else. A Mac
+    /// player finishing a board on the same $4.99 purchase would have had no
+    /// reason to understand why the phone could share and the Mac could not.
+    @ViewBuilder
+    private func shareButton(_ card: ShareCardExport?) -> some View {
+        if let card {
+            ShareLink(item: card.url, preview: SharePreview(shareTitle)) {
+                GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ShareCardPhrase.shareLabel)
+        }
+    }
+
+    private var shareTitle: String { shareFacts?.shareTitle ?? ShareCardPhrase.shareLabel }
+
+    /// See `TouchUI.shareFacts` — the same rules, including the archive one:
+    /// an archive board never touched the streak, so its card never prints one.
+    private var shareFacts: SolveCardFacts? {
+        guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
+        let isDaily: Bool
+        let difficulty: Difficulty
+        switch model.kind {
+        case .daily?:
+            isDaily = true
+            difficulty = .steady
+        case .free(let d)?:
+            isDaily = false
+            difficulty = d
+        case nil:
+            return nil
+        }
+        return SolveCardFacts(
+            game: game, difficulty: difficulty, isDaily: isDaily,
+            streak: model.archiveDay == nil ? model.displayedStreak : 0,
+            at: solvedAt
+        )
+    }
+
+    /// Rendered synchronously on the solve, exactly as on iOS — and see
+    /// `TouchUI.renderShareCard` for why it is not a `Task` with a delay in it.
+    private func renderShareCard() {
+        guard let facts = shareFacts else {
+            shareCard = nil
+            return
+        }
+        shareCard = ShareCardRenderer.export(
+            facts: facts,
+            tones: model.prefs.theme.tones(for: colorScheme),
+            accent: accent
+        )
     }
 
     /// A small restore glyph that fades in when the pointer is over the desk

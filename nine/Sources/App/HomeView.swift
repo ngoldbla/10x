@@ -77,7 +77,7 @@ struct HomeView: View {
                 .couchText(CouchTypography.title)
             Spacer()
             if model.displayedStreak > 0 {
-                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+                StreakChip(days: model.displayedStreak, held: model.streakHeld)
             }
         }
     }

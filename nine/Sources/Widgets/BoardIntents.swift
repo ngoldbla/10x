@@ -77,13 +77,10 @@ struct PlaceDigitIntent: AppIntent {
             // recorded when the app next activates and ingests (honest
             // caveat: Game Center lags until then).
             snapshot.dailySolvedSeconds = seconds
-            if snapshot.lastCompletedDay == today - 1 {
-                snapshot.streakCurrent += 1
-            } else if snapshot.lastCompletedDay != today {
-                snapshot.streakCurrent = 1
-            }
-            snapshot.streakBest = max(snapshot.streakBest, snapshot.streakCurrent)
-            snapshot.lastCompletedDay = today
+            // The rule lives in `WidgetSnapshot`, cross-checked against the
+            // Engine — a hand-rolled copy here is how this path missed PRD-13's
+            // bridge and would have reset a streak the app then restored.
+            snapshot.recordOptimisticSolve(day: today)
             SharedDailyBoardStore.setSelectedCell(nil, today: today)
         }
 

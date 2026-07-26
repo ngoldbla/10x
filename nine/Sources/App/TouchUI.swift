@@ -50,6 +50,7 @@ struct TouchHomeView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     header
+                    graceCard
                     todayCard
                     continueCard
                     boardsSection
@@ -77,6 +78,7 @@ struct TouchHomeView: View {
         }
         .animation(.couchFast, value: model.welcomeSeen)
         .animation(.couchFast, value: model.helpSeen)
+        .animation(.couchFast, value: model.pendingGraceDay)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
         .overlay {
@@ -105,7 +107,7 @@ struct TouchHomeView: View {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+                StreakChip(days: model.displayedStreak, held: model.streakHeld)
             }
         }
         .padding(.top, 8)
@@ -135,6 +137,52 @@ struct TouchHomeView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 74)
             }
+        }
+    }
+
+    // MARK: Streak grace
+
+    /// PRD-13 §3. The morning after a bridged miss: one sentence, once ever per
+    /// bridge, and then gone forever.
+    ///
+    /// It sits directly under the header on purpose — the shield it is
+    /// explaining is one row above it, and the adjacency *is* the explanation.
+    ///
+    /// Deliberately not a card that starts a board. An action here would turn
+    /// the missed day into a prompt to play, which is the nagging PRD-13 exists
+    /// so the app never has to do; PRD-30 cites this feature by name as the
+    /// reason Live Activities will never carry a streak-endangered warning.
+    /// Tapping it only makes it go away.
+    @ViewBuilder
+    private var graceCard: some View {
+        if model.pendingGraceDay != nil {
+            Button {
+                withAnimation(.couchFast) { model.acknowledgeGrace() }
+            } label: {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .accessibilityHidden(true) // decoration; the sentence says it
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(Phrase.graceTitle)
+                            .font(CouchTypography.body)
+                        Text(Phrase.graceBody)
+                            .font(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .couchGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(Phrase.graceTitle). \(Phrase.graceBody)")
+            .accessibilityHint(Phrase.graceHint)
+            .transition(.opacity)
         }
     }
 
@@ -506,6 +554,13 @@ struct TouchGameScreen: View {
     @State private var drawerHeight: CGFloat = 220
     /// Afterglow: the haptic score and the gravity-tilt source live in the
     /// view layer — AppModel is platform-shared logic; this is presentation.
+    /// The rendered share card (PRD-12), written once per solve.
+    ///
+    /// Nil while it renders, and nil forever if rendering failed — in which
+    /// case the button simply never appears. That is the right failure for a
+    /// feature whose whole discipline is that it waits and never asks: an
+    /// error toast about a share nobody requested would be worse than silence.
+    @State private var shareCard: ShareCardExport?
     @State private var haptics = AfterglowHaptics()
     @State private var motion = AfterglowMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -541,6 +596,7 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
+            .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .bottom) {
                 autoNotesChipView.padding(.bottom, controlsAtBottom ? 84 : 20)
             }
@@ -815,10 +871,22 @@ struct TouchGameScreen: View {
     @ViewBuilder
     private var completionChip: some View {
         if let solvedAt = model.solvedAt {
+            // Read the card **here**, in the body, and pass it in. Read inside
+            // the closure instead and it is always nil: `TimelineView`'s
+            // content closure escapes, so it captures a copy of this view
+            // struct whose `@State` is a snapshot from when the closure was
+            // made — and this one is made before the render lands, 70 ms after
+            // the solve. Driving the app found it: the renderer logged
+            // "assigned, shareCard=set" once and every subsequent evaluation of
+            // the button logged "shareCard=nil", 30 times running, with the PNG
+            // sitting on disk the whole time. Nothing about it is visible to a
+            // green test suite or to a code reading.
+            let card = shareCard
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
                     HStack(spacing: 10) {
                         GlassChip(completionText, systemImage: "checkmark")
+                        shareButton(card)
                         if case .free(let difficulty)? = model.kind {
                             Button {
                                 highlightedDigit = nil
@@ -841,6 +909,87 @@ struct TouchGameScreen: View {
             return "Solved · \(model.displayedStreak) day streak"
         }
         return "Solved"
+    }
+
+    // MARK: Share (PRD-12)
+
+    /// The share button waits and never asks: no prompt, no badge, no "share
+    /// your streak!" — it sits beside the chip and costs nothing to ignore.
+    ///
+    /// Beside the completion chip rather than in the control bar, and that is
+    /// not taste: the bar has held six 44 pt buttons since PRD-11, measured at
+    /// 322 pt against a 375 pt iPhone SE. A seventh does not fit at the craft
+    /// charter's touch floor, whatever the argument for it.
+    @ViewBuilder
+    private func shareButton(_ card: ShareCardExport?) -> some View {
+        if let card {
+            ShareLink(item: card.url, preview: SharePreview(shareTitle)) {
+                GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ShareCardPhrase.shareLabel)
+        }
+    }
+
+    private var shareTitle: String { shareFacts?.shareTitle ?? ShareCardPhrase.shareLabel }
+
+    /// The facts behind the card, or nil when there is no solved board to
+    /// describe.
+    ///
+    /// `model.solvedAt` is the instant the timer was paused, so the card's time
+    /// is the same number the completion chip is showing rather than a fresh
+    /// read of a clock that has moved on since.
+    private var shareFacts: SolveCardFacts? {
+        guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
+        let isDaily: Bool
+        let difficulty: Difficulty
+        switch model.kind {
+        case .daily?:
+            isDaily = true
+            difficulty = .steady   // the daily composes at steady
+        case .free(let d)?:
+            isDaily = false
+            difficulty = d
+        case nil:
+            return nil
+        }
+        return SolveCardFacts(
+            game: game,
+            difficulty: difficulty,
+            isDaily: isDaily,
+            // An archive board is a real solve and shares like one, but PRD-14
+            // is explicit that it never touched the streak — so it must not
+            // print one either, or the card claims credit the ledger refused.
+            streak: model.archiveDay == nil ? model.displayedStreak : 0,
+            at: solvedAt
+        )
+    }
+
+    /// Render the card once per solve.
+    ///
+    /// **Synchronous, in `onChange`, and deliberately not a `Task`.** The first
+    /// version slept 2.4 s inside `.task(id: model.solvedAt)` so the render
+    /// would land after the Afterglow — and driving the app caught what that
+    /// costs: `Task.sleep` returns immediately when the task is cancelled, so
+    /// any view churn inside that 2.4 s window left `shareCard` nil with no
+    /// restart to repair it, and the Share chip silently never appeared. It
+    /// reproduced on a real solve: the PNG was on disk, timestamped, and the
+    /// button was not on screen. A feature that works four times out of five is
+    /// worse than one that is not there, because nobody can report it.
+    ///
+    /// Nothing was gained by the wait either. The button lives *inside* the
+    /// completion chip's own `> 2.4 s` gate, so rendering early cannot show it
+    /// early — the gate was always doing the work the sleep was credited with.
+    private func renderShareCard() {
+        guard let facts = shareFacts else {
+            shareCard = nil
+            return
+        }
+        shareCard = ShareCardRenderer.export(
+            facts: facts,
+            tones: model.prefs.theme.tones(for: colorScheme),
+            accent: accent
+        )
     }
 
     // MARK: Stats drawer
@@ -1364,7 +1513,9 @@ private struct AmbientSlotView: View {
                     )
                 }
             case .streak:
-                GlassChip(streakText, systemImage: "flame")
+                // Its own capsule (points ride along here), so it takes the
+                // symbol rule from `StreakChip` rather than the whole view.
+                GlassChip(streakText, systemImage: StreakChip.symbol(held: model.streakHeld))
             }
         }
         .opacity(0.5)
@@ -1375,7 +1526,9 @@ private struct AmbientSlotView: View {
     private var streakText: String {
         var parts: [String] = []
         if model.totalPoints > 0 { parts.append("\(model.totalPoints) pts") }
-        if model.displayedStreak > 0 { parts.append("\(model.displayedStreak) day streak") }
+        if model.displayedStreak > 0 {
+            parts.append(BoardSpeech.streakChip(days: model.displayedStreak, held: model.streakHeld))
+        }
         return parts.isEmpty ? "No solves yet" : parts.joined(separator: " · ")
     }
 }
@@ -1426,5 +1579,12 @@ private enum Phrase {
     static func undidPlacement(_ digit: Int) -> String { "Undid \(digit)" }
     static func restored(_ digit: Int) -> String { "Restored \(digit)" }
     static func undidNote(_ digit: Int) -> String { "Undid note \(digit)" }
+
+    // PRD-13 §3. "Won't cost you" rather than "you're safe": nothing was at
+    // risk, because nothing here is a resource. No count, no "1 of 1 used", and
+    // no naming the day that was missed.
+    static let graceTitle = "Your streak held"
+    static let graceBody = "You took yesterday off; one rest day won't cost you."
+    static let graceHint = "Dismisses this card"
 }
 #endif

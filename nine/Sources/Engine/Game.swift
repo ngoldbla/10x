@@ -355,25 +355,67 @@ public struct ElapsedTimer: Sendable, Codable, Equatable {
 }
 
 /// Daily-streak bookkeeping keyed on `DailySeed.dayOrdinal` values.
-public struct StreakState: Sendable, Codable, Equatable {
+public struct StreakState: Sendable, Codable {
     public private(set) var current: Int
     public private(set) var best: Int
     public private(set) var lastCompletedDay: Int?
+    /// The single missed day the streak's bridge is currently spent on
+    /// (PRD-13 §2), or nil if no bridge has ever been used.
+    ///
+    /// Never a count. There is no currency here — PRD-13 §1 kills the freemium
+    /// "Shield" outright — so nothing in the app may render this as one, and
+    /// there is deliberately no `gracesRemaining` for it to be rendered from.
+    public private(set) var lastGraceDay: Int?
+    /// Unknown siblings at the top level of `nine.streak`, carried so this
+    /// build's rewrite cannot strip a newer build's key.
+    private var carriedTopLevel: [String: RawJSON]
 
     public init() {
         current = 0
         best = 0
         lastCompletedDay = nil
+        lastGraceDay = nil
+        carriedTopLevel = [:]
     }
 
     public func hasCompleted(day: Int) -> Bool { lastCompletedDay == day }
 
-    /// Record a daily completion. Same day twice is a no-op; the day after
-    /// the last completion extends the streak; any gap restarts it at 1.
+    /// Is a bridge there to spend?
+    ///
+    /// PRD-13 §2's non-stacking rule, verbatim: a bridge is allowed only once
+    /// at least one *natural* day-after-day completion has happened since the
+    /// last one. Two missed days in a row therefore always break, and nobody
+    /// can chain grace indefinitely.
+    public var graceAvailable: Bool {
+        guard let bridged = lastGraceDay, let last = lastCompletedDay else { return true }
+        return last > bridged + 1
+    }
+
+    /// Does the streak stand *because* of a bridge right now?
+    ///
+    /// Exactly `!graceAvailable`, and that identity is the point rather than a
+    /// coincidence: a bridge leaves `lastCompletedDay == lastGraceDay + 1`
+    /// precisely, and the next natural completion makes it
+    /// `> lastGraceDay + 1` in the same move that re-earns the grace. So one
+    /// predicate drives the bridge rule, the shield glyph, the "your streak
+    /// held" card **and** the display window, and the four cannot disagree
+    /// about whether a streak is being held.
+    public var standsOnGrace: Bool { !graceAvailable }
+
+    /// Record a daily completion. Same day twice is a no-op; the day after the
+    /// last completion extends the streak; **exactly one** missed day bridges
+    /// when a bridge is available; anything else restarts the chain at 1.
     public mutating func recordCompletion(day: Int) {
         if let last = lastCompletedDay {
             guard day > last else { return }
-            current = (day == last + 1) ? current + 1 : 1
+            if day == last + 1 {
+                current += 1
+            } else if day == last + 2, graceAvailable {
+                current += 1
+                lastGraceDay = day - 1
+            } else {
+                current = 1
+            }
         } else {
             current = 1
         }
@@ -406,9 +448,94 @@ public struct StreakState: Sendable, Codable, Equatable {
     }
 
     /// The streak shown on the shelf: yesterday's chain is still alive today,
+    /// one silent missed day is bridged **while a bridge remains**, and
     /// anything older has lapsed to 0.
+    ///
+    /// PRD-13 §2 words the middle clause as an unconditional `last >= today - 2`,
+    /// and that wording composes badly with its own non-stacking rule. With the
+    /// bridge already spent, an unconditional window shows "12 day streak"
+    /// through the silent day and then flips the chip to **1** the instant the
+    /// player solves — punishing them at the exact moment of success, which is
+    /// the cliff PRD-13 exists to remove, moved one day later. Gating the
+    /// window on `graceAvailable` means the chip never promises a chain the
+    /// next solve would break; the streak simply lapsed quietly, which is the
+    /// no-shaming behaviour the covenant asks for anyway.
     public func displayedStreak(today: Int) -> Int {
-        guard let last = lastCompletedDay, last >= today - 1 else { return 0 }
-        return current
+        guard let last = lastCompletedDay else { return 0 }
+        if last >= today - 1 { return current }
+        if last == today - 2, graceAvailable { return current }
+        return 0
+    }
+
+    // MARK: - Coding (the persistence covenant)
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case current, best, lastCompletedDay, lastGraceDay
+    }
+
+    /// Nothing in here throws. `CouchStored` discards the entire blob when a
+    /// decode does, and a lost `nine.streak` is the player's whole history with
+    /// the habit, reset to zero, silently, with no way back — on the one number
+    /// a streak app owes them. This root type had synthesized `Codable` until
+    /// PRD-13, so adding a field was the moment to fix that too.
+    ///
+    /// Modelled on `ArchiveLedger`, `carriedTopLevel` included. That carry is
+    /// forward protection only, and the limit is worth stating plainly: builds
+    /// 450/451/452 are already on TestFlight with a synthesized decode, so a
+    /// downgrade to one of them strips `lastGraceDay` on its next write
+    /// whatever this build does. The consequence is bounded and it errs kind —
+    /// the returning player is offered one bridge they had already spent —
+    /// which is why `lastGraceDay` lives here rather than in a blob of its own.
+    /// A second store could not be written in the same flush as the streak it
+    /// guards, and two ledgers that disagree about one streak is precisely the
+    /// bug PRD-14 shipped a fix for.
+    public init(from decoder: any Decoder) throws {
+        current = 0
+        best = 0
+        lastCompletedDay = nil
+        lastGraceDay = nil
+        carriedTopLevel = [:]
+        if let anyKey = try? decoder.container(keyedBy: RawJSON.RawKey.self) {
+            let known = Set(CodingKeys.allCases.map(\.stringValue))
+            for key in anyKey.allKeys where !known.contains(key.stringValue) {
+                carriedTopLevel[key.stringValue] =
+                    (try? anyKey.decode(RawJSON.self, forKey: key)) ?? .null
+            }
+        }
+        guard let c = try? decoder.container(keyedBy: CodingKeys.self) else { return }
+        current = (try? c.decode(Int.self, forKey: .current)) ?? 0
+        best = (try? c.decode(Int.self, forKey: .best)) ?? 0
+        lastCompletedDay = try? c.decode(Int.self, forKey: .lastCompletedDay)
+        lastGraceDay = try? c.decode(Int.self, forKey: .lastGraceDay)
+        // Repair rather than trust: `best` is a high-water mark by definition,
+        // and a hand-edited or half-written blob must not make it a low one.
+        best = max(best, current)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: RawJSON.RawKey.self)
+        for key in carriedTopLevel.keys.sorted() {
+            try container.encode(carriedTopLevel[key]!, forKey: RawJSON.RawKey(key))
+        }
+        try container.encode(current, forKey: RawJSON.RawKey(CodingKeys.current.stringValue))
+        try container.encode(best, forKey: RawJSON.RawKey(CodingKeys.best.stringValue))
+        try container.encodeIfPresent(
+            lastCompletedDay, forKey: RawJSON.RawKey(CodingKeys.lastCompletedDay.stringValue)
+        )
+        try container.encodeIfPresent(
+            lastGraceDay, forKey: RawJSON.RawKey(CodingKeys.lastGraceDay.stringValue)
+        )
+    }
+}
+
+extension StreakState: Equatable {
+    /// Identity is the four facts. The carried trees are an encoding detail,
+    /// and excluding them is load-bearing: every caller and every test builds a
+    /// `StreakState()` by hand and compares it against a decoded one — the same
+    /// call `ArchiveLedger` makes, for the same reason.
+    public static func == (lhs: StreakState, rhs: StreakState) -> Bool {
+        lhs.current == rhs.current && lhs.best == rhs.best
+            && lhs.lastCompletedDay == rhs.lastCompletedDay
+            && lhs.lastGraceDay == rhs.lastGraceDay
     }
 }
