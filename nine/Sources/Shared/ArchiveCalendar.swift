@@ -38,6 +38,31 @@ public struct ArchiveMonth: Sendable, Equatable, Hashable, Comparable {
     }
 }
 
+/// What the grid knows about one day.
+///
+/// Two orthogonal facts rather than one flat list of states, because they *are*
+/// orthogonal — a flat enum cannot say "today, and already solved", which is
+/// what every player sees for most of every evening. `progress` is what the
+/// player did with the board; `position` is where the day sits relative to now.
+/// The cell renders one on each channel: position as the background, progress
+/// as the mark.
+public struct ArchiveDayState: Sendable, Equatable {
+
+    public enum Progress: Sendable, Equatable { case solved, inProgress, untouched }
+    public enum Position: Sendable, Equatable { case past, today, future }
+
+    public var progress: Progress
+    public var position: Position
+
+    public init(progress: Progress, position: Position) {
+        self.progress = progress
+        self.position = position
+    }
+
+    /// A day after today is never playable and never has progress.
+    public var isPlayable: Bool { position != .future }
+}
+
 public enum ArchiveCalendar {
 
     /// The month Nine's first daily existed (first `nine/` commit: 2026-07-11).
@@ -133,6 +158,42 @@ public enum ArchiveCalendar {
     /// "July 12" — the date half of a grid cell's accessibility label.
     public static func longLabel(forDayOrdinal ordinal: Int) -> String {
         formatter("MMMMd").string(from: date(forDayOrdinal: ordinal))
+    }
+
+    /// What VoiceOver says on a grid cell.
+    ///
+    /// It lives here, not in the view, for the reason PRD-19 put the Voice
+    /// Control input labels in `BoardSpeechTests`: the archive is the one
+    /// screen that can never have an AX baseline, because every label in it is
+    /// derived from today's date and would rot overnight. A unit test is the
+    /// only coverage this wording can have, so the wording has to be reachable
+    /// from one.
+    ///
+    /// Both channels are spoken, and in that order — the date first because it
+    /// is what the player is navigating by.
+    public static func accessibilityLabel(
+        forDayOrdinal ordinal: Int, state: ArchiveDayState
+    ) -> String {
+        var parts = [longLabel(forDayOrdinal: ordinal)]
+        if state.position == .today { parts.append(Phrase.today) }
+        switch state.progress {
+        case .solved: parts.append(Phrase.solved)
+        case .inProgress: parts.append(Phrase.inProgress)
+        case .untouched:
+            // A future day is not "not played", it is simply not here yet, and
+            // saying otherwise invites a player to try to play it.
+            if state.position != .future { parts.append(Phrase.notPlayed) }
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    /// The archive's spoken vocabulary, in one block — the seam PRD-20 converts
+    /// to `LocalizedStringResource`.
+    private enum Phrase {
+        static let today = "today"
+        static let solved = "solved"
+        static let inProgress = "in progress"
+        static let notPlayed = "not played"
     }
 
     private static func formatter(_ template: String) -> DateFormatter {

@@ -158,6 +158,50 @@ final class ArchiveCalendarTests: XCTestCase {
         XCTAssertEqual(ArchiveCalendar.longLabel(forDayOrdinal: ordinal), "July 12")
     }
 
+    // MARK: - Accessibility wording
+
+    /// The archive is the only screen that can never have an AX baseline —
+    /// every label in it is derived from today's date and would rot overnight —
+    /// so this test is the wording's only coverage. Same reasoning that put the
+    /// Voice Control input labels in `BoardSpeechTests` (PRD-19).
+    func testAccessibilityLabelSpeaksBothChannels() throws {
+        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
+        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
+        func label(_ progress: ArchiveDayState.Progress,
+                   _ position: ArchiveDayState.Position) -> String {
+            ArchiveCalendar.accessibilityLabel(
+                forDayOrdinal: day, state: ArchiveDayState(progress: progress, position: position)
+            )
+        }
+        XCTAssertEqual(label(.solved, .past), "July 12, solved")
+        XCTAssertEqual(label(.inProgress, .past), "July 12, in progress")
+        XCTAssertEqual(label(.untouched, .past), "July 12, not played")
+        XCTAssertEqual(label(.untouched, .today), "July 12, today, not played")
+        // The combination a flat five-state enum could not represent, and the
+        // one a player sees for most of every evening.
+        XCTAssertEqual(label(.solved, .today), "July 12, today, solved")
+    }
+
+    /// A future day is not "not played" — it is not here yet, and saying
+    /// otherwise invites a player to try to play it.
+    func testFutureDaysAreNamedWithoutAProgressClaim() throws {
+        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
+        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
+        XCTAssertEqual(
+            ArchiveCalendar.accessibilityLabel(
+                forDayOrdinal: day,
+                state: ArchiveDayState(progress: .untouched, position: .future)
+            ),
+            "July 12"
+        )
+    }
+
+    func testFutureDaysAreNotPlayable() {
+        XCTAssertFalse(ArchiveDayState(progress: .untouched, position: .future).isPlayable)
+        XCTAssertTrue(ArchiveDayState(progress: .untouched, position: .today).isPlayable)
+        XCTAssertTrue(ArchiveDayState(progress: .solved, position: .past).isPlayable)
+    }
+
     func testWeekdayInitialsMatchTheGridColumns() {
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1),
                        ["S", "M", "T", "W", "T", "F", "S"])
