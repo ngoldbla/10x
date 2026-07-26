@@ -117,6 +117,11 @@ struct BoardView: View {
     /// pencil note of it — gets an accent wash, so tapping a 9 shows all
     /// nine 9s (and where you've penciled them).
     var highlightDigit: Int? = nil
+    /// The cells a coach hint is lighting (PRD-11), or nil. Default-off, so
+    /// tvOS and macOS — which have no coach this PRD — render byte-identically.
+    /// One value rather than four parameters because PRD-25 narrates a
+    /// *sequence* of these; see CoachCard.swift.
+    var coachFocus: CoachFocus? = nil
     /// Pad peek (L2 hold, PRD-5 §2.1): while held, every digit and note that is
     /// not this kind dims to a whisper so the highlighted kind pops. Nil = off,
     /// so every non-pad caller renders byte-identically.
@@ -329,6 +334,44 @@ struct BoardView: View {
                     .insetBy(dx: 6 * scale, dy: 6 * scale)
                 let path = Path(roundedRect: rect, cornerRadius: 12 * scale)
                 context.stroke(path, with: .color(accent.opacity(0.55)), lineWidth: max(1.5, 2 * scale))
+            }
+        }
+
+        // 2.6 Coach wash (PRD-11): the pattern in accent, the cell the step
+        //     resolves in a stronger ring, the cells losing a candidate in a
+        //     dashed dimmer one. Dashed on purpose — an elimination is the
+        //     absence of something, and a solid ring would read as "look here"
+        //     rather than "this loses a digit". Drawn before the cursor, which
+        //     stays the brightest thing on the board.
+        if let coachFocus, solvedAt == nil {
+            for index in coachFocus.pattern {
+                let rect = BoardMetrics.rect(of: index, side: size.width)
+                    .insetBy(dx: 3 * scale, dy: 3 * scale)
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: 12 * scale),
+                    with: .color(accent.opacity(isLight ? 0.30 : 0.24))
+                )
+            }
+            for index in coachFocus.victims {
+                let rect = BoardMetrics.rect(of: index, side: size.width)
+                    .insetBy(dx: 6 * scale, dy: 6 * scale)
+                context.stroke(
+                    Path(roundedRect: rect, cornerRadius: 12 * scale),
+                    with: .color(accent.opacity(0.42)),
+                    style: StrokeStyle(
+                        lineWidth: max(1.5, 2 * scale),
+                        dash: [4 * scale, 3 * scale]
+                    )
+                )
+            }
+            if let target = coachFocus.target {
+                let rect = BoardMetrics.rect(of: target, side: size.width)
+                    .insetBy(dx: 2 * scale, dy: 2 * scale)
+                context.stroke(
+                    Path(roundedRect: rect, cornerRadius: 15 * scale),
+                    with: .color(accent),
+                    lineWidth: max(2.5, 4 * scale)
+                )
             }
         }
 
