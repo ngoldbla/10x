@@ -325,19 +325,49 @@ public enum PuzzleGenerator {
 /// plus the day ordinal the streak logic keys on.
 public enum DailySeed {
 
+    /// A day ordinal is a UTC midnight by construction (see `dayOrdinal`), so
+    /// every conversion back out of one has to read it in UTC. Rendering one in
+    /// the player's own zone lands a day early everywhere west of Greenwich —
+    /// silently, with no crash and no warning.
+    public static var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
     /// Days since the reference epoch in the given calendar's reckoning of
     /// `date`'s local day. Consecutive calendar days differ by exactly 1.
     public static func dayOrdinal(for date: Date, calendar: Calendar = .current) -> Int {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = TimeZone(identifier: "UTC")!
-        let midnight = utc.date(from: components)!
+        let midnight = utcCalendar.date(from: components)!
         return Int((midnight.timeIntervalSinceReferenceDate / 86_400).rounded(.down))
     }
 
     /// Stable daily seed: a hash of the calendar day (yyyymmdd).
     public static func seed(for date: Date, calendar: Calendar = .current) -> UInt64 {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        seed(ymdOf: calendar.dateComponents([.year, .month, .day], from: date))
+    }
+
+    /// The same seed, addressed by day ordinal — what the archive composes from
+    /// (PRD-14).
+    ///
+    /// Exact rather than approximate, and the asymmetry above is why: `seed(for:)`
+    /// hashes the **local** y/m/d, and `dayOrdinal` takes that same local y/m/d
+    /// and reinterprets it as a **UTC** midnight. The ordinal therefore already
+    /// *is* the local calendar day, re-encoded — so reading it back in UTC
+    /// recovers precisely the components `seed(for:)` hashed, with no calendar
+    /// round-trip and no timezone hazard. Pinned across four zones by
+    /// `testSeedForDayOrdinalMatchesSeedForDate`.
+    public static func seed(forDayOrdinal ordinal: Int) -> UInt64 {
+        let midnight = Date(timeIntervalSinceReferenceDate: TimeInterval(ordinal) * 86_400)
+        return seed(ymdOf: utcCalendar.dateComponents([.year, .month, .day], from: midnight))
+    }
+
+    /// The one place the daily mapping's constant lives. Both entry points
+    /// funnel here so they cannot drift; `testDailySeedForAKnownDayIsFrozen`
+    /// and the golden corpus are the two proofs that extracting it moved
+    /// nothing.
+    private static func seed(ymdOf components: DateComponents) -> UInt64 {
         let ymd = UInt64(components.year! * 10_000 + components.month! * 100 + components.day!)
         var rng = SplitMix64(seed: 0x9174_E5D1_0000_0000 ^ ymd)
         return rng.next()
