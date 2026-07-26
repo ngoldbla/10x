@@ -1705,10 +1705,78 @@ works. Three for three, none visible to `swift test`:
   the archive made them diverge: 13 July opened today listed as "Daily · Jul
   26". Both now read the day.
 
+### What a review pass caught that driving the app did not
+
+Three independent reviewers converged on the same defect, and it was mine:
+
+- **A clock-based streak guard broke the ordinary path.** The first version read
+  `recordCompletion(day: day, today: todayOrdinal)`, comparing the day the board
+  was *composed for* against a clock read at the moment of the solve. Open
+  today's daily at 23:55, place the last digit at 00:03, and `day >= today` is
+  false — **a streak of any length silently resets on a night the player
+  actually solved the puzzle.** Worse, `markSolved` on the next line still fired,
+  so the grid showed a checkmark for a day the streak recorded as missed; the two
+  ledgers disagreed permanently.
+
+  **The discriminator is provenance, not the clock.** A board created on its own
+  day is that day's daily however late it is finished; a board created *after*
+  the day it is for can only have come from the archive. So the guard is
+  `recordCompletion(day:openedOn:)` against `DailySeed.dayOrdinal(for:
+  entry.createdAt)`, which needs no new state — `createdAt` has been on every
+  `LibraryEntry` since the tracker shipped. `archiveDay` (and therefore the
+  in-game chip) had the identical bug from the identical cause, and takes the
+  identical fix: without it a board being actively finished grew an
+  "Archive · Jul 25" chip the moment midnight passed under it.
+
+- **The widget was the app's other solve path, and it was missed.**
+  `ingestSharedDailyBoard` records streak, history, library and Game Center for a
+  daily finished entirely in the widget, and wrote nothing to `nine.archive`. The
+  fallback — the next cold launch's backfill reading `status == .solved` — is
+  exactly the thing `ArchiveLedger` exists because you cannot rely on:
+  `prune()`'s 20-entry cap can evict that entry first, losing the day for good.
+
+- **A compose in flight could yank the player off an archive board.** The archive
+  glyph is an overlay applied *after* `.disabled(...)`, so it stayed live during
+  a foreign compose. Tap a past day with a partial and `startEntry` puts it on
+  screen — then the pending `Task.detached` lands and calls `startEntry` again,
+  unconditionally, replacing the board mid-move. Most reproducible on Sharp and
+  Nocturne, where generation takes tens of seconds. `openArchiveDay` now refuses
+  while `composing != nil` and the grid disables its cells for the same window.
+
+- **The floor was a month where its own argument was about days.** Nine's first
+  daily was 11 July 2026, but `ArchiveMonth(2026, 7)` made 1–10 July ordinary
+  playable past days — boards for dates on which Nine served nothing, earning
+  permanent checkmarks. `floorDayOrdinal` is the day, and `Position.beforeLaunch`
+  renders those ten like future days: present so the month is a whole month,
+  unplayable, and making no progress claim in speech. Verified live — July 1–10
+  read `"July 3"` and disabled, July 11 reads `"July 11, not played"`.
+
+- **`mediumLabel` would have re-rendered the tracker for non-Gregorian regions.**
+  It replaced `entry.createdAt.formatted(date: .abbreviated)`, which honours
+  `Calendar.current`; pinning the whole file to Gregorian would have left a
+  Japanese- or Buddhist-calendar player's board row disagreeing with the
+  `statusLine` directly beneath it. It is now the one label rendered in the
+  player's calendar with the clock still pinned to UTC. The archive's own
+  surfaces stay Gregorian, because the grid *is* a Gregorian month.
+
+- **Cost, not correctness:** `DailySeed.utcCalendar` and `ArchiveCalendar`'s
+  formatters were rebuilt per access on a path that touches them several times
+  per cell — roughly 32 `DateFormatter` constructions and 130 `Calendar` builds
+  per grid render, inside a `withAnimation` that wants the frame. The calendar is
+  a `static let` now and the formatters are cached by template + locale +
+  calendar. `state(of:)`'s `todayOrdinal` reads and its linear
+  `inProgressDaily(day:)` scan are hoisted out of the 42-cell loop, and
+  `newestMonth` no longer allocates a month-per-element array to take its last
+  element.
+
+**The lesson worth keeping:** every one of these is in code that a green suite
+and a full hands-on pass had already blessed. The streak bug in particular is
+invisible for 23 hours and 50 minutes of every day.
+
 ### `swift test` is 0 failures; the wall clock is not measurable right now
 
-252 tests, 3 skipped, 0 failures — but **342 s** against a ~120 s budget, on a
-machine at **load average 189** (several agents in parallel worktrees). The
+252 tests, 3 skipped, 0 failures — but **342 s and 520 s across two runs** against a ~120 s budget, on a
+machine at **load average 189 and climbing** (several agents in parallel worktrees). The
 number is contention, not cost, and the cheapest proof is that the golden
 corpus read **14.7 s standalone** in the same session and **50.8 s** inside that
 run — a ~3.5× factor that applies uniformly across the three expensive suites

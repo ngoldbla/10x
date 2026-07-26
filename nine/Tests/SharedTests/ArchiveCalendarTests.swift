@@ -196,10 +196,40 @@ final class ArchiveCalendarTests: XCTestCase {
         )
     }
 
-    func testFutureDaysAreNotPlayable() {
+    func testOnlyDaysNineActuallyServedArePlayable() {
         XCTAssertFalse(ArchiveDayState(progress: .untouched, position: .future).isPlayable)
+        XCTAssertFalse(ArchiveDayState(progress: .untouched, position: .beforeLaunch).isPlayable)
         XCTAssertTrue(ArchiveDayState(progress: .untouched, position: .today).isPlayable)
         XCTAssertTrue(ArchiveDayState(progress: .solved, position: .past).isPlayable)
+    }
+
+    /// The floor month contains ten days that precede Nine's first daily, and
+    /// they were never anybody's daily. `floor` is where the pager stops;
+    /// `floorDayOrdinal` is what is playable, and the gap between them is the
+    /// whole point.
+    func testTheFloorDayIsNinesFirstDailyNotTheFirstOfTheMonth() {
+        XCTAssertEqual(
+            ArchiveCalendar.floorDayOrdinal,
+            ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 11)
+        )
+        XCTAssertEqual(ArchiveCalendar.month(ofDayOrdinal: ArchiveCalendar.floorDayOrdinal),
+                       ArchiveCalendar.floor)
+        XCTAssertGreaterThan(
+            ArchiveCalendar.floorDayOrdinal,
+            ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 1)
+        )
+    }
+
+    /// A day Nine never served makes no progress claim at all.
+    func testPreLaunchDaysAreNamedWithoutAProgressClaim() throws {
+        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
+        XCTAssertEqual(
+            ArchiveCalendar.accessibilityLabel(
+                forDayOrdinal: ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 3),
+                state: ArchiveDayState(progress: .untouched, position: .beforeLaunch)
+            ),
+            "July 3"
+        )
     }
 
     func testWeekdayInitialsMatchTheGridColumns() {

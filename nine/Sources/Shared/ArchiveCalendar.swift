@@ -49,7 +49,12 @@ public struct ArchiveMonth: Sendable, Equatable, Hashable, Comparable {
 public struct ArchiveDayState: Sendable, Equatable {
 
     public enum Progress: Sendable, Equatable { case solved, inProgress, untouched }
-    public enum Position: Sendable, Equatable { case past, today, future }
+
+    /// `beforeLaunch` is not decoration. The floor month contains ten days that
+    /// precede Nine's first daily, and they are not "past days you could have
+    /// played" — nothing was ever served on them. Rendered exactly like
+    /// `future`: present, unplayable, and making no claim either way.
+    public enum Position: Sendable, Equatable { case beforeLaunch, past, today, future }
 
     public var progress: Progress
     public var position: Position
@@ -59,8 +64,8 @@ public struct ArchiveDayState: Sendable, Equatable {
         self.position = position
     }
 
-    /// A day after today is never playable and never has progress.
-    public var isPlayable: Bool { position != .future }
+    /// Only days Nine actually served, and only up to today.
+    public var isPlayable: Bool { position == .past || position == .today }
 }
 
 public enum ArchiveCalendar {
@@ -74,8 +79,17 @@ public enum ArchiveCalendar {
     /// "a sane floor … no infinite scroll").
     public static let floor = ArchiveMonth(year: 2026, month: 7)
 
-    /// See the file header. Every conversion out of an ordinal reads it here.
-    private static var calendar: Calendar { DailySeed.utcCalendar }
+    /// Nine's first daily: 11 July 2026, the day of the first `nine/` commit.
+    /// The floor *month* is where the pager stops; this is what is actually
+    /// playable, and the two differ by the ten days at the head of that month
+    /// on which Nine served nothing at all.
+    public static let floorDayOrdinal = dayOrdinal(year: 2026, month: 7, day: 11)
+
+    /// See the file header. Every conversion out of an ordinal reads it here —
+    /// several times per grid cell, which is why it is a `let`: rebuilding a
+    /// `Calendar` and re-resolving `TimeZone(identifier: "UTC")` per access is
+    /// pure waste on a render path. `Calendar` is a Sendable value type.
+    private static let calendar: Calendar = DailySeed.utcCalendar
 
     // MARK: - Ordinals
 
@@ -163,10 +177,16 @@ public enum ArchiveCalendar {
     /// "Jul 12, 2026" — the board tracker's row, which needs the year because
     /// it lists boards from any month the archive reaches.
     ///
-    /// Matches `Date.formatted(date: .abbreviated)`, which is what that row
-    /// printed before the archive existed.
+    /// **The one label rendered in the player's own calendar system**, because
+    /// it replaced `entry.createdAt.formatted(date: .abbreviated)`, which used
+    /// `Calendar.current`. Forcing Gregorian here would silently re-render the
+    /// tracker for anyone on a Japanese, Buddhist, Hebrew or Islamic calendar —
+    /// and leave that row disagreeing with the `statusLine` two lines below it,
+    /// which still formats in their calendar. The archive's own surfaces stay
+    /// Gregorian: the grid *is* a Gregorian month, and titling it otherwise
+    /// would describe a shape it does not have.
     public static func mediumLabel(forDayOrdinal ordinal: Int) -> String {
-        formatter("MMMdy").string(from: date(forDayOrdinal: ordinal))
+        displayFormatter("MMMdy").string(from: date(forDayOrdinal: ordinal))
     }
 
     /// What VoiceOver says on a grid cell.
@@ -189,9 +209,10 @@ public enum ArchiveCalendar {
         case .solved: parts.append(Phrase.solved)
         case .inProgress: parts.append(Phrase.inProgress)
         case .untouched:
-            // A future day is not "not played", it is simply not here yet, and
-            // saying otherwise invites a player to try to play it.
-            if state.position != .future { parts.append(Phrase.notPlayed) }
+            // A day you cannot play is not "not played" — a future day is not
+            // here yet and a pre-launch day never had a puzzle. Either way,
+            // saying "not played" invites a player to go and play it.
+            if state.isPlayable { parts.append(Phrase.notPlayed) }
         }
         return parts.joined(separator: ", ")
     }
@@ -205,12 +226,45 @@ public enum ArchiveCalendar {
         static let notPlayed = "not played"
     }
 
+    /// Cached, because a `DateFormatter` is expensive to build and the grid
+    /// asks for one **per cell**: `accessibilityLabel` runs 42 times on every
+    /// body evaluation, and re-deriving a localized format string each time is
+    /// pure waste.
+    ///
+    /// Keyed on the locale as well as the template, so a player who changes
+    /// language mid-session does not keep the old one — the reason this is a
+    /// dictionary rather than four `static let`s. `DateFormatter` is documented
+    /// thread-safe for formatting, and the lock covers the cache itself.
+    private static let formatterLock = NSLock()
+    nonisolated(unsafe) private static var formatters: [String: DateFormatter] = [:]
+
+    /// The archive's own labels: Gregorian, because the grid is a Gregorian
+    /// month and its captions have to describe the shape on screen.
     private static func formatter(_ template: String) -> DateFormatter {
+        cachedFormatter(template, calendar: calendar)
+    }
+
+    /// The player's calendar system, with the clock still pinned to UTC so the
+    /// day never slips (see the file header). For labels that replaced an
+    /// existing `Calendar.current` rendering.
+    private static func displayFormatter(_ template: String) -> DateFormatter {
+        var display = Calendar.current
+        display.timeZone = calendar.timeZone
+        return cachedFormatter(template, calendar: display)
+    }
+
+    private static func cachedFormatter(_ template: String, calendar: Calendar) -> DateFormatter {
+        let locale = Locale.current
+        let key = "\(template)|\(locale.identifier)|\(calendar.identifier)"
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+        if let cached = formatters[key] { return cached }
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone   // the whole point — see the file header
-        formatter.locale = .current
+        formatter.locale = locale
         formatter.setLocalizedDateFormatFromTemplate(template)
+        formatters[key] = formatter
         return formatter
     }
 }

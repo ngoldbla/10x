@@ -36,8 +36,12 @@ struct ArchiveSheetContent: View {
 
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
     private var firstWeekday: Int { Calendar.current.firstWeekday }
+    /// `max(floor, month(of: today))` directly — `months(through:)` computes
+    /// exactly this on its first line and then allocates a month-per-element
+    /// array we would throw away, on every evaluation of the pager's enabled
+    /// state, growing by one for the life of the product.
     private var newestMonth: ArchiveMonth {
-        ArchiveCalendar.months(through: model.todayOrdinal).last ?? ArchiveCalendar.floor
+        max(ArchiveCalendar.floor, ArchiveCalendar.month(ofDayOrdinal: model.todayOrdinal))
     }
 
     var body: some View {
@@ -130,7 +134,16 @@ struct ArchiveSheetContent: View {
     /// craft charter's 44pt floor survives at the narrowest width, which is
     /// what fixes the cell size rather than taste.
     private var grid: some View {
-        VStack(spacing: 2) {
+        // Both hoisted out of the per-cell path: `todayOrdinal` builds a `Date`
+        // and reads calendar components, and `inProgressDaily(day:)` is a
+        // linear scan of up to 60 entries — 42 of each, per body evaluation and
+        // per frame of the pager animation, when one of each will do.
+        let today = model.todayOrdinal
+        let inProgress = Set(model.library.partials.compactMap { entry -> Int? in
+            if case .daily(let day) = entry.kind { return day }
+            return nil
+        })
+        return VStack(spacing: 2) {
             ForEach(
                 Array(ArchiveCalendar.grid(for: month, firstWeekday: firstWeekday).enumerated()),
                 id: \.offset
@@ -140,8 +153,13 @@ struct ArchiveSheetContent: View {
                         if let ordinal {
                             ArchiveDayCell(
                                 ordinal: ordinal,
-                                state: state(of: ordinal),
+                                state: state(of: ordinal, today: today, inProgress: inProgress),
                                 accent: accent,
+                                // A compose in flight would either be refused
+                                // outright or land on top of this board a few
+                                // seconds later, so the grid stands down rather
+                                // than offering a tap that cannot be honoured.
+                                composing: model.composing != nil,
                                 action: { open(ordinal) }
                             )
                         } else {
@@ -160,19 +178,23 @@ struct ArchiveSheetContent: View {
 
     /// Two orthogonal reads, never collapsed into one: what the player did with
     /// the board, and where the day sits relative to now.
-    private func state(of ordinal: Int) -> ArchiveDayState {
+    private func state(of ordinal: Int, today: Int, inProgress: Set<Int>) -> ArchiveDayState {
         let position: ArchiveDayState.Position
-        if ordinal > model.todayOrdinal {
+        if ordinal > today {
             position = .future
-        } else if ordinal == model.todayOrdinal {
+        } else if ordinal == today {
             position = .today
+        } else if ordinal < ArchiveCalendar.floorDayOrdinal {
+            // Inside the floor month but before Nine's first daily: shown, so
+            // the month is a whole month, but never playable.
+            position = .beforeLaunch
         } else {
             position = .past
         }
         let progress: ArchiveDayState.Progress
         if model.archive.isSolved(day: ordinal) {
             progress = .solved
-        } else if model.library.inProgressDaily(day: ordinal) != nil {
+        } else if inProgress.contains(ordinal) {
             progress = .inProgress
         } else {
             progress = .untouched
@@ -199,6 +221,7 @@ private struct ArchiveDayCell: View {
     let ordinal: Int
     let state: ArchiveDayState
     let accent: Color
+    let composing: Bool
     let action: () -> Void
 
     var body: some View {
@@ -211,7 +234,7 @@ private struct ArchiveDayCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!state.isPlayable)
+        .disabled(!state.isPlayable || composing)
         .accessibilityLabel(
             ArchiveCalendar.accessibilityLabel(forDayOrdinal: ordinal, state: state)
         )
@@ -224,7 +247,7 @@ private struct ArchiveDayCell: View {
         switch state.position {
         case .today:
             shape.fill(accent.opacity(0.28))
-        case .past, .future:
+        case .past, .future, .beforeLaunch:
             if state.progress == .inProgress {
                 // A ring, not a fill: a partial is an invitation, not a state
                 // the day is finished in.
@@ -247,7 +270,7 @@ private struct ArchiveDayCell: View {
         } else {
             Text("\(ArchiveCalendar.dayNumber(forDayOrdinal: ordinal))")
                 .font(CouchTypography.caption)
-                .foregroundStyle(state.position == .future ? .tertiary : .secondary)
+                .foregroundStyle(state.isPlayable ? .secondary : .tertiary)
         }
     }
 }
