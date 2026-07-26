@@ -305,6 +305,11 @@ final class AppModel {
     private(set) var tips: TipLedger {
         didSet { tipsStore.wrappedValue = tips }
     }
+    /// What the coach remembers per board (PRD-11): hints shown, auto notes on.
+    /// Nothing is ever gated on it — §3 rules hint quotas out forever.
+    private(set) var coach: CoachLedger {
+        didSet { coachStore.wrappedValue = coach }
+    }
     /// A tip has already been shown during this launch. Never persisted: the
     /// "one per session" half of the budget is a property of the launch, and
     /// the lifetime half is what the ledger is for.
@@ -378,6 +383,13 @@ final class AppModel {
     /// (EXECUTING-A-PRD §2).
     @ObservationIgnored private let tipsStore =
         CouchStored(wrappedValue: TipLedger(), "nine.tips")
+    /// Its own top-level blob for the same reason `nine.tips` is (PRD-11 §6):
+    /// a new field inside `LibraryEntry` is erased by the next autosave of any
+    /// older build (EXECUTING-A-PRD §2). Local-only — a hint count belongs to
+    /// the hand that played the board, not to the board, exactly as `undoCount`
+    /// does (PRD-8 §2).
+    @ObservationIgnored private let coachStore =
+        CouchStored(wrappedValue: CoachLedger(), "nine.coach")
     @ObservationIgnored private let sessionCountStore =
         CouchStored(wrappedValue: 0, "nine.sessionCount")
     @ObservationIgnored private let drawerFoundStore =
@@ -536,6 +548,7 @@ final class AppModel {
         helpSeen = helpSeenStore.wrappedValue
         welcomeSeen = welcomeSeenStore.wrappedValue
         tips = tipsStore.wrappedValue
+        coach = coachStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit
@@ -813,11 +826,89 @@ final class AppModel {
         }
     }
 
+    // MARK: - Coach (PRD-11)
+
+    /// Hints shown on the board currently on screen. Surfaced in the stats
+    /// drawer and nowhere else; nothing anywhere is gated on it.
+    var coachHints: Int {
+        guard let id = currentEntryID else { return 0 }
+        return coach.board(id.uuidString).hints
+    }
+
+    /// Auto notes for the board on screen. Setting it true fills the marks;
+    /// setting it false clears nothing at all (PRD-11 §2.2).
+    var autoNotes: Bool {
+        get {
+            guard let id = currentEntryID else { return false }
+            return coach.board(id.uuidString).autoNotes
+        }
+        set {
+            guard let id = currentEntryID else { return }
+            writeCoach { $0.setAutoNotes(newValue, for: id.uuidString) }
+            guard newValue, solvedAt == nil, var g = game, g.applyAutoNotes() else { return }
+            game = g
+            persistProgress()
+        }
+    }
+
+    /// What the coach has to say about the board on screen, or nil when there
+    /// is no board to speak about.
+    ///
+    /// Capped at the board's own difficulty ceiling, so a Gentle board is never
+    /// lectured about X-wings (PRD-11 §2.1) — and fed the *player's* grid, not
+    /// the puzzle's, so it reasons about the position actually on screen.
+    func requestCoachAdvice() -> CoachAdvice? {
+        guard let game, solvedAt == nil else { return nil }
+        let grid = SudokuGrid(cells: (0..<81).map { game.entry(at: $0) })
+        let advice = LogicSolver.advice(
+            for: grid, allowed: game.puzzle.difficulty.allowedTechniques
+        )
+        if let id = currentEntryID {
+            writeCoach { $0.recordHint(id.uuidString) }
+        }
+        return advice
+    }
+
+    /// Commit a coach step. The *player* asked for this — nothing here ever
+    /// runs unprompted, which is what keeps "the coach never places a digit"
+    /// true in the sense that matters: Nine never solves itself.
+    ///
+    /// A placement goes through the ordinary `place` path, so the wave, the
+    /// error rules, the haptics and persistence are all exactly as the rose
+    /// would have left them.
+    func applyCoachStep(_ step: CoachStep) {
+        if let placement = step.step.placement {
+            place(placement.digit, at: placement.cell)
+            return
+        }
+        // Eliminations are only offered while auto notes is off — with it on
+        // the marks are the machine's and the next placement would recompute
+        // these away, so the button is suppressed rather than allowed to lie.
+        guard solvedAt == nil, !autoNotes, var g = game else { return }
+        var changed = false
+        for elimination in step.step.eliminations
+        where g.pencilDigits(at: elimination.cell).contains(elimination.digit) {
+            changed = g.togglePencil(elimination.digit, at: elimination.cell) || changed
+        }
+        guard changed else { return }
+        game = g
+        persistProgress()
+    }
+
+    /// Every ledger write prunes to the live library, so the blob tracks it
+    /// rather than accumulating the ids of boards deleted months ago.
+    private func writeCoach(_ mutate: (inout CoachLedger) -> Void) {
+        var ledger = coach
+        mutate(&ledger)
+        ledger.prune(to: Set(library.entries.map { $0.id.uuidString }))
+        coach = ledger
+    }
+
     // MARK: - Play actions (GameScreen calls these)
 
     func place(_ digit: Int, at cell: Int) {
         guard solvedAt == nil, var g = game else { return }
-        guard g.place(digit, at: cell) else { return }
+        guard g.place(digit, at: cell, autoNotes: autoNotes) else { return }
         game = g
         lastPlacedCell = cell
         if g.isSolved {
@@ -839,7 +930,7 @@ final class AppModel {
     @discardableResult
     func erase(at cell: Int) -> Bool {
         guard solvedAt == nil, var g = game else { return false }
-        guard g.erase(at: cell) else { return false }
+        guard g.erase(at: cell, autoNotes: autoNotes) else { return false }
         game = g
         persistProgress()
         return true
@@ -850,6 +941,11 @@ final class AppModel {
         guard solvedAt == nil, var g = game else { return nil }
         guard let move = g.undo() else { return nil }
         game = g
+        // Undoing the bulk fill without clearing the flag would let the very
+        // next placement refill exactly what the player just took back.
+        if move.isBulkNotes, let id = currentEntryID {
+            writeCoach { $0.setAutoNotes(false, for: id.uuidString) }
+        }
         persistProgress()
         return move
     }
