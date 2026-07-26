@@ -151,7 +151,7 @@ struct MacHomeView: View {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+                StreakChip(days: model.displayedStreak, held: model.streakHeld)
             }
         }
         .padding(.top, 8)

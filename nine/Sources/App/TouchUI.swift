@@ -105,7 +105,7 @@ struct TouchHomeView: View {
                 GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                GlassChip("\(model.displayedStreak) day streak", systemImage: "flame")
+                StreakChip(days: model.displayedStreak, held: model.streakHeld)
             }
         }
         .padding(.top, 8)
@@ -1364,7 +1364,9 @@ private struct AmbientSlotView: View {
                     )
                 }
             case .streak:
-                GlassChip(streakText, systemImage: "flame")
+                // Its own capsule (points ride along here), so it takes the
+                // symbol rule from `StreakChip` rather than the whole view.
+                GlassChip(streakText, systemImage: StreakChip.symbol(held: model.streakHeld))
             }
         }
         .opacity(0.5)
@@ -1375,7 +1377,9 @@ private struct AmbientSlotView: View {
     private var streakText: String {
         var parts: [String] = []
         if model.totalPoints > 0 { parts.append("\(model.totalPoints) pts") }
-        if model.displayedStreak > 0 { parts.append("\(model.displayedStreak) day streak") }
+        if model.displayedStreak > 0 {
+            parts.append(BoardSpeech.streakChip(days: model.displayedStreak, held: model.streakHeld))
+        }
         return parts.isEmpty ? "No solves yet" : parts.joined(separator: " · ")
     }
 }
