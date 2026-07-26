@@ -560,7 +560,7 @@ struct TouchGameScreen: View {
     /// case the button simply never appears. That is the right failure for a
     /// feature whose whole discipline is that it waits and never asks: an
     /// error toast about a share nobody requested would be worse than silence.
-    @State private var shareCardURL: URL?
+    @State private var shareCard: ShareCardExport?
     @State private var haptics = AfterglowHaptics()
     @State private var motion = AfterglowMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -596,7 +596,7 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
-            .task(id: model.solvedAt) { await renderShareCard() }
+            .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .bottom) {
                 autoNotesChipView.padding(.bottom, controlsAtBottom ? 84 : 20)
             }
@@ -871,11 +871,22 @@ struct TouchGameScreen: View {
     @ViewBuilder
     private var completionChip: some View {
         if let solvedAt = model.solvedAt {
+            // Read the card **here**, in the body, and pass it in. Read inside
+            // the closure instead and it is always nil: `TimelineView`'s
+            // content closure escapes, so it captures a copy of this view
+            // struct whose `@State` is a snapshot from when the closure was
+            // made — and this one is made before the render lands, 70 ms after
+            // the solve. Driving the app found it: the renderer logged
+            // "assigned, shareCard=set" once and every subsequent evaluation of
+            // the button logged "shareCard=nil", 30 times running, with the PNG
+            // sitting on disk the whole time. Nothing about it is visible to a
+            // green test suite or to a code reading.
+            let card = shareCard
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
                     HStack(spacing: 10) {
                         GlassChip(completionText, systemImage: "checkmark")
-                        shareButton
+                        shareButton(card)
                         if case .free(let difficulty)? = model.kind {
                             Button {
                                 highlightedDigit = nil
@@ -910,9 +921,9 @@ struct TouchGameScreen: View {
     /// 322 pt against a 375 pt iPhone SE. A seventh does not fit at the craft
     /// charter's touch floor, whatever the argument for it.
     @ViewBuilder
-    private var shareButton: some View {
-        if let shareCardURL {
-            ShareLink(item: shareCardURL, preview: SharePreview(shareTitle)) {
+    private func shareButton(_ card: ShareCardExport?) -> some View {
+        if let card {
+            ShareLink(item: card.url, preview: SharePreview(shareTitle)) {
                 GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
             }
             .buttonStyle(.plain)
@@ -954,19 +965,27 @@ struct TouchGameScreen: View {
         )
     }
 
-    /// Render the card once per solve, *after* the Afterglow.
+    /// Render the card once per solve.
     ///
-    /// The chip itself is gated at 2.4 s and this waits the same interval: a
-    /// 1080×1350 `ImageRenderer` pass is not something to run against the
-    /// celebration's frame budget, and nothing needs it before the button it
-    /// feeds can appear. Keyed on `solvedAt`, so starting another board cancels
-    /// a render in flight and clears the stale URL.
-    private func renderShareCard() async {
-        shareCardURL = nil
-        guard let facts = shareFacts else { return }
-        try? await Task.sleep(for: .seconds(2.4))
-        guard !Task.isCancelled else { return }
-        shareCardURL = ShareCardRenderer.temporaryFile(
+    /// **Synchronous, in `onChange`, and deliberately not a `Task`.** The first
+    /// version slept 2.4 s inside `.task(id: model.solvedAt)` so the render
+    /// would land after the Afterglow — and driving the app caught what that
+    /// costs: `Task.sleep` returns immediately when the task is cancelled, so
+    /// any view churn inside that 2.4 s window left `shareCard` nil with no
+    /// restart to repair it, and the Share chip silently never appeared. It
+    /// reproduced on a real solve: the PNG was on disk, timestamped, and the
+    /// button was not on screen. A feature that works four times out of five is
+    /// worse than one that is not there, because nobody can report it.
+    ///
+    /// Nothing was gained by the wait either. The button lives *inside* the
+    /// completion chip's own `> 2.4 s` gate, so rendering early cannot show it
+    /// early — the gate was always doing the work the sleep was credited with.
+    private func renderShareCard() {
+        guard let facts = shareFacts else {
+            shareCard = nil
+            return
+        }
+        shareCard = ShareCardRenderer.export(
             facts: facts,
             tones: model.prefs.theme.tones(for: colorScheme),
             accent: accent

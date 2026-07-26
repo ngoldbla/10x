@@ -155,17 +155,33 @@ struct SolvedGridThumb: View {
     }
 }
 
-/// Flattens a card to PNG bytes.
+/// A rendered card, ready to hand to `ShareLink`.
+///
+/// Both halves are needed and neither substitutes for the other: the **URL** is
+/// what gets shared, because a file arrives with a name and unlocks Files,
+/// AirDrop and Photos as well as Messages; the **preview** is what the share
+/// sheet shows above the app row, and without it that row is a blank document
+/// icon — the first thing a recipient sees of the card being nothing at all.
+struct ShareCardExport {
+    let url: URL
+    let preview: Image
+}
+
+/// Flattens a card to a PNG on disk plus a preview image.
 @MainActor
 enum ShareCardRenderer {
 
-    /// The card as PNG data, or nil if the platform declined to rasterise it.
+    /// Render once, and return the file and the preview built from the same
+    /// pass — rasterising a 1080×1350 card twice to get two representations of
+    /// one picture would be pure waste on the path right after a solve.
     ///
     /// `scale = 1` against a 1080-*point* card gives a 1080-*pixel* PNG on every
     /// device. Left at the screen's scale, an iPhone SE and a Pro Max would
     /// produce different files from the same board — and a 3× card is 3240 px
-    /// wide, which is a needlessly large thing to hand to a message.
-    static func png(facts: SolveCardFacts, tones: ThemeTones, accent: Color) -> Data? {
+    /// wide, a needlessly large thing to hand to a message.
+    static func export(
+        facts: SolveCardFacts, tones: ThemeTones, accent: Color
+    ) -> ShareCardExport? {
         let renderer = ImageRenderer(
             content: ShareCard(facts: facts, tones: tones, accent: accent) {
                 SolvedGridThumb(facts: facts, tones: tones, accent: accent)
@@ -173,29 +189,27 @@ enum ShareCardRenderer {
         )
         renderer.scale = 1
         renderer.isOpaque = true
+
+        let data: Data
+        let preview: Image
         #if os(macOS)
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
-        return bitmap.representation(using: .png, properties: [:])
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else { return nil }
+        data = png
+        preview = Image(nsImage: image)
         #else
-        return renderer.uiImage?.pngData()
+        guard let image = renderer.uiImage, let png = image.pngData() else { return nil }
+        data = png
+        preview = Image(uiImage: image)
         #endif
-    }
 
-    /// Writes the PNG to a uniquely-named temp file and returns its URL.
-    ///
-    /// A file URL rather than a `Transferable` image: the share sheet then
-    /// offers Files, AirDrop and Photos as well as Messages, and the file
-    /// arrives with a name. That name is the only text Nine puts in the
-    /// recipient's file list, so it is the wordmark and nothing else.
-    static func temporaryFile(
-        facts: SolveCardFacts, tones: ThemeTones, accent: Color
-    ) -> URL? {
-        guard let data = png(facts: facts, tones: tones, accent: accent) else { return nil }
+        // The filename is the only text Nine puts in the recipient's file list,
+        // so it is the wordmark and nothing else.
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("Nine-\(UUID().uuidString.prefix(8)).png")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
-        return url
+        return ShareCardExport(url: url, preview: preview)
     }
 }

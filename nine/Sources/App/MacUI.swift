@@ -332,7 +332,7 @@ struct MacGameScreen: View {
     @State private var toastDismissal: Task<Void, Never>?
     /// The rendered share card (PRD-12); nil while rendering, and nil for
     /// good if it failed — in which case the button never appears.
-    @State private var shareCardURL: URL?
+    @State private var shareCard: ShareCardExport?
     @State private var highlightedDigit: Int?
     @State private var hoverCell: Int?
     @State private var deskHovering = false
@@ -358,7 +358,7 @@ struct MacGameScreen: View {
             .overlay(alignment: .topTrailing) { if !isDesk { statusChips.padding(20) } }
             .overlay(alignment: .bottom) { toastView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, isDesk ? 40 : 72) }
-            .task(id: model.solvedAt) { await renderShareCard() }
+            .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .top) { composingChip.padding(.top, isDesk ? 8 : 16) }
             .overlay(alignment: .bottomTrailing) { if isDesk { deskCornerGlyph.padding(10) } }
         }
@@ -428,11 +428,14 @@ struct MacGameScreen: View {
     @ViewBuilder
     private var completionChip: some View {
         if let solvedAt = model.solvedAt {
+            // Read in the body, never inside the closure — see
+            // `TouchUI.completionChip` for the 30-evaluations-of-nil this cost.
+            let card = shareCard
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
                     HStack(spacing: 10) {
                         GlassChip(completionText, systemImage: "checkmark")
-                        shareButton
+                        shareButton(card)
                     }
                     .transition(.opacity)
                 }
@@ -456,9 +459,9 @@ struct MacGameScreen: View {
     /// player finishing a board on the same $4.99 purchase would have had no
     /// reason to understand why the phone could share and the Mac could not.
     @ViewBuilder
-    private var shareButton: some View {
-        if let shareCardURL {
-            ShareLink(item: shareCardURL, preview: SharePreview(shareTitle)) {
+    private func shareButton(_ card: ShareCardExport?) -> some View {
+        if let card {
+            ShareLink(item: card.url, preview: SharePreview(shareTitle)) {
                 GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
             }
             .buttonStyle(.plain)
@@ -491,13 +494,14 @@ struct MacGameScreen: View {
         )
     }
 
-    /// Rendered after the Afterglow, exactly as on iOS.
-    private func renderShareCard() async {
-        shareCardURL = nil
-        guard let facts = shareFacts else { return }
-        try? await Task.sleep(for: .seconds(2.4))
-        guard !Task.isCancelled else { return }
-        shareCardURL = ShareCardRenderer.temporaryFile(
+    /// Rendered synchronously on the solve, exactly as on iOS — and see
+    /// `TouchUI.renderShareCard` for why it is not a `Task` with a delay in it.
+    private func renderShareCard() {
+        guard let facts = shareFacts else {
+            shareCard = nil
+            return
+        }
+        shareCard = ShareCardRenderer.export(
             facts: facts,
             tones: model.prefs.theme.tones(for: colorScheme),
             accent: accent
