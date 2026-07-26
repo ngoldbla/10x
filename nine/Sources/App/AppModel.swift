@@ -16,8 +16,19 @@ import CouchKit
 /// dot — crimson sits at rose ~345°, far from the coral marker's ~9°).
 /// Light-leaning themes get a deepened variant of each hue: the vivid values
 /// wash out on high-luminance backgrounds.
+///
+/// PRD-16 added Moss and Orchid. Their exact values are load-bearing rather
+/// than decorative, and `Tests/EngineTests/AppearancePaletteTests.swift` pins
+/// them: an accent has to stay legible on all six dark grounds *and* stay
+/// separable from its eight siblings and from coral under three kinds of
+/// colorblind vision, and those two pull against each other. The obvious
+/// candidate for the glacier→lilac gap — a periwinkle indigo — cannot satisfy
+/// both: dark enough to stay clear of Lilac, it falls to 4.08:1 on Blueprint's
+/// blue ground; light enough to read on Blueprint, it collapses to ΔE 2.05
+/// against Lilac under deuteranopia. That gap is closed in practice, so the two
+/// hues here fill the gold→meadow gap and the magenta→crimson one instead.
 enum AccentChoice: String, Codable, Sendable, CaseIterable {
-    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta
+    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta, moss, orchid
 
     var title: String {
         switch self {
@@ -29,6 +40,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return "Gold"
         case .teal: return "Teal"
         case .magenta: return "Magenta"
+        case .moss: return "Moss"
+        case .orchid: return "Orchid"
         }
     }
 
@@ -43,6 +56,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return Color(red: 0.98, green: 0.75, blue: 0.18)
         case .teal: return Color(red: 0.15, green: 0.80, blue: 0.76)
         case .magenta: return Color(red: 0.88, green: 0.42, blue: 0.90)
+        case .moss: return Color(red: 0.62, green: 0.85, blue: 0.30)
+        case .orchid: return Color(red: 0.94, green: 0.38, blue: 0.68)
         }
     }
 
@@ -59,6 +74,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return (0.98, 0.75, 0.18)
         case .teal: return (0.15, 0.80, 0.76)
         case .magenta: return (0.88, 0.42, 0.90)
+        case .moss: return (0.62, 0.85, 0.30)
+        case .orchid: return (0.94, 0.38, 0.68)
         }
     }
 
@@ -74,6 +91,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return Color(red: 0.76, green: 0.53, blue: 0.02)
         case .teal: return Color(red: 0.04, green: 0.55, blue: 0.53)
         case .magenta: return Color(red: 0.70, green: 0.20, blue: 0.70)
+        case .moss: return Color(red: 0.36, green: 0.50, blue: 0.06)
+        case .orchid: return Color(red: 0.74, green: 0.09, blue: 0.44)
         }
     }
 }
@@ -92,10 +111,10 @@ struct ThemeTones {
 }
 
 /// Color scheme for the whole app — both platforms. `auto` follows the
-/// system; the tinted themes (camel, blueprint, forest) pin their leaning so
-/// materials and secondary text follow along.
+/// system; the tinted themes (camel, blueprint, forest, ember, tide, mono) pin
+/// their leaning so materials and secondary text follow along.
 enum ThemeChoice: String, Codable, Sendable, CaseIterable {
-    case auto, dark, light, camel, blueprint, forest
+    case auto, dark, light, camel, blueprint, forest, ember, tide, mono
 
     var title: String {
         switch self {
@@ -105,6 +124,9 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
         case .camel: return "Camel"
         case .blueprint: return "Blueprint"
         case .forest: return "Forest"
+        case .ember: return "Ember"
+        case .tide: return "Tide"
+        case .mono: return "Mono"
         }
     }
 
@@ -112,7 +134,7 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
         switch self {
         case .auto: return nil
         case .light, .camel: return .light
-        case .dark, .blueprint, .forest: return .dark
+        case .dark, .blueprint, .forest, .ember, .tide, .mono: return .dark
         }
     }
 
@@ -155,6 +177,33 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
                 background: Color(red: 0.05, green: 0.13, blue: 0.09),
                 gridTone: Color(red: 0.80, green: 0.92, blue: 0.84),
                 digitTone: Color(red: 0.89, green: 0.94, blue: 0.88),
+                isLight: false
+            )
+        // PRD-16. All three are dark-leaning and all three clear the floors
+        // Blueprint set: given digits ≥12:1, grid tone ≥10:1, and the coral
+        // error marker ≥5.5:1 against the ground (pinned in
+        // AppearancePaletteTests). Ember is the one to watch — a rust ground
+        // sits ~8° from coral's hue, so its legibility is bought with
+        // luminance (6.94:1), not with hue.
+        case .ember:
+            return ThemeTones(
+                background: Color(red: 0.14, green: 0.05, blue: 0.03),
+                gridTone: Color(red: 0.98, green: 0.86, blue: 0.78),
+                digitTone: Color(red: 0.99, green: 0.91, blue: 0.85),
+                isLight: false
+            )
+        case .tide:
+            return ThemeTones(
+                background: Color(red: 0.02, green: 0.12, blue: 0.14),
+                gridTone: Color(red: 0.76, green: 0.93, blue: 0.94),
+                digitTone: Color(red: 0.86, green: 0.96, blue: 0.96),
+                isLight: false
+            )
+        case .mono:
+            return ThemeTones(
+                background: Color(red: 0.11, green: 0.11, blue: 0.12),
+                gridTone: Color(red: 0.88, green: 0.88, blue: 0.89),
+                digitTone: Color(red: 0.95, green: 0.95, blue: 0.96),
                 isLight: false
             )
         }

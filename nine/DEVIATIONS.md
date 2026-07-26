@@ -2005,3 +2005,142 @@ Debug.
   44 pt floor. Pre-existing on every `GlassChip` in the header and not this PR's
   surface; it is non-interactive decoration, but it is worth a sweep with the
   points chip beside it.
+
+---
+
+## PRD-16 — Appearance+, and the accent that could not be placed (2026-07-26)
+
+Three dark themes (Ember, Tide, Mono), two accents, three alternate iOS icons.
+No locks, no counters, no unlock order — every one of them is available on first
+launch, which is the whole covenant claim this PRD makes.
+
+### The palette became a contract, and it earned that on its first run
+
+PRD-16 §5 asks for a *manual* check that coral and the accents stay legible on
+the three new themes. That was written before anyone had the numbers, and the
+numbers turned out to be the interesting part, so the check is a test instead:
+`Tests/EngineTests/AppearancePaletteTests.swift`. It cannot link `ThemeChoice`
+— `Package.swift` covers Engine and Shared only, because Lane 1 is Linux — so it
+follows the two patterns already in this repo for that situation: the numbers
+live in the test as a table, a source-literal check fails if `AppModel.swift`
+disagrees with it (the `VariantChannelSealTests` shape), and the properties are
+asserted on the table.
+
+Both floors were proven to fire before being trusted, which is the only reason
+to believe them:
+
+- The contrast floor fired **on its first run against unmodified code**, finding
+  **crimson on blueprint at 4.23:1** — a shipped sub-AA pair four releases old.
+  It is grandfathered by name and *pinned* to 4.23 rather than waved through by a
+  lowered floor, so it cannot quietly widen and a second such pair reads as a
+  regression rather than a precedent.
+- The separation floor was fired deliberately, by adding the periwinkle this PRD
+  went on to reject: **ΔE 2.07 against Lilac under protanopia**, against a
+  palette floor of 5.98.
+
+### Indigo could not be placed, and Blueprint is why
+
+The obvious ninth accent is a periwinkle in the glacier→lilac hue gap. It cannot
+exist. Blueprint's ground is a saturated dark blue, so every escape route breaks
+the other constraint:
+
+| Candidate | Blueprint | Worst ΔE |
+|---|---|---|
+| `(0.30, 0.49, 1.00)` | **4.08** — worse than the shipped exception | 7.48 |
+| `(0.42, 0.58, 1.00)` | 5.24 | **5.04** vs Lilac |
+| `(0.45, 0.60, 1.00)` | 5.54 | **2.05** vs Lilac |
+| `(0.35, 0.58, 0.88)` | 4.85 | 7.88 — *but its nearest neighbour is Glacier* |
+
+Every value between hue 214 and 242 that clears both constraints is a second
+Glacier. **A hue gap on the wheel is not a usable gap once the grounds are
+fixed.** So Moss (hue 85) fills gold→meadow and Orchid (hue 328) fills
+magenta→crimson; both clear AA on all six dark grounds (Moss 8.94–12.46:1,
+Orchid 5.03–7.01:1) and the palette's worst pair is unmoved at ΔE 5.98 — still
+Meadow/Teal under tritanopia, as it has been since 1.1.
+
+Orchid does crowd the pink corner: Magenta 297°, Orchid 328°, Crimson 340°. That
+was a considered trade against shipping one accent instead of two, and the
+crowding is measured — 7.80 ΔE at worst — so it reads busy to normal vision and
+stays separable to everyone else.
+
+### Alternate icons: no entitlement, and the artifact that says so
+
+Asked to confirm before merging. The answer is **no entitlement, no App ID
+capability, no `match` re-mint**, and it is three artifacts rather than a claim:
+
+1. `git diff origin/main` touches none of the four entitlements files, and
+   `Nine-iOS.entitlements` is byte-identical.
+2. No added `project.yml` line names an entitlement or capability;
+   `CODE_SIGN_ENTITLEMENTS` and `PROVISIONING_PROFILE_SPECIFIER` resolve
+   identically on both refs.
+3. The **complete** built-`Info.plist` diff between `origin/main` and this branch
+   is two `CFBundleAlternateIcons` dictionaries (iPhone and `~ipad`) and nothing
+   else — saved at `.context/prd16/info-plist.diff`.
+
+A `.xcent` comparison was attempted first and abandoned honestly: Xcode emits no
+`.xcent` when `CODE_SIGNING_ALLOWED=NO`, and an absent artifact is not a passing
+test.
+
+### Both asset-catalog settings are required, and the failure is silent
+
+`ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES` alone does nothing.
+`actool` ignores it without a warning: three green platform builds, the setting
+resolving correctly in `-showBuildSettings`, the icon sets sitting in the
+catalog — and no `CFBundleAlternateIcons` in `Info.plist` at all, so
+`setAlternateIconName` would have failed on a device and nowhere else.
+`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` is what makes `actool`
+compile the non-primary sets. Both are scoped to the iOS SDKs; tvOS keeps its
+layered brand asset and macOS keeps `AppIcon-macOS.icns`, verified in the built
+bundles.
+
+This is EXECUTING-A-PRD §5 in one setting: **a green build proved nothing here,
+and `plutil -p` on the artifact was the only thing that disagreed.**
+
+### The icon's state has one owner, and it is the system
+
+Nothing about the chosen icon is persisted. `UIApplication.alternateIconName`
+already survives launches and updates and is what Springboard draws, so a mirror
+in `NinePrefs` would be a second copy that can disagree — a prefs downgrade
+would reset the stored value while the Home Screen kept the icon, with no honest
+reconciliation. Prefs are not `cloudSynced`, so the mirror buys nothing either.
+Driven, not asserted: tapping Ember produced the system's own alert, Springboard
+showed the rust icon, and after terminate-and-relaunch the row still read Ember.
+
+### Numbers
+
+`swift test`: **289 XCTest + 79 swift-testing, 3 skipped, 0 failures**, 136 s
+wall at load average **16.81** — set beside DEVIATIONS' existing 111 s at load
+2.31 and 135 s at load 7.96 for the same tree before reading it as a cost.
+Golden corpus **56/56** after every commit. iOS, tvOS and macOS builds green;
+iOS Release archive green with the alternates intact. New themes measured:
+digits 15.02–15.62:1, grid 12.95–14.16:1, coral 6.37–6.94:1 — every one above
+the floors Blueprint set (12.41 / 10.45 / 5.64).
+
+### Not done
+
+- **The AX lane lost coverage of the accent swatches.** The taller theme row
+  pushed them from y=846 past the 874 pt screen edge, so the eight existing
+  accent buttons dropped out of `prefs.txt` and the ten new ones and four icon
+  swatches never enter it (107 → 102 elements). The row's label and value are
+  still pinned, so its existence is covered; the individual swatches are not.
+  Fixing it means teaching the lane a scrolled prefs state, which is PRD-19's
+  harness. They were driven and read by hand instead.
+- **The palette test measures raw theme constants, not the composited glass.**
+  The board draws these under a plane that lifts the void, and that gap is the
+  entire reason PRD-22 exists. A green run means "no worse than what shipped",
+  never "the board meets contrast". PRD-22's 96-cell screenshot harness is still
+  unstarted, and now has crimson/blueprint waiting for it.
+- **Light-theme coral is untouched.** Paper 2.28:1 and Camel 1.32:1 are
+  pre-existing and belong to the same PRD-22 retune. No new theme is
+  light-leaning, so this PR neither improves nor worsens it.
+- **No `ThemePacksDemo` to delete.** PRD-16 §4.4 asks for it; PRD-18 removed the
+  entire `-uxdemo` rig on 2026-07-25. The prototype is one command away:
+  `git show a18cbe3:nine/Sources/App/UXDemoScenes.swift`.
+- **`PrefsSheet.swift` still holds bare string literals**, not a `Phrase` block.
+  The new rows match the file rather than starting a second convention inside
+  it; PRD-20 converts the file as a unit.
+- **No `downgrade-drill.sh` run.** That script is pinned to PRD-17's
+  `Difficulty.nocturne` and refuses to run against a tree that already has the
+  case; the prefs equivalent is in-process only. The blast radius is a single
+  local field on a non-synced blob, which is why that was judged enough.
+- **No tvOS or macOS alternate icons** (unsupported), and no seasonal icons.
