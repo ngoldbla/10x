@@ -92,10 +92,10 @@ struct ThemeTones {
 }
 
 /// Color scheme for the whole app — both platforms. `auto` follows the
-/// system; the tinted themes (camel, blueprint, forest) pin their leaning so
-/// materials and secondary text follow along.
+/// system; the tinted themes (camel, blueprint, forest, ember, tide, mono) pin
+/// their leaning so materials and secondary text follow along.
 enum ThemeChoice: String, Codable, Sendable, CaseIterable {
-    case auto, dark, light, camel, blueprint, forest
+    case auto, dark, light, camel, blueprint, forest, ember, tide, mono
 
     var title: String {
         switch self {
@@ -105,6 +105,9 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
         case .camel: return "Camel"
         case .blueprint: return "Blueprint"
         case .forest: return "Forest"
+        case .ember: return "Ember"
+        case .tide: return "Tide"
+        case .mono: return "Mono"
         }
     }
 
@@ -112,7 +115,7 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
         switch self {
         case .auto: return nil
         case .light, .camel: return .light
-        case .dark, .blueprint, .forest: return .dark
+        case .dark, .blueprint, .forest, .ember, .tide, .mono: return .dark
         }
     }
 
@@ -155,6 +158,33 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
                 background: Color(red: 0.05, green: 0.13, blue: 0.09),
                 gridTone: Color(red: 0.80, green: 0.92, blue: 0.84),
                 digitTone: Color(red: 0.89, green: 0.94, blue: 0.88),
+                isLight: false
+            )
+        // PRD-16. All three are dark-leaning and all three clear the floors
+        // Blueprint set: given digits ≥12:1, grid tone ≥10:1, and the coral
+        // error marker ≥5.5:1 against the ground (pinned in
+        // AppearancePaletteTests). Ember is the one to watch — a rust ground
+        // sits ~8° from coral's hue, so its legibility is bought with
+        // luminance (6.94:1), not with hue.
+        case .ember:
+            return ThemeTones(
+                background: Color(red: 0.14, green: 0.05, blue: 0.03),
+                gridTone: Color(red: 0.98, green: 0.86, blue: 0.78),
+                digitTone: Color(red: 0.99, green: 0.91, blue: 0.85),
+                isLight: false
+            )
+        case .tide:
+            return ThemeTones(
+                background: Color(red: 0.02, green: 0.12, blue: 0.14),
+                gridTone: Color(red: 0.76, green: 0.93, blue: 0.94),
+                digitTone: Color(red: 0.86, green: 0.96, blue: 0.96),
+                isLight: false
+            )
+        case .mono:
+            return ThemeTones(
+                background: Color(red: 0.11, green: 0.11, blue: 0.12),
+                gridTone: Color(red: 0.88, green: 0.88, blue: 0.89),
+                digitTone: Color(red: 0.95, green: 0.95, blue: 0.96),
                 isLight: false
             )
         }
