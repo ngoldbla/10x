@@ -127,6 +127,11 @@ struct PrefsSheetContent: View {
             sectionLabel("Appearance")
             themeRow
             accentRow
+            #if os(iOS)
+            // PRD-16. iOS only — a tvOS icon is a layered brand asset and macOS
+            // has no alternate-icon API.
+            AppIconRow()
+            #endif
 
             #if os(iOS)
             // PRD-2: board anchor + ambient slot, grouped with the existing
