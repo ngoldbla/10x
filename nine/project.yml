@@ -43,6 +43,30 @@ targets:
         "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]": "App Icon & Top Shelf Image"
         "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]": "App Icon & Top Shelf Image"
         "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]": "AppIcon-macOS"
+        # PRD-16 alternate icons, iOS SDKs only: a tvOS icon is a layered brand
+        # asset and macOS has no `setAlternateIconName`, so naming these there
+        # would hand actool iOS icon sets to validate against the wrong idiom.
+        # Together these two settings are the whole mechanism — they make actool
+        # emit the `CFBundleAlternateIcons` dictionary into Info.plist. There is
+        # no entitlement and no App ID capability behind alternate icons, so no
+        # `match` re-mint is implied; the PR carries the artifact that proves it.
+        #
+        # BOTH keys are required, and the failure mode is silent. With only
+        # ALTERNATE_APP_ICON_NAMES set, actool ignores it without a warning: the
+        # build succeeds, the icon sets are in the catalog, and Info.plist simply
+        # has no CFBundleAlternateIcons — so setAlternateIconName fails at
+        # runtime on a device and nowhere else. INCLUDE_ALL_APPICON_ASSETS is
+        # what makes actool compile the non-primary sets in the first place.
+        "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS[sdk=iphoneos*]": true
+        "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS[sdk=iphonesimulator*]": true
+        "ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES[sdk=iphoneos*]":
+          - AppIcon-Ember
+          - AppIcon-Tide
+          - AppIcon-Mono
+        "ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES[sdk=iphonesimulator*]":
+          - AppIcon-Ember
+          - AppIcon-Tide
+          - AppIcon-Mono
         "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvos*]": "Launch Image"
         "ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME[sdk=appletvsimulator*]": "Launch Image"
         CODE_SIGN_STYLE: Manual

@@ -23,6 +23,18 @@ struct RGB {
     func alpha(_ a: CGFloat) -> CGColor { CGColor(red: r, green: g, blue: b, alpha: a) }
 }
 
+/// An alternate iOS app icon (PRD-16). Only the palette moves — the mark is the
+/// app's, and an alternate icon that changed it would be a different app on the
+/// Home Screen.
+struct IconVariant {
+    let name: String        // the asset-catalog set name, e.g. "AppIcon-Ember"
+    let backTop: RGB
+    let backBottom: RGB
+    let grid: RGB
+    let accent: RGB
+    let secondary: RGB
+}
+
 struct AppSpec {
     let folder: String
     let backTop: RGB    // gradient start (top)
@@ -38,6 +50,9 @@ struct AppSpec {
     // carry its own HIG margin + rounded shape (transparency is fine here,
     // unlike iOS).
     var macIcon: Bool = false
+    // Alternate iOS icons (PRD-16). iOS only: a tvOS icon is a layered image
+    // stack and macOS has no `setAlternateIconName` outside Catalyst.
+    var altIcons: [IconVariant] = []
     let glyph: [String]
 }
 
@@ -85,6 +100,28 @@ let specs: [AppSpec] = [
         accent: RGB(r: 0.76, g: 0.70, b: 0.94), secondary: RGB(r: 1.0, g: 0.45, b: 0.38),
         iosIcon: true,
         macIcon: true,
+        // PRD-16. Grounds lifted from the three new themes and brightened: an
+        // icon is seen at 60 pt against an arbitrary wallpaper, not full-screen
+        // behind glass, so the board's backgrounds read as black squares at
+        // icon size. The secondary is each theme's companion accent, which is
+        // what keeps the three tellable apart in a Home Screen folder.
+        altIcons: [
+            IconVariant(
+                name: "AppIcon-Ember",
+                backTop: RGB(r: 0.14, g: 0.05, b: 0.03), backBottom: RGB(r: 0.34, g: 0.13, b: 0.06),
+                grid: RGB(r: 0.98, g: 0.86, b: 0.78),
+                accent: RGB(r: 0.98, g: 0.86, b: 0.78), secondary: RGB(r: 1.00, g: 0.56, b: 0.20)),
+            IconVariant(
+                name: "AppIcon-Tide",
+                backTop: RGB(r: 0.02, g: 0.12, b: 0.14), backBottom: RGB(r: 0.05, g: 0.28, b: 0.31),
+                grid: RGB(r: 0.76, g: 0.93, b: 0.94),
+                accent: RGB(r: 0.76, g: 0.93, b: 0.94), secondary: RGB(r: 0.15, g: 0.80, b: 0.76)),
+            IconVariant(
+                name: "AppIcon-Mono",
+                backTop: RGB(r: 0.11, g: 0.11, b: 0.12), backBottom: RGB(r: 0.26, g: 0.26, b: 0.28),
+                grid: RGB(r: 0.88, g: 0.88, b: 0.89),
+                accent: RGB(r: 0.88, g: 0.88, b: 0.89), secondary: RGB(r: 0.55, g: 0.55, b: 0.58)),
+        ],
         glyph: [
             "##...##...##",
             "##...##...##",
@@ -351,6 +388,28 @@ func emitIOSAppIcon(_ s: AppSpec, catalog: URL) {
         dir.appendingPathComponent("Contents.json"))
 }
 
+/// Alternate iOS icons (PRD-16). Each is the *primary* renderer run against a
+/// recolored copy of the spec, so the mark, the grid pitch and the glyph
+/// coverage stay bit-identical to the primary icon — only the palette moves.
+/// Renders opaque for the same reason `emitIOSAppIcon` does: the App Store
+/// rejects an iOS icon carrying an alpha channel, and that applies to alternates.
+func emitIOSAltIcons(_ s: AppSpec, catalog: URL) {
+    for variant in s.altIcons {
+        let recolored = AppSpec(
+            folder: s.folder,
+            backTop: variant.backTop, backBottom: variant.backBottom,
+            grid: variant.grid, accent: variant.accent, secondary: variant.secondary,
+            glyph: s.glyph)
+        let dir = catalog.appendingPathComponent("\(variant.name).appiconset")
+        let file = "\(variant.name)-1024.png"
+        writePNG(renderIOSIcon(recolored, size: 1024), to: dir.appendingPathComponent(file))
+        write(
+            "{ \"images\" : [ { \"filename\" : \"\(file)\", \"idiom\" : \"universal\", "
+                + "\"platform\" : \"ios\", \"size\" : \"1024x1024\" } ], \(info) }",
+            dir.appendingPathComponent("Contents.json"))
+    }
+}
+
 /// macOS app icon: the flat composition clipped to a rounded-rect with a HIG
 /// margin (PRD-4 §1). Transparency IS expected here (the margin + corners),
 /// unlike the opaque iOS icon.
@@ -439,6 +498,7 @@ for s in selected {
     emitImageset(s, name: "Top Shelf Image Wide", brand: brand, w: 2320, h: 720, coverage: 0.55)
     emitLaunchImage(s, catalog: catalog)
     if s.iosIcon { emitIOSAppIcon(s, catalog: catalog) }
+    if !s.altIcons.isEmpty { emitIOSAltIcons(s, catalog: catalog) }
     if s.macIcon { emitMacAppIcon(s, catalog: catalog) }
     print("✓ \(s.folder)/Assets.xcassets")
 }
