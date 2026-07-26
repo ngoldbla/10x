@@ -143,38 +143,47 @@ struct TouchHomeView: View {
     private var todayCard: some View {
         TouchCard(action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Today")
-                            .couchText(CouchTypography.title)
-                        Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                            .font(CouchTypography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    // PRD-14. Nested inside the card exactly as the Continue
-                    // card's discard ✕ is: the archive is a property of the
-                    // daily, so it belongs on the daily's card rather than
-                    // taking a seventh row on a shelf that is already long.
-                    Button { showArchive = true } label: {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(.accessibility, Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Archive")
-                    .accessibilityHint("Every past daily, on a month grid")
-                }
+                Text("Today")
+                    .couchText(CouchTypography.title)
+                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
+                    .font(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 12)
                 todayStatus
             }
+            // Room for the archive glyph, so a long status line never runs
+            // under it.
+            .padding(.trailing, 44)
             .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         }
         // Composing the daily is its own state on this card, so only a *foreign*
         // compose disables it.
         .disabled(composeInFlight && !isComposingDaily)
+        // PRD-14. An **overlay on** the card, never a button **inside** it: a
+        // Button nested in `TouchCard`'s Button is merged by SwiftUI, and the
+        // merge takes the inner frame — measured live, the Today card's own
+        // accessibility element collapsed from 89×129 to the glyph's 44×44 and
+        // the archive button disappeared from the tree entirely. Nothing on
+        // screen changes when that happens, which is exactly the failure
+        // EXECUTING-A-PRD §4 exists for. As an overlay the two are siblings.
+        //
+        // (The Continue card's discard ✕ is nested and has the same defect —
+        // its own element is absent from `home.txt` too. Out of scope here, and
+        // recorded in DEVIATIONS.)
+        .overlay(alignment: .topTrailing) {
+            Button { showArchive = true } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.accessibility, Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Archive")
+            .accessibilityHint("Every past daily, on a month grid")
+            .padding(.trailing, 8)
+            .padding(.top, 8)
+        }
     }
 
     @ViewBuilder
@@ -282,7 +291,9 @@ struct TouchHomeView: View {
 
     private func boardTitle(_ entry: LibraryEntry) -> String {
         switch entry.kind {
-        case .daily: return "Daily · \(entry.createdAt.formatted(date: .abbreviated, time: .omitted))"
+        // The daily's own day, not `createdAt` — the second of the two places
+        // that made the same assumption (PRD-14; see `BoardsSheet.title`).
+        case .daily(let day): return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
         case .free(let difficulty): return difficulty.title
         }
     }
@@ -730,11 +741,17 @@ struct TouchGameScreen: View {
         if model.composing != nil, model.game != nil {
             GlassChip("Composing…", systemImage: "sparkles")
                 .transition(.opacity)
-        } else if let day = model.archiveDay, model.game != nil {
+        } else if let day = model.archiveDay, model.game != nil, coachAdvice == nil {
             // PRD-14. A past day is pixel-identical to today's board, so this
             // is the only thing on screen telling the player which one they are
             // on — and, by saying "Archive" rather than a bare date, that this
             // one is not the daily their streak depends on.
+            //
+            // `coachAdvice == nil` for the same reason the timer chip carries
+            // it: the coach card parks in the band directly under this overlay,
+            // and driving the app caught the chip printed straight across the
+            // card's title. A persistent chip has to yield to a card the player
+            // just asked for.
             GlassChip("Archive · \(ArchiveCalendar.shortLabel(forDayOrdinal: day))",
                       systemImage: "calendar")
                 .transition(.opacity)

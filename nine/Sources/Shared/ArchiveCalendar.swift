@@ -160,6 +160,15 @@ public enum ArchiveCalendar {
         formatter("MMMMd").string(from: date(forDayOrdinal: ordinal))
     }
 
+    /// "Jul 12, 2026" — the board tracker's row, which needs the year because
+    /// it lists boards from any month the archive reaches.
+    ///
+    /// Matches `Date.formatted(date: .abbreviated)`, which is what that row
+    /// printed before the archive existed.
+    public static func mediumLabel(forDayOrdinal ordinal: Int) -> String {
+        formatter("MMMdy").string(from: date(forDayOrdinal: ordinal))
+    }
+
     /// What VoiceOver says on a grid cell.
     ///
     /// It lives here, not in the view, for the reason PRD-19 put the Voice
