@@ -16,8 +16,19 @@ import CouchKit
 /// dot — crimson sits at rose ~345°, far from the coral marker's ~9°).
 /// Light-leaning themes get a deepened variant of each hue: the vivid values
 /// wash out on high-luminance backgrounds.
+///
+/// PRD-16 added Moss and Orchid. Their exact values are load-bearing rather
+/// than decorative, and `Tests/EngineTests/AppearancePaletteTests.swift` pins
+/// them: an accent has to stay legible on all six dark grounds *and* stay
+/// separable from its eight siblings and from coral under three kinds of
+/// colorblind vision, and those two pull against each other. The obvious
+/// candidate for the glacier→lilac gap — a periwinkle indigo — cannot satisfy
+/// both: dark enough to stay clear of Lilac, it falls to 4.08:1 on Blueprint's
+/// blue ground; light enough to read on Blueprint, it collapses to ΔE 2.05
+/// against Lilac under deuteranopia. That gap is closed in practice, so the two
+/// hues here fill the gold→meadow gap and the magenta→crimson one instead.
 enum AccentChoice: String, Codable, Sendable, CaseIterable {
-    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta
+    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta, moss, orchid
 
     var title: String {
         switch self {
@@ -29,6 +40,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return "Gold"
         case .teal: return "Teal"
         case .magenta: return "Magenta"
+        case .moss: return "Moss"
+        case .orchid: return "Orchid"
         }
     }
 
@@ -43,6 +56,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return Color(red: 0.98, green: 0.75, blue: 0.18)
         case .teal: return Color(red: 0.15, green: 0.80, blue: 0.76)
         case .magenta: return Color(red: 0.88, green: 0.42, blue: 0.90)
+        case .moss: return Color(red: 0.62, green: 0.85, blue: 0.30)
+        case .orchid: return Color(red: 0.94, green: 0.38, blue: 0.68)
         }
     }
 
@@ -59,6 +74,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return (0.98, 0.75, 0.18)
         case .teal: return (0.15, 0.80, 0.76)
         case .magenta: return (0.88, 0.42, 0.90)
+        case .moss: return (0.62, 0.85, 0.30)
+        case .orchid: return (0.94, 0.38, 0.68)
         }
     }
 
@@ -74,6 +91,8 @@ enum AccentChoice: String, Codable, Sendable, CaseIterable {
         case .gold: return Color(red: 0.76, green: 0.53, blue: 0.02)
         case .teal: return Color(red: 0.04, green: 0.55, blue: 0.53)
         case .magenta: return Color(red: 0.70, green: 0.20, blue: 0.70)
+        case .moss: return Color(red: 0.36, green: 0.50, blue: 0.06)
+        case .orchid: return Color(red: 0.74, green: 0.09, blue: 0.44)
         }
     }
 }

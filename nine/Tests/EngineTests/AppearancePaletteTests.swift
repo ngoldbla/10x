@@ -50,6 +50,8 @@ final class AppearancePaletteTests: XCTestCase {
         ("gold",    (0.98, 0.75, 0.18)),
         ("teal",    (0.15, 0.80, 0.76)),
         ("magenta", (0.88, 0.42, 0.90)),
+        ("moss",    (0.62, 0.85, 0.30)),
+        ("orchid",  (0.94, 0.38, 0.68)),
     ]
 
     /// Every dark-leaning theme's board tones. Light-leaning themes (Paper,
