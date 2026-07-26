@@ -27,6 +27,16 @@
 import SwiftUI
 import CouchKit
 
+/// The share button's words, in the feature's own file rather than in each
+/// platform's UI file — `TouchUI` and `MacUI` are fenced to opposite platforms
+/// and cannot share a `Phrase` block, and two copies of a string is two things
+/// for PRD-20 to find and one of them to miss.
+enum ShareCardPhrase {
+    static let share = "Share"
+    /// Also the share sheet's fallback subject, so it reads as a sentence.
+    static let shareLabel = "Share your solve"
+}
+
 /// The card's fixed geometry, in one place so a future body inherits exactly
 /// the frame the grid had.
 enum ShareCardMetrics {
@@ -40,6 +50,11 @@ enum ShareCardMetrics {
     static let creditSize: CGFloat = 40
     static let dailySize: CGFloat = 30
     static let wordmarkSize: CGFloat = 64
+    /// Not localized, ever: it is the mark, not a word. It lives here rather
+    /// than in a `Phrase` block nested in `ShareCard` because that type is
+    /// generic over its body, and Swift has no static stored properties in a
+    /// generic type.
+    static let wordmark = "NINE"
 }
 
 /// The card: a themed backdrop, a square body, the captions, the wordmark.
@@ -76,7 +91,7 @@ struct ShareCard<Content: View>: View {
             // The wordmark is the entire call to action (PRD-12 §2) — no URL,
             // no "get it on the App Store", no QR code. If the picture is not
             // enough of a pitch, a link on it will not fix that.
-            Text(Phrase.wordmark)
+            Text(ShareCardMetrics.wordmark)
                 .font(.system(size: ShareCardMetrics.wordmarkSize, weight: .heavy, design: .rounded))
                 .kerning(ShareCardMetrics.wordmarkSize * 0.18)
                 .foregroundStyle(accent)
@@ -84,11 +99,6 @@ struct ShareCard<Content: View>: View {
         .padding(ShareCardMetrics.margin)
         .frame(width: ShareCardMetrics.size.width, height: ShareCardMetrics.size.height)
         .background(tones.background)
-    }
-
-    private enum Phrase {
-        /// Not localized, ever: it is the mark, not a word.
-        static let wordmark = "NINE"
     }
 }
 

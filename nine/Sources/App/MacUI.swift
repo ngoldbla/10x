@@ -330,6 +330,9 @@ struct MacGameScreen: View {
     @State private var pencilMode = false
     @State private var toast: UndoToastState?
     @State private var toastDismissal: Task<Void, Never>?
+    /// The rendered share card (PRD-12); nil while rendering, and nil for
+    /// good if it failed — in which case the button never appears.
+    @State private var shareCardURL: URL?
     @State private var highlightedDigit: Int?
     @State private var hoverCell: Int?
     @State private var deskHovering = false
@@ -355,6 +358,7 @@ struct MacGameScreen: View {
             .overlay(alignment: .topTrailing) { if !isDesk { statusChips.padding(20) } }
             .overlay(alignment: .bottom) { toastView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, isDesk ? 40 : 72) }
+            .task(id: model.solvedAt) { await renderShareCard() }
             .overlay(alignment: .top) { composingChip.padding(.top, isDesk ? 8 : 16) }
             .overlay(alignment: .bottomTrailing) { if isDesk { deskCornerGlyph.padding(10) } }
         }
@@ -426,8 +430,11 @@ struct MacGameScreen: View {
         if let solvedAt = model.solvedAt {
             TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
-                    GlassChip(completionText, systemImage: "checkmark")
-                        .transition(.opacity)
+                    HStack(spacing: 10) {
+                        GlassChip(completionText, systemImage: "checkmark")
+                        shareButton
+                    }
+                    .transition(.opacity)
                 }
             }
         }
@@ -438,6 +445,63 @@ struct MacGameScreen: View {
             return "Solved · \(model.displayedStreak) day streak"
         }
         return "Solved"
+    }
+
+    // MARK: Share (PRD-12)
+
+    /// PRD-12 §3 scopes the share to iOS and allows macOS "if free". It is:
+    /// `ShareLink` presents the standard `NSSharingServicePicker` here, and the
+    /// card, its facts and its renderer are all cross-platform already — this
+    /// file supplies a button and a temp-file URL and nothing else. A Mac
+    /// player finishing a board on the same $4.99 purchase would have had no
+    /// reason to understand why the phone could share and the Mac could not.
+    @ViewBuilder
+    private var shareButton: some View {
+        if let shareCardURL {
+            ShareLink(item: shareCardURL, preview: SharePreview(shareTitle)) {
+                GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ShareCardPhrase.shareLabel)
+        }
+    }
+
+    private var shareTitle: String { shareFacts?.shareTitle ?? ShareCardPhrase.shareLabel }
+
+    /// See `TouchUI.shareFacts` — the same rules, including the archive one:
+    /// an archive board never touched the streak, so its card never prints one.
+    private var shareFacts: SolveCardFacts? {
+        guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
+        let isDaily: Bool
+        let difficulty: Difficulty
+        switch model.kind {
+        case .daily?:
+            isDaily = true
+            difficulty = .steady
+        case .free(let d)?:
+            isDaily = false
+            difficulty = d
+        case nil:
+            return nil
+        }
+        return SolveCardFacts(
+            game: game, difficulty: difficulty, isDaily: isDaily,
+            streak: model.archiveDay == nil ? model.displayedStreak : 0,
+            at: solvedAt
+        )
+    }
+
+    /// Rendered after the Afterglow, exactly as on iOS.
+    private func renderShareCard() async {
+        shareCardURL = nil
+        guard let facts = shareFacts else { return }
+        try? await Task.sleep(for: .seconds(2.4))
+        guard !Task.isCancelled else { return }
+        shareCardURL = ShareCardRenderer.temporaryFile(
+            facts: facts,
+            tones: model.prefs.theme.tones(for: colorScheme),
+            accent: accent
+        )
     }
 
     /// A small restore glyph that fades in when the pointer is over the desk

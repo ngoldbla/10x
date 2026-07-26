@@ -554,6 +554,13 @@ struct TouchGameScreen: View {
     @State private var drawerHeight: CGFloat = 220
     /// Afterglow: the haptic score and the gravity-tilt source live in the
     /// view layer — AppModel is platform-shared logic; this is presentation.
+    /// The rendered share card (PRD-12), written once per solve.
+    ///
+    /// Nil while it renders, and nil forever if rendering failed — in which
+    /// case the button simply never appears. That is the right failure for a
+    /// feature whose whole discipline is that it waits and never asks: an
+    /// error toast about a share nobody requested would be worse than silence.
+    @State private var shareCardURL: URL?
     @State private var haptics = AfterglowHaptics()
     @State private var motion = AfterglowMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -589,6 +596,7 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
+            .task(id: model.solvedAt) { await renderShareCard() }
             .overlay(alignment: .bottom) {
                 autoNotesChipView.padding(.bottom, controlsAtBottom ? 84 : 20)
             }
@@ -867,6 +875,7 @@ struct TouchGameScreen: View {
                 if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
                     HStack(spacing: 10) {
                         GlassChip(completionText, systemImage: "checkmark")
+                        shareButton
                         if case .free(let difficulty)? = model.kind {
                             Button {
                                 highlightedDigit = nil
@@ -889,6 +898,79 @@ struct TouchGameScreen: View {
             return "Solved · \(model.displayedStreak) day streak"
         }
         return "Solved"
+    }
+
+    // MARK: Share (PRD-12)
+
+    /// The share button waits and never asks: no prompt, no badge, no "share
+    /// your streak!" — it sits beside the chip and costs nothing to ignore.
+    ///
+    /// Beside the completion chip rather than in the control bar, and that is
+    /// not taste: the bar has held six 44 pt buttons since PRD-11, measured at
+    /// 322 pt against a 375 pt iPhone SE. A seventh does not fit at the craft
+    /// charter's touch floor, whatever the argument for it.
+    @ViewBuilder
+    private var shareButton: some View {
+        if let shareCardURL {
+            ShareLink(item: shareCardURL, preview: SharePreview(shareTitle)) {
+                GlassChip(ShareCardPhrase.share, systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ShareCardPhrase.shareLabel)
+        }
+    }
+
+    private var shareTitle: String { shareFacts?.shareTitle ?? ShareCardPhrase.shareLabel }
+
+    /// The facts behind the card, or nil when there is no solved board to
+    /// describe.
+    ///
+    /// `model.solvedAt` is the instant the timer was paused, so the card's time
+    /// is the same number the completion chip is showing rather than a fresh
+    /// read of a clock that has moved on since.
+    private var shareFacts: SolveCardFacts? {
+        guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
+        let isDaily: Bool
+        let difficulty: Difficulty
+        switch model.kind {
+        case .daily?:
+            isDaily = true
+            difficulty = .steady   // the daily composes at steady
+        case .free(let d)?:
+            isDaily = false
+            difficulty = d
+        case nil:
+            return nil
+        }
+        return SolveCardFacts(
+            game: game,
+            difficulty: difficulty,
+            isDaily: isDaily,
+            // An archive board is a real solve and shares like one, but PRD-14
+            // is explicit that it never touched the streak — so it must not
+            // print one either, or the card claims credit the ledger refused.
+            streak: model.archiveDay == nil ? model.displayedStreak : 0,
+            at: solvedAt
+        )
+    }
+
+    /// Render the card once per solve, *after* the Afterglow.
+    ///
+    /// The chip itself is gated at 2.4 s and this waits the same interval: a
+    /// 1080×1350 `ImageRenderer` pass is not something to run against the
+    /// celebration's frame budget, and nothing needs it before the button it
+    /// feeds can appear. Keyed on `solvedAt`, so starting another board cancels
+    /// a render in flight and clears the stale URL.
+    private func renderShareCard() async {
+        shareCardURL = nil
+        guard let facts = shareFacts else { return }
+        try? await Task.sleep(for: .seconds(2.4))
+        guard !Task.isCancelled else { return }
+        shareCardURL = ShareCardRenderer.temporaryFile(
+            facts: facts,
+            tones: model.prefs.theme.tones(for: colorScheme),
+            accent: accent
+        )
     }
 
     // MARK: Stats drawer
@@ -1485,9 +1567,5 @@ private enum Phrase {
     static let graceTitle = "Your streak held"
     static let graceBody = "You took yesterday off; one rest day won't cost you."
     static let graceHint = "Dismisses this card"
-
-    // PRD-12.
-    static let share = "Share"
-    static let shareLabel = "Share your solve"
 }
 #endif
