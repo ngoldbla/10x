@@ -1,9 +1,18 @@
-// BoardSpeechTests — the spoken board (PRD-19). These pin three things that
+// BoardSpeechTests — the spoken board (PRD-19). These pin four things that
 // are easy to regress and impossible to notice without a screen reader:
 // 1-basing of row/column/box, the singular/plural boundaries in the
-// announcements, and the `showErrors: false` privacy branch — VoiceOver must
-// never reveal a wrong entry the sighted player is not being shown.
+// announcements, the `showErrors: false` privacy branch — VoiceOver must
+// never reveal a wrong entry the sighted player is not being shown — and, since
+// PRD-20 Task 7, the shape of the sentences themselves.
+//
+// That last one is why this file is a specification rather than a regression
+// net, and why CI runs it before it will build a simulator: a coach sentence
+// assembled from fragments still reads perfectly in English, so English is the
+// one language in which the bug is invisible. The three tests under "The rule
+// this task landed" fail on a change that compiles, passes every other test,
+// and would have shipped nine languages of grammatical-looking nonsense.
 import XCTest
+import Foundation
 import NineEngine
 @testable import NineShared
 
@@ -231,7 +240,6 @@ final class BoardSpeechTests: XCTestCase {
             (0..<81).count(where: { !game.isGiven($0) && puzzle.solution[$0] == d }) >= 3
         })
         let holes = (0..<81).filter { !game.isGiven($0) && puzzle.solution[$0] == digit }
-        let word = BoardSpeech.digitWordCapitalized(digit)
         let plural = BoardSpeech.digitWordPlural(digit)
         let singular = BoardSpeech.digitWord(digit)
 
@@ -241,13 +249,13 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertEqual(game.count(of: digit), 7)
         XCTAssertEqual(
             BoardSpeech.placementAnnouncement(digit: digit, in: game),
-            "\(word) placed. Two \(plural) remaining."
+            "Placed \(singular). That leaves two \(plural) to place."
         )
 
         XCTAssertTrue(game.place(digit, at: holes[holes.count - 2]))
         XCTAssertEqual(
             BoardSpeech.placementAnnouncement(digit: digit, in: game),
-            "\(word) placed. One \(singular) remaining.",
+            "Placed \(singular). That leaves one \(singular) to place.",
             "one left is singular"
         )
 
@@ -255,13 +263,44 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertTrue(game.isDigitComplete(digit))
         XCTAssertEqual(
             BoardSpeech.placementAnnouncement(digit: digit, in: game),
-            "\(word) placed. All \(plural) done."
+            "Placed \(singular). All \(plural) done."
         )
+    }
+
+    /// Every announcement is verb-first, and that is the shape of the rule
+    /// rather than a preference: an argument standing at the head of a sentence
+    /// is an argument something has to capitalize, and capitalizing a translated
+    /// noun is an English-only operation. The word arrives in its citation form
+    /// and the template owns the capital.
+    func testNoAnnouncementOpensWithASplicedWord() {
+        for digit in 1...9 {
+            for sentence in [
+                BoardSpeech.placementAnnouncement(digit: digit, in: game),
+                BoardSpeech.eraseAnnouncement(digit: digit),
+                BoardSpeech.noteAnnouncement(digit: digit, added: true),
+                BoardSpeech.noteAnnouncement(digit: digit, added: false),
+                BoardSpeech.remainingClause(digit: digit, in: game),
+            ] {
+                let opening = String(sentence.prefix(while: { $0 != " " }))
+                XCTAssertFalse(
+                    (1...9).map(BoardSpeech.digitWord).contains(opening.lowercased()),
+                    "\"\(sentence)\" opens with the digit word — a position that needs a capital"
+                )
+                XCTAssertFalse(
+                    (0...9).map(BoardSpeech.countWord).contains(opening.lowercased()),
+                    "\"\(sentence)\" opens with a count word — the same trap one argument over"
+                )
+                XCTAssertEqual(
+                    opening, opening.prefix(1).uppercased() + opening.dropFirst(),
+                    "\"\(sentence)\" starts lowercase, so its capital went missing with the helper"
+                )
+            }
+        }
     }
 
     func testSolvedAnnouncementAndEraseAndNotes() {
         XCTAssertEqual(BoardSpeech.solvedAnnouncement, "Solved.")
-        XCTAssertEqual(BoardSpeech.eraseAnnouncement(digit: 4), "Four cleared.")
+        XCTAssertEqual(BoardSpeech.eraseAnnouncement(digit: 4), "Cleared four.")
         XCTAssertEqual(BoardSpeech.noteAnnouncement(digit: 4, added: true), "Note four added.")
         XCTAssertEqual(BoardSpeech.noteAnnouncement(digit: 4, added: false), "Note four removed.")
     }
@@ -304,12 +343,24 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertEqual((1...9).map(BoardSpeech.digitWord), [
             "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
         ])
-        XCTAssertEqual(BoardSpeech.digitWordCapitalized(7), "Seven")
         XCTAssertEqual(BoardSpeech.digitWordPlural(6), "sixes", "not 'sixs'")
         XCTAssertEqual(BoardSpeech.digitNoun(4, count: 1), "four")
         XCTAssertEqual(BoardSpeech.digitNoun(4, count: 2), "fours")
         XCTAssertEqual(BoardSpeech.countWord(0), "zero")
         XCTAssertEqual(BoardSpeech.countWord(12), "12", "past nine we fall back to numerals")
+    }
+
+    /// The words are lowercase, in every position, because nothing in the app
+    /// capitalizes them any more. A catalog whose German says "Vier" says it in
+    /// the catalog; this is the English half of that promise.
+    func testEveryNumberWordArrivesInItsCitationForm() {
+        for digit in 1...9 {
+            for word in [BoardSpeech.digitWord(digit), BoardSpeech.digitWordPlural(digit),
+                         BoardSpeech.digitNoun(digit, count: 2), BoardSpeech.countWord(digit)] {
+                XCTAssertEqual(word, word.lowercased(),
+                               "\(word) arrived capitalized — some caller is still casing words")
+            }
+        }
     }
 
     // MARK: - Out-of-range safety
@@ -325,7 +376,6 @@ final class BoardSpeechTests: XCTestCase {
         }
         for digit in [-1, 0, 10, Int.min, Int.max] {
             XCTAssertEqual(BoardSpeech.digitWord(digit), "")
-            XCTAssertEqual(BoardSpeech.digitWordCapitalized(digit), "")
             XCTAssertEqual(BoardSpeech.digitWordPlural(digit), "")
             XCTAssertEqual(BoardSpeech.placementAnnouncement(digit: digit, in: game), "")
             XCTAssertEqual(BoardSpeech.remainingClause(digit: digit, in: game), "")
@@ -336,16 +386,42 @@ final class BoardSpeechTests: XCTestCase {
 
     // MARK: - Coach sentences (PRD-11)
 
-    func testUnitLabelFollowsTheEnginesUnitsConvention() {
-        XCTAssertEqual(BoardSpeech.unitLabel(0), "Row 1")
-        XCTAssertEqual(BoardSpeech.unitLabel(8), "Row 9")
-        XCTAssertEqual(BoardSpeech.unitLabel(9), "Column 1")
-        XCTAssertEqual(BoardSpeech.unitLabel(17), "Column 9")
-        XCTAssertEqual(BoardSpeech.unitLabel(18), "Box 1")
-        XCTAssertEqual(BoardSpeech.unitLabel(26), "Box 9")
-        XCTAssertEqual(BoardSpeech.unitLabel(27), "", "a variant unit has no classic label")
-        XCTAssertEqual(BoardSpeech.unitLabel(-1), "")
-        XCTAssertEqual(BoardSpeech.unitLabel(Int.max), "")
+    /// The engine's `units` convention — `0..<9` rows, `9..<18` columns,
+    /// `18..<27` boxes — pinned at both ends of all three bands.
+    ///
+    /// This used to assert on `BoardSpeech.unitLabel`, which returned the noun
+    /// "Box 5" for a sentence to drop into a hole. The nouns are inside the
+    /// sentences now (one catalog entry per unit kind), so the convention is
+    /// pinned through a sentence instead — same six boundaries, plus what
+    /// happens past the end of the table.
+    func testCoachSentencesFollowTheEnginesUnitsConvention() {
+        let expected: [(unit: Int, sentence: String)] = [
+            (0,  "Only one square in row 1 can take a 7."),
+            (8,  "Only one square in row 9 can take a 7."),
+            (9,  "Only one square in column 1 can take a 7."),
+            (17, "Only one square in column 9 can take a 7."),
+            (18, "Only one square in box 1 can take a 7."),
+            (26, "Only one square in box 9 can take a 7."),
+        ]
+        for (unit, sentence) in expected {
+            XCTAssertEqual(
+                BoardSpeech.coachSentence(Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                                      placement: Placement(cell: 40, digit: 7),
+                                                      patternUnit: unit)),
+                sentence
+            )
+        }
+        // A variant unit (PRD-23) and a bad index are not classic units, so the
+        // hidden single says the thing that needs no unit at all.
+        for unit in [27, -1, Int.max] {
+            XCTAssertEqual(
+                BoardSpeech.coachSentence(Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                                      placement: Placement(cell: 40, digit: 7),
+                                                      patternUnit: unit)),
+                "Row 5, column 5 is the only square left that can take a 7.",
+                "unit \(unit) is not one of the engine's 27"
+            )
+        }
     }
 
     func testNakedSingleNamesTheCellAndTheDigit() {
@@ -354,17 +430,43 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertEqual(BoardSpeech.coachTitle(advice), "Naked Single")
         XCTAssertEqual(
             BoardSpeech.coachSentence(advice),
-            "Row 5, column 5 has one candidate left: seven."
+            "Row 5, column 5 has one candidate left: 7."
+        )
+        // 1-based on both axes, from the corner where an off-by-one shows.
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [0], digits: [1],
+                                                  placement: Placement(cell: 0, digit: 1))),
+            "Row 1, column 1 has one candidate left: 1."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [80], digits: [9],
+                                                  placement: Placement(cell: 80, digit: 9))),
+            "Row 9, column 9 has one candidate left: 9."
         )
     }
 
-    func testHiddenSingleNamesTheUnitThatConfinesTheDigit() {
+    /// One sentence per unit kind, and this is what says they all exist. A
+    /// missing key would resolve to itself — "coach.hiddenSingle.sentence.col"
+    /// spoken aloud — which no assertion about *shape* would catch.
+    func testHiddenSingleHasItsOwnSentenceForEachUnitKind() {
         let advice = Self.advice(.hiddenSingle, cells: [40], digits: [7],
                                  placement: Placement(cell: 40, digit: 7), patternUnit: 22)
         XCTAssertEqual(BoardSpeech.coachTitle(advice), "Hidden Single")
         XCTAssertEqual(
             BoardSpeech.coachSentence(advice),
-            "Only one square in Box 5 can take a seven."
+            "Only one square in box 5 can take a 7."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                                  placement: Placement(cell: 40, digit: 7),
+                                                  patternUnit: 4)),
+            "Only one square in row 5 can take a 7."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.hiddenSingle, cells: [40], digits: [7],
+                                                  placement: Placement(cell: 40, digit: 7),
+                                                  patternUnit: 13)),
+            "Only one square in column 5 can take a 7."
         )
     }
 
@@ -373,7 +475,7 @@ final class BoardSpeechTests: XCTestCase {
                                  placement: Placement(cell: 40, digit: 7))
         XCTAssertEqual(
             BoardSpeech.coachSentence(advice),
-            "Row 5, column 5 is the only square left that can take a seven."
+            "Row 5, column 5 is the only square left that can take a 7."
         )
     }
 
@@ -383,8 +485,22 @@ final class BoardSpeechTests: XCTestCase {
                                  patternUnit: 18, targetUnit: 0)
         XCTAssertEqual(
             BoardSpeech.coachSentence(advice),
-            "Three and seven fill these two squares between them, "
-                + "so neither can go anywhere else in Row 1."
+            "3 and 7 fill these two squares between them, "
+                + "so neither can go anywhere else in row 1."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 9], digits: [3, 7],
+                                                  eliminations: [Elimination(cell: 18, digit: 3)],
+                                                  patternUnit: 18, targetUnit: 9)),
+            "3 and 7 fill these two squares between them, "
+                + "so neither can go anywhere else in column 1."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3, 7],
+                                                  eliminations: [Elimination(cell: 2, digit: 3)],
+                                                  patternUnit: 0, targetUnit: 18)),
+            "3 and 7 fill these two squares between them, "
+                + "so neither can go anywhere else in box 1."
         )
     }
 
@@ -394,19 +510,57 @@ final class BoardSpeechTests: XCTestCase {
                                  targetUnit: 0)
         XCTAssertEqual(
             BoardSpeech.coachSentence(advice),
-            "Three and seven fit only these two squares in Row 1, so nothing else fits there."
+            "3 and 7 fit only these two squares in row 1, so nothing else fits there."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.hiddenPair, cells: [0, 9], digits: [3, 7],
+                                                  eliminations: [Elimination(cell: 0, digit: 5)],
+                                                  targetUnit: 17)),
+            "3 and 7 fit only these two squares in column 9, so nothing else fits there."
+        )
+        XCTAssertEqual(
+            BoardSpeech.coachSentence(Self.advice(.hiddenPair, cells: [0, 1], digits: [3, 7],
+                                                  eliminations: [Elimination(cell: 0, digit: 5)],
+                                                  targetUnit: 26)),
+            "3 and 7 fit only these two squares in box 9, so nothing else fits there."
         )
     }
 
-    func testBoxLineReductionNamesTheSourceUnitThenTheClearedOne() {
-        let advice = Self.advice(.boxLineReduction, cells: [0, 1], digits: [7],
-                                 eliminations: [Elimination(cell: 5, digit: 7)],
-                                 patternUnit: 18, targetUnit: 0)
+    /// A box-line reduction runs in two directions — pointing (box → line) and
+    /// claiming (line → box), `Coach.swift` — and each direction crosses two
+    /// line kinds. Four sentences, all four pinned, because the old single
+    /// template hid the difference behind two spliced nouns.
+    func testBoxLineReductionSpeaksAllFourDirections() {
+        func sentence(pattern: Int, target: Int) -> String {
+            BoardSpeech.coachSentence(
+                Self.advice(.boxLineReduction, cells: [0, 1], digits: [7],
+                            eliminations: [Elimination(cell: 5, digit: 7)],
+                            patternUnit: pattern, targetUnit: target))
+        }
         XCTAssertEqual(
-            BoardSpeech.coachSentence(advice),
-            "Every seven still possible in Box 1 sits in Row 1, "
-                + "so no other square in Row 1 can be a seven."
+            sentence(pattern: 18, target: 0),
+            "Every 7 still possible in box 1 sits in row 1, "
+                + "so no other square in row 1 can be a 7."
         )
+        XCTAssertEqual(
+            sentence(pattern: 18, target: 9),
+            "Every 7 still possible in box 1 sits in column 1, "
+                + "so no other square in column 1 can be a 7."
+        )
+        XCTAssertEqual(
+            sentence(pattern: 0, target: 18),
+            "Every 7 still possible in row 1 sits in box 1, "
+                + "so no other square in box 1 can be a 7."
+        )
+        XCTAssertEqual(
+            sentence(pattern: 9, target: 18),
+            "Every 7 still possible in column 1 sits in box 1, "
+                + "so no other square in box 1 can be a 7."
+        )
+        // A box-line reduction is a box and a line by construction, so row →
+        // column cannot arise. Silence beats a sentence naming the wrong shapes.
+        XCTAssertEqual(sentence(pattern: 0, target: 9), "")
+        XCTAssertEqual(sentence(pattern: 18, target: 26), "")
     }
 
     func testXWingOrientationComesFromTheVictimsNotTheCorners() {
@@ -418,8 +572,8 @@ final class BoardSpeechTests: XCTestCase {
         )
         XCTAssertEqual(
             BoardSpeech.coachSentence(rowBased),
-            "Sevens in these two rows can only sit in two columns, "
-                + "so no other square in those columns can be a seven."
+            "In these two rows, 7 can only sit in two columns, "
+                + "so no other square in those columns can be a 7."
         )
         // Same corners, victims sharing the rows instead.
         let columnBased = Self.advice(
@@ -428,8 +582,8 @@ final class BoardSpeechTests: XCTestCase {
         )
         XCTAssertEqual(
             BoardSpeech.coachSentence(columnBased),
-            "Sevens in these two columns can only sit in two rows, "
-                + "so no other square in those rows can be a seven."
+            "In these two columns, 7 can only sit in two rows, "
+                + "so no other square in those rows can be a 7."
         )
     }
 
@@ -465,9 +619,174 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [], digits: [])), "")
         XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3])), "")
         XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.hiddenPair, cells: [0, 1], digits: [])), "")
+        // A cell or a digit outside the board. The sentence takes numbers now,
+        // so an unguarded one would be *printed* rather than dropped: "Row 0,
+        // column 0 has one candidate left: 12."
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [99], digits: [7])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedSingle, cells: [40], digits: [12])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.hiddenSingle, cells: [-1], digits: [7])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3, 0],
+                                                             targetUnit: 0)), "")
+        // A pair or a reduction whose unit the solver could not name. There is
+        // no unit-free sentence for these — the old code spliced an empty label
+        // and said "…anywhere else in ."
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3, 7])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.hiddenPair, cells: [0, 1], digits: [3, 7])), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.boxLineReduction, cells: [0, 1], digits: [7],
+                                                             patternUnit: 18)), "")
+        XCTAssertEqual(BoardSpeech.coachSentence(Self.advice(.nakedPair, cells: [0, 1], digits: [3, 7],
+                                                             targetUnit: 27)), "",
+                       "a variant unit is not a row, a column or a box")
+    }
+
+    // MARK: - The rule this task landed (PRD-20 Task 7)
+    //
+    // Three tests, and they are the difference between "the coach's English was
+    // rewritten once" and "the coach's English cannot go back". Every one of
+    // them fails on a change that still compiles and still reads correctly in
+    // English — which is the only kind of regression this seam has.
+
+    /// **The seal.** No coach sentence takes a pre-formatted word.
+    ///
+    /// A `%@` in a coach entry is a hole a noun gets dropped into, and the
+    /// grammar around that hole is English's: one preposition, no inflection,
+    /// subject before object. A translator cannot fix it from the catalog,
+    /// because the catalog is not where it is wrong. The arguments are numbers;
+    /// the unit kind is baked into the key.
+    ///
+    /// Note the specifiers are positional, so the string to look for is
+    /// `%1$@`, not `%@` — a `contains("%@")` here would pass on every table
+    /// this repo can produce and pin nothing at all.
+    func testNoCoachSentenceSplicesAPreFormattedWord() {
+        // The one entry that is not a sentence: it joins a heading and a
+        // sentence, both already translated, into one VoiceOver utterance.
+        // Named rather than pattern-matched, and pinned to its exact shape —
+        // an exemption that can grow by accident is not an exemption.
+        let exempt = "coach.card.label"
+        XCTAssertEqual(EnglishPhrases.table[exempt], "%1$@. %2$@", """
+            \(exempt) is exempt from the seal below because it splices two whole \
+            translated strings rather than a noun. If its English has grown \
+            words around those two arguments, it has become a sentence and the \
+            exemption no longer applies to it.
+            """)
+
+        for (key, format) in EnglishPhrases.table where key.hasPrefix("coach.") && key != exempt {
+            let spliced = PhrasebookTests.positionalSpecifiers(in: format)
+                .filter { $0.conversion == "@" }
+            XCTAssertEqual(spliced.map(\.index), [], """
+                \(key) = "\(format)" splices a pre-formatted word. Only the digit \
+                noun may be spliced (board.digitWord.*, board.digitPlural.*), and \
+                only outside coach.*. Bake the noun into the key instead — one \
+                entry per unit kind — the way coach.hiddenSingle.sentence.row and \
+                coach.hiddenSingle.sentence.box already are.
+                """)
+            XCTAssertFalse(format.contains("%@"), "\(key) uses a bare, non-positional %@")
+        }
+    }
+
+    /// **The extent of the exception**, from the code's side.
+    ///
+    /// The ruling of 2026-07-26 kept the spelled digit words, because VoiceOver
+    /// reads "two fours remaining" naturally and "2 4's remaining" badly. It
+    /// kept nothing else. So every `.text(…)` argument in `BoardSpeech.swift` is
+    /// a number word — plus the pencil-mark list, which is numerals with a
+    /// separator and is named here so it cannot be joined by a fifth thing in
+    /// silence. Splice a unit name or a cell label back in and this fails.
+    func testTheOnlySplicedWordsAreTheNumberWords() throws {
+        // Code only. The comments in that file discuss `.text(…)` by name —
+        // they have to, it is the thing they are about — and prose is not a
+        // call site. No string literal in the file contains "//".
+        let source = try String(contentsOf: Self.boardSpeechSource(), encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.components(separatedBy: "//").first ?? "" }
+            .joined(separator: "\n")
+        let allowed: Set<String> = [
+            "digitWord",     // "four"  — board.announce.placed / .cleared / .note*
+            "digitNoun",     // "fours" or "four", agreeing with the count
+            "digitPlural",   // "fours" — board.announce.allDone
+            "countWord",     // "two"   — board.announce.remaining
+            "noteList",      // "2, 5, 9" — numerals, already joined
+        ]
+        let pattern = try NSRegularExpression(pattern: #"\.text\(([A-Za-z_][A-Za-z0-9_]*)\)"#)
+        let range = NSRange(source.startIndex..., in: source)
+        let matches = pattern.matches(in: source, range: range)
+
+        XCTAssertEqual(
+            matches.count, source.components(separatedBy: ".text(").count - 1,
+            """
+            a `.text(…)` argument in BoardSpeech.swift is not a plain identifier. \
+            That is how `sentenceCased(plural)` used to hide, and this test cannot \
+            read what it does not match.
+            """
+        )
+        XCTAssertFalse(matches.isEmpty, "read no `.text(…)` at all — did the file move?")
+        for match in matches {
+            let name = String(source[Range(match.range(at: 1), in: source)!])
+            XCTAssertTrue(allowed.contains(name), """
+                BoardSpeech splices `\(name)` into a sentence. Only the number \
+                words may be spliced (the ruling of 2026-07-26, for VoiceOver); \
+                everything else belongs inside its own catalog entry.
+                """)
+        }
+    }
+
+    /// Sentence-casing a translated noun is an English-only operation — German
+    /// capitalizes nouns wherever they stand, Japanese has no case at all — and
+    /// it is invisible in review because in English it looks like politeness.
+    /// The catalog entry carries its own capitalization now, and no argument
+    /// lands sentence-initial for it to be needed.
+    func testNoSentenceCasingHelperSurvives() throws {
+        let source = try String(contentsOf: Self.boardSpeechSource(), encoding: .utf8)
+        for helper in ["sentenceCased", "capitalizedFirst", ".uppercased()", ".capitalized"] {
+            XCTAssertFalse(source.contains(helper), """
+                BoardSpeech.swift still names `\(helper)`. Casing a word the \
+                catalog supplied assumes English's rules for where a capital \
+                goes; the catalog entry carries its own.
+                """)
+        }
+    }
+
+    /// The unit-kind expansion, as a number. Six functions became seventeen
+    /// entries, and the duplication is the point — so a diff that quietly folds
+    /// two of them back into one template has to say so here.
+    func testEveryCoachSentenceKeyIsAccountedFor() {
+        let sentences = EnglishPhrases.table.keys
+            .filter { $0.hasPrefix("coach.") && $0.contains(".sentence") }
+            .sorted()
+        XCTAssertEqual(sentences, [
+            "coach.boxLine.sentence.boxToCol",
+            "coach.boxLine.sentence.boxToRow",
+            "coach.boxLine.sentence.colToBox",
+            "coach.boxLine.sentence.rowToBox",
+            "coach.exhausted.sentence",
+            "coach.hiddenPair.sentence.box",
+            "coach.hiddenPair.sentence.col",
+            "coach.hiddenPair.sentence.row",
+            "coach.hiddenSingle.sentence.box",
+            "coach.hiddenSingle.sentence.cell",
+            "coach.hiddenSingle.sentence.col",
+            "coach.hiddenSingle.sentence.row",
+            "coach.nakedPair.sentence.box",
+            "coach.nakedPair.sentence.col",
+            "coach.nakedPair.sentence.row",
+            "coach.nakedSingle.sentence",
+            "coach.slip.sentence",
+            "coach.xWing.sentence.colBase",
+            "coach.xWing.sentence.rowBase",
+        ])
     }
 
     // MARK: - Helpers
+
+    /// The file two of the tests above read rather than call. Some of what this
+    /// task landed is the *absence* of code, and absence has no API.
+    private static func boardSpeechSource() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SharedTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // nine
+            .appendingPathComponent("Sources/Shared/BoardSpeech.swift")
+    }
 
     /// A digit that is definitely not the solution for `cell`.
     private func wrongDigit(for cell: Int) -> Int {

@@ -970,11 +970,11 @@ COMMENTS = {
     "board.value.noteSeparator": "Joins the digits in a spoken list of pencil marks. Punctuation only — use whatever this language lists with (a comma in English, an ideographic comma in Japanese).",
     "board.box.filled": "VoiceOver, group scan: this 3x3 box is complete. A word, not a sentence.",
     "board.box.empty": "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8.",
-    "board.announce.placed": "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"). A sentence: it ends in a full stop.",
-    "board.announce.cleared": "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word.",
+    "board.announce.placed": "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"), and it arrives lowercase: open the sentence with a word of your own rather than with %1$@, so this language's capitalization is yours to decide. A sentence: it ends in a full stop.",
+    "board.announce.cleared": "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word, lowercase — as in board.announce.placed, do not open the sentence with it.",
     "board.announce.noteAdded": "VoiceOver announcement after a pencil mark is added. %1$@ is the digit as a word.",
     "board.announce.noteRemoved": "VoiceOver announcement after a pencil mark is removed. %1$@ is the digit as a word.",
-    "board.announce.remaining": "VoiceOver announcement: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\").",
+    "board.announce.remaining": "VoiceOver announcement, spoken straight after board.announce.placed: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\"). Both arrive lowercase and neither should open the sentence. A language that counts with numerals may write the number into the sentence and let the words go unused.",
     "board.announce.allDone": "VoiceOver announcement: every instance of one digit is now placed. %1$@ is the digit's plural (\"sevens\").",
     "board.announce.solved": "VoiceOver announcement the moment the board is finished. One word, a full sentence.",
     "board.progress.filled": "VoiceOver board summary. %1$lld squares filled of %2$lld fillable.",
@@ -1017,20 +1017,35 @@ COMMENTS = {
 
     # The coach (PRD-11). One sentence, on a card, that the player could check
     # by hand. Never mentions the solution.
+    #
+    # Every argument here is a NUMBER — a digit, a row/column/box number — and
+    # never a word this app formatted for you. There is one sentence per unit
+    # kind (row, column, box) rather than one sentence with the unit's name
+    # dropped in, so the preposition, the word order and any inflection are all
+    # yours: "in row 4" and "in box 4" are one sentence in English and need not
+    # be one in your language. Translate each of them as a whole sentence.
     "coach.solved.title": "Coach card heading when the board is finished. One word.",
     "coach.slip.title": "Coach card heading when two squares contradict each other, so no hint is possible. Gentle and blameless: the player made a slip, they did not fail.",
-    "coach.slip.body": "Coach card body when two squares contradict each other. Says that nothing can follow, without saying which square is wrong.",
+    "coach.slip.sentence": "Coach card body when two squares contradict each other. Says that nothing can follow, without saying which square is wrong.",
     "coach.exhausted.title": "Coach card heading when the board is consistent but no technique at its level applies. Not an error — the hint has simply run out.",
-    "coach.exhausted.body": "Coach card body when no technique at this board's level applies.",
-    "coach.axis.rows": "The word \"rows\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
-    "coach.axis.columns": "The word \"columns\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
-    "coach.nakedSingle.body": "Coach explanation, naked single. %1$@ is a square's name (\"Row 4, column 2\"), %2$@ a digit as a word (\"seven\").",
-    "coach.hiddenSingle.body": "Coach explanation, hidden single. %1$@ is a unit's name (\"Box 3\"), %2$@ a digit as a word.",
-    "coach.hiddenSingle.fallback": "Coach explanation, hidden single, when no containing unit was derived. %1$@ is a square's name, %2$@ a digit as a word.",
-    "coach.nakedPair.body": "Coach explanation, naked pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name (\"Row 7\").",
-    "coach.hiddenPair.body": "Coach explanation, hidden pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name.",
-    "coach.boxLine.body": "Coach explanation, box-line reduction. %1$@ is a digit as a word, %2$@ and %3$@ are unit names. Note %1$@ and %3$@ each appear TWICE — if you reorder the sentence, move every occurrence.",
-    "coach.xWing.body": "Coach explanation, X-wing. %1$@ and %4$@ are the same digit as a word, %2$@ and %3$@ are the words \"rows\"/\"columns\". %3$@ appears twice — if you reorder, move both.",
+    "coach.exhausted.sentence": "Coach card body when no technique at this board's level applies.",
+    "coach.nakedSingle.sentence": "Coach explanation, naked single: this square has only one candidate left. %1$lld is the row (1-9), %2$lld the column (1-9), %3$lld the digit. Sentence-initial in English; put the square wherever your language puts it.",
+    "coach.hiddenSingle.sentence.row": "Coach explanation, hidden single confined to a ROW: only one square in that row can hold the digit. %1$lld is the row number (1-9), %2$lld the digit. The row/column/box variants are separate sentences on purpose — say each one naturally.",
+    "coach.hiddenSingle.sentence.col": "Coach explanation, hidden single confined to a COLUMN. %1$lld is the column number (1-9), %2$lld the digit.",
+    "coach.hiddenSingle.sentence.box": "Coach explanation, hidden single confined to a 3x3 BOX. %1$lld is the box number (1-9, reading order), %2$lld the digit.",
+    "coach.hiddenSingle.sentence.cell": "Coach explanation, hidden single when no containing unit could be named — so this one names the square instead. %1$lld is the row, %2$lld the column, %3$lld the digit. Mentions no row, column or box.",
+    "coach.nakedPair.sentence.row": "Coach explanation, naked pair clearing a ROW: two digits fill two squares between them, so neither can appear elsewhere in that row. %1$lld and %2$lld are the two digits, %3$lld the row number.",
+    "coach.nakedPair.sentence.col": "Coach explanation, naked pair clearing a COLUMN. %1$lld and %2$lld are the two digits, %3$lld the column number.",
+    "coach.nakedPair.sentence.box": "Coach explanation, naked pair clearing a 3x3 BOX. %1$lld and %2$lld are the two digits, %3$lld the box number.",
+    "coach.hiddenPair.sentence.row": "Coach explanation, hidden pair inside a ROW: two digits fit only two squares there, so nothing else fits in those squares. %1$lld and %2$lld are the digits, %3$lld the row number.",
+    "coach.hiddenPair.sentence.col": "Coach explanation, hidden pair inside a COLUMN. %1$lld and %2$lld are the digits, %3$lld the column number.",
+    "coach.hiddenPair.sentence.box": "Coach explanation, hidden pair inside a 3x3 BOX. %1$lld and %2$lld are the digits, %3$lld the box number.",
+    "coach.boxLine.sentence.boxToRow": "Coach explanation, box-line reduction pointing OUT of a box along a ROW: every place the digit can still go in that box lies on that row, so the rest of the row is clear of it. %1$lld is the digit, %2$lld the box number, %3$lld the row number. %1$lld and %3$lld each appear TWICE — if you reorder, move every occurrence.",
+    "coach.boxLine.sentence.boxToCol": "Coach explanation, box-line reduction pointing OUT of a box along a COLUMN. %1$lld is the digit, %2$lld the box number, %3$lld the column number. %1$lld and %3$lld each appear twice.",
+    "coach.boxLine.sentence.rowToBox": "Coach explanation, box-line reduction claiming a ROW's digit INTO a box: every place the digit can still go in that row lies inside one box, so the rest of the box is clear of it. %1$lld is the digit, %2$lld the row number, %3$lld the box number. %1$lld and %3$lld each appear twice.",
+    "coach.boxLine.sentence.colToBox": "Coach explanation, box-line reduction claiming a COLUMN's digit INTO a box. %1$lld is the digit, %2$lld the column number, %3$lld the box number. %1$lld and %3$lld each appear twice.",
+    "coach.xWing.sentence.rowBase": "Coach explanation, X-wing based on two ROWS: in two rows the digit can only sit in the same two columns, so it is cleared from the rest of those columns. %1$lld is the digit and appears TWICE — move both if you reorder. The words \"rows\" and \"columns\" are part of the sentence; write them the way your language names them.",
+    "coach.xWing.sentence.colBase": "Coach explanation, X-wing based on two COLUMNS: in two columns the digit can only sit in the same two rows, so it is cleared from the rest of those rows. %1$lld is the digit and appears twice.",
 
     # Difficulty bands. Names of the four settings a player picks between, shown
     # on buttons, in menus and on the share card. Short: one or two words.

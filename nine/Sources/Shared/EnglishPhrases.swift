@@ -31,10 +31,17 @@
 // the one whose English is read in a SECOND bundle — `NineWidgets.appex`
 // resolves it against its own `Bundle.main` — but it is one table either way:
 // the appex links `Sources/Shared` too, so this file IS its English fallback.
-// The English below reproduces today's wording
-// exactly, character for character; Task 7 is where the coach sentences get
-// rewritten under their own grammar rules, and doing it here would mean two
-// changes landing in one diff with only one of them tested.
+// Tasks 5 and 6 reproduced today's wording character for character, because a
+// move and a rewrite landing in one diff is a rewrite nobody reviewed. **Task 7
+// is that rewrite**, and it is confined to the sentences the coach says and the
+// board announces. The rule it lands: a sentence is one entry. Where the old
+// English had one frame with a noun dropped into it — "…anywhere else in %3$@",
+// fed "Row 1" or "Box 1" — there are now three entries with the noun written
+// into each, because the hole in that frame carried English's grammar (one
+// preposition, no inflection, this word order) into nine languages that do not
+// share it. The number words are the single exception; the ruling that made it
+// is in `BoardSpeech.swift`'s header, and `BoardSpeechTests` bounds it from
+// both sides.
 //
 // The Engine's IDs are here rather than only in the catalog because the Engine
 // itself no longer names anything (PRD-20 Task 2 deleted `Technique.displayName`
@@ -81,11 +88,11 @@ public enum EnglishPhrases {
         "board.action.note": "Note %1$lld",
         "board.action.place": "Place %1$lld",
         "board.announce.allDone": "All %1$@ done.",
-        "board.announce.cleared": "%1$@ cleared.",
+        "board.announce.cleared": "Cleared %1$@.",
         "board.announce.noteAdded": "Note %1$@ added.",
         "board.announce.noteRemoved": "Note %1$@ removed.",
-        "board.announce.placed": "%1$@ placed.",
-        "board.announce.remaining": "%1$@ %2$@ remaining.",
+        "board.announce.placed": "Placed %1$@.",
+        "board.announce.remaining": "That leaves %1$@ %2$@ to place.",
         "board.announce.solved": "Solved.",
         "board.box.empty": "%1$lld empty",
         "board.box.filled": "Filled",
@@ -163,21 +170,29 @@ public enum EnglishPhrases {
         "card.time": "Solved in %1$@",
         "coach.action.markIt": "Mark it",
         "coach.action.placeIt": "Place it",
-        "coach.axis.columns": "columns",
-        "coach.axis.rows": "rows",
-        "coach.boxLine.body": "Every %1$@ still possible in %2$@ sits in %3$@, so no other square in %3$@ can be a %1$@.",
+        "coach.boxLine.sentence.boxToCol": "Every %1$lld still possible in box %2$lld sits in column %3$lld, so no other square in column %3$lld can be a %1$lld.",
+        "coach.boxLine.sentence.boxToRow": "Every %1$lld still possible in box %2$lld sits in row %3$lld, so no other square in row %3$lld can be a %1$lld.",
+        "coach.boxLine.sentence.colToBox": "Every %1$lld still possible in column %2$lld sits in box %3$lld, so no other square in box %3$lld can be a %1$lld.",
+        "coach.boxLine.sentence.rowToBox": "Every %1$lld still possible in row %2$lld sits in box %3$lld, so no other square in box %3$lld can be a %1$lld.",
         "coach.card.label": "%1$@. %2$@",
-        "coach.exhausted.body": "Nothing at this board's level follows from here.",
+        "coach.exhausted.sentence": "Nothing at this board's level follows from here.",
         "coach.exhausted.title": "Nothing follows",
-        "coach.hiddenPair.body": "%1$@ and %2$@ fit only these two squares in %3$@, so nothing else fits there.",
-        "coach.hiddenSingle.body": "Only one square in %1$@ can take a %2$@.",
-        "coach.hiddenSingle.fallback": "%1$@ is the only square left that can take a %2$@.",
-        "coach.nakedPair.body": "%1$@ and %2$@ fill these two squares between them, so neither can go anywhere else in %3$@.",
-        "coach.nakedSingle.body": "%1$@ has one candidate left: %2$@.",
-        "coach.slip.body": "Two of these squares disagree, so nothing can follow from here.",
+        "coach.hiddenPair.sentence.box": "%1$lld and %2$lld fit only these two squares in box %3$lld, so nothing else fits there.",
+        "coach.hiddenPair.sentence.col": "%1$lld and %2$lld fit only these two squares in column %3$lld, so nothing else fits there.",
+        "coach.hiddenPair.sentence.row": "%1$lld and %2$lld fit only these two squares in row %3$lld, so nothing else fits there.",
+        "coach.hiddenSingle.sentence.box": "Only one square in box %1$lld can take a %2$lld.",
+        "coach.hiddenSingle.sentence.cell": "Row %1$lld, column %2$lld is the only square left that can take a %3$lld.",
+        "coach.hiddenSingle.sentence.col": "Only one square in column %1$lld can take a %2$lld.",
+        "coach.hiddenSingle.sentence.row": "Only one square in row %1$lld can take a %2$lld.",
+        "coach.nakedPair.sentence.box": "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in box %3$lld.",
+        "coach.nakedPair.sentence.col": "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in column %3$lld.",
+        "coach.nakedPair.sentence.row": "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in row %3$lld.",
+        "coach.nakedSingle.sentence": "Row %1$lld, column %2$lld has one candidate left: %3$lld.",
+        "coach.slip.sentence": "Two of these squares disagree, so nothing can follow from here.",
         "coach.slip.title": "A slip somewhere",
         "coach.solved.title": "Done",
-        "coach.xWing.body": "%1$@ in these two %2$@ can only sit in two %3$@, so no other square in those %3$@ can be a %4$@.",
+        "coach.xWing.sentence.colBase": "In these two columns, %1$lld can only sit in two rows, so no other square in those rows can be a %1$lld.",
+        "coach.xWing.sentence.rowBase": "In these two rows, %1$lld can only sit in two columns, so no other square in those columns can be a %1$lld.",
         "difficulty.composeCaption": "%1$@ takes a moment to compose",
         "difficulty.gentle.blurb": "Singles & scans",
         "difficulty.gentle.explainer": "Every step is a single: one place a digit can go. A calm first board.",

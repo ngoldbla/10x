@@ -22,9 +22,28 @@
 //     crashing: an accessibility layer that can kill the app is worse than one
 //     that occasionally says nothing.
 //
-// This is also the Coach's phrasebook (PRD-19 §2 onward), so the pieces are
-// composable — `digitWord`, `boxLabel`, `remainingClause` are public and get
-// reused inside future sentence templates rather than re-spelled there.
+// This is also the Coach's phrasebook (PRD-19 §2 onward), and PRD-20 Task 7
+// changed the shape of that. A coach sentence is now ONE catalog entry, never a
+// frame with nouns dropped into it: the unit kind is baked into the *key*, so
+// there is a `coach.hiddenSingle.sentence.row` and a `…sentence.box` rather than
+// one sentence with a spliced "Row 4". Splicing a noun into a frame fixes
+// English's grammar in the code, where no translator can reach it — English
+// needs one preposition and no inflection, German inflects the noun, Japanese
+// wants the whole clause in another order. Two rows where there was one
+// function is the cost, and it is the point.
+//
+// The digit noun is the one permitted splice, and it is a ruling rather than an
+// oversight (2026-07-26): speech synthesis reads "two fours remaining" naturally
+// and "2 4's remaining" badly, and that surface is what PRD-19 exists to
+// protect. So `digitWord`/`digitPlural` stay per-digit catalog entries a
+// sentence may name, and nothing else does. `BoardSpeechTests` holds both halves
+// — the seal over `coach.*` and the extent of the exception, which is every
+// `.text(…)` argument in this file.
+//
+// Nothing here capitalizes a word. Sentence-casing a translated noun is an
+// English-only operation — German capitalizes nouns wherever they stand,
+// Japanese has no case at all — so every catalog entry carries its own
+// capitalization and no argument ever lands sentence-initial.
 //
 // Pure: no SwiftUI, no UIKit, no clocks, no globals. Every function is a
 // deterministic map from its arguments to a String, which is what makes the
@@ -145,24 +164,30 @@ public enum BoardSpeech {
 
     // MARK: - Move announcements
 
-    /// Spoken after a digit lands. "Four placed. Two fours remaining."
+    /// Spoken after a digit lands. "Placed four. That leaves two fours to place."
     /// The caller owns the solved case — when the board completes it should say
     /// `solvedAnnouncement` instead, so the celebration is not buried behind a
     /// count of zero.
+    ///
+    /// Verb-first, and that is a localization decision rather than a stylistic
+    /// one: "Four placed." puts a spliced noun at the head of a sentence, which
+    /// is the position that needs a capital in English, needs none in Japanese,
+    /// and needs one everywhere in German. A template that opens with its own
+    /// word owns its own capital, and the code stops guessing.
     public static func placementAnnouncement(digit: Int, in game: NineGame) -> String {
         guard isValidDigit(digit) else { return "" }
-        return "\(Phrase.placed(digitWordCapitalized(digit))) \(remainingClause(digit: digit, in: game))"
+        return "\(Phrase.placed(digitWord(digit))) \(remainingClause(digit: digit, in: game))"
     }
 
-    /// "Two fours remaining." / "One four remaining." / "All fours done."
-    /// Split out because the Coach reuses it mid-sentence.
+    /// "That leaves two fours to place." / "That leaves one four to place." /
+    /// "All fours done."
     public static func remainingClause(digit: Int, in game: NineGame) -> String {
         guard isValidDigit(digit) else { return "" }
         // Clamped: a hand-built game could in principle carry more than nine of
         // a digit, and "minus one remaining" is not a sentence.
         let remaining = min(max(9 - game.count(of: digit), 0), 9)
         guard remaining > 0 else { return Phrase.allDone(digitWordPlural(digit)) }
-        return Phrase.remaining(countWordCapitalized(remaining), digitNoun(digit, count: remaining))
+        return Phrase.remaining(countWord(remaining), digitNoun(digit, count: remaining))
     }
 
     /// Spoken when the board is finished. The caller decides when — this type
@@ -189,10 +214,10 @@ public enum BoardSpeech {
     /// this file caches a word; this should not either.
     public static var solvedAnnouncement: String { Phrase.solved }
 
-    /// "Four cleared."
+    /// "Cleared four."
     public static func eraseAnnouncement(digit: Int) -> String {
         guard isValidDigit(digit) else { return "" }
-        return Phrase.cleared(digitWordCapitalized(digit))
+        return Phrase.cleared(digitWord(digit))
     }
 
     /// "Note four added." / "Note four removed."
@@ -222,16 +247,18 @@ public enum BoardSpeech {
 
     // MARK: - Number words
 
-    /// `1...9` spelled out, for use as a sentence subject ("four placed").
+    // Every word here is lowercase, in its citation form, and stays that way.
+    // These are the ONLY pre-formatted words this file splices into a sentence
+    // (the ruling of 2026-07-26: VoiceOver reads "two fours remaining" and
+    // mangles "2 4's remaining"), and the sentences that take them are written
+    // so that none of them ever lands sentence-initial. A language that
+    // capitalizes its number nouns capitalizes them in the catalog.
+
+    /// `1...9` spelled out, for use as a noun inside a sentence ("placed four").
     /// Anything else returns "" — callers guard first.
     public static func digitWord(_ digit: Int) -> String {
         guard isValidDigit(digit) else { return "" }
         return Phrase.digitWord(digit)
-    }
-
-    /// `digitWord` with a leading capital, for sentence-initial position.
-    public static func digitWordCapitalized(_ digit: Int) -> String {
-        capitalizedFirst(digitWord(digit))
     }
 
     /// The plural noun for a digit: "fours", "sixes".
@@ -252,21 +279,24 @@ public enum BoardSpeech {
         return Phrase.digitWord(count)
     }
 
-    public static func countWordCapitalized(_ count: Int) -> String {
-        capitalizedFirst(countWord(count))
-    }
-
     // MARK: - Coach (PRD-11)
 
-    /// A unit's name from its index in the engine's `units` table: `0..<9`
-    /// rows, `9..<18` columns, `18..<27` boxes. Anything else — a variant
-    /// unit, a bad index — returns "" and the caller's sentence falls back.
-    public static func unitLabel(_ unitIndex: Int) -> String {
+    /// Which of the engine's three unit kinds an index names, and that unit's
+    /// 1-based number: `0..<9` rows, `9..<18` columns, `18..<27` boxes.
+    /// Anything else — a variant unit, a bad index — is nil, and the caller's
+    /// sentence is empty rather than half-built.
+    ///
+    /// The *kind* comes back rather than a name, and that is the whole of Task
+    /// 7 in one signature. A `unitLabel` returning "Row 4" could only ever be
+    /// dropped into a hole in a sentence, and the grammar around that hole was
+    /// English's: one preposition, no inflection, subject first. The kind picks
+    /// a whole catalog entry instead, and every language writes its own.
+    private static func unit(_ unitIndex: Int) -> Unit? {
         switch unitIndex {
-        case 0..<9:   return Phrase.row(unitIndex + 1)
-        case 9..<18:  return Phrase.column(unitIndex - 9 + 1)
-        case 18..<27: return Phrase.box(unitIndex - 18 + 1)
-        default:      return ""
+        case 0..<9:   return Unit(kind: .row, number: unitIndex + 1)
+        case 9..<18:  return Unit(kind: .column, number: unitIndex - 9 + 1)
+        case 18..<27: return Unit(kind: .box, number: unitIndex - 18 + 1)
+        default:      return nil
         }
     }
 
@@ -295,43 +325,52 @@ public enum BoardSpeech {
         }
     }
 
+    /// Every branch here hands the phrase book numbers and a unit *kind*, and
+    /// gets a whole sentence back. Nothing is assembled in this function, which
+    /// is why a translator can move any part of any of these sentences.
+    ///
+    /// Numerals, not digit words: a coach sentence is read on the card as well
+    /// as spoken, "7" is what the board draws, and VoiceOver says "seven" for it
+    /// anyway. The spelled words earn their keep in the announcements, where
+    /// speech is the only consumer.
+    ///
+    /// A unit index the engine's convention does not cover — a variant unit, an
+    /// absent one — returns "" rather than a sentence with a hole in it. The old
+    /// code spliced an empty label and said "…anywhere else in ."
     private static func stepSentence(_ coach: CoachStep) -> String {
         let step = coach.step
         let digit = step.digits.first ?? 0
         switch step.technique {
         case .nakedSingle:
-            guard let cell = step.cells.first, isValidDigit(digit) else { return "" }
-            return Phrase.coachNakedSingle(cellLabel(cell), digitWord(digit))
+            guard let cell = step.cells.first, isValidCell(cell), isValidDigit(digit) else { return "" }
+            return Phrase.coachNakedSingle(row: Sudoku.row(of: cell) + 1,
+                                           column: Sudoku.col(of: cell) + 1,
+                                           digit: digit)
 
         case .hiddenSingle:
-            guard let cell = step.cells.first, isValidDigit(digit) else { return "" }
-            let unit = unitLabel(coach.patternUnit ?? -1)
-            guard !unit.isEmpty else {
-                return Phrase.coachHiddenSingleFallback(cellLabel(cell), digitWord(digit))
+            guard let cell = step.cells.first, isValidCell(cell), isValidDigit(digit) else { return "" }
+            guard let unit = unit(coach.patternUnit ?? -1) else {
+                return Phrase.coachHiddenSingleInCell(row: Sudoku.row(of: cell) + 1,
+                                                      column: Sudoku.col(of: cell) + 1,
+                                                      digit: digit)
             }
-            return Phrase.coachHiddenSingle(unit, digitWord(digit))
+            return Phrase.coachHiddenSingle(in: unit, digit: digit)
 
         case .nakedPair:
-            guard step.digits.count == 2 else { return "" }
-            return Phrase.coachNakedPair(
-                digitWordCapitalized(step.digits[0]), digitWord(step.digits[1]),
-                unitLabel(coach.targetUnit ?? -1)
-            )
+            guard step.digits.count == 2, step.digits.allSatisfy(isValidDigit),
+                  let unit = unit(coach.targetUnit ?? -1) else { return "" }
+            return Phrase.coachNakedPair(step.digits[0], step.digits[1], in: unit)
 
         case .hiddenPair:
-            guard step.digits.count == 2 else { return "" }
-            return Phrase.coachHiddenPair(
-                digitWordCapitalized(step.digits[0]), digitWord(step.digits[1]),
-                unitLabel(coach.targetUnit ?? -1)
-            )
+            guard step.digits.count == 2, step.digits.allSatisfy(isValidDigit),
+                  let unit = unit(coach.targetUnit ?? -1) else { return "" }
+            return Phrase.coachHiddenPair(step.digits[0], step.digits[1], in: unit)
 
         case .boxLineReduction:
-            guard isValidDigit(digit) else { return "" }
-            return Phrase.coachBoxLine(
-                digitWord(digit),
-                unitLabel(coach.patternUnit ?? -1),
-                unitLabel(coach.targetUnit ?? -1)
-            )
+            guard isValidDigit(digit),
+                  let source = unit(coach.patternUnit ?? -1),
+                  let target = unit(coach.targetUnit ?? -1) else { return "" }
+            return Phrase.coachBoxLine(digit: digit, from: source, to: target)
 
         case .xWing:
             guard isValidDigit(digit) else { return "" }
@@ -341,12 +380,7 @@ public enum BoardSpeech {
             let corners = Set(step.cells.map(Sudoku.col(of:)))
             let victims = Set(step.eliminations.map { Sudoku.col(of: $0.cell) })
             let baseIsRow = victims.isSubset(of: corners)
-            return Phrase.coachXWing(
-                digitWordPlural(digit),
-                base: baseIsRow ? Phrase.rowsWord : Phrase.columnsWord,
-                cover: baseIsRow ? Phrase.columnsWord : Phrase.rowsWord,
-                digitWord(digit)
-            )
+            return Phrase.coachXWing(digit: digit, baseIsRow: baseIsRow)
 
         default:
             // The four variant techniques (PRD-23). Naming them here would trip
@@ -363,14 +397,6 @@ public enum BoardSpeech {
 
     private static func isValidBox(_ box: Int) -> Bool { (0..<9).contains(box) }
 
-    /// Uppercases the first character only. `String.capitalized` would also
-    /// touch later words and is locale-sensitive; this is a display tweak on a
-    /// known ASCII word list.
-    private static func capitalizedFirst(_ word: String) -> String {
-        guard let first = word.first else { return word }
-        return String(first).uppercased() + word.dropFirst()
-    }
-
     /// The streak chip's spoken label (PRD-13 §3).
     ///
     /// "Held" rather than "shielded", and no count anywhere: the shield is a
@@ -381,6 +407,19 @@ public enum BoardSpeech {
     public static func streakChip(days: Int, held: Bool) -> String {
         held ? Phrase.streakHeld(days) : Phrase.streak(days)
     }
+}
+
+// MARK: - Units
+//
+/// One of the engine's three unit kinds, plus the unit's 1-based number.
+///
+/// A kind rather than a name, and the two are not interchangeable: a name is a
+/// noun somebody has to put somewhere in a sentence, and *where* is the part
+/// that differs per language. A kind picks the sentence.
+private struct Unit {
+    enum Kind { case row, column, box }
+    let kind: Kind
+    let number: Int
 }
 
 // MARK: - Phrase book
@@ -447,12 +486,18 @@ private enum Phrase {
         Phrasebook.current.string("board.value.wrong", .int(digit))
     }
     static var empty: String { Phrasebook.current.string("board.value.empty") }
-    static func emptyWithNotes(_ list: String) -> String {
-        Phrasebook.current.string("board.value.notes", .text(list))
+    /// `noteList` is already joined, and it is a list of *numerals* — the only
+    /// `.text(…)` in this file that is not a number word.
+    static func emptyWithNotes(_ noteList: String) -> String {
+        Phrasebook.current.string("board.value.notes", .text(noteList))
     }
     static var listSeparator: String { Phrasebook.current.string("board.value.noteSeparator") }
 
-    // Move announcements
+    // Move announcements. Spoken and never drawn — `announce(_:)` in `TouchUI`
+    // and `MacUI` post them to VoiceOver — which is why the digit survives here
+    // as a word while the coach card, which is read as well as spoken, uses the
+    // numeral. Every one of these templates opens with its own word, so no
+    // argument ever needs a capital it did not arrive with.
     static func placed(_ digitWord: String) -> String {
         Phrasebook.current.string("board.announce.placed", .text(digitWord))
     }
@@ -496,44 +541,106 @@ private enum Phrase {
     }
 
     static var coachSlipTitle: String { Phrasebook.current.string("coach.slip.title") }
-    static var coachSlip: String { Phrasebook.current.string("coach.slip.body") }
+    static var coachSlip: String { Phrasebook.current.string("coach.slip.sentence") }
     static var coachExhaustedTitle: String { Phrasebook.current.string("coach.exhausted.title") }
-    static var coachExhausted: String { Phrasebook.current.string("coach.exhausted.body") }
+    static var coachExhausted: String { Phrasebook.current.string("coach.exhausted.sentence") }
     static var coachSolvedTitle: String { Phrasebook.current.string("coach.solved.title") }
-    static var rowsWord: String { Phrasebook.current.string("coach.axis.rows") }
-    static var columnsWord: String { Phrasebook.current.string("coach.axis.columns") }
-    static func coachNakedSingle(_ cell: String, _ digit: String) -> String {
-        Phrasebook.current.string("coach.nakedSingle.body", .text(cell), .text(digit))
+
+    // One key per technique PER UNIT KIND, written out rather than assembled
+    // from `"coach.hiddenSingle.sentence." + kind`. Three reasons, and the
+    // first two are enough on their own:
+    //
+    //   • Every key is then a literal at the point it is used, so
+    //     `scripts/strings.py --audit` can see it. A key built by interpolation
+    //     reads as dead, and a dead key is one Task 9 does not pay to translate.
+    //   • A `switch` over the kind is exhaustive; a string built from it is not.
+    //     Adding a fourth unit kind (PRD-23's cages) stops compiling here
+    //     instead of shipping "coach.hiddenSingle.sentence.cage" to a player.
+    //   • The repetition is legible: this is the whole list of things the coach
+    //     can say, in one place, in the language it says them.
+    static func coachNakedSingle(row: Int, column: Int, digit: Int) -> String {
+        Phrasebook.current.string("coach.nakedSingle.sentence",
+                                  .int(row), .int(column), .int(digit))
     }
-    static func coachHiddenSingle(_ unit: String, _ digit: String) -> String {
-        Phrasebook.current.string("coach.hiddenSingle.body", .text(unit), .text(digit))
+    static func coachHiddenSingle(in unit: Unit, digit: Int) -> String {
+        switch unit.kind {
+        case .row:
+            return Phrasebook.current.string("coach.hiddenSingle.sentence.row",
+                                             .int(unit.number), .int(digit))
+        case .column:
+            return Phrasebook.current.string("coach.hiddenSingle.sentence.col",
+                                             .int(unit.number), .int(digit))
+        case .box:
+            return Phrasebook.current.string("coach.hiddenSingle.sentence.box",
+                                             .int(unit.number), .int(digit))
+        }
     }
-    static func coachHiddenSingleFallback(_ cell: String, _ digit: String) -> String {
-        Phrasebook.current.string("coach.hiddenSingle.fallback", .text(cell), .text(digit))
+    /// The hidden single whose confining unit the solver could not name. Says
+    /// the same thing about the square instead, and never mentions a unit.
+    static func coachHiddenSingleInCell(row: Int, column: Int, digit: Int) -> String {
+        Phrasebook.current.string("coach.hiddenSingle.sentence.cell",
+                                  .int(row), .int(column), .int(digit))
     }
-    static func coachNakedPair(_ first: String, _ second: String, _ unit: String) -> String {
-        Phrasebook.current.string("coach.nakedPair.body", .text(first), .text(second), .text(unit))
+    static func coachNakedPair(_ first: Int, _ second: Int, in unit: Unit) -> String {
+        switch unit.kind {
+        case .row:
+            return Phrasebook.current.string("coach.nakedPair.sentence.row",
+                                             .int(first), .int(second), .int(unit.number))
+        case .column:
+            return Phrasebook.current.string("coach.nakedPair.sentence.col",
+                                             .int(first), .int(second), .int(unit.number))
+        case .box:
+            return Phrasebook.current.string("coach.nakedPair.sentence.box",
+                                             .int(first), .int(second), .int(unit.number))
+        }
     }
-    static func coachHiddenPair(_ first: String, _ second: String, _ unit: String) -> String {
-        Phrasebook.current.string("coach.hiddenPair.body", .text(first), .text(second), .text(unit))
+    static func coachHiddenPair(_ first: Int, _ second: Int, in unit: Unit) -> String {
+        switch unit.kind {
+        case .row:
+            return Phrasebook.current.string("coach.hiddenPair.sentence.row",
+                                             .int(first), .int(second), .int(unit.number))
+        case .column:
+            return Phrasebook.current.string("coach.hiddenPair.sentence.col",
+                                             .int(first), .int(second), .int(unit.number))
+        case .box:
+            return Phrasebook.current.string("coach.hiddenPair.sentence.box",
+                                             .int(first), .int(second), .int(unit.number))
+        }
     }
-    /// The target unit is named twice in English and once in the arguments —
-    /// `%3$@` appears twice in `coach.boxLine.body`. That is the reason the
-    /// specifiers are positional rather than bare: a bare `%@` cannot be reused.
-    static func coachBoxLine(_ digit: String, _ source: String, _ target: String) -> String {
-        Phrasebook.current.string("coach.boxLine.body",
-                                  .text(digit), .text(source), .text(target))
+    /// A box-line reduction is a box and a line, in one direction or the other:
+    /// pointing gives box → line, claiming gives line → box (`Coach.swift`).
+    /// Four sentences cover it, and the fifth case cannot arise — the pattern
+    /// cells lie in exactly two units and one of them is always the box — so it
+    /// says nothing rather than naming the wrong shapes.
+    ///
+    /// The target unit's number is spoken twice in English (`%3$lld` twice),
+    /// which is the reason the specifiers are positional: a bare `%lld` cannot
+    /// be reused, and a translation that moves one occurrence must move both.
+    static func coachBoxLine(digit: Int, from source: Unit, to target: Unit) -> String {
+        switch (source.kind, target.kind) {
+        case (.box, .row):
+            return Phrasebook.current.string("coach.boxLine.sentence.boxToRow",
+                                             .int(digit), .int(source.number), .int(target.number))
+        case (.box, .column):
+            return Phrasebook.current.string("coach.boxLine.sentence.boxToCol",
+                                             .int(digit), .int(source.number), .int(target.number))
+        case (.row, .box):
+            return Phrasebook.current.string("coach.boxLine.sentence.rowToBox",
+                                             .int(digit), .int(source.number), .int(target.number))
+        case (.column, .box):
+            return Phrasebook.current.string("coach.boxLine.sentence.colToBox",
+                                             .int(digit), .int(source.number), .int(target.number))
+        default:
+            return ""
+        }
     }
-    static func coachXWing(_ plural: String, base: String, cover: String, _ digit: String) -> String {
-        Phrasebook.current.string("coach.xWing.body",
-                                  .text(sentenceCased(plural)), .text(base), .text(cover),
-                                  .text(digit))
-    }
-    /// `BoardSpeech.capitalizedFirst` is private to the formatter above; the
-    /// phrase book needs the same tweak for a sentence-initial plural.
-    private static func sentenceCased(_ word: String) -> String {
-        guard let first = word.first else { return word }
-        return String(first).uppercased() + word.dropFirst()
+    /// The base axis picks the sentence, and the cover axis is inside it. There
+    /// is no "rows"/"columns" word to hand around any more: `coach.axis.rows`
+    /// was a noun in whatever case English needed at both sites it landed in.
+    static func coachXWing(digit: Int, baseIsRow: Bool) -> String {
+        baseIsRow
+            ? Phrasebook.current.string("coach.xWing.sentence.rowBase", .int(digit))
+            : Phrasebook.current.string("coach.xWing.sentence.colBase", .int(digit))
     }
 
     // Number words, one catalog key per digit — the ruling on PRD-20's plan, so

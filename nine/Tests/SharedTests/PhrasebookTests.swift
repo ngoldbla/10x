@@ -34,8 +34,8 @@ final class PhrasebookTests: XCTestCase {
                        "Row 3, column 5")
         // A `%@` argument, a two-argument sentence, and a format with no
         // arguments at all — the three shapes the table actually contains.
-        XCTAssertEqual(Phrasebook.english.string("board.announce.placed", .text("Four")),
-                       "Four placed.")
+        XCTAssertEqual(Phrasebook.english.string("board.announce.placed", .text("four")),
+                       "Placed four.")
         XCTAssertEqual(Phrasebook.english.string("board.progress.filled", .int(18), .int(51)),
                        "18 of 51 filled.")
         XCTAssertEqual(Phrasebook.english.string("board.announce.solved"), "Solved.")
@@ -70,15 +70,17 @@ final class PhrasebookTests: XCTestCase {
         XCTAssertEqual(german.string("board.cell.label", .int(3), .int(5)),
                        "Spalte 5, Zeile 3")
 
-        // Text arguments reorder too, and a position may be used twice —
-        // `coach.boxLine.body` names its target unit twice in English already.
+        // Arguments reorder whatever their kind, and a position may be used
+        // twice — `coach.boxLine.sentence.boxToRow` names its target unit twice
+        // in English already, and its digit twice on top of that.
         let repeated = Phrasebook { _, args in Phrasebook.format("%2$@ %1$@ %2$@", args) }
         XCTAssertEqual(repeated.string("k", .text("a"), .text("b")), "b a b")
 
         XCTAssertEqual(
-            Phrasebook.english.string("coach.boxLine.body", .text("seven"), .text("Box 1"), .text("Row 1")),
-            "Every seven still possible in Box 1 sits in Row 1, "
-                + "so no other square in Row 1 can be a seven."
+            Phrasebook.english.string("coach.boxLine.sentence.boxToRow",
+                                      .int(7), .int(1), .int(1)),
+            "Every 7 still possible in box 1 sits in row 1, "
+                + "so no other square in row 1 can be a 7."
         )
     }
 
@@ -161,11 +163,12 @@ final class PhrasebookTests: XCTestCase {
     }
 
     /// No positional index carries two different conversion characters in the
-    /// same string. `coach.boxLine.body` names `%1$@` and `%3$@` twice each and
-    /// `coach.xWing.body` names `%3$@` twice — exactly the shape a translator
-    /// breaks, because reordering a sentence means editing one occurrence and
-    /// it is the second one that gets forgotten. `%1$@ … %1$lld` is a segfault
-    /// at one of the two sites, whichever the argument turns out not to be.
+    /// same string. `coach.boxLine.sentence.boxToRow` names `%1$lld` and
+    /// `%3$lld` twice each and `coach.xWing.sentence.rowBase` names `%1$lld`
+    /// twice — exactly the shape a translator breaks, because reordering a
+    /// sentence means editing one occurrence and it is the second one that gets
+    /// forgotten. `%1$@ … %1$lld` is a segfault at one of the two sites,
+    /// whichever the argument turns out not to be.
     ///
     /// This lives here rather than inside `Phrasebook.format` on purpose: at
     /// runtime it would cost a per-call allocation to remember what it had

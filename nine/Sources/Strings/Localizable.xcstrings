@@ -350,13 +350,13 @@
       }
     },
     "board.announce.cleared" : {
-      "comment" : "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word.",
+      "comment" : "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word, lowercase — as in board.announce.placed, do not open the sentence with it.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ cleared."
+            "value" : "Cleared %1$@."
           }
         }
       }
@@ -386,25 +386,25 @@
       }
     },
     "board.announce.placed" : {
-      "comment" : "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"). A sentence: it ends in a full stop.",
+      "comment" : "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"), and it arrives lowercase: open the sentence with a word of your own rather than with %1$@, so this language's capitalization is yours to decide. A sentence: it ends in a full stop.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ placed."
+            "value" : "Placed %1$@."
           }
         }
       }
     },
     "board.announce.remaining" : {
-      "comment" : "VoiceOver announcement: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\").",
+      "comment" : "VoiceOver announcement, spoken straight after board.announce.placed: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\"). Both arrive lowercase and neither should open the sentence. A language that counts with numerals may write the number into the sentence and let the words go unused.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@ remaining."
+            "value" : "That leaves %1$@ %2$@ to place."
           }
         }
       }
@@ -1333,38 +1333,50 @@
         }
       }
     },
-    "coach.axis.columns" : {
-      "comment" : "The word \"columns\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
+    "coach.boxLine.sentence.boxToCol" : {
+      "comment" : "Coach explanation, box-line reduction pointing OUT of a box along a COLUMN. %1$lld is the digit, %2$lld the box number, %3$lld the column number. %1$lld and %3$lld each appear twice.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "columns"
+            "value" : "Every %1$lld still possible in box %2$lld sits in column %3$lld, so no other square in column %3$lld can be a %1$lld."
           }
         }
       }
     },
-    "coach.axis.rows" : {
-      "comment" : "The word \"rows\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
+    "coach.boxLine.sentence.boxToRow" : {
+      "comment" : "Coach explanation, box-line reduction pointing OUT of a box along a ROW: every place the digit can still go in that box lies on that row, so the rest of the row is clear of it. %1$lld is the digit, %2$lld the box number, %3$lld the row number. %1$lld and %3$lld each appear TWICE — if you reorder, move every occurrence.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rows"
+            "value" : "Every %1$lld still possible in box %2$lld sits in row %3$lld, so no other square in row %3$lld can be a %1$lld."
           }
         }
       }
     },
-    "coach.boxLine.body" : {
-      "comment" : "Coach explanation, box-line reduction. %1$@ is a digit as a word, %2$@ and %3$@ are unit names. Note %1$@ and %3$@ each appear TWICE — if you reorder the sentence, move every occurrence.",
+    "coach.boxLine.sentence.colToBox" : {
+      "comment" : "Coach explanation, box-line reduction claiming a COLUMN's digit INTO a box. %1$lld is the digit, %2$lld the column number, %3$lld the box number. %1$lld and %3$lld each appear twice.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Every %1$@ still possible in %2$@ sits in %3$@, so no other square in %3$@ can be a %1$@."
+            "value" : "Every %1$lld still possible in column %2$lld sits in box %3$lld, so no other square in box %3$lld can be a %1$lld."
+          }
+        }
+      }
+    },
+    "coach.boxLine.sentence.rowToBox" : {
+      "comment" : "Coach explanation, box-line reduction claiming a ROW's digit INTO a box: every place the digit can still go in that row lies inside one box, so the rest of the box is clear of it. %1$lld is the digit, %2$lld the row number, %3$lld the box number. %1$lld and %3$lld each appear twice.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every %1$lld still possible in row %2$lld sits in box %3$lld, so no other square in box %3$lld can be a %1$lld."
           }
         }
       }
@@ -1381,7 +1393,7 @@
         }
       }
     },
-    "coach.exhausted.body" : {
+    "coach.exhausted.sentence" : {
       "comment" : "Coach card body when no technique at this board's level applies.",
       "extractionState" : "manual",
       "localizations" : {
@@ -1405,67 +1417,139 @@
         }
       }
     },
-    "coach.hiddenPair.body" : {
-      "comment" : "Coach explanation, hidden pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name.",
+    "coach.hiddenPair.sentence.box" : {
+      "comment" : "Coach explanation, hidden pair inside a 3x3 BOX. %1$lld and %2$lld are the digits, %3$lld the box number.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ and %2$@ fit only these two squares in %3$@, so nothing else fits there."
+            "value" : "%1$lld and %2$lld fit only these two squares in box %3$lld, so nothing else fits there."
           }
         }
       }
     },
-    "coach.hiddenSingle.body" : {
-      "comment" : "Coach explanation, hidden single. %1$@ is a unit's name (\"Box 3\"), %2$@ a digit as a word.",
+    "coach.hiddenPair.sentence.col" : {
+      "comment" : "Coach explanation, hidden pair inside a COLUMN. %1$lld and %2$lld are the digits, %3$lld the column number.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only one square in %1$@ can take a %2$@."
+            "value" : "%1$lld and %2$lld fit only these two squares in column %3$lld, so nothing else fits there."
           }
         }
       }
     },
-    "coach.hiddenSingle.fallback" : {
-      "comment" : "Coach explanation, hidden single, when no containing unit was derived. %1$@ is a square's name, %2$@ a digit as a word.",
+    "coach.hiddenPair.sentence.row" : {
+      "comment" : "Coach explanation, hidden pair inside a ROW: two digits fit only two squares there, so nothing else fits in those squares. %1$lld and %2$lld are the digits, %3$lld the row number.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ is the only square left that can take a %2$@."
+            "value" : "%1$lld and %2$lld fit only these two squares in row %3$lld, so nothing else fits there."
           }
         }
       }
     },
-    "coach.nakedPair.body" : {
-      "comment" : "Coach explanation, naked pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name (\"Row 7\").",
+    "coach.hiddenSingle.sentence.box" : {
+      "comment" : "Coach explanation, hidden single confined to a 3x3 BOX. %1$lld is the box number (1-9, reading order), %2$lld the digit.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ and %2$@ fill these two squares between them, so neither can go anywhere else in %3$@."
+            "value" : "Only one square in box %1$lld can take a %2$lld."
           }
         }
       }
     },
-    "coach.nakedSingle.body" : {
-      "comment" : "Coach explanation, naked single. %1$@ is a square's name (\"Row 4, column 2\"), %2$@ a digit as a word (\"seven\").",
+    "coach.hiddenSingle.sentence.cell" : {
+      "comment" : "Coach explanation, hidden single when no containing unit could be named — so this one names the square instead. %1$lld is the row, %2$lld the column, %3$lld the digit. Mentions no row, column or box.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ has one candidate left: %2$@."
+            "value" : "Row %1$lld, column %2$lld is the only square left that can take a %3$lld."
           }
         }
       }
     },
-    "coach.slip.body" : {
+    "coach.hiddenSingle.sentence.col" : {
+      "comment" : "Coach explanation, hidden single confined to a COLUMN. %1$lld is the column number (1-9), %2$lld the digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only one square in column %1$lld can take a %2$lld."
+          }
+        }
+      }
+    },
+    "coach.hiddenSingle.sentence.row" : {
+      "comment" : "Coach explanation, hidden single confined to a ROW: only one square in that row can hold the digit. %1$lld is the row number (1-9), %2$lld the digit. The row/column/box variants are separate sentences on purpose — say each one naturally.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only one square in row %1$lld can take a %2$lld."
+          }
+        }
+      }
+    },
+    "coach.nakedPair.sentence.box" : {
+      "comment" : "Coach explanation, naked pair clearing a 3x3 BOX. %1$lld and %2$lld are the two digits, %3$lld the box number.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in box %3$lld."
+          }
+        }
+      }
+    },
+    "coach.nakedPair.sentence.col" : {
+      "comment" : "Coach explanation, naked pair clearing a COLUMN. %1$lld and %2$lld are the two digits, %3$lld the column number.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in column %3$lld."
+          }
+        }
+      }
+    },
+    "coach.nakedPair.sentence.row" : {
+      "comment" : "Coach explanation, naked pair clearing a ROW: two digits fill two squares between them, so neither can appear elsewhere in that row. %1$lld and %2$lld are the two digits, %3$lld the row number.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld and %2$lld fill these two squares between them, so neither can go anywhere else in row %3$lld."
+          }
+        }
+      }
+    },
+    "coach.nakedSingle.sentence" : {
+      "comment" : "Coach explanation, naked single: this square has only one candidate left. %1$lld is the row (1-9), %2$lld the column (1-9), %3$lld the digit. Sentence-initial in English; put the square wherever your language puts it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %1$lld, column %2$lld has one candidate left: %3$lld."
+          }
+        }
+      }
+    },
+    "coach.slip.sentence" : {
       "comment" : "Coach card body when two squares contradict each other. Says that nothing can follow, without saying which square is wrong.",
       "extractionState" : "manual",
       "localizations" : {
@@ -1501,14 +1585,26 @@
         }
       }
     },
-    "coach.xWing.body" : {
-      "comment" : "Coach explanation, X-wing. %1$@ and %4$@ are the same digit as a word, %2$@ and %3$@ are the words \"rows\"/\"columns\". %3$@ appears twice — if you reorder, move both.",
+    "coach.xWing.sentence.colBase" : {
+      "comment" : "Coach explanation, X-wing based on two COLUMNS: in two columns the digit can only sit in the same two rows, so it is cleared from the rest of those rows. %1$lld is the digit and appears twice.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ in these two %2$@ can only sit in two %3$@, so no other square in those %3$@ can be a %4$@."
+            "value" : "In these two columns, %1$lld can only sit in two rows, so no other square in those rows can be a %1$lld."
+          }
+        }
+      }
+    },
+    "coach.xWing.sentence.rowBase" : {
+      "comment" : "Coach explanation, X-wing based on two ROWS: in two rows the digit can only sit in the same two columns, so it is cleared from the rest of those columns. %1$lld is the digit and appears TWICE — move both if you reorder. The words \"rows\" and \"columns\" are part of the sentence; write them the way your language names them.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In these two rows, %1$lld can only sit in two columns, so no other square in those columns can be a %1$lld."
           }
         }
       }
