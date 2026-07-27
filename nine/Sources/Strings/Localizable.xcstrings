@@ -4728,6 +4728,294 @@
           }
         }
       }
+    },
+    "widget.board.cta" : {
+      "comment" : "The whole content of the playable widget before the app has published a board for today: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to start today's puzzle"
+          }
+        }
+      }
+    },
+    "widget.board.description" : {
+      "comment" : "Widget gallery: the one-line description under `widget.board.name`. \"Home Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play today's puzzle right on your Home Screen."
+          }
+        }
+      }
+    },
+    "widget.board.name" : {
+      "comment" : "Widget gallery: the name of the large widget the player can actually tap digits into without opening the app. \"Playable\" is what separates it from `widget.daily.name`, so keep that contrast visible.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playable Daily"
+          }
+        }
+      }
+    },
+    "widget.brand.daily" : {
+      "comment" : "The small header line inside three of the widgets, naming the app and the board. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot; \"Daily\" is the day's shared puzzle. Very short — it sits above the status line in a systemMedium widget.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nine · Daily"
+          }
+        }
+      }
+    },
+    "widget.caption.awaits" : {
+      "comment" : "The quiet second line under `widget.status.openNine`. Says the board is there and waiting, without claiming the player has started it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's puzzle awaits"
+          }
+        }
+      }
+    },
+    "widget.caption.done" : {
+      "comment" : "The quiet second line shown when today's board is finished but no time was recorded. \"Daily\" is the day's shared puzzle. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily done"
+          }
+        }
+      }
+    },
+    "widget.caption.inProgress" : {
+      "comment" : "The quiet second line under a percentage: this board is started and unfinished. A fragment, lowercase after the first word, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In progress"
+          }
+        }
+      }
+    },
+    "widget.caption.waiting" : {
+      "comment" : "The quiet second line under `widget.status.ready`. \"New\" means today's, as opposed to yesterday's.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New puzzle waiting"
+          }
+        }
+      }
+    },
+    "widget.daily.description" : {
+      "comment" : "Widget gallery: the one-line description under `widget.daily.name`, saying what the widget shows. \"Streak\" is the run of consecutive days solved; \"points\" is the lifetime score. A sentence, with a full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's puzzle, your streak and points at a glance."
+          }
+        }
+      }
+    },
+    "widget.daily.header" : {
+      "comment" : "The header of the SMALLEST daily widget, where `widget.brand.daily` will not fit. The app's name is dropped and only the board is named. At most about 10 characters.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily"
+          }
+        }
+      }
+    },
+    "widget.daily.name" : {
+      "comment" : "Widget gallery: the name of the glanceable daily widget, shown under its preview when a player is choosing a widget to add. One word if this language has one. \"Daily\" is a noun here — the day's shared puzzle — not an adverb.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily"
+          }
+        }
+      }
+    },
+    "widget.daily.points" : {
+      "comment" : "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld pts"
+          }
+        }
+      }
+    },
+    "widget.daily.startStreak" : {
+      "comment" : "What the flame chip says when the run is at zero: an invitation, not a status. A fragment, no full stop. Very short — it shares a line with a flame glyph in a systemSmall widget.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a streak"
+          }
+        }
+      }
+    },
+    "widget.daily.streak" : {
+      "comment" : "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld day streak"
+          }
+        }
+      }
+    },
+    "widget.status.filled" : {
+      "comment" : "The Lock Screen rectangular widget's line mid-solve. %1$@ is a percentage already formatted (\"64%\"). A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ filled"
+          }
+        }
+      }
+    },
+    "widget.status.notStarted" : {
+      "comment" : "The Lock Screen rectangular widget's line when today's board has not been touched. Says less than `widget.status.ready` on purpose: this line replaces a whole widget rather than heading one. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not started"
+          }
+        }
+      }
+    },
+    "widget.status.openNine" : {
+      "comment" : "The big status word in the daily widget on a fresh install, before the app has ever written a snapshot. An instruction: launch the app. \"Nine\" is the app's name and stays untranslated.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Nine"
+          }
+        }
+      }
+    },
+    "widget.status.ready" : {
+      "comment" : "The big status word in the daily widget when today's board exists and has not been touched. An adjective about the BOARD, not the player. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        }
+      }
+    },
+    "widget.status.solved" : {
+      "comment" : "The big status word in the daily widget, and the footer of the playable widget, when today's board is finished. A word, not a sentence, and capitalised — the same word as `status.solved` inside the app; keep the two the same.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solved"
+          }
+        }
+      }
+    },
+    "widget.status.solvedIn" : {
+      "comment" : "The daily and playable widgets' line once the board is finished. %1$@ is an elapsed time already formatted as m:ss (\"4:12\"). A fragment, no full stop — \"Solved 4:12\", not \"Solved in 4:12\", because the space is one line.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solved %1$@"
+          }
+        }
+      }
+    },
+    "widget.streak.description" : {
+      "comment" : "Widget gallery: the one-line description under `widget.streak.name`. \"Lock Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your daily streak on the Lock Screen."
+          }
+        }
+      }
+    },
+    "widget.streak.inline" : {
+      "comment" : "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nine · %1$lld day streak"
+          }
+        }
+      }
+    },
+    "widget.streak.name" : {
+      "comment" : "Widget gallery: the name of the Lock Screen accessory showing the run of consecutive days solved. A noun, one word if possible — the gallery sets it tight.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak"
+          }
+        }
+      }
+    },
+    "widget.streak.ready" : {
+      "comment" : "The Lock Screen INLINE accessory when the run is at zero and today's board is untouched. Shares one short line with the system clock, so it is the tightest string in the app — about 20 characters. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nine · Daily ready"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

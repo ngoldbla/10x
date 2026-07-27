@@ -85,12 +85,23 @@ extension WidgetSnapshot {
 
 enum WidgetFormat {
     /// "4:12" — matches the app's completion chip.
+    ///
+    /// Deliberately NOT a catalog key, and the same ruling Task 5 made in the
+    /// app: six files in `Sources/App` plus `SolveCardFacts` format an elapsed
+    /// solve with this exact expression, and m:ss carries no words to
+    /// translate. Whichever task decides Nine wants a locale-aware duration
+    /// changes all eight of them together, or none.
     static func time(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    /// The fill percentage, through the catalog rather than through a trailing
+    /// "%" glued on in an interpolation: Turkish leads with the sign and French
+    /// spaces it, and neither is expressible from Swift interpolation. This is
+    /// the same key `BoardProgressCaption` reads inside the app — the same
+    /// figure, printed the same way, so one row for both bundles.
     static func percent(_ fill: Double) -> String {
-        "\(Int((fill * 100).rounded()))%"
+        Strings.string("board.progress.percent", .int(Int((fill * 100).rounded())))
     }
 }

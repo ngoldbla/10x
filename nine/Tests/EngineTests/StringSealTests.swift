@@ -17,12 +17,17 @@
 // Linux. Two runners, one rule; when the rule changes, both change. The script
 // is the one `--extract` will consume in Task 5.
 //
-// The baseline in `Tests/StringBaselines/offences.txt` is why this test is
-// green today against ~135 offences: an all-or-nothing gate would sit red for
-// the days Tasks 5-8 take, and a gate that is expected to be red is not a
-// gate. It fails on any offence NOT already in that file, and on any baselined
-// offence that has stopped firing — the second half is what turns the
-// extraction into a countdown instead of a promise.
+// The baseline in `Tests/StringBaselines/offences.txt` is why this test was
+// green against ~135 offences while the extraction ran: an all-or-nothing gate
+// would have sat red for the days Tasks 5-6 took, and a gate that is expected
+// to be red is not a gate. It fails on any offence NOT already in that file,
+// and on any baselined offence that has stopped firing — the second half is
+// what turned the extraction into a countdown instead of a promise.
+//
+// **That countdown reached zero in Task 6.** The file is still there and is now
+// empty, which is the strict state rather than the absent one: an empty list
+// means every offence is a new offence, while no file at all means
+// "uncalibrated" and fails. See the header inside it.
 //
 // Nothing here imports anything Darwin-only: EngineTests must keep running on
 // Linux CI alongside the golden corpus.
@@ -115,13 +120,21 @@ final class StringSealTests: XCTestCase {
             }
         }
 
-        // The instrument must find something. If the extraction ever really is
-        // finished this assertion is the line to delete, deliberately, in the
-        // PR that empties the baseline — not the one to quietly weaken.
-        XCTAssertFalse(current.isEmpty,
-                       "The scanner found nothing at all in \(Self.trees.joined(separator: ", ")). "
-                       + "That is not a clean tree, that is a broken detector.")
-
+        // An `XCTAssertFalse(current.isEmpty)` stood here, guarding against the
+        // rule rotting into `return []` while the tree still had offences in
+        // it. Its own comment named the condition for removing it: the PR that
+        // empties the baseline, deliberately, rather than the one that quietly
+        // weakens it. This is that PR — Task 6 took the last fourteen, all in
+        // `Sources/Widgets`, and the tree now scans clean, so from here that
+        // assertion could only ever fail.
+        //
+        // Deleting it does not leave the detector unwatched, and the two things
+        // that replace it are better than counting a number that is meant to be
+        // zero: `XCTAssertFalse(files.isEmpty)` above still catches a tree that
+        // moved out from under the walk, and
+        // `testDetectorFiresOnProseAndOnlyOnProse` drives the rule against
+        // source it is *handed*, which is the only way to keep testing a rule
+        // whose real input passes.
         let baseline = try Self.baseline(under: nine)
         let (new, stale) = Self.diff(current: current.map(\.key), baseline: baseline)
 

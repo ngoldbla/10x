@@ -11,9 +11,21 @@
 // need it.** `NineWidgets.appex` compiles `Sources/Shared` and `Sources/Engine`
 // in (`project.yml`), and inside an app extension `Bundle.main` IS the
 // extension — so the widget must resolve the same keys against its own bundle,
-// from its own copy of this file. `.main` is correct in both, and that is the
-// whole reason the lookup is written against `.main` rather than against a
-// named bundle.
+// from its own copy of this file. "The main bundle" is correct in both, and
+// that is the whole reason neither lookup names a bundle by identifier.
+//
+// **The two accessors spell that differently, and the difference is not
+// cosmetic** (PRD-20 Task 6). `install()` resolves eagerly, in this process, so
+// `bundle: .main` reads the right bundle at the moment it is asked.
+// `resource(_:)` returns a `LocalizedStringResource`, which is `Codable` and
+// resolves LATER — possibly in another process, which is the entire reason that
+// type exists rather than `String(localized:)`. Nine's uses of it are the three
+// widgets' `.configurationDisplayName` / `.description`: the widget GALLERY,
+// drawn by the Home Screen and the Lock Screen editor, not by `NineWidgets`.
+// `.main` in a resource that is decoded over there means SpringBoard's main
+// bundle, which has no `widget.daily.name`. `.atURL(Bundle.main.bundleURL)`
+// captures the appex's own URL here, while `Bundle.main` still means the appex,
+// and carries it across. Verified on screen, in German (task report).
 //
 // `Sources/Strings` is deliberately NOT a SwiftPM target. `LocalizedStringResource`
 // does not exist on Linux, and `Package.swift` must stay Linux-clean, so this
@@ -78,17 +90,32 @@ public enum Strings {
         Phrasebook.current.string("difficulty.\(difficulty.rawValue).title")
     }
 
-    /// The same key as a `LocalizedStringResource`, for the SwiftUI call sites
-    /// that want one — `Text(_:)`, `Button(_:)`, `.navigationTitle(_:)` — so
-    /// Tasks 5-8 can extract a view without routing every label through a
-    /// `String` first.
+    /// The same key as a `LocalizedStringResource`, for the call sites whose
+    /// parameter genuinely is one.
+    ///
+    /// **Six call sites, all of them the widget gallery**: the
+    /// `.configurationDisplayName` and `.description` of `NineDailyWidget`,
+    /// `NineStreakWidget` and `NineBoardWidget`. Everything else in Nine goes
+    /// through `string(_:)`, because `Sources/Shared` cannot produce a
+    /// `LocalizedStringResource` at all (Linux) and a view that takes a `String`
+    /// gains nothing from one. This function was dead code with zero references
+    /// from Task 4 until Task 6 landed those six, which is worth saying out
+    /// loud: it had never been executed when the bundle argument below was
+    /// chosen.
+    ///
+    /// `.atURL(Bundle.main.bundleURL)`, NOT `.main`, and the file header
+    /// explains why at length: this value is `Codable` and is resolved by
+    /// whoever draws the gallery — SpringBoard — rather than by us. `.main`
+    /// evaluated over there is SpringBoard's bundle. The URL is read here,
+    /// inside the appex, and travels with the value.
     ///
     /// No English fallback here, deliberately: a `LocalizedStringResource`
-    /// resolves at render time inside SwiftUI, so there is no moment at which
-    /// this function could compare the answer to the key. The generated catalog
-    /// always carries `en`, so the only way to reach a missing entry is a key
-    /// that is in no locale at all — which `strings.py --audit` fails on before
-    /// it can ship.
+    /// resolves at render time and in someone else's process, so there is no
+    /// moment at which this function could compare the answer to the key. The
+    /// generated catalog always carries `en`, so the only way to reach a missing
+    /// entry is a key that is in no locale at all — which `strings.py --audit`
+    /// fails on before it can ship, now including these six (`PHRASEBOOK_KEY_RE`
+    /// reads `.resource(` as well as `.string(`).
     public static func resource(_ key: String) -> LocalizedStringResource {
         LocalizedStringResource(String.LocalizationValue(key), bundle: .atURL(Bundle.main.bundleURL))
     }

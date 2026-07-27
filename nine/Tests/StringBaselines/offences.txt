@@ -1,9 +1,16 @@
-# Nine — bare user-facing literals, as of the start of PRD-20.
+# Nine — bare user-facing literals. The countdown, at zero.
 #
-# This file is a COUNTDOWN, not a permit. Each line is one string that still
-# reaches a player without passing through the catalog. `StringSealTests` fails
-# on any offence NOT in this list, so the rot cannot grow while Tasks 5-8
-# extract; those tasks shrink this file, and it is empty when they are done.
+# This file was a COUNTDOWN, never a permit: each line was one string that still
+# reached a player without passing through the catalog. `StringSealTests` fails
+# on any offence NOT in this list, so the rot could not grow while Tasks 5-6
+# extracted. Task 6 took the last fourteen — all of them in `Sources/Widgets` —
+# and the list below is now empty.
+#
+# **Empty, and still here.** Deleting it does not mean "no offences are
+# allowed"; it means `read_baseline` returns None, which `--audit` reports as
+# "not calibrated" and exits 1 on, forever. An empty list is the strict state:
+# every offence is a new offence. The file earns its place by being the thing
+# that says so.
 #
 # It is also an error for a line here to no longer be an offence: a stale
 # baseline is a gate that quietly stopped measuring. Regenerate with
@@ -13,17 +20,4 @@
 # Format: <path><TAB>"<literal>". Line numbers are deliberately absent — they
 # would make every unrelated edit above an offence look like a new one.
 
-Sources/Widgets/BoardWidget.swift	"Nine · Daily"
-Sources/Widgets/BoardWidget.swift	"Play today's puzzle right on your Home Screen."
-Sources/Widgets/BoardWidget.swift	"Playable Daily"
-Sources/Widgets/BoardWidget.swift	"Tap to start today's puzzle"
-Sources/Widgets/DailyWidgetViews.swift	"Daily"
-Sources/Widgets/DailyWidgetViews.swift	"Daily"
-Sources/Widgets/DailyWidgetViews.swift	"Nine · Daily"
-Sources/Widgets/DailyWidgetViews.swift	"Nine · Daily"
-Sources/Widgets/DailyWidgetViews.swift	"Start a streak"
-Sources/Widgets/DailyWidgetViews.swift	"Today's puzzle, your streak and points at a glance."
-Sources/Widgets/DailyWidgetViews.swift	"\(entry.displayedStreak) day streak"
-Sources/Widgets/DailyWidgetViews.swift	"\(entry.totalPoints) pts"
-Sources/Widgets/StreakWidget.swift	"Streak"
-Sources/Widgets/StreakWidget.swift	"Your daily streak on the Lock Screen."
+

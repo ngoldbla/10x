@@ -27,7 +27,11 @@
 //
 // SCOPE: the Shared keys, plus the Engine's two ID families. `BoardSpeech`,
 // `TipCoach`, `SolveCardFacts` and `ArchiveCalendar` are the Shared consumers;
-// Task 5 adds the App layer's. The English below reproduces today's wording
+// Task 5 added the App layer's and Task 6 the widget's. The `widget.*` block is
+// the one whose English is read in a SECOND bundle — `NineWidgets.appex`
+// resolves it against its own `Bundle.main` — but it is one table either way:
+// the appex links `Sources/Shared` too, so this file IS its English fallback.
+// The English below reproduces today's wording
 // exactly, character for character; Task 7 is where the coach sentences get
 // rewritten under their own grammar rules, and doing it here would mean two
 // changes landing in one diff with only one of them tested.
@@ -442,5 +446,29 @@ public enum EnglishPhrases {
         "tutorial.title": "How to play",
         "tutorial.titlePad": "How to play — controller",
         "tutorial.today.body": "One shared %1$@ board a day. Solve it daily to grow your streak — streaks multiply your points.",
+        "widget.board.cta": "Tap to start today's puzzle",
+        "widget.board.description": "Play today's puzzle right on your Home Screen.",
+        "widget.board.name": "Playable Daily",
+        "widget.brand.daily": "Nine · Daily",
+        "widget.caption.awaits": "Today's puzzle awaits",
+        "widget.caption.done": "Daily done",
+        "widget.caption.inProgress": "In progress",
+        "widget.caption.waiting": "New puzzle waiting",
+        "widget.daily.description": "Today's puzzle, your streak and points at a glance.",
+        "widget.daily.header": "Daily",
+        "widget.daily.name": "Daily",
+        "widget.daily.points": "%1$lld pts",
+        "widget.daily.startStreak": "Start a streak",
+        "widget.daily.streak": "%1$lld day streak",
+        "widget.status.filled": "%1$@ filled",
+        "widget.status.notStarted": "Not started",
+        "widget.status.openNine": "Open Nine",
+        "widget.status.ready": "Ready",
+        "widget.status.solved": "Solved",
+        "widget.status.solvedIn": "Solved %1$@",
+        "widget.streak.description": "Your daily streak on the Lock Screen.",
+        "widget.streak.inline": "Nine · %1$lld day streak",
+        "widget.streak.name": "Streak",
+        "widget.streak.ready": "Nine · Daily ready",
     ]
 }

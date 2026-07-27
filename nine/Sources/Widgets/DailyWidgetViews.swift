@@ -22,8 +22,8 @@ struct NineDailyWidget: Widget {
             DailyWidgetView(entry: entry)
                 .widgetURL(URL(string: "nine://daily"))
         }
-        .configurationDisplayName("Daily")
-        .description("Today's puzzle, your streak and points at a glance.")
+        .configurationDisplayName(Strings.resource("widget.daily.name"))
+        .description(Strings.resource("widget.daily.description"))
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }
@@ -56,7 +56,7 @@ struct DailyWidgetView: View {
     private var small: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Daily")
+                Text(Strings.string("widget.daily.header"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -82,7 +82,7 @@ struct DailyWidgetView: View {
             fillRing
                 .frame(width: 72, height: 72)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Nine · Daily")
+                Text(Strings.string("widget.brand.daily"))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 Text(statusLine)
@@ -95,7 +95,8 @@ struct DailyWidgetView: View {
                 HStack(spacing: 12) {
                     flameChip
                     if entry.totalPoints > 0 {
-                        Label("\(entry.totalPoints) pts", systemImage: "star.fill")
+                        Label(Strings.string("widget.daily.points", .int(entry.totalPoints)),
+                              systemImage: "star.fill")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                     }
@@ -109,13 +110,14 @@ struct DailyWidgetView: View {
 
     private var rectangular: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Nine · Daily")
+            Text(Strings.string("widget.brand.daily"))
                 .font(.caption2.weight(.semibold))
                 .widgetAccentable()
             Text(rectangularLine)
                 .font(.headline)
             if entry.displayedStreak > 0 {
-                Label("\(entry.displayedStreak) day streak", systemImage: "flame.fill")
+                Label(Strings.string("widget.daily.streak", .int(entry.displayedStreak)),
+                      systemImage: "flame.fill")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -170,32 +172,43 @@ struct DailyWidgetView: View {
 
     private var statusLine: String {
         switch entry.state {
-        case .noSnapshot: return "Open Nine"
-        case .notStarted: return "Ready"
+        case .noSnapshot: return Strings.string("widget.status.openNine")
+        case .notStarted: return Strings.string("widget.status.ready")
         case .inProgress(let fill): return WidgetFormat.percent(fill)
         case .solved(let seconds):
             if let seconds { return WidgetFormat.time(seconds) }
-            return "Solved"
+            return Strings.string("widget.status.solved")
         }
     }
 
     private var statusDetail: String {
         switch entry.state {
-        case .noSnapshot: return "Today's puzzle awaits"
-        case .notStarted: return "New puzzle waiting"
-        case .inProgress: return "In progress"
-        case .solved(let seconds): return seconds == nil ? "Daily done" : "Solved"
+        case .noSnapshot: return Strings.string("widget.caption.awaits")
+        case .notStarted: return Strings.string("widget.caption.waiting")
+        case .inProgress: return Strings.string("widget.caption.inProgress")
+        case .solved(let seconds):
+            return Strings.string(seconds == nil ? "widget.caption.done"
+                                                 : "widget.status.solved")
         }
     }
 
     private var rectangularLine: String {
         switch entry.state {
-        case .noSnapshot: return "Open Nine"
-        case .notStarted: return "Not started"
-        case .inProgress(let fill): return "\(WidgetFormat.percent(fill)) filled"
+        case .noSnapshot: return Strings.string("widget.status.openNine")
+        case .notStarted: return Strings.string("widget.status.notStarted")
+        // Whole sentences, not a word glued to a number. "64% filled" and
+        // "Solved 4:12" both put the figure first in English and both languages
+        // that front the verb would have to move it, which a Swift
+        // interpolation cannot express — the same reason `BoardProgressCaption`
+        // stopped interpolating a trailing "%" in Task 5.
+        case .inProgress(let fill):
+            return Strings.string("widget.status.filled", .text(WidgetFormat.percent(fill)))
         case .solved(let seconds):
-            if let seconds { return "Solved \(WidgetFormat.time(seconds))" }
-            return "Solved"
+            if let seconds {
+                return Strings.string("widget.status.solvedIn",
+                                      .text(WidgetFormat.time(seconds)))
+            }
+            return Strings.string("widget.status.solved")
         }
     }
 
@@ -206,7 +219,7 @@ struct DailyWidgetView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(WidgetPalette.ember)
         } else {
-            Label("Start a streak", systemImage: "flame")
+            Label(Strings.string("widget.daily.startStreak"), systemImage: "flame")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

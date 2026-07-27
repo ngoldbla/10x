@@ -12,8 +12,8 @@ struct NineStreakWidget: Widget {
                 .widgetURL(URL(string: "nine://daily"))
                 .containerBackground(for: .widget) { AccessoryWidgetBackground() }
         }
-        .configurationDisplayName("Streak")
-        .description("Your daily streak on the Lock Screen.")
+        .configurationDisplayName(Strings.resource("widget.streak.name"))
+        .description(Strings.resource("widget.streak.description"))
         .supportedFamilies([.accessoryCircular, .accessoryInline])
     }
 }
@@ -58,7 +58,7 @@ struct StreakWidgetView: View {
 
     private var inlineText: String {
         let streak = entry.displayedStreak
-        guard streak > 0 else { return "Nine · Daily ready" }
-        return "Nine · \(streak) day streak"
+        guard streak > 0 else { return Strings.string("widget.streak.ready") }
+        return Strings.string("widget.streak.inline", .int(streak))
     }
 }
