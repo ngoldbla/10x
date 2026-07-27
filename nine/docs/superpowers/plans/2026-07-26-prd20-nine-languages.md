@@ -558,8 +558,9 @@ public struct Phrasebook: Sendable {
         return Phrasebook.format(format, args)
     }
 
-    // Written exactly once, from `NineApp.init`, before the first SwiftUI body
-    // evaluates. A lock on the READ path would cost 81 acquisitions per AX dump
+    // Written exactly once per PROCESS, before the first read. NOT "from
+    // `NineApp.init`" — see the amendment below; that call site does not
+    // exist on iOS, on tvOS, or in the widget extension. A lock on the READ path would cost 81 acquisitions per AX dump
     // (`BoardAccessibility` labels every cell) and 42 per archive body
     // evaluation (`ArchiveCalendar`'s own comment at :229 explains why that
     // path is measured, not assumed) — for a value that never changes after
@@ -612,11 +613,45 @@ git commit -m "PRD-20: the Phrasebook seam, Linux-clean and bundle-free"
 
 ### Task 4: The catalog, `Strings.swift`, and the two-bundle wiring
 
+
+> **Amendment (2026-07-26, from Task 3's review).** The install site this plan
+> names does not exist on three of the four processes `Sources/Shared` compiles
+> into, and the illustrative code above said so in a comment three times.
+>
+> * `NineApp.init` is inside `#if os(macOS)` (`Sources/App/NineApp.swift`). On
+>   **iOS and tvOS `NineApp` has no `init` at all** — there is nowhere for the
+>   call to be until one is added.
+> * **`NineWidgets.appex` never runs `NineApp`.** `NineWidgetBundle` is its own
+>   `@main`. Left as is, `installed` stays nil there forever and
+>   `Phrasebook.current` is permanently English — in the one bundle whose
+>   existence is half the argument for the seam existing at all. Harmless while
+>   the widget consumes no Shared phrase (verified: it consumes none today), and
+>   a silent English island the moment one lands.
+> * Even on macOS, `@State private var model = AppModel()` (`NineApp.swift:13`)
+>   is a stored-property default, **constructed before the `init` body runs**. An
+>   install placed in `init` is one `AppModel` change away from being too late.
+>   `AppModel` builds no phrases today.
+>
+> So the invariant Task 4 must satisfy is **once per process, before the first
+> read** — not "from `NineApp.init`". Three ways to satisfy it, and Task 4 picks
+> one: add the missing `init` on iOS/tvOS *and* a second install in
+> `NineWidgetBundle`; or have `Phrasebook.current` self-install on first read;
+> or install lazily from `Strings.string` itself. Whichever it is, note that
+> `Phrasebook.install` is a `precondition`, not an `assert` — it survives `-O`,
+> so a double install is a trap in the shipping app rather than a silent
+> overwrite.
+>
+> Nothing here is a bug on the branch today. It is the comment Tasks 4 and 5
+> would have trusted.
+
 **Files:**
 - Create: `nine/Sources/Strings/Localizable.xcstrings`
 - Create: `nine/Sources/Strings/Strings.swift`
 - Modify: `nine/project.yml` (both targets)
-- Modify: `nine/Sources/App/NineApp.swift` (install at launch)
+- Modify: `nine/Sources/App/NineApp.swift` (install at launch — **and add an
+  `init` on iOS/tvOS, which has none today; see the amendment)
+- Modify: `nine/Sources/Widgets/NineWidgetBundle.swift` (its own install —
+  the appex never runs `NineApp`)
 - Create: `nine/Tests/EngineTests/CatalogTests.swift`
 
 **Interfaces:**
@@ -625,7 +660,7 @@ git commit -m "PRD-20: the Phrasebook seam, Linux-clean and bundle-free"
 - Produces:
   ```swift
   public enum Strings {
-      public static func install()                       // call from NineApp.init
+      public static func install()                       // once per process; see amendment
       public static func string(_ key: String, _ args: PhraseArg...) -> String
       public static func technique(_ t: Technique) -> String   // technique.<raw>.name
       public static func difficulty(_ d: Difficulty) -> String // difficulty.<raw>.title
@@ -714,7 +749,8 @@ import Foundation
 
 public enum Strings {
 
-    /// Called once from `NineApp.init`, before the first SwiftUI body.
+    /// Called once per process, before the first read. Where from is NOT
+    /// `NineApp.init` alone — see the amendment on this task.
     public static func install() {
         Phrasebook.install(Phrasebook { key, args in
             let format = String(localized: String.LocalizationValue(key),
@@ -765,13 +801,22 @@ The identical two lines under `targets.NineWidgets.sources`. Then, under
         CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
 ```
 
-- [ ] **Step 6: Install at launch**
+- [ ] **Step 6: Install at launch — on all four processes**
 
-In `NineApp.init`, before any view is constructed:
+Once per process, before the first read. `NineApp.init` alone reaches exactly
+one of the four (see the amendment at the head of this task): it is
+`#if os(macOS)`-only, the widget extension never runs `NineApp`, and even on
+macOS the `@State` model default is constructed before the `init` body. So:
 
 ```swift
 Strings.install()
 ```
+
+…from an `init` on `NineApp` that is **not** wrapped in `#if os(macOS)`, plus a
+second call in `NineWidgetBundle` — or from a self-installing
+`Phrasebook.current`, if that is the shape chosen. Verify per bundle rather than
+per platform: the check is that `Phrasebook.current` is not `.english` in a
+running widget, which no unit test can answer.
 
 - [ ] **Step 7: Verify the catalog compiles, and that its failure mode is loud**
 

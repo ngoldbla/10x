@@ -168,12 +168,25 @@ public enum BoardSpeech {
     /// Spoken when the board is finished. The caller decides when — this type
     /// has no opinion about celebration timing.
     ///
-    /// Computed, not a `static let`. A `let` here would be a lazy global whose
-    /// value is frozen at whatever the first read saw — which is fine today
-    /// (`Phrasebook.install` runs in `NineApp.init`, before any of this is
-    /// reachable) and silently wrong the day the player changes language
-    /// mid-session. Nothing else in this file caches a word; this should not
-    /// either.
+    /// Computed, not a `static let`. A `let` here is a lazy global frozen at
+    /// whatever the *first read* happened to see, and there is no ordering rule
+    /// in this codebase that says when that read is. `Phrasebook.install` is
+    /// once per **process**, before the first read — and today it has no call
+    /// site at all on iOS, tvOS or in the widget extension (see
+    /// `Phrasebook.swift`, which spells out why). An earlier version of this
+    /// comment claimed the freeze was "fine today, because `Phrasebook.install`
+    /// runs in `NineApp.init`". That was never true off macOS, and it was the
+    /// wrong shape of argument besides: it made a caching decision depend on a
+    /// launch sequence written in another target.
+    ///
+    /// What actually makes this safe in a process that never installs is
+    /// `Phrasebook.current`'s fallback to English — the sentence is real either
+    /// way, never empty and never a key. What the computed property buys on top
+    /// is that a read landing *before* the install cannot poison the rest of
+    /// the process: it turns a transient ordering mistake into one wrong
+    /// sentence instead of a permanently wrong one, and it is what lets the
+    /// wording follow a mid-session language change at all. Nothing else in
+    /// this file caches a word; this should not either.
     public static var solvedAnnouncement: String { Phrase.solved }
 
     /// "Four cleared."
