@@ -1,0 +1,41 @@
+# The cheap gate. No simulator, no signing, no Xcode project generation.
+#
+# It exists because until PRD-20 the ONLY test invocation in CI was
+# `swift test --filter 'BoardSpeechTests|AXFixtureTests'` — the 56-hash golden
+# corpus that EXECUTING-A-PRD §3 calls a contract was run by hand and by nothing
+# else. PRD-20 touches the enums those hashes are made of, which made it the
+# wrong PRD to keep relying on remembering.
+name: Engine + catalog (Nine)
+
+on:
+  pull_request:
+    paths: ['nine/**', 'couchkit/**', '.github/workflows/nine-engine.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: nine-engine-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26+
+        run: |
+          set -euo pipefail
+          XC=""
+          for d in /Applications/Xcode_26*.app; do [ -e "$d" ] && XC="$d"; done
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; fi
+          xcodebuild -version
+      # The whole suite, including GoldenCorpus. ~120 s per EXECUTING-A-PRD §5.
+      - name: swift test
+        working-directory: nine
+        run: swift test
+      - name: Audit the catalog
+        working-directory: nine
+        run: python3 scripts/strings.py --audit
