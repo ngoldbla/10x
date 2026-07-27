@@ -160,6 +160,94 @@ final class PhrasebookTests: XCTestCase {
         }
     }
 
+    /// No positional index carries two different conversion characters in the
+    /// same string. `coach.boxLine.body` names `%1$@` and `%3$@` twice each and
+    /// `coach.xWing.body` names `%3$@` twice — exactly the shape a translator
+    /// breaks, because reordering a sentence means editing one occurrence and
+    /// it is the second one that gets forgotten. `%1$@ … %1$lld` is a segfault
+    /// at one of the two sites, whichever the argument turns out not to be.
+    ///
+    /// This lives here rather than inside `Phrasebook.format` on purpose: at
+    /// runtime it would cost a per-call allocation to remember what it had
+    /// already seen, and the only case it uniquely catches is one the kind
+    /// check catches anyway. Over the whole table, once, it is free.
+    func testNoPositionalIndexCarriesTwoConversions() {
+        for (key, format) in EnglishPhrases.table {
+            var seen: [Int: Character] = [:]
+            for (index, conversion) in Self.positionalSpecifiers(in: format) {
+                if let first = seen[index] {
+                    XCTAssertEqual(
+                        conversion, first,
+                        """
+                        \(key) = "\(format)" spells argument \(index) as \
+                        %\(index)$\(first) in one place and %\(index)$\(conversion) in \
+                        another. One of the two will be handed the wrong kind.
+                        """
+                    )
+                }
+                seen[index] = conversion
+            }
+        }
+    }
+
+    /// The guard `Phrasebook.format` runs before `String(format:)`. The first
+    /// three cases are a measured crash and two measured lies on this machine,
+    /// not hypotheticals — `%1$@` against an `Int` is a SIGSEGV, `%1$lld`
+    /// against a `String` prints the string's raw bits, and a slot with no
+    /// argument reads whatever is next on the stack. All three are one word's
+    /// edit away at any call site, and Task 9 puts them one typo away in nine
+    /// catalogs at once.
+    ///
+    /// Asserted through `specifierMismatch` rather than through `format`,
+    /// because `format` is *supposed* to trap in Debug and XCTest cannot
+    /// survive an `assertionFailure`. What `format` then does with the answer —
+    /// trap in Debug, hand back the raw format string in Release — is the one
+    /// line here that a unit test cannot reach.
+    func testFormatRefusesAnArgumentTheSpecifierCannotTake() {
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$@", [.int(5)]),
+                        "%@ against an Int is a segfault, not a wrong string")
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$lld", [.text("abc")]),
+                        "%lld against a String prints its raw bits")
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$lld and %2$lld", [.int(7)]),
+                        "a slot with no argument reads the stack")
+
+        // Bare specifiers, a stray percent, and conversions Nine does not use.
+        XCTAssertNotNil(Phrasebook.specifierMismatch("Row %lld", [.int(3)]))
+        XCTAssertNotNil(Phrasebook.specifierMismatch("50% done", [.int(3)]))
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$f", [.int(3)]))
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$s", [.text("x")]))
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%0$lld", [.int(3)]),
+                        "positional indices are 1-based")
+
+        // Strings that stop in the middle of a specifier. The state machine
+        // reads one byte at a time and cannot look ahead, so "ran off the end"
+        // has to be answered after the loop rather than inside it.
+        for truncated in ["%", "%1", "%1$", "%1$0", "Row %1$"] {
+            XCTAssertNotNil(Phrasebook.specifierMismatch(truncated, [.int(3)]),
+                            "\"\(truncated)\" ends mid-specifier")
+        }
+
+        // …and the shapes that are fine, so this is a rule and not a veto.
+        XCTAssertNil(Phrasebook.specifierMismatch("Row %1$lld, column %2$lld", [.int(3), .int(5)]))
+        XCTAssertNil(Phrasebook.specifierMismatch("%1$@ placed.", [.text("Four")]))
+        XCTAssertNil(Phrasebook.specifierMismatch("Solved.", []))
+        XCTAssertNil(Phrasebook.specifierMismatch("50%% done", [.int(3)]),
+                     "an escaped percent is a percent")
+        XCTAssertNil(Phrasebook.specifierMismatch("%2$@ %1$@ %2$@", [.text("a"), .text("b")]),
+                     "reordering and reuse are the whole point")
+        XCTAssertNil(Phrasebook.specifierMismatch("%1$02lld", [.int(3)]),
+                     "width and flags belong to the translation, not to us")
+
+        // Every phrase in the table, against the arguments its own specifiers
+        // ask for. `BoardSpeechTests` covers the table against the arity the
+        // code really calls it with; this is the table against itself, so an
+        // entry no call site has reached yet still cannot be malformed.
+        for (key, format) in EnglishPhrases.table {
+            XCTAssertNil(Phrasebook.specifierMismatch(format, Self.plausibleArguments(for: format)),
+                         "\(key) = \"\(format)\" cannot be formatted by its own specifiers")
+        }
+    }
+
     /// Nothing in the table is empty, and nothing is a key repeated as its own
     /// value — both are what a half-finished extraction looks like, and both
     /// would sail past every other test in this file.
@@ -171,6 +259,47 @@ final class PhrasebookTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// `(index, conversionCharacter)` for every positional specifier, in order.
+    /// Deliberately a second, dumber reader than `Phrasebook.specifierMismatch`
+    /// — a helper that shared the production parser could not catch the
+    /// production parser being wrong.
+    static func positionalSpecifiers(in format: String) -> [(index: Int, conversion: Character)] {
+        let characters = Array(format)
+        var found: [(index: Int, conversion: Character)] = []
+        var i = 0
+        while i < characters.count {
+            guard characters[i] == "%" else { i += 1; continue }
+            i += 1
+            guard i < characters.count else { break }
+            if characters[i] == "%" { i += 1; continue }
+            var digits = ""
+            while i < characters.count, characters[i].isNumber {
+                digits.append(characters[i])
+                i += 1
+            }
+            guard let index = Int(digits), i < characters.count, characters[i] == "$" else { continue }
+            i += 1
+            while i < characters.count, "-+ #0.lhqjzt".contains(characters[i]) || characters[i].isNumber {
+                i += 1
+            }
+            guard i < characters.count else { break }
+            found.append((index, characters[i]))
+            i += 1
+        }
+        return found
+    }
+
+    /// Arguments of the kind a format's own specifiers ask for, so the whole
+    /// table can be checked without hard-coding an arity per key.
+    static func plausibleArguments(for format: String) -> [PhraseArg] {
+        var args: [PhraseArg] = []
+        for (index, conversion) in positionalSpecifiers(in: format) {
+            while args.count < index { args.append(.int(0)) }
+            args[index - 1] = conversion == "@" ? .text("x") : .int(0)
+        }
+        return args
+    }
 
     /// Specifiers that are not `%<n>$…`. `%%` is a literal percent and is fine.
     static func nonPositionalSpecifiers(in format: String) -> [String] {

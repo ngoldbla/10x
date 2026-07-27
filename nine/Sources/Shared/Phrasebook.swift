@@ -25,9 +25,23 @@ import Foundation
 
 /// An argument to a phrase. Two cases because two is what Nine's sentences
 /// take: a number (a row, a count, a streak) and an already-formatted fragment
-/// (a digit word, a unit name). Deliberately not `CVarArg` — that protocol is
-/// how a `Float` or a pointer gets into a format string and out the other side
-/// as undefined behaviour, and this enum is the closed set that cannot.
+/// (a digit word, a unit name).
+///
+/// Deliberately not `CVarArg`. That protocol is how a `Float`, a pointer or a
+/// `CGRect` gets into a format string and out the other side as undefined
+/// behaviour, and closing the argument set to two cases keeps all of that out.
+///
+/// **It does not close the *specifier* set, and that is the dangerous half.**
+/// `%1$@` against `.int` is not a wrong string, it is a segfault —
+/// `String(format:)` reads the integer as an object pointer and messages it.
+/// Measured on this machine, all three of these are reachable from a one-word
+/// edit or a translator's typo:
+///
+///     String(format: "%1$@",   arguments: [5 as CVarArg])      // SIGSEGV
+///     String(format: "%1$lld", arguments: ["abc" as CVarArg])  // -4868140715284934059
+///     String(format: "%1$lld and %2$lld", arguments: [7])      // "7 and 0"
+///
+/// `Phrasebook.format` is where that is caught; see `specifierMismatch`.
 public enum PhraseArg: Sendable {
     case int(Int)
     case text(String)
@@ -60,22 +74,48 @@ public struct Phrasebook: Sendable {
         return Phrasebook.format(format, args)
     }
 
-    // Written exactly once, from `NineApp.init`, before the first SwiftUI body
-    // evaluates. A lock on the READ path would cost 81 acquisitions per AX dump
-    // (`BoardAccessibility` labels every cell) and 42 per archive body
-    // evaluation (`ArchiveCalendar`'s own comment above `cachedFormatter`
-    // explains why that path is measured rather than assumed) — for a value
-    // that never changes after launch. The `assert` is what keeps "written
-    // once" true: it is the only thing standing between this and a data race,
-    // so a second `install` has to be a development-time crash rather than a
-    // shrug. `PhrasebookTests` is the only caller in the test suite, and the
-    // book it installs delegates to English so nothing else's wording moves.
+    // **Written exactly once per PROCESS, before the first read.** Not "from
+    // `NineApp.init`" — that was the first version of this comment and it was
+    // false on three of the four processes this file compiles into:
+    //
+    //   • `NineApp.init` exists only under `#if os(macOS)` (`NineApp.swift`),
+    //     so on iOS and tvOS `NineApp` has no `init` at all and there is
+    //     nowhere for the call to be.
+    //   • `NineWidgets.appex` never runs `NineApp`. Left as is, `installed`
+    //     stays nil there forever and `current` is permanently English — in the
+    //     one bundle whose existence is half the argument for this seam
+    //     existing. The widget consumes no Shared phrase today, so nothing is
+    //     broken on this branch; it will be the moment one lands.
+    //   • Even on macOS, `@State private var model = AppModel()` is a
+    //     stored-property default, constructed BEFORE the `init` body runs. An
+    //     install placed in `init` is one `AppModel` change away from being too
+    //     late. `AppModel` builds no phrases today.
+    //
+    // So the invariant is process-local and read-ordered, and the wiring that
+    // satisfies it is Task 4's: an `init` added on iOS/tvOS, a second install
+    // in `NineWidgetBundle`, or `current` learning to self-install. Whichever
+    // it is, `precondition` below is what makes a violation loud rather than
+    // theoretical.
+    //
+    // No lock on the READ path. The perf line is real — 81 acquisitions per AX
+    // dump (`BoardAccessibility` labels every cell) and 42 per archive body
+    // evaluation — but it is not the reason: the reason is that this is a
+    // single-writer value that is written before any reader exists, which makes
+    // a lock a way of hiding a broken launch sequence rather than a way of
+    // being correct. `ArchiveCalendar.cachedFormatter` sets the opposite house
+    // precedent *with* a lock, and it is right to: its cache is written by
+    // readers, on the render path, forever.
+    //
+    // `precondition`, not `assert`. `assert` is erased at `-O`, so in the
+    // shipping app a second install would be exactly the silent shrug this is
+    // here to prevent — and the shipping app is where a stray install is most
+    // likely and least observable. One branch, once, at launch.
     nonisolated(unsafe) private static var installed: Phrasebook?
 
     public static var current: Phrasebook { installed ?? .english }
 
     public static func install(_ book: Phrasebook) {
-        assert(installed == nil, "Phrasebook.install is launch-time and once")
+        precondition(installed == nil, "Phrasebook.install is launch-time and once per process")
         installed = book
     }
 
@@ -90,12 +130,118 @@ public struct Phrasebook: Sendable {
     ///
     /// `%lld` rather than `%d` because `Int` is 64-bit on every platform Nine
     /// ships to, and `%d` would read the low half of a 64-bit vararg.
+    ///
+    /// **Validated before it is formatted**, because the failure mode is a
+    /// segfault rather than a wrong word (see `PhraseArg`). A mismatch is an
+    /// `assertionFailure` in Debug — it is always a bug in the table, in a
+    /// translation, or in a call site — and in Release it returns the raw
+    /// format string. That is deliberately the same shape as the missing-key
+    /// fallback: the player sees `%1$@` where a word should be and reports it,
+    /// which beats both a crash and a lie.
     public static func format(_ format: String, _ args: [PhraseArg]) -> String {
-        String(format: format, arguments: args.map { arg -> CVarArg in
+        if let mismatch = specifierMismatch(format, args) {
+            assertionFailure("Phrasebook: \(mismatch) — in \"\(format)\"")
+            return format
+        }
+        return String(format: format, arguments: args.map { arg -> CVarArg in
             switch arg {
             case .int(let number): return number
             case .text(let text): return text
             }
         })
     }
+
+    /// What is wrong with this format/argument pair, or nil if nothing is.
+    ///
+    /// A state machine over `format.utf8`, allocating nothing on the success
+    /// path, because this runs on the 81-label AX path and the first version of
+    /// it did not. That version opened with `Array(format)` — a `[Character]`,
+    /// so a grapheme-breaking pass and a heap allocation per call — and
+    /// measured **518 ns per label, 33% of the whole `format` call**. Which is
+    /// not a rounding error, and the comment that claimed it was got there by
+    /// reasoning instead of measuring. This version measures 44-47 ns, 4.1% of
+    /// a `format` call, over 810k calls in a `-O` build (method and numbers in
+    /// the task report). Format specifiers are ASCII by definition, so bytes
+    /// lose nothing.
+    ///
+    /// It deliberately does NOT track "index 3 is a `%@` here and a `%lld`
+    /// there". That would need a per-call allocation to remember, and it buys
+    /// nothing: an argument has one kind, so of two differing conversions at
+    /// least one must already disagree with it and be caught below. The one
+    /// case that escapes — `%1$d` and `%1$i` in the same string — is two
+    /// spellings of the same thing. The whole-table version of that rule is a
+    /// test (`testNoPositionalIndexCarriesTwoConversions`), where it is free.
+    static func specifierMismatch(_ format: String, _ args: [PhraseArg]) -> String? {
+        // Flags, width, precision and length modifiers. Nine's English uses
+        // none of them; a translation may, and skipping them is cheaper than
+        // being surprised by "%1$02lld" in a language that pads its numerals.
+        func isModifier(_ byte: UInt8) -> Bool {
+            switch byte {
+            case UInt8(ascii: "0")...UInt8(ascii: "9"),
+                 UInt8(ascii: "-"), UInt8(ascii: "+"), UInt8(ascii: " "),
+                 UInt8(ascii: "#"), UInt8(ascii: "."),
+                 UInt8(ascii: "l"), UInt8(ascii: "h"), UInt8(ascii: "q"),
+                 UInt8(ascii: "j"), UInt8(ascii: "z"), UInt8(ascii: "t"):
+                return true
+            default:
+                return false
+            }
+        }
+
+        enum State { case literal, afterPercent, readingIndex, readingModifiers }
+        var state = State.literal
+        var index = 0
+
+        for byte in format.utf8 {
+            switch state {
+            case .literal:
+                if byte == UInt8(ascii: "%") { state = .afterPercent }
+
+            case .afterPercent:
+                if byte == UInt8(ascii: "%") { state = .literal; continue }   // an escaped percent
+                guard byte >= UInt8(ascii: "0"), byte <= UInt8(ascii: "9") else {
+                    return Self.bareSpecifier
+                }
+                index = Int(byte - UInt8(ascii: "0"))
+                state = .readingIndex
+
+            case .readingIndex:
+                if byte >= UInt8(ascii: "0"), byte <= UInt8(ascii: "9") {
+                    index = index * 10 + Int(byte - UInt8(ascii: "0"))
+                    continue
+                }
+                guard byte == UInt8(ascii: "$") else { return Self.bareSpecifier }
+                state = .readingModifiers
+
+            case .readingModifiers:
+                if isModifier(byte) { continue }
+                state = .literal
+                let conversion = Character(UnicodeScalar(byte))
+                guard index >= 1, index <= args.count else {
+                    return "%\(index)$ but only \(args.count) argument(s) were passed "
+                        + "— the missing slot reads as whatever is next on the stack"
+                }
+                switch (conversion, args[index - 1]) {
+                case ("@", .text), ("d", .int), ("i", .int), ("u", .int),
+                     ("x", .int), ("X", .int), ("o", .int):
+                    continue
+                case ("@", .int):
+                    return "%\(index)$@ was given a number — String(format:) reads it "
+                        + "as an object pointer and segfaults"
+                case (_, .text):
+                    return "%\(index)$\(conversion) was given text — String(format:) "
+                        + "prints the string's raw bits as a number"
+                default:
+                    return "%\(index)$\(conversion) is not a conversion Nine's phrases "
+                        + "support (%@ for text, %lld for numbers)"
+                }
+            }
+        }
+        // A specifier the string ended in the middle of: "%", "%1", "%1$", "%1$0".
+        return state == .literal ? nil : "a specifier with no conversion character"
+    }
+
+    private static let bareSpecifier =
+        "a bare specifier — every one must be positional (%1$lld, %2$@) "
+        + "and a literal percent must be %%"
 }
