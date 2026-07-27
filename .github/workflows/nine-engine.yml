@@ -36,6 +36,16 @@ jobs:
       - name: swift test
         working-directory: nine
         run: swift test
+      # The catalog checks cannot run against the repo until Task 4 creates
+      # Sources/Strings/Localizable.xcstrings, and "cannot run" is how they
+      # shipped with two bugs in them: `compile` invoked without the
+      # `--output-directory` it requires even under `--dry-run`, and a `print`
+      # parser expecting quoted keys when the tool emits bare ones. Neither was
+      # reachable, so neither was caught. This drives all four paths against
+      # scratch catalogs, on every PR, from today rather than from Task 4.
+      - name: Self-test the catalog checks
+        working-directory: nine
+        run: python3 scripts/strings.py --selftest-catalog
       - name: Audit the catalog
         working-directory: nine
         run: python3 scripts/strings.py --audit

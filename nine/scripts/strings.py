@@ -38,10 +38,12 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 REPO_NINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -59,18 +61,30 @@ EXEMPT = [
 ]
 
 # View constructors whose `String` arguments reach a human.
+#
+# The second row is not used anywhere in the tree today and finds nothing. It
+# is here anyway: this gate's whole job is stopping rot during Tasks 5-8, and a
+# list that only covers what the app happens to call today lets the first
+# `ContentUnavailableView("No boards yet")` of the extraction sail past both
+# runners. Cheap to add now, invisible to add later.
 SINKS = [
     "Text", "Label", "Button", "Toggle", "Picker", "Section", "TextField",
     "Link", "Menu", "NavigationLink", "Window", "CommandMenu", "GlassChip",
     "GlassIconButton",
+    "Stepper", "ProgressView", "ContentUnavailableView", "LabeledContent",
+    "SecureField", "TextEditor", "DatePicker", "GroupBox", "DisclosureGroup",
 ]
 
-# Modifiers whose first argument reaches a human — usually only a VoiceOver
-# user, which is exactly why they were the ones nobody noticed were English.
+# Modifiers whose arguments reach a human — usually only a VoiceOver user,
+# which is exactly why they were the ones nobody noticed were English.
 MODIFIERS = [
     "navigationTitle", "accessibilityLabel", "accessibilityHint",
     "accessibilityValue", "accessibilityAction", "help",
     "configurationDisplayName", "description",
+    # Same argument as the second row of SINKS: silent today, load-bearing the
+    # moment somebody adds a confirmation to "Discard this board?".
+    "alert", "confirmationDialog", "searchable", "accessibilityInputLabels",
+    "tabItem", "navigationSubtitle", "accessibilityCustomContent", "prompt",
 ]
 
 # Argument labels that never carry prose. This list, not "the first argument
@@ -337,10 +351,35 @@ def is_translatable(body):
         # `"\(a). \(b)"` once the interpolations go, which is right: the
         # translatable parts of that line live in whatever `a` and `b` are.
         return False
-    if IDENTIFIERISH.match(prose.strip()) and re.search(r"[._:/]", prose):
+    trimmed = prose.strip()
+    if not IDENTIFIERISH.match(trimmed):
+        return True           # has a space, or punctuation prose alone has
+
+    # Sentence punctuation is the one thing an identifier never ends in, and
+    # the shape rule below used to swallow anything carrying a dot or a colon
+    # — so `Text("Time:")` in the stats drawer and `Button("Undone.")` in the
+    # undo toast were silently dropped as if they were SF Symbols. Prose that
+    # stops wins over shape every time.
+    if trimmed[-1] in ".:!?":
+        return True
+
+    if re.search(r"[._:/]", trimmed):
         return False          # SF Symbol, bundle id, key path, URL
-    if IDENTIFIERISH.match(prose.strip()) and "-" in prose and prose.islower():
-        return False          # kebab-case launch arg or asset suffix
+
+    # Kebab: two or more alphanumeric segments, like `pad-probe` (a launch arg)
+    # or `AppIcon-Ember` (an asset-catalog set). This arm used to also require
+    # `.islower()`, which let `AppIcon-Ember` through as prose — the exact
+    # asset name PRD-20 says must never fire. Case cannot be the test, because
+    # asset sets are conventionally capitalised.
+    #
+    # Known and accepted false negative: a genuinely hyphenated English word
+    # in a sink — `Text("Sign-in")` — is dropped. There is no shape that tells
+    # it apart from an asset name, the extraction tasks read every string
+    # anyway, and the alternative is reporting every asset name as
+    # translatable.
+    segments = trimmed.split("-")
+    if len(segments) >= 2 and all(s.isalnum() for s in segments):
+        return False
     return True
 
 
@@ -470,16 +509,25 @@ CATALOG_KEY_RE = re.compile(r"Strings\.([A-Za-z_][A-Za-z0-9_]*"
 def catalog_keys(tool, catalog=CATALOG):
     """The catalog's keys, via `xcstringstool print` — it lists them with no
     build and no simulator, which is the entire reason these checks can live in
-    the cheap lane."""
+    the cheap lane.
+
+    One bare key per line, unquoted:
+
+        home.subtitle
+        home.title
+
+    This parser used to require a leading `"`, which is what a `.strings` file
+    looks like, not what `print` emits. The set therefore came back empty every
+    time — `missing` would have named every key in the app and `dead` would have
+    been permanently green. Nothing caught it because C1 below meant this
+    function was never reached at all. Both are now driven by
+    `--selftest-catalog`.
+    """
     result = subprocess.run([tool, "print", catalog],
                             capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        return None, result.stderr.strip()
-    keys = set()
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if line.startswith('"') and '"' in line[1:]:
-            keys.add(line[1:line.index('"', 1)])
+        return None, (result.stderr.strip() or result.stdout.strip())
+    keys = {line.strip() for line in result.stdout.splitlines() if line.strip()}
     return keys, None
 
 
@@ -499,13 +547,39 @@ def swift_referenced_keys(nine=REPO_NINE):
     return keys
 
 
-def audit_catalog(verbose):
+def compile_catalog(tool, catalog):
+    """Does `xcstringstool` accept this catalog? Returns None, or its stderr.
+
+    `compile` requires `--output-directory` even under `--dry-run` — it exits
+    64 with an argument-parser usage error otherwise. The first version of this
+    passed `--dry-run` alone, so from the moment Task 4 created the catalog the
+    lane would have gone red on every PR with "the catalog does not compile"
+    wrapped around `Missing expected argument '--output-directory'`. Worse, the
+    early `return` meant the missing-key and dead-string checks would never
+    have run at all. A temporary directory is the price of `--dry-run` being a
+    lie about what the tool needs, not about what it writes.
+    """
+    with tempfile.TemporaryDirectory() as out:
+        result = subprocess.run(
+            [tool, "compile", catalog, "--dry-run", "--output-directory", out],
+            capture_output=True, text=True, check=False)
+    if result.returncode == 0:
+        return None
+    return result.stderr.strip() or result.stdout.strip()
+
+
+def audit_catalog(verbose, catalog=CATALOG, used=None):
     """The three catalog checks. Returns a list of failure strings; an empty
     list with a printed note is what "the catalog does not exist yet" looks
-    like, because Task 1 ships before Task 4 builds it."""
-    if not os.path.exists(CATALOG):
+    like, because Task 1 ships before Task 4 builds it.
+
+    `catalog` and `used` are arguments so `--selftest-catalog` can drive this
+    against a scratch catalog. Both of these checks shipped broken once because
+    nothing could run them until Task 4; that is now no longer true.
+    """
+    if not os.path.exists(catalog):
         print("note: %s does not exist yet — skipping the catalog checks "
-              "(Task 4 creates it)." % os.path.relpath(CATALOG, REPO_NINE))
+              "(Task 4 creates it)." % os.path.relpath(catalog, REPO_NINE))
         return []
     tool = xcstringstool()
     if tool is None:
@@ -513,20 +587,18 @@ def audit_catalog(verbose):
                 "`xcrun --find xcstringstool`"]
 
     failures = []
-    compile_out = subprocess.run(
-        [tool, "compile", "--dry-run", CATALOG],
-        capture_output=True, text=True, check=False)
-    if compile_out.returncode != 0:
-        failures.append("the catalog does not compile:\n%s"
-                        % (compile_out.stderr.strip() or compile_out.stdout.strip()))
+    error = compile_catalog(tool, catalog)
+    if error is not None:
+        failures.append("the catalog does not compile:\n%s" % error)
         return failures
 
-    keys, error = catalog_keys(tool)
+    keys, error = catalog_keys(tool, catalog)
     if keys is None:
         failures.append("xcstringstool print failed:\n%s" % error)
         return failures
 
-    used = swift_referenced_keys()
+    if used is None:
+        used = swift_referenced_keys()
     missing = sorted(used - keys)
     dead = sorted(keys - used)
     if missing:
@@ -593,6 +665,80 @@ def command_audit(args):
     return 1 if failed else 0
 
 
+def scratch_catalog(directory, keys, broken=False):
+    """A minimal `.xcstrings` on disk, so the catalog checks are drivable
+    before Task 4 exists."""
+    path = os.path.join(directory, "Localizable.xcstrings")
+    body = {
+        "sourceLanguage": "en",
+        "version": "1.0",
+        "strings": {
+            key: {"localizations": {"en": {"stringUnit": {
+                "state": "translated", "value": key.split(".")[-1].title(),
+            }}}} for key in keys
+        },
+    }
+    with open(path, "w", encoding="utf-8") as handle:
+        if broken:
+            # Truncated JSON. What a bad merge of a catalog actually looks
+            # like, and the thing `xcstringstool compile` is here to catch.
+            handle.write(json.dumps(body)[:-20])
+        else:
+            json.dump(body, handle, indent=2)
+    return path
+
+
+def command_selftest_catalog(_args):
+    """Drive `audit_catalog` against scratch catalogs, both ways.
+
+    This exists because the catalog half of `--audit` cannot run against the
+    repo until Task 4 creates `Sources/Strings/Localizable.xcstrings`, and
+    "cannot run" is how it shipped with two bugs in it: `compile` was invoked
+    without the `--output-directory` it requires even under `--dry-run`, and
+    the `print` parser expected quoted keys when the tool emits bare ones.
+    Neither was reachable, so neither was caught. Now they are.
+    """
+    cases = [
+        ("a clean catalog, every key used", ["home.title", "home.subtitle"],
+         {"home.title", "home.subtitle"}, False, []),
+        ("a key used in Swift but absent from the catalog", ["home.title"],
+         {"home.title", "home.missing"}, False,
+         ["used in Swift, absent from the catalog: home.missing"]),
+        ("a key in the catalog that no Swift file names",
+         ["home.title", "home.dead"], {"home.title"}, False,
+         ["in the catalog, referenced by no Swift file"]),
+        ("a catalog that does not parse", ["home.title"], {"home.title"},
+         True, ["the catalog does not compile"]),
+    ]
+
+    failed = False
+    with tempfile.TemporaryDirectory() as directory:
+        for name, keys, used, broken, expected in cases:
+            case_dir = os.path.join(directory, name.replace(" ", "_")[:32])
+            os.makedirs(case_dir, exist_ok=True)
+            path = scratch_catalog(case_dir, keys, broken=broken)
+            failures = audit_catalog(False, catalog=path, used=set(used))
+            joined = "\n".join(failures)
+            ok = (len(failures) == len(expected)
+                  and all(fragment in joined for fragment in expected))
+            print("%s %s" % ("ok  " if ok else "FAIL", name))
+            for failure in failures:
+                print("       %s" % failure.replace("\n", "\n       "))
+            if not ok:
+                print("       expected %d failure(s) containing %r"
+                      % (len(expected), expected))
+                failed = True
+
+        missing = os.path.join(directory, "nowhere", "Localizable.xcstrings")
+        note = audit_catalog(False, catalog=missing, used=set())
+        ok = note == []
+        print("%s a catalog that does not exist yet degrades to a note"
+              % ("ok  " if ok else "FAIL"))
+        failed = failed or not ok
+
+    return 1 if failed else 0
+
+
 def command_extract(_args):
     sys.exit("--extract is not implemented until Task 5. It will lift the "
              "baselined literals into Sources/Strings/Localizable.xcstrings "
@@ -618,6 +764,8 @@ def main(argv=None):
                       help="(Task 5) lift literals into the catalog")
     mode.add_argument("--pseudo", action="store_true",
                       help="(Task 9) render the pseudo-locale")
+    mode.add_argument("--selftest-catalog", action="store_true",
+                      help="drive the catalog checks against scratch catalogs")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="print every offence, not just the new ones")
     parser.add_argument("--list", action="store_true",
@@ -630,6 +778,8 @@ def main(argv=None):
         return command_extract(args)
     if args.pseudo:
         return command_pseudo(args)
+    if args.selftest_catalog:
+        return command_selftest_catalog(args)
     return command_audit(args)
 
 

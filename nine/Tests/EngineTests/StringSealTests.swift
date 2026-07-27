@@ -32,10 +32,18 @@ import Foundation
 final class StringSealTests: XCTestCase {
 
     /// View constructors whose String argument reaches a human.
+    ///
+    /// The second row is not used anywhere in the tree today and finds
+    /// nothing. It is here anyway: this gate's whole job is stopping rot
+    /// during Tasks 5-8, and a list that only covers what the app happens to
+    /// call today lets the first `ContentUnavailableView("No boards yet")` of
+    /// the extraction sail past both runners.
     private static let sinks = [
         "Text", "Label", "Button", "Toggle", "Picker", "Section", "TextField",
         "Link", "Menu", "NavigationLink", "Window", "CommandMenu", "GlassChip",
         "GlassIconButton",
+        "Stepper", "ProgressView", "ContentUnavailableView", "LabeledContent",
+        "SecureField", "TextEditor", "DatePicker", "GroupBox", "DisclosureGroup",
     ]
 
     /// Modifiers whose argument reaches a human — usually only a VoiceOver
@@ -45,6 +53,11 @@ final class StringSealTests: XCTestCase {
         "navigationTitle", "accessibilityLabel", "accessibilityHint",
         "accessibilityValue", "accessibilityAction", "help",
         "configurationDisplayName", "description",
+        // Same argument as the second row of `sinks`: silent today,
+        // load-bearing the moment somebody adds a confirmation to
+        // "Discard this board?".
+        "alert", "confirmationDialog", "searchable", "accessibilityInputLabels",
+        "tabItem", "navigationSubtitle", "accessibilityCustomContent", "prompt",
     ]
 
     private static let trees = ["Sources/App", "Sources/Widgets", "Sources/Shared"]
@@ -159,12 +172,27 @@ final class StringSealTests: XCTestCase {
                     Toggle("Show Timer", isOn: $timer)              // 7
                     // Text("A commented-out surface")
                     /* Text("A block-commented surface") */
+
+                    // The shape rule, exercised where it actually runs. These
+                    // sat outside any sink until review caught it — as a bare
+                    // `var` body and an `Image(systemName:)`, neither of which
+                    // the scanner reads — so deleting both shape branches left
+                    // every test green. They are arguments to real sinks now,
+                    // and mutating the rule reddens this test.
+                    Text("arrow.uturn.backward")
+                    Text("com.couchsuite.nine.points")
+                    Text("nine.history")
+                    Text("AppIcon-Ember")
+                    Text("pad-probe")
+                    // ...and the boundary the shape rule used to overrun.
+                    // Prose that ends in punctuation is prose.
+                    Text("Time:")                                   // 8
+                    Button("Undone.") { }                           // 9
                 }
-                var icon: String { "AppIcon-Ember" }
-                var board: String { "com.couchsuite.nine.points" }
-                func hide() { Image(systemName: "chevron.left") }
-                .accessibilityLabel("Board")                        // 8
-                .accessibilityAction(named: "Show board stats") { } // 9
+                .accessibilityLabel("Board")                        // 10
+                .accessibilityAction(named: "Show board stats") { } // 11
+                .alert("Discard this board?", isPresented: $ask) { } // 12
+                .searchable(text: $query, prompt: "Search boards")   // 13
             }
             """
         let found = Self.offences(in: fixture, path: "Fixture.swift").map(\.literal)
@@ -177,8 +205,12 @@ final class StringSealTests: XCTestCase {
             "Exit Desk Mode",
             "Enter Desk Mode",
             "Show Timer",
+            "Time:",
+            "Undone.",
             "Board",
             "Show board stats",
+            "Discard this board?",
+            "Search boards",
         ], """
             The detector no longer sees what it exists to see, or has started \
             seeing machine names as prose. Found:
@@ -446,17 +478,46 @@ final class StringSealTests: XCTestCase {
         let identifierish = !trimmed.isEmpty && trimmed.allSatisfy {
             $0.isLetter || $0.isNumber || "_.:/-+%".contains($0)
         }
+        // Has a space, or punctuation prose alone has.
+        guard identifierish else { return true }
+
+        // Sentence punctuation is the one thing an identifier never ends in,
+        // and the shape rule below used to swallow anything carrying a dot or
+        // a colon — so `Text("Time:")` in the stats drawer and
+        // `Button("Undone.")` in the undo toast were silently dropped as if
+        // they were SF Symbols. Prose that stops wins over shape every time.
+        if let last = trimmed.last, ".:!?".contains(last) { return true }
+
         // SF Symbol, bundle id, key path, URL — no spaces, and punctuation
         // where prose would have none.
-        if identifierish, trimmed.contains(where: { "._:/".contains($0) }) { return false }
-        // kebab-case launch arg or asset suffix.
-        if identifierish, trimmed.contains("-"), trimmed == trimmed.lowercased() { return false }
+        if trimmed.contains(where: { "._:/".contains($0) }) { return false }
+
+        // Kebab: two or more alphanumeric segments, like `pad-probe` (a launch
+        // arg) or `AppIcon-Ember` (an asset-catalog set). This arm used to
+        // also require all-lowercase, which let `AppIcon-Ember` through as
+        // prose — the exact asset name PRD-20 says must never fire. Case
+        // cannot be the test, because asset sets are conventionally
+        // capitalised.
+        //
+        // Known and accepted false negative: a genuinely hyphenated English
+        // word in a sink — `Text("Sign-in")` — is dropped. There is no shape
+        // that tells it apart from an asset name, the extraction tasks read
+        // every string anyway, and the alternative is reporting every asset
+        // name as translatable.
+        let segments = trimmed.split(separator: "-", omittingEmptySubsequences: false)
+        if segments.count >= 2, segments.allSatisfy({ segment in
+            !segment.isEmpty && segment.allSatisfy { $0.isLetter || $0.isNumber }
+        }) { return false }
         return true
     }
 
-    /// Drop `\(…)` segments, one level of nesting deep — enough for
-    /// `\(Self.format(entry.game.timer.elapsed(at: Date())))`, which is the
-    /// deepest one in the tree.
+    /// Drop `\(…)` segments, counting paren depth so nesting is unbounded.
+    ///
+    /// Depth, not a regex. The Python side started as a regex that nested
+    /// exactly one level, left half of
+    /// `"\(a) · \(Self.format(entry.game.timer.elapsed(at: Date())))"` behind
+    /// as "prose", and disagreed with this function by one line of
+    /// BoardsSheet. That disagreement is the argument for keeping both runners.
     private static func stripInterpolations(_ body: String) -> String {
         let chars = Array(body)
         var out = ""
