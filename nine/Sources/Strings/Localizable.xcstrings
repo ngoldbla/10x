@@ -350,7 +350,7 @@
       }
     },
     "board.announce.cleared" : {
-      "comment" : "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word, lowercase — as in board.announce.placed, do not open the sentence with it.",
+      "comment" : "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word, in its citation form — see board.announce.placed on where the capital comes from.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -385,8 +385,20 @@
         }
       }
     },
+    "board.announce.pair" : {
+      "comment" : "Joins the two sentences of a placement announcement — \"Placed four.\" and \"That leaves two fours.\" — into one utterance. Punctuation and order only, no words of its own: a space in English, nothing at all after a Japanese full stop. Reorder the two if that is how this language says it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "board.announce.placed" : {
-      "comment" : "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"), and it arrives lowercase: open the sentence with a word of your own rather than with %1$@, so this language's capitalization is yours to decide. A sentence: it ends in a full stop.",
+      "comment" : "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"), and it arrives in its citation form — lowercase in English. If your language needs it capitalized in this position, capitalize it in board.digitWord.*; English opens with its own verb because it cannot. A sentence: it ends in a full stop.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -398,13 +410,13 @@
       }
     },
     "board.announce.remaining" : {
-      "comment" : "VoiceOver announcement, spoken straight after board.announce.placed: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\"). Both arrive lowercase and neither should open the sentence. A language that counts with numerals may write the number into the sentence and let the words go unused.",
+      "comment" : "VoiceOver announcement, spoken straight after board.announce.placed: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\"), both in their citation form. A language that counts with numerals may write the number into the sentence and leave the words unused. Short — it is spoken on every digit placed, about fifty times a board.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "That leaves %1$@ %2$@ to place."
+            "value" : "That leaves %1$@ %2$@."
           }
         }
       }
@@ -441,6 +453,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filled"
+          }
+        }
+      }
+    },
+    "board.cell.hintPair" : {
+      "comment" : "Joins the two halves of a square's VoiceOver hint — the box it sits in (\"Box 2\") and how to place a digit — into one utterance. Punctuation and order only, no words of its own: a full stop and a space in English, \"。\" and no space in Japanese.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. %2$@"
           }
         }
       }
@@ -1382,7 +1406,7 @@
       }
     },
     "coach.card.label" : {
-      "comment" : "VoiceOver label of the coaching card, joining its heading and its sentence into one utterance. %1$@ is a technique name or a card heading, %2$@ the explanation.",
+      "comment" : "VoiceOver label of the coaching card, joining its heading and its sentence into one utterance. %1$@ is a technique name or a card heading, %2$@ the explanation. Punctuation only, and it is yours: replace \". \" with \"。\" or with whatever ends a sentence here, and reorder the two if that is how this language says it.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

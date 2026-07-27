@@ -249,13 +249,13 @@ final class BoardSpeechTests: XCTestCase {
         XCTAssertEqual(game.count(of: digit), 7)
         XCTAssertEqual(
             BoardSpeech.placementAnnouncement(digit: digit, in: game),
-            "Placed \(singular). That leaves two \(plural) to place."
+            "Placed \(singular). That leaves two \(plural)."
         )
 
         XCTAssertTrue(game.place(digit, at: holes[holes.count - 2]))
         XCTAssertEqual(
             BoardSpeech.placementAnnouncement(digit: digit, in: game),
-            "Placed \(singular). That leaves one \(singular) to place.",
+            "Placed \(singular). That leaves one \(singular).",
             "one left is singular"
         )
 
@@ -295,6 +295,46 @@ final class BoardSpeechTests: XCTestCase {
                     "\"\(sentence)\" starts lowercase, so its capital went missing with the helper"
                 )
             }
+        }
+    }
+
+    /// The gap between two spoken sentences is punctuation, and punctuation
+    /// belongs to the language: Japanese ends a sentence with 。 and puts no
+    /// space after it. This is the app's most frequently spoken string — once
+    /// per digit placed — and the join was a hard-coded `" "` in Swift until
+    /// PRD-20 Task 7's review caught it, invisible to both seals because string
+    /// interpolation is not a `.text(…)` argument.
+    func testTheSentenceJoinIsACatalogEntryAndNotASpaceInSwift() throws {
+        XCTAssertEqual(EnglishPhrases.table["board.announce.pair"], "%1$@ %2$@", """
+            board.announce.pair is how two spoken sentences are joined. A \
+            translation replaces the separator; English's happens to be a space.
+            """)
+
+        // The half-sentences it joins, composed independently of the code under
+        // test, so this pins the join rather than restating it.
+        XCTAssertEqual(
+            BoardSpeech.placementAnnouncement(digit: 4, in: game),
+            Phrasebook.english.string(
+                "board.announce.pair",
+                .text(Phrasebook.english.string("board.announce.placed", .text("four"))),
+                .text(BoardSpeech.remainingClause(digit: 4, in: game))
+            )
+        )
+
+        // …and the shape that would put the space back. Two runtime values
+        // interpolated into one Swift literal IS a sentence assembled in code;
+        // there is no other reason to write one in this file.
+        let source = try String(contentsOf: Self.boardSpeechSource(), encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.components(separatedBy: "//").first ?? "" }
+        for (offset, line) in source.enumerated()
+        where line.components(separatedBy: #"\("#).count - 1 >= 2 {
+            XCTFail("""
+                BoardSpeech.swift:\(offset + 1) builds a string out of two \
+                interpolated values: \(line.trimmingCharacters(in: .whitespaces)). \
+                Whatever separates them is punctuation this language chose for \
+                every other language. Give it a catalog key.
+                """)
         }
     }
 
@@ -690,8 +730,20 @@ final class BoardSpeechTests: XCTestCase {
     /// reads "two fours remaining" naturally and "2 4's remaining" badly. It
     /// kept nothing else. So every `.text(…)` argument in `BoardSpeech.swift` is
     /// a number word — plus the pencil-mark list, which is numerals with a
-    /// separator and is named here so it cannot be joined by a fifth thing in
-    /// silence. Splice a unit name or a cell label back in and this fails.
+    /// separator, and the two arguments of `board.announce.pair`, which are
+    /// whole finished sentences. All seven are named here, one at a time, so an
+    /// eighth cannot join them in silence. Splice a unit name or a cell label
+    /// back in and this fails.
+    ///
+    /// **A whole sentence is the one other thing a splice may carry**, and the
+    /// reason is the one that keeps `coach.card.label` in the catalog: what is
+    /// being chosen there is punctuation and order, and both belong to the
+    /// language. A *noun* is what may not be spliced, because what is being
+    /// chosen around a noun is grammar, and that belongs to the sentence.
+    ///
+    /// This test's radius is **one file**. `CoachCard.swift:137` performs the
+    /// sanctioned `coach.card.label` join and is not read here; a second splice
+    /// added in `Sources/App` would be invisible to it.
     func testTheOnlySplicedWordsAreTheNumberWords() throws {
         // Code only. The comments in that file discuss `.text(…)` by name —
         // they have to, it is the thing they are about — and prose is not a
@@ -706,6 +758,8 @@ final class BoardSpeechTests: XCTestCase {
             "digitPlural",   // "fours" — board.announce.allDone
             "countWord",     // "two"   — board.announce.remaining
             "noteList",      // "2, 5, 9" — numerals, already joined
+            // board.announce.pair: two finished sentences, not two nouns.
+            "firstSentence", "secondSentence",
         ]
         let pattern = try NSRegularExpression(pattern: #"\.text\(([A-Za-z_][A-Za-z0-9_]*)\)"#)
         let range = NSRange(source.startIndex..., in: source)

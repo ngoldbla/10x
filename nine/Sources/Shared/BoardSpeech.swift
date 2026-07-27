@@ -86,9 +86,17 @@ public enum BoardSpeech {
     /// The VoiceOver *hint*: box number plus how to act on the cell. Spoken
     /// once per focus (and only when hints are enabled), so it can afford the
     /// extra syllables the label cannot.
+    ///
+    /// The `". "` between the two was a Swift literal until the test written for
+    /// `board.announce.pair` found it — the same defect, in the same file, one
+    /// screen further up. English separates two utterances with a full stop and
+    /// a space; Japanese uses 。 and no space. Both halves are finished
+    /// translated strings, so the join carries punctuation and order and nothing
+    /// else, exactly like `coach.card.label`.
     public static func cellHint(_ cell: Int) -> String {
         guard isValidCell(cell) else { return "" }
-        return "\(boxLabel(cell)). \(Phrase.placeInstruction)"
+        return Phrase.hintPair(firstSentence: boxLabel(cell),
+                               secondSentence: Phrase.placeInstruction)
     }
 
     // MARK: - Group scan (Switch Control)
@@ -164,7 +172,7 @@ public enum BoardSpeech {
 
     // MARK: - Move announcements
 
-    /// Spoken after a digit lands. "Placed four. That leaves two fours to place."
+    /// Spoken after a digit lands. "Placed four. That leaves two fours."
     /// The caller owns the solved case — when the board completes it should say
     /// `solvedAnnouncement` instead, so the celebration is not buried behind a
     /// count of zero.
@@ -174,13 +182,22 @@ public enum BoardSpeech {
     /// is the position that needs a capital in English, needs none in Japanese,
     /// and needs one everywhere in German. A template that opens with its own
     /// word owns its own capital, and the code stops guessing.
+    ///
+    /// **The join is a catalog entry too**, for the same reason
+    /// `coach.card.label` is one: the gap between two sentences is punctuation,
+    /// and punctuation belongs to the language — Japanese ends a sentence with
+    /// 。 and puts no space after it. This was a hard-coded `" "` in Swift, in
+    /// the most frequently spoken string in the app: once per digit placed,
+    /// roughly fifty times a board. Neither seal could see it, because string
+    /// interpolation is not a `.text(…)` argument — which is exactly the shape
+    /// of oversight this task exists to remove.
     public static func placementAnnouncement(digit: Int, in game: NineGame) -> String {
         guard isValidDigit(digit) else { return "" }
-        return "\(Phrase.placed(digitWord(digit))) \(remainingClause(digit: digit, in: game))"
+        return Phrase.pair(firstSentence: Phrase.placed(digitWord(digit)),
+                           secondSentence: remainingClause(digit: digit, in: game))
     }
 
-    /// "That leaves two fours to place." / "That leaves one four to place." /
-    /// "All fours done."
+    /// "That leaves two fours." / "That leaves one four." / "All fours done."
     public static func remainingClause(digit: Int, in game: NineGame) -> String {
         guard isValidDigit(digit) else { return "" }
         // Clamped: a hand-built game could in principle carry more than nine of
@@ -448,6 +465,14 @@ private enum Phrase {
     static func column(_ n: Int) -> String { Phrasebook.current.string("board.unit.column", .int(n)) }
     static func box(_ n: Int) -> String { Phrasebook.current.string("board.unit.box", .int(n)) }
     static var placeInstruction: String { Phrasebook.current.string("board.cell.placeHint") }
+    /// The cell hint's join: a box label, then how to act on the cell. Same
+    /// shape and same reasoning as `Phrase.pair`, a separate key because the two
+    /// surfaces may want different punctuation — this one follows a label rather
+    /// than a sentence.
+    static func hintPair(firstSentence: String, secondSentence: String) -> String {
+        Phrasebook.current.string("board.cell.hintPair",
+                                  .text(firstSentence), .text(secondSentence))
+    }
 
     // Streak chip (PRD-13). Values, not sentences: no trailing period.
     static func streak(_ days: Int) -> String {
@@ -515,6 +540,21 @@ private enum Phrase {
     }
     static func noteRemoved(_ digitWord: String) -> String {
         Phrasebook.current.string("board.announce.noteRemoved", .text(digitWord))
+    }
+    /// Two finished utterances, in the order and with the separator this
+    /// language joins utterances in. These two — and `Phrase.hintPair` below —
+    /// are the only `.text(…)` arguments in this file that are not number
+    /// words, and they are the sibling of `coach.card.label`: what a join
+    /// chooses is punctuation and order, both of which belong to the language.
+    /// What may never be spliced is a *noun*, because what is chosen around a
+    /// noun is grammar, and that belongs to the sentence.
+    ///
+    /// The test that guards this reads the parameter names, so the name is the
+    /// rule: whatever is passed must be able to stand alone as an utterance.
+    /// "Box 2" and "Placed four." can. "rows" cannot.
+    static func pair(firstSentence: String, secondSentence: String) -> String {
+        Phrasebook.current.string("board.announce.pair",
+                                  .text(firstSentence), .text(secondSentence))
     }
     static var solved: String { Phrasebook.current.string("board.announce.solved") }
 
