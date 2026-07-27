@@ -307,7 +307,7 @@ struct GameScreen: View {
     @ViewBuilder
     private var padModeChip: some View {
         if pad.pencilSticky {
-            GlassChip("Pencil", systemImage: "pencil")
+            GlassChip(Strings.string("game.chip.pencil"), systemImage: "pencil")
                 .transition(.opacity)
         }
     }
@@ -324,7 +324,7 @@ struct GameScreen: View {
     @ViewBuilder
     private var padHintView: some View {
         if showPadHint {
-            GlassChip("Right stick places · Circle undoes · Create for settings", systemImage: "gamecontroller")
+            GlassChip(Strings.string("game.tv.padHint"), systemImage: "gamecontroller")
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
@@ -332,7 +332,7 @@ struct GameScreen: View {
     @ViewBuilder
     private var disconnectedView: some View {
         if showDisconnected {
-            GlassChip("Controller disconnected", systemImage: "gamecontroller")
+            GlassChip(Strings.string("game.tv.disconnected"), systemImage: "gamecontroller")
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
@@ -363,7 +363,7 @@ struct GameScreen: View {
             )
             .overlay { padRoseOverlay(game: game) }
         } else {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
         }
     }
 
@@ -435,7 +435,7 @@ struct GameScreen: View {
             }
         } else {
             // Momentary state while a puzzle is composed.
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
         }
     }
 
@@ -470,7 +470,7 @@ struct GameScreen: View {
     @ViewBuilder
     private var hintView: some View {
         if showHint {
-            GlassChip("Click a cell for digits · Hold ▶︎ for settings", systemImage: "questionmark.circle")
+            GlassChip(Strings.string("game.tv.remoteHint"), systemImage: "questionmark.circle")
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
@@ -506,9 +506,9 @@ struct GameScreen: View {
 
     private var completionText: String {
         if case .daily? = model.kind, model.displayedStreak > 0 {
-            return "Solved · \(model.displayedStreak) day streak"
+            return Strings.string("game.completion.streak", .int(model.displayedStreak))
         }
-        return "Solved"
+        return Strings.string("status.solved")
     }
 
     // MARK: - Remote grammar
@@ -641,13 +641,7 @@ struct GameScreen: View {
 
     private func performUndo() {
         guard let move = model.undoMove() else { return }
-        let text: String
-        switch move.kind {
-        case .place: text = "Undid \(move.digit)"
-        case .erase: text = "Restored \(move.digit)"
-        case .pencil: text = "Undid note \(move.digit)"
-        }
-        let next = UndoToastState(text: text)
+        let next = UndoToastState(text: UndoPhrase.forMove(move))
         lastUndo = (move, Date())
         withAnimation(.couchFast) { toast = next }
         toastDismissal?.cancel()
@@ -672,4 +666,42 @@ struct GameScreen: View {
 struct UndoToastState: Equatable {
     let id = UUID()
     let text: String
+}
+
+/// What the undo toast says, for all four input grammars.
+///
+/// **One block, because there were four.** `TouchUI`, `MacUI`, `GameScreen` and
+/// `PadSession` are fenced to different platforms and each carried its own copy
+/// of these three sentences — so a translator would have met "Undid 4" four
+/// times, with no way to see they were the same string, and any one of the four
+/// could have drifted without a build noticing. This file is where they meet:
+/// `UndoToastState` is already the shared type, and it is outside the tvOS
+/// fence for exactly that reason.
+///
+/// `forMove` rather than four call sites switching on `kind`: the switch was
+/// also copied four times, and only one of the four handled bulk auto-notes.
+enum UndoPhrase {
+    static let autoNotes = Strings.string("game.undo.autoNotes")
+
+    static func placement(_ digit: Int) -> String {
+        Strings.string("game.undo.placement", .int(digit))
+    }
+    static func restored(_ digit: Int) -> String {
+        Strings.string("game.undo.restored", .int(digit))
+    }
+    static func note(_ digit: Int) -> String {
+        Strings.string("game.undo.note", .int(digit))
+    }
+
+    /// The sentence for one undone move. `isBulkNotes` is checked first because
+    /// a wand fill arrives as a `.pencil` move and would otherwise report a
+    /// single digit it never wrote.
+    static func forMove(_ move: NineMove) -> String {
+        if move.isBulkNotes { return autoNotes }
+        switch move.kind {
+        case .place: return placement(move.digit)
+        case .erase: return restored(move.digit)
+        case .pencil: return note(move.digit)
+        }
+    }
 }

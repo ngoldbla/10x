@@ -100,11 +100,12 @@ struct TouchHomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text("Nine")
+            // The wordmark, not a word — see `ShareCardMetrics.wordmark`.
+            Text(verbatim: Phrase.wordmark)
                 .couchText(CouchTypography.title)
             Spacer()
             if model.totalPoints > 0 {
-                GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
+                GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
                 StreakChip(days: model.displayedStreak, held: model.streakHeld)
@@ -122,7 +123,7 @@ struct TouchHomeView: View {
                     Image(systemName: "questionmark.circle")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text("How to play")
+                    Text(Strings.string("tutorial.title"))
                         .font(CouchTypography.caption)
                 }
                 .frame(maxWidth: .infinity, minHeight: 74)
@@ -132,7 +133,7 @@ struct TouchHomeView: View {
                     Image(systemName: "trophy")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text("History")
+                    Text(Strings.string("history.title"))
                         .font(CouchTypography.caption)
                 }
                 .frame(maxWidth: .infinity, minHeight: 74)
@@ -180,7 +181,7 @@ struct TouchHomeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(Phrase.graceTitle). \(Phrase.graceBody)")
+            .accessibilityLabel(Phrase.graceLabel)
             .accessibilityHint(Phrase.graceHint)
             .transition(.opacity)
         }
@@ -191,7 +192,7 @@ struct TouchHomeView: View {
     private var todayCard: some View {
         TouchCard(action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Today")
+                Text(Strings.string("shelf.today.title"))
                     .couchText(CouchTypography.title)
                 Text(Date.now.formatted(date: .abbreviated, time: .omitted))
                     .font(CouchTypography.caption)
@@ -227,8 +228,8 @@ struct TouchHomeView: View {
                     .contentShape(.accessibility, Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Archive")
-            .accessibilityHint("Every past daily, on a month grid")
+            .accessibilityLabel(Strings.string("archive.title"))
+            .accessibilityHint(Strings.string("shelf.archive.hint"))
             .padding(.trailing, 8)
             .padding(.top, 8)
         }
@@ -237,18 +238,19 @@ struct TouchHomeView: View {
     @ViewBuilder
     private var todayStatus: some View {
         if isComposingDaily {
-            statusLabel("Composing…", symbol: "sparkles")
+            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
         } else if model.todaySolved {
-            statusLabel("Solved", symbol: "checkmark.circle.fill")
+            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
         } else if let daily = model.savedDaily {
             HStack(spacing: 12) {
                 BoardFingerprint(game: daily, accent: accent, side: 34)
-                Text("Continue · \(BoardProgressCaption.text(for: daily))")
+                Text(Strings.string("shelf.today.continueProgress",
+                                    .text(BoardProgressCaption.text(for: daily))))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
         } else {
-            statusLabel("One a day", symbol: "sun.max")
+            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
         }
     }
 
@@ -261,10 +263,12 @@ struct TouchHomeView: View {
                 HStack(spacing: 16) {
                     BoardFingerprint(game: game, accent: accent, side: 44)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Continue")
+                        Text(Strings.string("shelf.continue.title"))
                             .font(CouchTypography.body)
-                        Text("\(Strings.difficulty(difficulty)) · \(BoardProgressCaption.text(for: game))"
-                             + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
+                        Text(Phrase.continueCaption(
+                            difficulty: Strings.difficulty(difficulty),
+                            progress: BoardProgressCaption.text(for: game),
+                            others: model.extraPartialCount))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -281,7 +285,7 @@ struct TouchHomeView: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Discard saved game")
+                    .accessibilityLabel(Strings.string("shelf.continue.discard"))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -307,16 +311,16 @@ struct TouchHomeView: View {
         if !extraPartials.isEmpty || !model.playedBoards.isEmpty {
             VStack(spacing: 10) {
                 HStack {
-                    Text("Boards")
+                    Text(Strings.string("boards.title"))
                         .font(CouchTypography.body)
                     Spacer()
                     Button { showBoards = true } label: {
-                        Text("See all")
+                        Text(Strings.string("shelf.boards.seeAll"))
                             .font(CouchTypography.caption)
                             .foregroundStyle(accent)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("See all boards")
+                    .accessibilityLabel(Strings.string("shelf.boards.seeAllLabel"))
                 }
                 ForEach(extraPartials.prefix(3)) { entry in
                     TouchCard(action: { model.resumeEntry(id: entry.id) }) {
@@ -341,7 +345,9 @@ struct TouchHomeView: View {
         switch entry.kind {
         // The daily's own day, not `createdAt` — the second of the two places
         // that made the same assumption (PRD-14; see `BoardsSheet.title`).
-        case .daily(let day): return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
+        case .daily(let day):
+            return Strings.string("shelf.daily.date",
+                                  .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty): return Strings.difficulty(difficulty)
         }
     }
@@ -384,7 +390,7 @@ struct TouchHomeView: View {
                     // stacking under it: a card that grows a line mid-compose
                     // shoves the rest of the shelf down while the player watches.
                     Text(model.composing == .free(difficulty)
-                         ? (difficulty.composeCaption ?? "Composing…")
+                         ? (difficulty.composeCaption ?? Strings.string("status.composing"))
                          : difficulty.blurb)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -395,7 +401,9 @@ struct TouchHomeView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
         }
         .disabled(composeInFlight && model.composing != .free(difficulty))
-        .accessibilityLabel("\(Strings.difficulty(difficulty)), \(difficulty.blurb)")
+        .accessibilityLabel(Strings.string("shelf.difficulty.label",
+                                           .text(Strings.difficulty(difficulty)),
+                                           .text(difficulty.blurb)))
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -404,7 +412,7 @@ struct TouchHomeView: View {
                 MiniBoard(difficulty: difficulty, accent: accent)
                     .frame(width: 64, height: 64)
                 if model.composing == .free(difficulty) {
-                    statusLabel("Composing…", symbol: "sparkles")
+                    statusLabel(Strings.string("status.composing"), symbol: "sparkles")
                 } else {
                     Text(Strings.difficulty(difficulty))
                         .font(CouchTypography.caption)
@@ -447,10 +455,10 @@ struct TouchHomeView: View {
                     .foregroundStyle(accent)
                     .frame(width: 40)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Killer · Thermo")
+                    Text(Strings.string("shelf.variants.title"))
                         .font(CouchTypography.body)
-                    Text(variantsChip ? "In the works — they'll simply appear here."
-                                      : "New variants, coming soon.")
+                    Text(Strings.string(variantsChip ? "shelf.variants.answer"
+                                                     : "shelf.variants.subtitle"))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -627,7 +635,8 @@ struct TouchGameScreen: View {
             // as the drag: opening it under the prefs sheet would scrim the
             // screen from below, and opening it with no game would measure a
             // height off an empty panel.
-            .accessibilityAction(named: drawerOpen ? "Hide board stats" : "Show board stats") {
+            .accessibilityAction(named: Text(Strings.string(
+                drawerOpen ? "game.drawer.hide" : "game.drawer.show"))) {
                 guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
                 if !drawerOpen { model.noteDrawerFound() }
                 withAnimation(.couchFast) { drawerOpen.toggle() }
@@ -691,7 +700,7 @@ struct TouchGameScreen: View {
     /// 53pt to spare.
     private var controlBar: some View {
         HStack(spacing: 6) {
-            GlassIconButton(symbol: "chevron.left", label: "Home") {
+            GlassIconButton(symbol: "chevron.left", label: Strings.string("game.control.home")) {
                 haptics.stop()
                 motion.stop()
                 model.goHome()
@@ -699,7 +708,7 @@ struct TouchGameScreen: View {
             Spacer()
             GlassIconButton(
                 symbol: "lightbulb",
-                label: "Hint",
+                label: Strings.string("game.control.hint"),
                 active: coachAdvice != nil,
                 accent: accent
             ) {
@@ -707,7 +716,7 @@ struct TouchGameScreen: View {
             }
             GlassIconButton(
                 symbol: "pencil",
-                label: "Pencil marks",
+                label: Strings.string("game.control.pencil"),
                 active: pencilMode,
                 accent: accent
             ) {
@@ -717,13 +726,14 @@ struct TouchGameScreen: View {
             }
             GlassIconButton(
                 symbol: "wand.and.stars",
-                label: "Auto notes",
+                label: Strings.string("game.control.autoNotes"),
                 active: model.autoNotes,
                 accent: accent
             ) {
                 toggleAutoNotes()
             }
-            GlassIconButton(symbol: "arrow.uturn.backward", label: "Undo") { performUndo() }
+            GlassIconButton(symbol: "arrow.uturn.backward",
+                            label: Strings.string("game.control.undo")) { performUndo() }
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 1.2).onEnded { _ in
                         #if DEBUG
@@ -731,7 +741,8 @@ struct TouchGameScreen: View {
                         #endif
                     }
                 )
-            GlassIconButton(symbol: "gearshape", label: "Settings") { showPrefs = true }
+            GlassIconButton(symbol: "gearshape",
+                            label: Strings.string("game.control.settings")) { showPrefs = true }
         }
         .padding(model.prefs.controlsAtBottom ? .bottom : .top, 8)
         .padding(.horizontal, 6)
@@ -799,7 +810,7 @@ struct TouchGameScreen: View {
     @ViewBuilder
     private var composingChip: some View {
         if model.composing != nil, model.game != nil {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .transition(.opacity)
         } else if let day = model.archiveDay, model.game != nil, coachAdvice == nil {
             // PRD-14. A past day is pixel-identical to today's board, so this
@@ -812,7 +823,8 @@ struct TouchGameScreen: View {
             // and driving the app caught the chip printed straight across the
             // card's title. A persistent chip has to yield to a card the player
             // just asked for.
-            GlassChip("Archive · \(ArchiveCalendar.shortLabel(forDayOrdinal: day))",
+            GlassChip(Strings.string("game.chip.archive",
+                                     .text(ArchiveCalendar.shortLabel(forDayOrdinal: day))),
                       systemImage: "calendar")
                 .transition(.opacity)
         }
@@ -892,10 +904,12 @@ struct TouchGameScreen: View {
                                 highlightedDigit = nil
                                 model.startFree(difficulty)
                             } label: {
-                                GlassChip("Another", systemImage: "arrow.clockwise")
+                                GlassChip(Strings.string("game.another.title"),
+                                          systemImage: "arrow.clockwise")
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Another \(Strings.difficulty(difficulty)) board")
+                            .accessibilityLabel(Strings.string(
+                                "game.another.label", .text(Strings.difficulty(difficulty))))
                         }
                     }
                     .transition(.opacity)
@@ -906,9 +920,9 @@ struct TouchGameScreen: View {
 
     private var completionText: String {
         if case .daily? = model.kind, model.displayedStreak > 0 {
-            return "Solved · \(model.displayedStreak) day streak"
+            return Strings.string("game.completion.streak", .int(model.displayedStreak))
         }
-        return "Solved"
+        return Strings.string("status.solved")
     }
 
     // MARK: Share (PRD-12)
@@ -1145,7 +1159,7 @@ struct TouchGameScreen: View {
             }
         } else {
             // Momentary state while a puzzle is composed.
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .frame(height: side)
         }
     }
@@ -1313,7 +1327,8 @@ struct TouchGameScreen: View {
         dismissTip()
         closeDrawer()
         withAnimation(.couchFast) { coachAdvice = advice }
-        announce("\(BoardSpeech.coachTitle(advice)). \(BoardSpeech.coachSentence(advice))")
+        announce(CoachCardLabel.spoken(title: BoardSpeech.coachTitle(advice),
+                                       sentence: BoardSpeech.coachSentence(advice)))
     }
 
     private func dismissCoach() {
@@ -1455,17 +1470,7 @@ struct TouchGameScreen: View {
         // The player found undo on their own; whatever the tip was about to
         // say, the toast is the more useful thing in that spot right now.
         dismissTip()
-        let text: String
-        if move.isBulkNotes {
-            text = Phrase.undidAutoNotes
-        } else {
-            switch move.kind {
-            case .place: text = Phrase.undidPlacement(move.digit)
-            case .erase: text = Phrase.restored(move.digit)
-            case .pencil: text = Phrase.undidNote(move.digit)
-            }
-        }
-        let next = UndoToastState(text: text)
+        let next = UndoToastState(text: UndoPhrase.forMove(move))
         withAnimation(.couchFast) { toast = next }
         toastDismissal?.cancel()
         toastDismissal = Task {
@@ -1517,11 +1522,12 @@ private struct AmbientSlotView: View {
     /// Mirrors the home header: each part appears once it's nonzero.
     private var streakText: String {
         var parts: [String] = []
-        if model.totalPoints > 0 { parts.append("\(model.totalPoints) pts") }
+        if model.totalPoints > 0 { parts.append(Phrase.points(model.totalPoints)) }
         if model.displayedStreak > 0 {
             parts.append(BoardSpeech.streakChip(days: model.displayedStreak, held: model.streakHeld))
         }
-        return parts.isEmpty ? "No solves yet" : parts.joined(separator: " · ")
+        return parts.isEmpty ? Strings.string("shelf.ambient.empty")
+                             : parts.joined(separator: " · ")
     }
 }
 
@@ -1566,17 +1572,38 @@ struct GlassIconButton: View {
 /// that discipline and still has literals elsewhere; sweeping all of them is
 /// PRD-20's job and would bury this diff.
 private enum Phrase {
-    static func autoNotesChip(_ count: Int) -> String { "Auto notes · filled \(count) candidates" }
-    static let undidAutoNotes = "Undid auto notes"
-    static func undidPlacement(_ digit: Int) -> String { "Undid \(digit)" }
-    static func restored(_ digit: Int) -> String { "Restored \(digit)" }
-    static func undidNote(_ digit: Int) -> String { "Undid note \(digit)" }
+    /// Nine's name, never translated — the same rule as the share card's
+    /// `ShareCardMetrics.wordmark`.
+    static let wordmark = "Nine"
+
+    static func points(_ total: Int) -> String {
+        Strings.string("shelf.points.chip", .int(total))
+    }
+
+    static func autoNotesChip(_ count: Int) -> String {
+        Strings.string("game.autoNotes.chip", .int(count))
+    }
 
     // PRD-13 §3. "Won't cost you" rather than "you're safe": nothing was at
     // risk, because nothing here is a resource. No count, no "1 of 1 used", and
     // no naming the day that was missed.
-    static let graceTitle = "Your streak held"
-    static let graceBody = "You took yesterday off; one rest day won't cost you."
-    static let graceHint = "Dismisses this card"
+    static let graceTitle = Strings.string("shelf.grace.title")
+    static let graceBody = Strings.string("shelf.grace.body")
+    static let graceHint = Strings.string("shelf.grace.hint")
+    /// The card as VoiceOver hears it — one utterance, so the join between the
+    /// two sentences is the translator's to place.
+    static let graceLabel = Strings.string("shelf.grace.label",
+                                           .text(graceTitle), .text(graceBody))
+
+    /// Difficulty · progress, and the count of other unfinished boards when
+    /// there are any. Two whole-sentence keys rather than a sentence plus a
+    /// glued-on " · +2 more" fragment: the suffix was unattachable in any
+    /// language that puts the count first.
+    static func continueCaption(difficulty: String, progress: String, others: Int) -> String {
+        others > 0
+            ? Strings.string("shelf.continue.captionMore",
+                             .text(difficulty), .text(progress), .int(others))
+            : Strings.string("shelf.continue.caption", .text(difficulty), .text(progress))
+    }
 }
 #endif

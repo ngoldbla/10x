@@ -144,11 +144,12 @@ struct MacHomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text("Nine")
+            // The wordmark, not a word — see `ShareCardMetrics.wordmark`.
+            Text(verbatim: Phrase.wordmark)
                 .couchText(CouchTypography.title)
             Spacer()
             if model.totalPoints > 0 {
-                GlassChip("\(model.totalPoints) pts", systemImage: "star.fill")
+                GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
                 StreakChip(days: model.displayedStreak, held: model.streakHeld)
@@ -160,7 +161,7 @@ struct MacHomeView: View {
     private var todayCard: some View {
         MacCard(action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Today")
+                Text(Strings.string("shelf.today.title"))
                     .couchText(CouchTypography.title)
                 Text(Date.now.formatted(date: .abbreviated, time: .omitted))
                     .font(CouchTypography.caption)
@@ -175,19 +176,19 @@ struct MacHomeView: View {
     @ViewBuilder
     private var todayStatus: some View {
         if isComposingDaily {
-            statusLabel("Composing…", symbol: "sparkles")
+            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
         } else if model.todaySolved {
-            statusLabel("Solved", symbol: "checkmark.circle.fill")
+            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
         } else if let daily = model.savedDaily {
             HStack(spacing: 12) {
                 GlassRing(progress: daily.fillFraction, lineWidth: 5)
                     .frame(width: 34, height: 34)
-                Text("Continue")
+                Text(Strings.string("shelf.continue.title"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
         } else {
-            statusLabel("One a day", symbol: "sun.max")
+            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
         }
     }
 
@@ -197,10 +198,12 @@ struct MacHomeView: View {
                 GlassRing(progress: game.fillFraction, lineWidth: 5)
                     .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Continue")
+                    Text(Strings.string("shelf.continue.title"))
                         .font(CouchTypography.body)
-                    Text("\(Strings.difficulty(difficulty)) · \(Int(game.fillFraction * 100))%"
-                         + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
+                    Text(Phrase.continueCaption(
+                        difficulty: Strings.difficulty(difficulty),
+                        progress: BoardProgressCaption.text(for: game),
+                        others: model.extraPartialCount))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -214,7 +217,7 @@ struct MacHomeView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Discard saved game")
+                .accessibilityLabel(Strings.string("shelf.continue.discard"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -228,7 +231,9 @@ struct MacHomeView: View {
                         MiniBoard(difficulty: difficulty, accent: accent)
                             .frame(width: 64, height: 64)
                         if model.composing == .free(difficulty) {
-                            statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
+                            statusLabel(difficulty.composeCaption
+                                            ?? Strings.string("status.composing"),
+                                        symbol: "sparkles")
                         } else {
                             Label {
                                 Text(Strings.difficulty(difficulty))
@@ -256,13 +261,15 @@ struct MacHomeView: View {
     private var learnRow: some View {
         HStack(spacing: 14) {
             MacCard(action: { model.macShowTutorial = true }) {
-                learnTile(symbol: "questionmark.circle", title: "How to play")
+                learnTile(symbol: "questionmark.circle",
+                          title: Strings.string("tutorial.title"))
             }
             MacCard(action: { model.macShowBoards = true }) {
-                learnTile(symbol: "square.stack.3d.up", title: "Boards")
+                learnTile(symbol: "square.stack.3d.up",
+                          title: Strings.string("boards.title"))
             }
             MacCard(action: { openWindow(id: "history") }) {
-                learnTile(symbol: "trophy", title: "History")
+                learnTile(symbol: "trophy", title: Strings.string("history.title"))
             }
         }
     }
@@ -383,17 +390,17 @@ struct MacGameScreen: View {
         Button { model.goHome() } label: {
             // "Home", not "Shelf" — the shelf is TV vocabulary; the Mac home
             // is a card grid in a window.
-            GlassChip("Home", systemImage: "chevron.left")
+            GlassChip(Strings.string("game.control.home"), systemImage: "chevron.left")
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Back to home")
+        .accessibilityLabel(Strings.string("game.mac.homeLabel"))
     }
 
     @ViewBuilder
     private var statusChips: some View {
         HStack(spacing: 10) {
             if pencilMode {
-                GlassChip("Pencil", systemImage: "pencil")
+                GlassChip(Strings.string("game.chip.pencil"), systemImage: "pencil")
             }
             timerChip
         }
@@ -411,7 +418,7 @@ struct MacGameScreen: View {
     @ViewBuilder
     private var composingChip: some View {
         if model.composing != nil, model.game != nil {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .transition(.opacity)
         }
     }
@@ -445,9 +452,9 @@ struct MacGameScreen: View {
 
     private var completionText: String {
         if case .daily? = model.kind, model.displayedStreak > 0 {
-            return "Solved · \(model.displayedStreak) day streak"
+            return Strings.string("game.completion.streak", .int(model.displayedStreak))
         }
-        return "Solved"
+        return Strings.string("status.solved")
     }
 
     // MARK: Share (PRD-12)
@@ -522,7 +529,7 @@ struct MacGameScreen: View {
         .buttonStyle(.plain)
         .opacity(deskHovering ? 0.9 : 0.0)
         .animation(.couchFast, value: deskHovering)
-        .accessibilityLabel("Exit desk mode")
+        .accessibilityLabel(Strings.string("game.mac.exitDesk"))
     }
 
     // MARK: Board + rose
@@ -580,7 +587,7 @@ struct MacGameScreen: View {
                 }
             }
         } else {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .frame(width: side, height: side)
         }
     }
@@ -754,13 +761,7 @@ struct MacGameScreen: View {
 
     private func performUndo() {
         guard let move = model.undoMove() else { return }
-        let text: String
-        switch move.kind {
-        case .place: text = "Undid \(move.digit)"
-        case .erase: text = "Restored \(move.digit)"
-        case .pencil: text = "Undid note \(move.digit)"
-        }
-        let next = UndoToastState(text: text)
+        let next = UndoToastState(text: UndoPhrase.forMove(move))
         withAnimation(.couchFast) { toast = next }
         toastDismissal?.cancel()
         toastDismissal = Task {
@@ -820,12 +821,12 @@ struct NineCommands: Commands {
 
     var body: some Commands {
         // Game
-        CommandMenu("Game") {
+        CommandMenu(Strings.string("menu.game.title")) {
             // Driven off `allCases`, not written out: the hand-written list this
             // replaces would have silently shipped a Mac with no way to start a
             // Nocturne board from the menu bar, because a missing `Button` is
             // not a compile error the way a missing `switch` case is.
-            Menu("New Game") {
+            Menu(Strings.string("menu.game.newGame")) {
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
                     // ⌘N stays on Steady — it is the "just give me a board"
                     // default, and moving it would retrain a shipped habit.
@@ -839,20 +840,20 @@ struct NineCommands: Commands {
                     }
                 }
             }
-            Button("Today's Puzzle") { model.openToday() }
+            Button(Strings.string("menu.game.today")) { model.openToday() }
                 .keyboardShortcut("t", modifiers: .command)
             Divider()
             HistoryMenuButton()
-            Button("Boards…") { model.macShowBoards = true }
+            Button(Strings.string("menu.game.boards")) { model.macShowBoards = true }
                 .keyboardShortcut("b", modifiers: .command)
             Divider()
-            Button("Discard Board") { model.discardSaved() }
+            Button(Strings.string("menu.game.discard")) { model.discardSaved() }
                 .disabled(model.savedFree == nil)
         }
 
         // Edit — replace the stock Undo/Redo so ⌘Z drives the game's toast.
         CommandGroup(replacing: .undoRedo) {
-            Button("Undo") { actions?.performUndo?() }
+            Button(Strings.string("menu.edit.undo")) { actions?.performUndo?() }
                 .keyboardShortcut("z", modifiers: .command)
                 .disabled(actions?.performUndo == nil || !model.canUndo)
         }
@@ -861,22 +862,23 @@ struct NineCommands: Commands {
         // a CommandMenu("View"), which macOS renders as a second menu titled
         // View beside the stock one (observed in validation).
         CommandGroup(after: .toolbar) {
-            Picker("Appearance", selection: bind(\.theme)) {
+            Picker(Strings.string("menu.view.appearance"), selection: bind(\.theme)) {
                 ForEach(ThemeChoice.allCases, id: \.self) { Text($0.title).tag($0) }
             }
-            Toggle("Show Timer", isOn: bind(\.showTimer))
-            Toggle("Error Highlight", isOn: bind(\.errorHighlight))
-            Toggle("Number Highlight", isOn: bind(\.numberHighlight))
+            Toggle(Strings.string("menu.view.showTimer"), isOn: bind(\.showTimer))
+            Toggle(Strings.string("menu.view.errorHighlight"), isOn: bind(\.errorHighlight))
+            Toggle(Strings.string("menu.view.numberHighlight"), isOn: bind(\.numberHighlight))
             Divider()
-            Picker("Accent", selection: bind(\.accent)) {
+            Picker(Strings.string("menu.view.accent"), selection: bind(\.accent)) {
                 ForEach(AccentChoice.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             Divider()
-            Button(model.windowMode == .desk ? "Exit Desk Mode" : "Enter Desk Mode") {
+            Button(Strings.string(model.windowMode == .desk
+                                  ? "menu.view.exitDesk" : "menu.view.enterDesk")) {
                 model.toggleDeskMode()
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
-            Toggle("Float Desk on Top", isOn: Binding(
+            Toggle(Strings.string("menu.view.floatDesk"), isOn: Binding(
                 get: { model.deskFloating },
                 set: { model.deskFloating = $0 }
             ))
@@ -884,7 +886,7 @@ struct NineCommands: Commands {
 
         // Help
         CommandGroup(replacing: .help) {
-            Button("How to Play") { model.macShowTutorial = true }
+            Button(Strings.string("menu.help.howToPlay")) { model.macShowTutorial = true }
         }
     }
 
@@ -904,8 +906,31 @@ private struct HistoryMenuButton: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("History") { openWindow(id: "history") }
+        Button(Strings.string("history.title")) { openWindow(id: "history") }
             .keyboardShortcut("y", modifiers: .command)
+    }
+}
+
+/// Every user-facing literal in this file that is not a menu item, in one
+/// block (PRD-20's seam). `MacUI` predates the `Phrase` convention entirely —
+/// it was the one file in `Sources/App` with no block at all.
+private enum Phrase {
+    /// Nine's name, never translated — see `ShareCardMetrics.wordmark`.
+    static let wordmark = "Nine"
+
+    static func points(_ total: Int) -> String {
+        Strings.string("shelf.points.chip", .int(total))
+    }
+
+    /// The same two keys the touch shelf uses. The Mac used to print a bare
+    /// `Int(fillFraction * 100)%` where iOS printed `BoardProgressCaption` —
+    /// so an untouched board read "Steady · 0%" on the Mac and "Steady ·
+    /// Untouched" on the phone, from the same saved board. One caption now.
+    static func continueCaption(difficulty: String, progress: String, others: Int) -> String {
+        others > 0
+            ? Strings.string("shelf.continue.captionMore",
+                             .text(difficulty), .text(progress), .int(others))
+            : Strings.string("shelf.continue.caption", .text(difficulty), .text(progress))
     }
 }
 

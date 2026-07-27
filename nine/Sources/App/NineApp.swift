@@ -65,7 +65,7 @@ struct NineApp: App {
 
         // ⌘Y — the History window (points, best times, recent solves, Game
         // Center), opened from the Game menu.
-        Window("History", id: "history") {
+        Window(Strings.string("history.title"), id: "history") {
             MacHistoryWindow(model: model)
         }
         .defaultSize(width: 440, height: 660)

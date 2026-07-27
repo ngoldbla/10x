@@ -245,14 +245,8 @@ final class PadPlayController {
     /// play/pause undo; the toast auto-clears like `shimmer`).
     private func performUndo() {
         guard let move = model.undoMove() else { return }
-        let text: String
-        switch move.kind {
-        case .place: text = "Undid \(move.digit)"
-        case .erase: text = "Restored \(move.digit)"
-        case .pencil: text = "Undid note \(move.digit)"
-        }
         haptics.placement()
-        let next = UndoToastState(text: text)
+        let next = UndoToastState(text: UndoPhrase.forMove(move))
         undoToast = next
         undoToastClear?.cancel()
         undoToastClear = Task { [weak self] in
