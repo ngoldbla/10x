@@ -371,32 +371,36 @@ private struct FirstFlickBeat: View {
 
 /// Every user-facing string on the first run, in one block (PRD-20's seam).
 private enum Phrase {
-    static let welcomeTitle = "Welcome to Nine"
-    static let welcomeTagline = "Couch sudoku — everywhere you sit."
+    static let welcomeTitle = Strings.string("firstrun.welcome.title")
+    static let welcomeTagline = Strings.string("firstrun.welcome.tagline")
 
-    static let ledgerDaily = "A new board every day, and a streak that keeps count"
-    static let ledgerProof = "Three difficulties, every board proved solvable by logic"
-    static let ledgerStats = "Your times, points and trends — kept honestly"
+    static let ledgerDaily = Strings.string("firstrun.ledger.daily")
+    static let ledgerProof = Strings.string("firstrun.ledger.proof")
+    static let ledgerStats = Strings.string("firstrun.ledger.stats")
     static func ledgerThemes(themes: Int, accents: Int) -> String {
-        "\(themes) themes and \(accents) accents, all of them yours"
+        Strings.string("firstrun.ledger.themes", .int(themes), .int(accents))
     }
-    static let ledgerSync = "Boards, streak and stats follow you between devices"
-    static let ledgerCovenant = "No ads, no subscription, nothing else to buy"
-    static let onePurchase = "One purchase · iPhone, iPad, Mac & Apple TV"
-    static let begin = "Begin"
+    static let ledgerSync = Strings.string("firstrun.ledger.sync")
+    static let ledgerCovenant = Strings.string("firstrun.ledger.covenant")
+    static let onePurchase = Strings.string("firstrun.onePurchase")
+    static let begin = Strings.string("firstrun.begin")
 
-    static let beatTitle = "Your first digit"
-    static let skip = "Skip"
-    static func beatPrompt(digit: Int) -> String { "Flick to the \(digit)." }
-    static func beatDetail(digit: Int) -> String {
-        "The rose is open on the empty cell. Drag from its middle toward the "
-        + "\(digit) and let go — or just tap the \(digit). That is the whole game."
+    static let beatTitle = Strings.string("firstrun.beat.title")
+    static let skip = Strings.string("firstrun.beat.skip")
+    static func beatPrompt(digit: Int) -> String {
+        Strings.string("firstrun.beat.prompt", .int(digit))
     }
-    static let beatHint = "One cell, one digit. You can skip this at any time."
-    static let beatDoneTitle = "That's it."
-    static let beatDoneDetail =
-        "Every board works exactly like that. Today's is waiting on the shelf."
-    static let beatNice = "Nice"
-    static let composing = "Composing…"
+    /// The digit twice, as two arguments rather than one interpolated twice —
+    /// a translation may reorder the two sentences, and `%1$lld`/`%2$lld` are
+    /// what let it move both.
+    static func beatDetail(digit: Int) -> String {
+        Strings.string("firstrun.beat.detail", .int(digit), .int(digit))
+    }
+    static let beatHint = Strings.string("firstrun.beat.hint")
+    static let beatDoneTitle = Strings.string("firstrun.beat.doneTitle")
+    static let beatDoneDetail = Strings.string("firstrun.beat.doneDetail")
+    /// The same chip the tutorial shows when a beat is completed.
+    static let beatNice = TutorialPhrase.nice
+    static let composing = Strings.string("status.composing")
 }
 #endif

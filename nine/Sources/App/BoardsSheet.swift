@@ -35,7 +35,7 @@ struct BoardsSheetContent: View {
                 freshBoardSection
 
                 if model.partials.isEmpty && model.playedBoards.isEmpty {
-                    Text("Start a board and it lands here — resume it any time, or archive it for later.")
+                    Text(Strings.string("boards.empty"))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -47,11 +47,11 @@ struct BoardsSheetContent: View {
                 Spacer(minLength: 12)
 
                 #if os(tvOS)
-                Text("Press Back to return")
+                Text(Strings.string("sheet.dismiss.remote"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
                 #elseif !os(macOS)
-                Text("Tap outside to return")
+                Text(Strings.string("sheet.dismiss.touch"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
                 #endif
@@ -62,7 +62,7 @@ struct BoardsSheetContent: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Boards")
+            Text(Strings.string("boards.title"))
                 .couchText(CouchTypography.title)
             #if os(tvOS)
             if let onClose {
@@ -74,7 +74,7 @@ struct BoardsSheetContent: View {
                         .couchGlassInteractive(in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Close boards")
+                .accessibilityLabel(Strings.string("boards.close"))
             }
             #endif
         }
@@ -89,7 +89,7 @@ struct BoardsSheetContent: View {
     /// rather than at the bottom of Settings where the live audit found it.
     private var freshBoardSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
-            Text("Fresh board")
+            Text(Strings.string("boards.fresh.title"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 10 * s) {
@@ -115,12 +115,13 @@ struct BoardsSheetContent: View {
                             .contentShape(.accessibility, Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("New \(Strings.difficulty(difficulty)) board")
+                    .accessibilityLabel(Strings.string(
+                        "boards.fresh.label", .text(Strings.difficulty(difficulty))))
                 }
             }
             // The board you are on is never destroyed by this: it stays in
             // the library, one row below, exactly where you left it.
-            Text("Your current board stays in this list")
+            Text(Strings.string("boards.fresh.note"))
                 .font(.system(size: 11 * s, weight: .medium, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
@@ -130,7 +131,7 @@ struct BoardsSheetContent: View {
 
     private var inProgressSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
-            Text("In progress")
+            Text(Strings.string("boards.section.inProgress"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
             ForEach(model.partials) { entry in
@@ -164,8 +165,12 @@ struct BoardsSheetContent: View {
             }
             .buttonStyle(.plain)
 
-            iconButton("archivebox", label: "Archive board") { model.archiveEntry(id: entry.id) }
-            iconButton("xmark.circle.fill", label: "Delete board") { model.deleteEntry(id: entry.id) }
+            iconButton("archivebox", label: Strings.string("boards.row.archive")) {
+                model.archiveEntry(id: entry.id)
+            }
+            iconButton("xmark.circle.fill", label: Strings.string("boards.row.delete")) {
+                model.deleteEntry(id: entry.id)
+            }
         }
     }
 
@@ -173,7 +178,7 @@ struct BoardsSheetContent: View {
 
     private var playedSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
-            Text("Previously played")
+            Text(Strings.string("boards.section.played"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
             ForEach(model.playedBoards) { entry in
@@ -197,7 +202,9 @@ struct BoardsSheetContent: View {
                     .monospacedDigit()
             }
             Spacer(minLength: 8)
-            iconButton("xmark.circle.fill", label: "Delete board") { model.deleteEntry(id: entry.id) }
+            iconButton("xmark.circle.fill", label: Strings.string("boards.row.delete")) {
+                model.deleteEntry(id: entry.id)
+            }
         }
         .padding(.vertical, 4 * s)
     }
@@ -226,7 +233,8 @@ struct BoardsSheetContent: View {
             // same date for every board that could exist before the archive, so
             // reading `createdAt` was invisibly wrong; open 13 July from the
             // archive today and the tracker listed it as "Daily · Jul 26".
-            return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
+            return Strings.string("shelf.daily.date",
+                                  .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty):
             return Strings.difficulty(difficulty)
         }
@@ -235,9 +243,11 @@ struct BoardsSheetContent: View {
     private func statusLine(for entry: LibraryEntry) -> String {
         let date = (entry.solvedAt ?? entry.updatedAt).formatted(date: .abbreviated, time: .omitted)
         if entry.status == .solved {
-            return "Solved · \(date) · \(Self.format(entry.game.timer.elapsed(at: Date())))"
+            return Strings.string(
+                "boards.status.solved", .text(date),
+                .text(Self.format(entry.game.timer.elapsed(at: Date()))))
         }
-        return "Archived · \(date)"
+        return Strings.string("boards.status.archived", .text(date))
     }
 
     private static func format(_ interval: TimeInterval) -> String {

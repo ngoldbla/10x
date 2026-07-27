@@ -43,7 +43,7 @@ struct HistorySheetContent: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24 * s) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("History")
+                    Text(Strings.string("history.title"))
                         .couchText(CouchTypography.title)
                     #if os(tvOS)
                     if let onClose {
@@ -55,7 +55,7 @@ struct HistorySheetContent: View {
                                 .couchGlassInteractive(in: Circle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Close history")
+                        .accessibilityLabel(Strings.string("history.close"))
                     }
                     #endif
                 }
@@ -68,7 +68,7 @@ struct HistorySheetContent: View {
                     avgVsBestSection
                     trendSection
                 } else {
-                    Text("Solve a board and it lands here — time, difficulty and points.")
+                    Text(Strings.string("history.empty"))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -85,11 +85,11 @@ struct HistorySheetContent: View {
                 // On Mac this is a real window with a close button — the
                 // dismissal footer is touch guidance and would read wrong.
                 #if os(tvOS)
-                Text("Press Back to return")
+                Text(Strings.string("sheet.dismiss.remote"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
                 #elseif !os(macOS)
-                Text("Tap outside to return")
+                Text(Strings.string("sheet.dismiss.touch"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
                 #endif
@@ -102,9 +102,12 @@ struct HistorySheetContent: View {
 
     private var totalsRow: some View {
         HStack(spacing: 10) {
-            statBlock(value: "\(model.totalPoints)", label: "points")
-            statBlock(value: "\(model.history.records.count)", label: "solved")
-            statBlock(value: "\(model.streak.best)", label: "best streak")
+            statBlock(value: "\(model.totalPoints)",
+                      label: Strings.string("history.stat.points"))
+            statBlock(value: "\(model.history.records.count)",
+                      label: Strings.string("history.stat.solved"))
+            statBlock(value: "\(model.streak.best)",
+                      label: Strings.string("history.stat.bestStreak"))
         }
     }
 
@@ -138,7 +141,7 @@ struct HistorySheetContent: View {
 
     private var heatSection: some View {
         VStack(alignment: .leading, spacing: 10 * s) {
-            sectionHeader("Last 12 weeks")
+            sectionHeader(Strings.string("history.section.heat"))
             HeatGrid(columns: heatColumns,
                      accent: accent,
                      emptyTrack: tones.gridTone.opacity(0.10),
@@ -162,7 +165,7 @@ struct HistorySheetContent: View {
         if !rows.isEmpty {
             let maxAvg = rows.map(\.1).max() ?? 1
             VStack(alignment: .leading, spacing: 12 * s) {
-                sectionHeader("Average vs. best")
+                sectionHeader(Strings.string("history.section.avgVsBest"))
                 ForEach(rows, id: \.0) { difficulty, avg, best in
                     TwinBar(title: Strings.difficulty(difficulty),
                             avg: avg / maxAvg,
@@ -188,7 +191,8 @@ struct HistorySheetContent: View {
             let points = raw.map { span > 0 ? ($0 - lo) / span : 0.5 }
             let faster = raw.last! < raw.first!
             VStack(alignment: .leading, spacing: 10 * s) {
-                sectionHeader("Solve time trend", trailing: faster ? "▼ faster" : nil)
+                sectionHeader(Strings.string("history.section.trend"),
+                              trailing: faster ? Strings.string("history.trend.faster") : nil)
                 Sparkline(points: points, accent: accent)
                     .frame(height: 56 * s)
             }
@@ -221,11 +225,11 @@ struct HistorySheetContent: View {
                 Image(systemName: "gamecontroller")
                     .font(.system(size: 19 * s, weight: .semibold))
                 VStack(alignment: .leading, spacing: 2 * s) {
-                    Text("Game Center")
+                    Text(Strings.string("history.gameCenter.title"))
                         .font(CouchTypography.body)
-                    Text(GameCenter.shared.isAuthenticated
-                         ? "Leaderboards & achievements"
-                         : "Sign in via Settings to compete")
+                    Text(Strings.string(GameCenter.shared.isAuthenticated
+                                        ? "history.gameCenter.in"
+                                        : "history.gameCenter.out"))
                         .font(.system(size: 11 * s, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -247,7 +251,7 @@ struct HistorySheetContent: View {
 
     private var recentSolves: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent")
+            Text(Strings.string("history.recent.title"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
             ForEach(model.history.records.prefix(15)) { record in
@@ -257,7 +261,10 @@ struct HistorySheetContent: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 22 * s)
                     VStack(alignment: .leading, spacing: 1 * s) {
-                        Text(record.isDaily ? "Daily · \(Strings.difficulty(record.difficulty))" : Strings.difficulty(record.difficulty))
+                        Text(record.isDaily
+                             ? Strings.string("history.recent.daily",
+                                              .text(Strings.difficulty(record.difficulty)))
+                             : Strings.difficulty(record.difficulty))
                             .font(CouchTypography.caption)
                         Text(record.date.formatted(date: .abbreviated, time: .omitted))
                             .font(.system(size: 11 * s, weight: .medium, design: .rounded))
@@ -268,7 +275,7 @@ struct HistorySheetContent: View {
                         .font(CouchTypography.caption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                    Text("+\(record.points)")
+                    Text(Strings.string("history.recent.points", .int(record.points)))
                         .font(CouchTypography.caption)
                         .foregroundStyle(accent)
                 }
