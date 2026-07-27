@@ -816,6 +816,21 @@ git commit -m "PRD-20: the catalog, and the two bundles that need it"
 
 ### Task 5: Mechanical extraction — `Sources/App`
 
+> **Amendment (2026-07-26, from Task 1's review).** `StringSealTests` measures
+> **call sites only** — a literal passed to `Text(…)` or `.accessibilityLabel(…)`.
+> It is blind to the ~300+ prose literals sitting in `Phrase` enum bodies and
+> computed properties, which is where most of Nine's copy actually lives:
+> `AppModel.swift`'s 25 enum titles, `HomeView.swift`'s `blurb`/`detail`/
+> `NineLegend` sets, `TutorialGrammar.swift`'s 28 fields, and every
+> `static let` inside the 11 phrase blocks.
+>
+> **An empty `offences.txt` does NOT mean the extraction is finished**, and Task
+> 1's baseline going to zero is a necessary condition, never a sufficient one.
+> The sufficient condition is `scripts/strings.py --audit`'s *catalog* half:
+> every key used in Swift present in the catalog, and no dead keys. Track both
+> numbers in each commit message, and do not close this task on the call-site
+> count alone.
+
 **Why this is now mechanical:** Tasks 1–4 built the instrument, the identity and
 the sink. This task is ~275 literals across 26 files and is the bulk of the PRD,
 but every one of them is the same edit, and `StringSealTests` says when you are
