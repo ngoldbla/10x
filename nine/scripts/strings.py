@@ -125,7 +125,33 @@ TABLE_ENTRY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*"(.*)",\s*$')
 # A key handed to the Phrasebook as a literal: `Phrasebook.current.string("…")`,
 # `Strings.string("…")`. Shared cannot name `Strings`, so this — not a
 # `Strings.foo.bar` path — is how most of Nine's keys are actually written.
-PHRASEBOOK_KEY_RE = re.compile(r'\.string\(\s*"([^"\\\n]+)"')
+#
+# `.resource(…)` is the same key through `Strings.resource(_:)`, which returns a
+# `LocalizedStringResource` instead of a `String`. Only the widget gallery uses
+# it (`.configurationDisplayName`, `.description`), and it was added to this
+# rule the moment those six keys landed: without it they read as dead, because
+# `CATALOG_KEY_RE` excludes a single segment followed by `(` on purpose.
+PHRASEBOOK_KEY_RE = re.compile(r'\.(?:string|resource)\(\s*"([^"\\\n]+)"')
+
+# The same call with a ternary inside it: `.string(isOn ? "x.on" : "x.off")`.
+#
+# The rule above is anchored on the open paren, so a *condition* standing in
+# front of the literal hides the whole ternary from it — both arms, not just the
+# second. That is not hypothetical: it is the only shape in this repo that
+# reader (4) of `swift_referenced_keys` was covering up, and it is thirteen keys
+# across six call sites (`prefs.toggle.on`, `game.drawer.hide`/`.show`,
+# `history.gameCenter.in`/`.out`, `menu.view.enterDesk`/`.exitDesk`,
+# `prefs.controls.bottom`/`.top`, `prefs.timer.hidden`/`.shown`,
+# `shelf.variants.answer`/`.subtitle`). Twelve of the thirteen are a pair whose
+# BOTH halves were invisible; `prefs.toggle.off` survived only because
+# `AppModel` happens to name it a second time on its own.
+#
+# The condition may not contain a paren or a quote, which is what keeps this
+# from running away across a nested call; every one of Nine's six sites is a
+# plain property or comparison, and a condition that grows a call gets caught as
+# a dead key rather than silently mis-parsed.
+PHRASEBOOK_TERNARY_KEY_RE = re.compile(
+    r'\.(?:string|resource)\(\s*[^()"]*?\?\s*"([^"\\\n]+)"\s*:\s*"([^"\\\n]+)"')
 
 # `case a` / `case a, b, c` on its own line. A `switch`'s `case .foo:` cannot
 # match: leading dot, trailing colon.
@@ -140,13 +166,54 @@ INTERPOLATED_FAMILIES = [
     ("NineTip", "Sources/Shared/TipCoach.swift", "tip.%s"),
 ]
 
-BASELINE_HEADER = """\
-# Nine — bare user-facing literals, as of the start of PRD-20.
+# Key families built as `scope + ".field"` — a *prefix* held as data, crossed
+# with a fixed set of suffixes. 86 of Nine's 394 keys are one of these two, and
+# no grep sees any of them: the whole key exists only at runtime, and neither
+# half is a key on its own.
 #
-# This file is a COUNTDOWN, not a permit. Each line is one string that still
-# reaches a player without passing through the catalog. `StringSealTests` fails
-# on any offence NOT in this list, so the rot cannot grow while Tasks 5-8
-# extract; those tasks shrink this file, and it is empty when they are done.
+# (name, file that declares it, key prefix). BOTH halves are read out of that
+# file rather than listed here — the scopes are its literals beginning with the
+# prefix, the suffixes are its `+ ".field"` concatenations — so adding a fifth
+# `TutorialGrammar` platform or a tenth `legend.pad` row makes its keys used,
+# and *forgetting the catalog row* shows up as `missing` instead of sailing
+# through. A hand-kept list of 86 keys here would be a second copy of the app,
+# which is the failure this whole file exists to stop.
+SCOPE_SUFFIX_FAMILIES = [
+    ("TutorialGrammar", "Sources/App/TutorialGrammar.swift", "grammar."),
+    ("NineLegend", "Sources/App/HomeView.swift", "legend."),
+]
+
+# `scope + ".placeVerb"` — the concatenation half of the rule above.
+SCOPE_SUFFIX_RE = re.compile(r'\+\s*"\.([A-Za-z_][A-Za-z0-9_]*)"')
+
+# Keys held in a `[String]` and reached by index — the one shape that is a
+# perfectly good way to write the code and hopeless to grep for.
+#
+# **Named, one array at a time, never pattern-matched.** `EXEMPT` above makes
+# the same argument: `board.digitWord.*` as a wildcard would be an exemption
+# that grows by accident. These two arrays are read out of the source, so an
+# entry that leaves the array stops being a used key immediately.
+#
+# (declaring type, file, array name).
+KEY_ARRAYS = [
+    ("BoardSpeech.Phrase", "Sources/Shared/BoardSpeech.swift", "digitWordKeys"),
+    ("BoardSpeech.Phrase", "Sources/Shared/BoardSpeech.swift", "digitPluralKeys"),
+]
+
+BASELINE_HEADER = """\
+# Nine — bare user-facing literals. The countdown, at zero.
+#
+# This file was a COUNTDOWN, never a permit: each line was one string that still
+# reached a player without passing through the catalog. `StringSealTests` fails
+# on any offence NOT in this list, so the rot could not grow while Tasks 5-6
+# extracted. Task 6 took the last fourteen — all of them in `Sources/Widgets` —
+# and the list below is now empty.
+#
+# **Empty, and still here.** Deleting it does not mean "no offences are
+# allowed"; it means `read_baseline` returns None, which `--audit` reports as
+# "not calibrated" and exits 1 on, forever. An empty list is the strict state:
+# every offence is a new offence. The file earns its place by being the thing
+# that says so.
 #
 # It is also an error for a line here to no longer be an offence: a stale
 # baseline is a gate that quietly stopped measuring. Regenerate with
@@ -598,23 +665,25 @@ def catalog_keys(tool, catalog=CATALOG):
     return keys, None
 
 
-def swift_referenced_keys(nine=REPO_NINE):
+def swift_referenced_keys(nine=REPO_NINE, strict=True):
     """Every catalog key this app actually asks for.
 
-    A `Strings.foo.bar` grep is only one of the three ways a key is named here,
-    and on its own it is wrong in the loudest possible direction: from the
-    moment the catalog exists it reports **every one of the Shared keys as a
-    dead string** and turns the cheap lane red. That is not a nuisance to
-    suppress, it is the check disagreeing with the design — `Sources/Shared`
-    cannot name `Strings` (it is Linux-clean and compiles into two bundles), so
-    it reaches its words through `Phrasebook.current.string("…")` instead, with
-    the key as a literal.
+    A `Strings.foo.bar` grep is only one of the ways a key is named here, and on
+    its own it is wrong in the loudest possible direction: from the moment the
+    catalog exists it reports **every one of the Shared keys as a dead string**
+    and turns the cheap lane red. That is not a nuisance to suppress, it is the
+    check disagreeing with the design — `Sources/Shared` cannot name `Strings`
+    (it is Linux-clean and compiles into two bundles), so it reaches its words
+    through `Phrasebook.current.string("…")` instead, with the key as a literal.
 
-    So the used-set is a union of four readers:
+    So the used-set is a union of readers, one per shape a key is written in:
 
       1. `Strings.foo.bar` — the App-layer accessor paths Task 5 generates.
       2. `.string("board.cell.label")` — the literal handed to `Phrasebook`, in
          `Sources/Shared` and in `Sources/Strings`.
+      2b. the same call with a ternary in it, `.string(isOn ? "x.on" : "x.off")`
+         — see `PHRASEBOOK_TERNARY_KEY_RE`, which (2) cannot reach because it is
+         anchored on the open paren.
       3. The interpolated families, which no grep can see. `Strings.technique`
          builds `"technique.\\(t.rawValue).name"`, `NineTip.message` builds
          `"tip.\\(rawValue)"`; the keys exist only at runtime, one per enum
@@ -622,15 +691,31 @@ def swift_referenced_keys(nine=REPO_NINE):
          *appending* a case makes it a used key — and, since the catalog is
          generated from `EnglishPhrases.table`, a case with no row shows up as
          `missing` rather than sailing through.
-      4. `EnglishPhrases.table` itself. Not a rubber stamp: the catalog's `en`
-         is *generated from* that table (`--build-catalog`), so the two are one
-         list read twice, and a row there is a key this app ships by
-         construction. It is also the only reader that survives the shapes (2)
-         cannot see — `BoardSpeech.Phrase.digitWordKeys` is a `[String]` of ten
-         literals indexed by the digit, which is a perfectly good way to write
-         that and hopeless to grep for. Dead rows are caught on the *table*
-         side instead, by `PhrasebookTests` and by review, where the whole
-         list is in one file.
+      3b. `SCOPE_SUFFIX_FAMILIES`: `scope + ".placeVerb"`, the same trick with a
+         prefix held as data instead of an enum case. 86 keys.
+      3c. `KEY_ARRAYS`: two named `[String]`s indexed by a digit. 19 keys.
+
+      4. `EnglishPhrases.table` itself — **lenient mode only, and the reason
+         this argument exists.**
+
+    Reader (4) was in the union unconditionally, and that made the dead-string
+    check unfalsifiable rather than merely lenient. The catalog's `en` is
+    *generated from* that table (`--build-catalog`), so `keys` and the table's
+    keys are the same 394 strings read twice, and `dead = keys - used` was empty
+    **by construction, for every key, forever**. Nothing else covered it:
+    `CatalogTests.testEveryEnglishPhraseHasACatalogEntry` runs table→catalog
+    only, `testTheAppLayerBuildsTheSameKeysAsShared` compares two spellings of a
+    formula, and `PhrasebookTests` checks the table's shape rather than whether
+    anything reads it. A gate that cannot fail is not a gate, and Task 9 is
+    about to pay nine translators per key.
+
+    So `strict=True` — the default, and what `--audit` runs — drops (4) and
+    makes the check answer the question it claims to: *does any Swift file
+    actually ask for this key?* Readers 2b, 3b and 3c are what (4) was really
+    standing in for; they were written by reading the 118 keys strict mode
+    reported the first time it ran, and each one is a shape, not a list of
+    names. `strict=False` keeps the old behaviour so `--selftest-catalog` can
+    drive both and show the difference.
 
     `Sources/Strings` is read here but is not in `TREES`: the offence scanner
     must not walk it (it is the one tree that is *supposed* to hold string
@@ -650,9 +735,78 @@ def swift_referenced_keys(nine=REPO_NINE):
                     source = strip_comments(handle.read())
                 keys.update(CATALOG_KEY_RE.findall(source))
                 keys.update(PHRASEBOOK_KEY_RE.findall(source))
+                for arms in PHRASEBOOK_TERNARY_KEY_RE.findall(source):
+                    keys.update(arms)
     keys.update(interpolated_keys(nine))
-    keys.update(key for key, _ in read_english_table(
-        os.path.join(nine, "Sources", "Shared", "EnglishPhrases.swift")))
+    keys.update(scope_suffix_keys(nine))
+    keys.update(array_keys(nine))
+    if not strict:
+        keys.update(key for key, _ in read_english_table(
+            os.path.join(nine, "Sources", "Shared", "EnglishPhrases.swift")))
+    return keys
+
+
+def scope_suffix_keys(nine=REPO_NINE):
+    """The `scope + ".field"` families, as the cross product of the scopes and
+    the suffixes each declaring file actually spells.
+
+    Both halves come out of the source, so neither can drift from the app; the
+    only thing named here is which file to look in. A family that reads back
+    empty on either half is a hard failure rather than a quietly smaller
+    used-set, because "the parser stopped seeing your keys" and "you deleted
+    your keys" are the same output otherwise — and the first one turns 86
+    live keys into 86 reported dead ones on somebody else's PR.
+    """
+    keys = set()
+    for name, path, prefix in SCOPE_SUFFIX_FAMILIES:
+        full = os.path.join(nine, path)
+        if not os.path.exists(full):
+            sys.exit("cannot find %s, which declares the `%s` key family. "
+                     "Did it move? Update SCOPE_SUFFIX_FAMILIES." % (path, prefix))
+        with open(full, "r", encoding="utf-8") as handle:
+            source = strip_comments(handle.read())
+        scopes = set(re.findall(r'"(%s[A-Za-z0-9_.]+)"' % re.escape(prefix), source))
+        suffixes = set(SCOPE_SUFFIX_RE.findall(source))
+        if not scopes or not suffixes:
+            sys.exit("%s no longer looks like a scope+suffix family: %d scope(s) "
+                     "starting `%s` and %d `+ \".field\"` suffix(es). Its keys "
+                     "would all read as dead. Fix the reader, not the app."
+                     % (name, len(scopes), prefix, len(suffixes)))
+        for scope in scopes:
+            for suffix in suffixes:
+                keys.add("%s.%s" % (scope, suffix))
+    return keys
+
+
+ARRAY_LITERAL_RE = re.compile(r'"([^"\\\n]+)"')
+
+
+def array_keys(nine=REPO_NINE):
+    """The keys held in the named `[String]`s of `KEY_ARRAYS`.
+
+    Read out of the array rather than allow-listed by prefix, for the reason
+    `EXEMPT` gives: a `board.digitWord.*` wildcard would keep passing a row
+    nothing reads any more.
+    """
+    keys = set()
+    for owner, path, array in KEY_ARRAYS:
+        full = os.path.join(nine, path)
+        if not os.path.exists(full):
+            sys.exit("cannot find %s, which declares `%s.%s`. Update KEY_ARRAYS."
+                     % (path, owner, array))
+        with open(full, "r", encoding="utf-8") as handle:
+            source = strip_comments(handle.read())
+        match = re.search(r"\b%s\b\s*(?::[^=\n]+)?=\s*\[" % re.escape(array), source)
+        if match is None:
+            sys.exit("`%s.%s` is no longer a `[String]` literal in %s — its keys "
+                     "would all read as dead. Fix the reader, not the app."
+                     % (owner, array, path))
+        end = source.index("]", match.end())
+        found = ARRAY_LITERAL_RE.findall(source[match.end():end])
+        if not found:
+            sys.exit("`%s.%s` in %s holds no string literals the parser can see."
+                     % (owner, array, path))
+        keys.update(found)
     return keys
 
 
@@ -727,7 +881,7 @@ def compile_catalog(tool, catalog):
     return result.stderr.strip() or result.stdout.strip()
 
 
-def audit_catalog(verbose, catalog=CATALOG, used=None):
+def audit_catalog(verbose, catalog=CATALOG, used=None, strict=True):
     """The three catalog checks. Returns a list of failure strings; an empty
     list with a printed note is what "the catalog does not exist yet" looks
     like, because Task 1 ships before Task 4 builds it.
@@ -735,6 +889,10 @@ def audit_catalog(verbose, catalog=CATALOG, used=None):
     `catalog` and `used` are arguments so `--selftest-catalog` can drive this
     against a scratch catalog. Both of these checks shipped broken once because
     nothing could run them until Task 4; that is now no longer true.
+
+    `strict` is the dead-string check's teeth — see `swift_referenced_keys`. It
+    is on by default because the reason to have it off (Tasks 5-8 mid-flight,
+    keys landing before their call sites) expired with Task 6.
     """
     if not os.path.exists(catalog):
         print("note: %s does not exist yet — skipping the catalog checks "
@@ -757,7 +915,7 @@ def audit_catalog(verbose, catalog=CATALOG, used=None):
         return failures
 
     if used is None:
-        used = swift_referenced_keys()
+        used = swift_referenced_keys(strict=strict)
     missing = sorted(used - keys)
     dead = sorted(keys - used)
     if missing:
@@ -768,7 +926,8 @@ def audit_catalog(verbose, catalog=CATALOG, used=None):
                         "(dead strings, which translators are paid for): %s"
                         % ", ".join(dead))
     if verbose and not failures:
-        print("catalog: %d keys, all of them reachable." % len(keys))
+        print("catalog: %d keys, all of them reachable%s."
+              % (len(keys), " (strict)" if strict else " (lenient)"))
     return failures
 
 
@@ -1214,6 +1373,45 @@ COMMENTS = {
     "menu.view.exitDesk": "The Mac View menu's item that restores the full window from the small pane. Title Case.",
     "menu.view.floatDesk": "The Mac View menu's item that keeps the small pane above other windows. \"Float\" is a verb. Title Case.",
     "menu.help.howToPlay": "The Mac Help menu's item that opens the tutorial. Title Case, unlike the sentence-case `tutorial.title` used on the other platforms — macOS menu items follow the platform's own capitalisation.",
+
+    # NineWidgets.appex (PRD-3, extracted in PRD-20 Task 6). Two things make
+    # this block different from every one above it, and both belong in the
+    # translator's brief:
+    #
+    #   • The three `*.name` / `*.description` pairs are the widget GALLERY —
+    #     the only copy in Nine a player reads *before* launching the app, in a
+    #     system-drawn list beside Apple's own widgets. They read as a catalogue
+    #     entry, not as a sentence spoken by the app.
+    #   • Everything else is drawn at Home Screen or Lock Screen size. A
+    #     systemSmall widget is about 16 characters wide at body size and the
+    #     Lock Screen line is one line with no wrap, so length is a constraint
+    #     here in a way it is nowhere else in the app. `.minimumScaleFactor` will
+    #     shrink an over-long status word rather than truncate it, which is
+    #     survivable; the captions under it simply clip.
+    "widget.daily.name": "Widget gallery: the name of the glanceable daily widget, shown under its preview when a player is choosing a widget to add. One word if this language has one. \"Daily\" is a noun here — the day's shared puzzle — not an adverb.",
+    "widget.daily.description": "Widget gallery: the one-line description under `widget.daily.name`, saying what the widget shows. \"Streak\" is the run of consecutive days solved; \"points\" is the lifetime score. A sentence, with a full stop.",
+    "widget.board.name": "Widget gallery: the name of the large widget the player can actually tap digits into without opening the app. \"Playable\" is what separates it from `widget.daily.name`, so keep that contrast visible.",
+    "widget.board.description": "Widget gallery: the one-line description under `widget.board.name`. \"Home Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
+    "widget.streak.name": "Widget gallery: the name of the Lock Screen accessory showing the run of consecutive days solved. A noun, one word if possible — the gallery sets it tight.",
+    "widget.streak.description": "Widget gallery: the one-line description under `widget.streak.name`. \"Lock Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
+    "widget.brand.daily": "The small header line inside three of the widgets, naming the app and the board. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot; \"Daily\" is the day's shared puzzle. Very short — it sits above the status line in a systemMedium widget.",
+    "widget.daily.header": "The header of the SMALLEST daily widget, where `widget.brand.daily` will not fit. The app's name is dropped and only the board is named. At most about 10 characters.",
+    "widget.daily.points": "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same.",
+    "widget.daily.streak": "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters.",
+    "widget.daily.startStreak": "What the flame chip says when the run is at zero: an invitation, not a status. A fragment, no full stop. Very short — it shares a line with a flame glyph in a systemSmall widget.",
+    "widget.status.openNine": "The big status word in the daily widget on a fresh install, before the app has ever written a snapshot. An instruction: launch the app. \"Nine\" is the app's name and stays untranslated.",
+    "widget.status.ready": "The big status word in the daily widget when today's board exists and has not been touched. An adjective about the BOARD, not the player. One word.",
+    "widget.status.solved": "The big status word in the daily widget, and the footer of the playable widget, when today's board is finished. A word, not a sentence, and capitalised — the same word as `status.solved` inside the app; keep the two the same.",
+    "widget.status.notStarted": "The Lock Screen rectangular widget's line when today's board has not been touched. Says less than `widget.status.ready` on purpose: this line replaces a whole widget rather than heading one. A fragment, no full stop.",
+    "widget.status.filled": "The Lock Screen rectangular widget's line mid-solve. %1$@ is a percentage already formatted (\"64%\"). A fragment, no full stop.",
+    "widget.status.solvedIn": "The daily and playable widgets' line once the board is finished. %1$@ is an elapsed time already formatted as m:ss (\"4:12\"). A fragment, no full stop — \"Solved 4:12\", not \"Solved in 4:12\", because the space is one line.",
+    "widget.caption.awaits": "The quiet second line under `widget.status.openNine`. Says the board is there and waiting, without claiming the player has started it.",
+    "widget.caption.waiting": "The quiet second line under `widget.status.ready`. \"New\" means today's, as opposed to yesterday's.",
+    "widget.caption.inProgress": "The quiet second line under a percentage: this board is started and unfinished. A fragment, lowercase after the first word, no full stop.",
+    "widget.caption.done": "The quiet second line shown when today's board is finished but no time was recorded. \"Daily\" is the day's shared puzzle. A fragment, no full stop.",
+    "widget.board.cta": "The whole content of the playable widget before the app has published a board for today: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
+    "widget.streak.ready": "The Lock Screen INLINE accessory when the run is at zero and today's board is untouched. Shares one short line with the system clock, so it is the tightest string in the app — about 20 characters. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
+    "widget.streak.inline": "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`.",
 }
 
 
@@ -1461,6 +1659,30 @@ def command_selftest_catalog(_args):
         print("%s a catalog that does not exist yet degrades to a note"
               % ("ok  " if ok else "FAIL"))
         failed = failed or not ok
+
+    # The one case that runs against the REAL tree, because it is about the
+    # tree. `EnglishPhrases.table` used to be an unconditional member of the
+    # used-set, and since the catalog's `en` is generated from that table the
+    # dead-string check above was empty by construction for all 394 keys — the
+    # check could not fail, in either direction, ever.
+    #
+    # Reader (4) is now off by default and the shapes it was covering for have
+    # readers of their own (2b ternaries, 3b scope+suffix, 3c key arrays). This
+    # asserts that: with those in place the two modes see the *same* keys, which
+    # is what "reader (4) adds nothing" means as an assertion rather than as a
+    # claim. A key here says a catalog row is reachable only by being in the
+    # table — i.e. some new un-greppable shape landed and needs its own reader,
+    # not that reader (4) should come back.
+    strict = swift_referenced_keys(strict=True)
+    lenient = swift_referenced_keys(strict=False)
+    only_by_table = sorted(lenient - strict)
+    ok = not only_by_table
+    print("%s no catalog key is reachable only through EnglishPhrases.table"
+          % ("ok  " if ok else "FAIL"))
+    if not ok:
+        print("       %d key(s) the strict readers cannot see: %s"
+              % (len(only_by_table), ", ".join(only_by_table)))
+        failed = True
 
     return 1 if failed else 0
 
