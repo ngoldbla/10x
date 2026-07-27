@@ -35,7 +35,7 @@ Usage:
     python3 scripts/strings.py --audit --write-baseline
     python3 scripts/strings.py --build-catalog     # regenerate the catalog's `en`
     python3 scripts/strings.py --extract           # Task 5+
-    python3 scripts/strings.py --pseudo            # Task 9+
+    python3 scripts/strings.py --pseudo            # not implemented, and not planned
 """
 
 import argparse
@@ -110,10 +110,22 @@ CATALOG = os.path.join(REPO_NINE, "Sources", "Strings", "Localizable.xcstrings")
 STRINGS_TREE = "Sources/Strings"
 ENGLISH_PHRASES = os.path.join(REPO_NINE, "Sources", "Shared", "EnglishPhrases.swift")
 
-# PRD-20's ten launch locales, in the order `project.yml` declares them.
-# `CatalogTests.testDeclaredLocalizationsAreExactlyTheNineLaunchLocales` is what
-# keeps the two lists equal.
-LOCALES = ["en", "ja", "de", "fr", "es", "it", "pt-BR", "ko", "zh-Hans", "nl"]
+# There is deliberately no locale list in this file.
+#
+# There was one — `LOCALES`, ten entries, "in the order `project.yml` declares
+# them" — and it was referenced by nothing, derived from nothing, and its
+# comment named `CatalogTests.testDeclaredLocalizationsAreExactlyTheNine\
+# LaunchLocales` as the thing keeping it equal to `project.yml`. That test has
+# never existed. So a hand-maintained copy of the launch locales sat here
+# claiming to be verified — which is the exact failure this PRD spent eight
+# tasks removing from everywhere else.
+#
+# The locale set has one source of truth: the locales that carry translations
+# in the catalog. `project.yml` declares the same set twice (the app's
+# Info.plist and the widget extension's, which is a separate bundle), and
+# `CatalogTests.testDeclaredLocalizationsMatchTranslatedLocales` fails the
+# moment any of the three disagree, in either direction. If this script ever
+# needs the list, read it off the catalog. Do not retype it.
 
 # `"key": "value",` — the one shape `EnglishPhrases.table` is allowed to take.
 # `PhrasebookTests.testTableIsOneSortedEntryPerLineSoAScriptCanReadIt` is the
@@ -1925,10 +1937,19 @@ def command_extract(_args):
 
 
 def command_pseudo(_args):
-    sys.exit("--pseudo is not implemented until Task 9. It will render a "
-             "pseudo-locale (accented, +40% length) from the catalog so "
-             "clipped layouts show up before a translator is paid. Until then "
-             "`--audit` is the whole tool.")
+    # Kept as a signpost rather than deleted, because the obvious next move on
+    # reading "pseudo-loc lane" in the plan is to write this function, and the
+    # point is that it should not be written.
+    sys.exit("--pseudo is not implemented, and generating a pseudo-locale is "
+             "NOT the plan. Foundation already does it: launching with "
+             "`-NSDoubleLocalizedStrings YES` was hand-verified to fire against "
+             "this app, so the catalog needs no synthetic `qps-Ploc` entries and "
+             "no extra 425 keys to keep in step. The pseudo-loc + RTL lane is "
+             "PRD-20 Task 10 and drives the real app with that argument; see "
+             "DEVIATIONS.md. Beware: double-localization is what exposed the "
+             "bare-specifier bug, rendering `lld 4` for every board digit, so a "
+             "unit whose whole content is one specifier must be formatted in "
+             "Swift rather than translated.")
 
 
 def main(argv=None):
@@ -1944,7 +1965,7 @@ def main(argv=None):
     mode.add_argument("--extract", action="store_true",
                       help="(Task 5) lift literals into the catalog")
     mode.add_argument("--pseudo", action="store_true",
-                      help="(Task 9) render the pseudo-locale")
+                      help="not implemented; use -NSDoubleLocalizedStrings YES")
     mode.add_argument("--selftest-catalog", action="store_true",
                       help="drive the catalog checks against scratch catalogs")
     parser.add_argument("--verbose", "-v", action="store_true",

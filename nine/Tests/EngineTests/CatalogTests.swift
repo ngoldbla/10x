@@ -79,10 +79,13 @@ final class CatalogTests: XCTestCase {
     func testDeclaredLocalizationsMatchTranslatedLocales() throws {
         let catalog = try Self.catalog()
         let translated = Set(catalog.values.flatMap(\.locales)).sorted()
-        XCTAssertEqual(translated, ["en"], """
-            The catalog now carries \(translated) — if that is Task 9 landing, \
-            this expectation and both CFBundleLocalizations lists move together, \
-            in one commit.
+        let expected = (["en"] + Self.launchLocales).sorted()
+        XCTAssertEqual(translated, expected, """
+            The catalog carries \(translated); PRD-20's launch set is \(expected). \
+            This expectation is derived from `requiredPluralCategories` rather \
+            than retyped, so adding a tenth language means adding its CLDR rule \
+            — which is the thing that would otherwise be forgotten — and both \
+            CFBundleLocalizations lists move in the same commit.
             """)
 
         let yml = try String(contentsOf: Self.nineRoot.appendingPathComponent("project.yml"),
@@ -420,6 +423,392 @@ final class CatalogTests: XCTestCase {
     /// same `variations.plural` one level in.
     static func pluralCategories(in body: [String: Any]) -> [String: Any]? {
         (body["variations"] as? [String: Any])?["plural"] as? [String: Any]
+    }
+
+    // MARK: - The nine languages
+
+    /// The nine PRD-20 launch locales, derived from the CLDR table above rather
+    /// than listed again. A second remembered locale list is the exact failure
+    /// this PRD spent eight tasks removing — `strings.py` carried one, and its
+    /// comment named a test that had never existed.
+    static var launchLocales: [String] {
+        requiredPluralCategories.keys.filter { $0 != "en" }.sorted()
+    }
+
+    /// **Nobody on this project reads these nine languages.**
+    ///
+    /// They are machine drafts, and `state: "needs_review"` is the only honest
+    /// record of that. `xcstringstool compile` throws it away — measured, not
+    /// assumed: a catalog marked `needs_review` throughout and the same catalog
+    /// marked `translated` compile to byte-identical output (`ja.lproj`
+    /// `.strings` sha256 `6a874df5…ba35` both ways, `.stringsdict`
+    /// `285b4548…9678` both ways), and the token appears zero times in any
+    /// compiled artifact. So nothing downstream of the source catalog can carry
+    /// this claim, and a comment saying "these are drafts" is not a mechanism.
+    ///
+    /// When a human actually reviews a language, they flip that locale's states
+    /// and this test moves with them — deliberately, in a diff, one locale at a
+    /// time. It is not a rule that translations must stay unreviewed; it is a
+    /// rule that "reviewed" has to be earned in a commit.
+    func testEveryMachineDraftIsMarkedNeedsReview() throws {
+        let catalog = try Self.rawStrings()
+        var drafted = 0
+
+        for (key, value) in catalog.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+                let isSource = locale == "en"
+                let expected = isSource ? "translated" : "needs_review"
+                let why = isSource
+                    ? "English is the source language and is translated by definition."
+                    : """
+                      This locale is a machine draft that no human on this project can read. \
+                      If it has genuinely been reviewed, flip the whole locale and move this \
+                      test's expectation for it — one locale, one commit, so that "reviewed" \
+                      is something somebody did rather than something that drifted.
+                      """
+                for (label, state) in Self.states(in: body as? [String: Any] ?? [:]) {
+                    if !isSource { drafted += 1 }
+                    XCTAssertEqual(state, expected, """
+                        \(key) [\(locale)], \(label): state is "\(state)", expected \
+                        "\(expected)". \(why)
+                        """)
+                }
+            }
+        }
+
+        XCTAssertGreaterThan(drafted, 0, """
+            no non-English string units at all — this test passes vacuously on an \
+            English-only catalog, which is exactly the state it was written in, so \
+            it needs this floor to mean anything once the languages land.
+            """)
+    }
+
+    /// Decision 2: `Nocturne` is a coined name and does not translate; `Gentle`,
+    /// `Steady` and `Sharp` are descriptions and do.
+    ///
+    /// Pinned rather than commented, because the next translation pass will not
+    /// have read the plan and "Nocturne" looks exactly like an untranslated
+    /// string that somebody forgot. The catalog comment on the entry says the
+    /// same thing to a human; this says it to CI.
+    func testNocturneIsIdenticalInEveryLocale() throws {
+        let catalog = try Self.rawStrings()
+        let entry = try XCTUnwrap(catalog["difficulty.nocturne.title"] as? [String: Any],
+                                  "difficulty.nocturne.title is gone from the catalog")
+
+        let comment = entry["comment"] as? String ?? ""
+        XCTAssertTrue(comment.lowercased().contains("do not translate")
+                      || comment.lowercased().contains("does not translate"), """
+            difficulty.nocturne.title's catalog comment no longer tells a translator \
+            to leave it alone. This test is the CI half of that instruction; the \
+            comment is the half a human reads, and a translator who only sees "Nocturne" \
+            with no note will helpfully fix it.
+            """)
+
+        let localizations = entry["localizations"] as? [String: Any] ?? [:]
+        for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+            let value = ((body as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+            XCTAssertEqual(value, "Nocturne", """
+                difficulty.nocturne.title [\(locale)] is "\(value ?? "nil")". Nocturne is \
+                a coined name and stays "Nocturne" in every locale — unlike \
+                gentle/steady/sharp, which are descriptions and must translate.
+                """)
+        }
+
+        // The other half of the decision: if the three describable ones stopped
+        // being translated, this file would still be green and the rule would
+        // have quietly become "difficulty names do not translate".
+        for key in ["difficulty.gentle.title", "difficulty.steady.title", "difficulty.sharp.title"] {
+            let entry = try XCTUnwrap(catalog[key] as? [String: Any])
+            let localizations = entry["localizations"] as? [String: Any] ?? [:]
+            let english = ((localizations["en"] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+            for locale in Self.launchLocales where localizations[locale] != nil {
+                let value = ((localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+                XCTAssertNotEqual(value, english, """
+                    \(key) [\(locale)] is still the English "\(english ?? "")". Gentle, \
+                    Steady and Sharp describe a band and translate; only Nocturne is \
+                    pinned. If this locale genuinely borrows the English word, say so \
+                    in the catalog comment and exempt it here by name.
+                    """)
+            }
+        }
+    }
+
+    /// A locale that is missing a key does not fail — Foundation falls back to
+    /// the development language and the player reads one English line in the
+    /// middle of their own. Which is exactly the shape of bug that survives a
+    /// screenshot pass, because whoever takes the screenshots reads English.
+    func testNoLocaleIsMissingAKeyThePlayerCanReach() throws {
+        let catalog = try Self.rawStrings()
+        var holes: [String] = []
+
+        for (key, value) in catalog.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            guard localizations["en"] != nil else { continue }
+            for locale in Self.launchLocales where localizations[locale] == nil {
+                holes.append("\(key) [\(locale)]")
+            }
+        }
+
+        XCTAssertTrue(holes.isEmpty, """
+            \(holes.count) key/locale pair(s) have no translation and will render in \
+            English inside a translated screen: \(holes.prefix(12).joined(separator: ", "))\
+            \(holes.count > 12 ? ", …" : "").
+            Nothing reports this at build time and nothing reports it at runtime.
+            """)
+    }
+
+    /// The catalog's `strings` object, read as JSON.
+    static func rawStrings() throws -> [String: Any] {
+        let url = nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                 as? [String: Any])
+        return try XCTUnwrap(root["strings"] as? [String: Any])
+    }
+
+    /// Every `stringUnit.state` in one locale body, labelled by where it lives.
+    /// All three shapes, because a state check that only reads the top-level
+    /// unit would pass a plural whose every form says `translated`.
+    static func states(in body: [String: Any]) -> [(String, String)] {
+        var out: [(String, String)] = []
+        if let unit = body["stringUnit"] as? [String: Any], let state = unit["state"] as? String {
+            out.append(("the whole string", state))
+        }
+        if let plural = pluralCategories(in: body) {
+            for (category, unit) in plural.sorted(by: { $0.key < $1.key }) {
+                if let state = ((unit as? [String: Any])?["stringUnit"] as? [String: Any])?["state"] as? String {
+                    out.append(("plural.\(category)", state))
+                }
+            }
+        }
+        for (name, substitution) in (body["substitutions"] as? [String: Any] ?? [:]).sorted(by: { $0.key < $1.key }) {
+            guard let plural = pluralCategories(in: substitution as? [String: Any] ?? [:]) else { continue }
+            for (category, unit) in plural.sorted(by: { $0.key < $1.key }) {
+                if let state = ((unit as? [String: Any])?["stringUnit"] as? [String: Any])?["state"] as? String {
+                    out.append(("substitution \"\(name)\".\(category)", state))
+                }
+            }
+        }
+        return out
+    }
+
+    // MARK: - Arguments
+
+    /// **A translation that omits an argument is invisible to every other gate.**
+    ///
+    /// `Phrasebook.specifierMismatch` (`Sources/Shared/Phrasebook.swift:205`)
+    /// scans the *format* and checks each specifier it finds against the
+    /// arguments it was handed. Nothing walks the other way. So an index above
+    /// `args.count` is caught, a wrong conversion is caught, and a translation
+    /// that simply never mentions `%2$@` validates, compiles, formats, and drops
+    /// half the sentence on the floor. "Four and Seven pair in row 3" becomes
+    /// "Four pair in row 3" — which is not a truncation a player can recognise
+    /// as one, because it is a grammatical English sentence about the wrong
+    /// thing. `xcstringstool compile` does not check it either; it checks shape,
+    /// not meaning.
+    ///
+    /// **The exposure is 32 keys, not the four this task's brief names**
+    /// (`board.announce.pair`, `board.cell.hintPair`, `coach.card.label`,
+    /// `shelf.continue.caption` are a sample of it). Every key carrying two or
+    /// more positional indices is exposed — the whole `coach.*.sentence.*`
+    /// family, most of `board.*`, `shelf.*`, `firstrun.*`. The count is derived
+    /// below rather than listed, so it tracks the catalog instead of this
+    /// comment.
+    ///
+    /// The 32nd is `board.progress.filled`, and it is worth naming because it
+    /// is the one a script finds last. Its top-level unit is
+    /// `%1$#@filled@ filled.` — one index — and `%2$lld` lives inside the
+    /// substitution's plural forms. A reader that examines each stored value on
+    /// its own counts 31 and is wrong by exactly the key whose second argument
+    /// is hardest to see. That is not hypothetical: the first pass at this
+    /// number, written to justify the assertion below, returned 31.
+    ///
+    /// The comparison is **per rendering, not per key**. A rendering is one
+    /// string a player can actually be shown, and each plural category is a
+    /// separate one: dropping `%2$lld` from the `one` form alone breaks exactly
+    /// the counts that select `one` and leaves every other count correct, which
+    /// is the hardest version of this to see from a diff. Comparing each
+    /// rendering against the key's full English argument set is safe rather than
+    /// over-fitted, and that was measured: of 425 English keys, **0** vary their
+    /// argument usage between plural categories. The English self-check below
+    /// keeps that true rather than trusting this sentence.
+    func testEveryLocaleUsesEveryArgumentIndexTheEnglishValueUses() throws {
+        let url = Self.nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                 as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        var keysCarryingArguments = 0
+        var keysCarryingTwoOrMore = 0
+        var renderingsChecked = 0
+
+        for (key, value) in strings.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            guard let english = localizations["en"] as? [String: Any] else { continue }
+
+            let englishRenderings = Self.renderings(in: english)
+            let expected = englishRenderings.reduce(into: Set<Int>()) { $0.formUnion($1.indices) }
+            guard !expected.isEmpty else { continue }
+            keysCarryingArguments += 1
+            if expected.count > 1 { keysCarryingTwoOrMore += 1 }
+
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+                guard let body = body as? [String: Any] else { continue }
+                for rendering in Self.renderings(in: body) {
+                    renderingsChecked += 1
+                    let missing = expected.subtracting(rendering.indices).sorted()
+                    let extra = rendering.indices.subtracting(expected).sorted()
+                    XCTAssertEqual(rendering.indices, expected, """
+                        \(key) [\(locale)], \(rendering.label): uses arguments \
+                        \(rendering.indices.sorted()) where English uses \
+                        \(expected.sorted())\
+                        \(missing.isEmpty ? "" : " — dropped \(missing)")\
+                        \(extra.isEmpty ? "" : " — invented \(extra)").
+                        A dropped index is the silent one: `Phrasebook` validates \
+                        the format against the arguments and never the arguments \
+                        against the format, so this formats without a warning and \
+                        the clause it belonged to simply is not on screen. An \
+                        invented index is the loud one — `Phrasebook` traps it at \
+                        runtime, which on a translated build means a Debug \
+                        assertion in a language nobody here reads.
+                        """)
+                }
+            }
+        }
+
+        // The floor. With `en` alone in the catalog every assertion above is
+        // vacuous except the English self-check, so the thing worth pinning is
+        // that there is real exposure to protect — 31 keys at the time of
+        // writing. A catalog that stopped carrying multi-argument strings, or a
+        // reader that stopped seeing them, both arrive here as a green test.
+        XCTAssertGreaterThan(keysCarryingArguments, 0,
+                             "no key in the catalog takes an argument — either the "
+                             + "catalog changed shape or `renderings` stopped reading it")
+        XCTAssertEqual(keysCarryingTwoOrMore, 32, """
+            \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
+            not the 32 this test was calibrated against. That is fine and the \
+            number should move with the catalog — update it deliberately, in a \
+            diff, having checked that `renderings` still reads all three shapes. \
+            It is pinned because it dropping to 0 is what a silently-broken \
+            reader looks like from here.
+            """)
+        XCTAssertGreaterThan(renderingsChecked, keysCarryingArguments,
+                             "fewer renderings than argument-carrying keys — the plural "
+                             + "and substitution shapes are not being expanded")
+    }
+
+    /// The other half of the same hole, one level down.
+    ///
+    /// A substitution's plural units name their count as `%arg`, not as a
+    /// positional index — `%arg of %2$lld`. So dropping `%arg` costs the player
+    /// the number without changing any positional index, and the test above
+    /// cannot see it. `xcstringstool` accepts a substitution variation with no
+    /// `%arg` in it: the axis is still declared, still selected, still renders,
+    /// and the count it exists to print is gone.
+    func testEverySubstitutionVariationStillNamesItsCount() throws {
+        let url = Self.nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                 as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        var checked = 0
+        for (key, value) in strings.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+                let substitutions = (body as? [String: Any])?["substitutions"] as? [String: Any] ?? [:]
+                for (name, substitution) in substitutions.sorted(by: { $0.key < $1.key }) {
+                    guard let plural = Self.pluralCategories(in: substitution as? [String: Any] ?? [:])
+                    else { continue }
+                    for (category, unit) in plural.sorted(by: { $0.key < $1.key }) {
+                        let text = ((unit as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+                        checked += 1
+                        XCTAssertTrue(text.contains("%arg"), """
+                            \(key) [\(locale)], substitution "\(name)".\(category): \
+                            "\(text)" does not name `%arg`. That axis exists to print \
+                            a count and this form of it prints none — and because \
+                            `%arg` is not a positional index, no specifier check \
+                            anywhere disagrees.
+                            """)
+                    }
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 0,
+                             "no substitution variations found — the catalog has three "
+                             + "shapes and this test just stopped seeing one of them")
+    }
+
+    /// Every string a player can be shown for one locale of one key, paired
+    /// with the positional argument indices it uses.
+    ///
+    /// The three catalog shapes do not nest the same way and the difference is
+    /// load-bearing:
+    ///
+    ///   • plain — one `stringUnit`, one rendering.
+    ///   • whole-string plural — one rendering per category, and **no top-level
+    ///     unit at all**, so anything reading `stringUnit.value` first sees
+    ///     nothing here.
+    ///   • substitution — a top-level unit holding `%N$#@name@`, and the real
+    ///     text one level in. A rendering is the two combined, which is the
+    ///     whole point: `board.progress.filled` is `%1$#@filled@ filled.` up top
+    ///     and `%arg of %2$lld` inside, so a reader that stops at the top level
+    ///     concludes it is a one-argument key and waves through a translation
+    ///     that dropped the total.
+    static func renderings(in body: [String: Any]) -> [(label: String, indices: Set<Int>)] {
+        let top = argumentIndices(in: (body["stringUnit"] as? [String: Any])?["value"] as? String ?? "")
+
+        if let plural = pluralCategories(in: body) {
+            return plural.sorted(by: { $0.key < $1.key }).map { category, unit in
+                let text = ((unit as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+                return ("plural.\(category)", top.union(argumentIndices(in: text)))
+            }
+        }
+
+        let substitutions = body["substitutions"] as? [String: Any] ?? [:]
+        var expanded: [(label: String, indices: Set<Int>)] = []
+        for (name, substitution) in substitutions.sorted(by: { $0.key < $1.key }) {
+            guard let plural = pluralCategories(in: substitution as? [String: Any] ?? [:]) else { continue }
+            for (category, unit) in plural.sorted(by: { $0.key < $1.key }) {
+                let text = ((unit as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+                expanded.append(("substitution \"\(name)\".\(category)",
+                                 top.union(argumentIndices(in: text))))
+            }
+        }
+        return expanded.isEmpty ? [("the whole string", top)] : expanded
+    }
+
+    /// The positional indices `%N$…` names, including the `%N$#@name@` form.
+    ///
+    /// Deliberately not `Phrasebook.specifierMismatch`: that answers "is this
+    /// format compatible with these arguments", which is the question that
+    /// cannot see an omission. This answers "which arguments does this format
+    /// mention", which is the one that can. `%%` is an escaped percent and
+    /// names nothing; a bare `%@` names nothing either, and shows up here as an
+    /// index that went missing rather than as its own diagnosis.
+    static func argumentIndices(in format: String) -> Set<Int> {
+        var found: Set<Int> = []
+        var digits = ""
+        var inSpecifier = false
+
+        for character in format {
+            guard inSpecifier else {
+                if character == "%" { inSpecifier = true; digits = "" }
+                continue
+            }
+            if character.isNumber {
+                digits.append(character)
+            } else if character == "$" {
+                if let index = Int(digits) { found.insert(index) }
+                inSpecifier = false
+            } else {
+                // Anything else ends it: a conversion (`%@`), a modifier that
+                // never reached a `$` (`%lld`), or `%%`. None of them name a
+                // position, and `%%` must not leave us mid-specifier or the
+                // next literal digit reads as an index.
+                inSpecifier = false
+            }
+        }
+        return found
     }
 
     /// Every Engine identifier the app has to name is named.

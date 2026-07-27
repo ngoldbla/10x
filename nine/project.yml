@@ -126,23 +126,27 @@ targets:
         # carries but the bundle does not advertise is simply never chosen, and
         # the app falls back to English with no error anywhere.
         #
-        # **`[en]`, because `en` is all the catalog has** (controller ruling,
-        # 2026-07-26, at the head of Task 9). Declaring PRD-20's other nine
-        # before they are translated is not harmless optimism:
-        # `CFBundleLocalizations` is authoritative when present, merging to main
-        # triggers `beta_all`, and a Japanese TestFlight tester would then get
-        # Japanese system UI and Japanese month names — `ArchiveCalendar`'s
-        # formatter follows `Locale.current` on purpose — wrapped around English
-        # prose. App Store Connect would also read ten locales off the build and
-        # list the app as localized into ten languages.
+        # **All ten, because the catalog now carries all ten** (Task 9). This
+        # list was `[en]` until the translations existed, and the reason is
+        # worth keeping: `CFBundleLocalizations` is authoritative when present,
+        # merging to main triggers `beta_all`, and a build declaring `ja` with
+        # no Japanese in it gives a Japanese TestFlight tester Japanese system
+        # UI and Japanese month names — `ArchiveCalendar`'s formatter follows
+        # `Locale.current` on purpose — wrapped around English prose. App Store
+        # Connect would also read ten locales off the build and list the app as
+        # localized into ten languages on the strength of the plist alone.
         #
-        # Task 9 adds the nine locales and flips this list IN THE SAME COMMIT.
-        # `CatalogTests.testDeclaredLocalizationsMatchTranslatedLocales` derives
-        # the expected set from the catalog and fails in either direction, which
-        # is what makes that atomic — "remember to flip it later" is not a
-        # mechanism.
+        # It moved in the same commit as the translations, and
+        # `CatalogTests.testDeclaredLocalizationsMatchTranslatedLocales` is what
+        # made that atomic: it derives the expected set and fails in BOTH
+        # directions — a declared locale with no translations, or a translated
+        # locale nobody declared. "Remember to flip it later" is not a mechanism.
+        #
+        # Order here is preference order, not a set: English first, then the
+        # nine in PRD-20's launch order. The test compares sorted, so this
+        # ordering is free.
         CFBundleDevelopmentRegion: en
-        CFBundleLocalizations: [en]
+        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
         ITSAppUsesNonExemptEncryption: false
         # Required for the Mac App Store (.pkg upload rejects without it, error
         # 90242); harmless/valid on iOS too, ignored by tvOS. Nine is a sudoku.
@@ -225,8 +229,11 @@ targets:
         # separate bundle with a separate Info.plist: an extension resolves
         # against its own `Bundle.main`, so "the app declares it" is not a fact
         # about the widget. Same argument as listing Sources/Strings twice, and
-        # the same ruling on the contents — `[en]` until the catalog holds more.
+        # the same ruling on the contents — it moved off `[en]` in the same
+        # commit as the app's, because the widget renders the same catalog and a
+        # widget declaring fewer locales than the app it ships inside is an
+        # English Home Screen on a Japanese phone with everything else translated.
         CFBundleDevelopmentRegion: en
-        CFBundleLocalizations: [en]
+        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
