@@ -10,6 +10,33 @@ import CouchKit
 
 @main
 struct NineApp: App {
+    /// Nine's words, installed before anything can ask for one (PRD-20).
+    ///
+    /// **A stored property declared above `model`, not a line in `init` — the
+    /// position is the mechanism.** Swift applies a struct's stored-property
+    /// defaults in declaration order *before* the `init` body runs, so this
+    /// resolves first and `AppModel()` second. That ordering is the point:
+    /// `@State private var model = AppModel()` below is itself a
+    /// stored-property default, so an install written into `init` would already
+    /// be one `AppModel` change away from being too late. `AppModel` builds no
+    /// phrases today; putting the install here makes "early enough" a fact
+    /// about the language rather than a fact about `AppModel`. (Measured, not
+    /// assumed: a struct with two `Probe` stored properties and a printing
+    /// `init` prints `first-stored`, `second-stored`, `init body`.)
+    ///
+    /// It is also the only install site that exists on iOS and tvOS — the
+    /// `init` below is inside `#if os(macOS)`, so on two of the three platforms
+    /// `NineApp` has no `init` at all and there is nowhere for the call to be.
+    /// `NineWidgets.appex` never runs `NineApp` and makes its own call from
+    /// `NineWidgetBundle`: two `@main`s, two processes, one install each
+    /// (controller ruling, 2026-07-26). `Phrasebook.install` is a
+    /// `precondition` that survives `-O`, so a second call in one process traps
+    /// in the shipping app rather than silently overwriting.
+    ///
+    /// Typed `Void` because the value is never read — the initializer's side
+    /// effect is the whole payload.
+    private let phrasebook: Void = Strings.install()
+
     @State private var model = AppModel()
 
     #if os(macOS)

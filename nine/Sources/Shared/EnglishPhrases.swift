@@ -25,11 +25,23 @@
 // `board.streak.plain` rather than `board.streak` — because a leaf that is also
 // a namespace cannot be spelled in that path form.
 //
-// SCOPE: the Shared keys only — what `BoardSpeech`, `TipCoach`, `SolveCardFacts`
-// and `ArchiveCalendar` say. Task 5 adds the App layer's. The English below
-// reproduces today's wording exactly, character for character; Task 7 is where
-// the coach sentences get rewritten under their own grammar rules, and doing it
-// here would mean two changes landing in one diff with only one of them tested.
+// SCOPE: the Shared keys, plus the Engine's two ID families. `BoardSpeech`,
+// `TipCoach`, `SolveCardFacts` and `ArchiveCalendar` are the Shared consumers;
+// Task 5 adds the App layer's. The English below reproduces today's wording
+// exactly, character for character; Task 7 is where the coach sentences get
+// rewritten under their own grammar rules, and doing it here would mean two
+// changes landing in one diff with only one of them tested.
+//
+// The Engine's IDs are here rather than only in the catalog because the Engine
+// itself no longer names anything (PRD-20 Task 2 deleted `Technique.displayName`
+// and `Difficulty.title`) and *Shared* is one of the consumers:
+// `BoardSpeech.coachTitle` speaks a technique's name and `SolveCardFacts` prints
+// a difficulty's. Both run under `swift test` and on Linux with no bundle in
+// sight, so if `technique.nakedSingle.name` lived only in the catalog,
+// `BoardSpeechTests` would assert against the string "technique.nakedSingle.name"
+// — the missing-key fallback, dressed up as a passing test.
+// `CatalogTests.testEveryEngineIdentifierIsNamed` pins one entry per enum case,
+// mechanically, so appending a `Technique` cannot silently ship unnamed.
 import Foundation
 
 public enum EnglishPhrases {
@@ -103,6 +115,20 @@ public enum EnglishPhrases {
         "coach.slip.title": "A slip somewhere",
         "coach.solved.title": "Done",
         "coach.xWing.body": "%1$@ in these two %2$@ can only sit in two %3$@, so no other square in those %3$@ can be a %4$@.",
+        "difficulty.gentle.title": "Gentle",
+        "difficulty.nocturne.title": "Nocturne",
+        "difficulty.sharp.title": "Sharp",
+        "difficulty.steady.title": "Steady",
+        "technique.boxLineReduction.name": "Box-Line Reduction",
+        "technique.cageCombination.name": "Cage Combination",
+        "technique.cageSingle.name": "Cage Single",
+        "technique.hiddenPair.name": "Hidden Pair",
+        "technique.hiddenSingle.name": "Hidden Single",
+        "technique.innieOutie.name": "Rule of 45",
+        "technique.nakedPair.name": "Naked Pair",
+        "technique.nakedSingle.name": "Naked Single",
+        "technique.thermoBound.name": "Thermometer Bound",
+        "technique.xWing.name": "X-Wing",
         "tip.highlight": "Tap any placed digit to light up every one of its kind.",
         "tip.pencil": "Tap the pencil, then flick — the rose leaves corner notes instead.",
         "tip.undo": "Undo takes the last digit back. Nothing here is ever stuck.",

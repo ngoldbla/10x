@@ -164,7 +164,7 @@ struct HistorySheetContent: View {
             VStack(alignment: .leading, spacing: 12 * s) {
                 sectionHeader("Average vs. best")
                 ForEach(rows, id: \.0) { difficulty, avg, best in
-                    TwinBar(title: difficulty.title,
+                    TwinBar(title: Strings.difficulty(difficulty),
                             avg: avg / maxAvg,
                             best: best / maxAvg,
                             bestLabel: Self.format(best),
@@ -257,7 +257,7 @@ struct HistorySheetContent: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 22 * s)
                     VStack(alignment: .leading, spacing: 1 * s) {
-                        Text(record.isDaily ? "Daily · \(record.difficulty.title)" : record.difficulty.title)
+                        Text(record.isDaily ? "Daily · \(Strings.difficulty(record.difficulty))" : Strings.difficulty(record.difficulty))
                             .font(CouchTypography.caption)
                         Text(record.date.formatted(date: .abbreviated, time: .omitted))
                             .font(.system(size: 11 * s, weight: .medium, design: .rounded))

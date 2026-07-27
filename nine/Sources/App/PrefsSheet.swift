@@ -227,7 +227,7 @@ struct PrefsSheetContent: View {
                     Button {
                         start(difficulty)
                     } label: {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)

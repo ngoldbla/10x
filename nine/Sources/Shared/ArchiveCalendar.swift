@@ -217,13 +217,25 @@ public enum ArchiveCalendar {
         return parts.joined(separator: ", ")
     }
 
-    /// The archive's spoken vocabulary, in one block — the seam PRD-20 converts
-    /// to `LocalizedStringResource`.
+    /// The archive's spoken vocabulary, through the one seam (PRD-20).
+    ///
+    /// These four were English literals until the catalog existed, and the same
+    /// four words were *also* sitting in `EnglishPhrases.table` as `archive.day.*`
+    /// — character-identical by inspection and by nothing else. Task 9 freezes
+    /// that table into nine translations, at which point "identical by
+    /// inspection" would have meant a Japanese player hearing "not played" in
+    /// English, from a grid that says everything else in Japanese. Wired rather
+    /// than pinned with an equality test, because a pin keeps two lists and this
+    /// keeps one.
+    ///
+    /// Computed, not `static let`: a `let` resolves once per process, at first
+    /// touch, which on a mid-session language change is whichever language the
+    /// player was reading when the archive first opened.
     private enum Phrase {
-        static let today = "today"
-        static let solved = "solved"
-        static let inProgress = "in progress"
-        static let notPlayed = "not played"
+        static var today: String { Phrasebook.current.string("archive.day.today") }
+        static var solved: String { Phrasebook.current.string("archive.day.solved") }
+        static var inProgress: String { Phrasebook.current.string("archive.day.inProgress") }
+        static var notPlayed: String { Phrasebook.current.string("archive.day.notPlayed") }
     }
 
     /// Cached, because a `DateFormatter` is expensive to build and the grid

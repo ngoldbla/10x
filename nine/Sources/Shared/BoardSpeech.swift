@@ -273,7 +273,7 @@ public enum BoardSpeech {
     /// The coach card's heading — the technique's name, or the state's.
     public static func coachTitle(_ advice: CoachAdvice) -> String {
         switch advice {
-        case .step(let coach): return coach.step.technique.displayName
+        case .step(let coach): return Phrase.techniqueName(coach.step.technique)
         case .contradiction:   return Phrase.coachSlipTitle
         case .exhausted:       return Phrase.coachExhaustedTitle
         case .solved:          return Phrase.coachSolvedTitle
@@ -484,6 +484,17 @@ private enum Phrase {
     // Coach (PRD-11). Every one of these is a claim about the board the player
     // could check by hand — not one of them consults the solution, which is why
     // the wording is identical whether "show mistakes" is on or off.
+    /// The technique's name, keyed off the frozen raw value rather than a
+    /// `switch`. `Technique.displayName` used to answer this and lived in the
+    /// Engine, which compiles on Linux and must never reach a bundle (PRD-20).
+    /// Built by interpolation on purpose: a `switch` here would be a second list
+    /// that can disagree with the enum, and appending a case would compile.
+    /// `CatalogTests.testEveryEngineIdentifierIsNamed` is what catches the
+    /// append instead.
+    static func techniqueName(_ technique: Technique) -> String {
+        Phrasebook.current.string("technique.\(technique.rawValue).name")
+    }
+
     static var coachSlipTitle: String { Phrasebook.current.string("coach.slip.title") }
     static var coachSlip: String { Phrasebook.current.string("coach.slip.body") }
     static var coachExhaustedTitle: String { Phrasebook.current.string("coach.exhausted.title") }

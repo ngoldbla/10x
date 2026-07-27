@@ -263,7 +263,7 @@ struct TouchHomeView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Continue")
                             .font(CouchTypography.body)
-                        Text("\(difficulty.title) · \(BoardProgressCaption.text(for: game))"
+                        Text("\(Strings.difficulty(difficulty)) · \(BoardProgressCaption.text(for: game))"
                              + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
@@ -342,7 +342,7 @@ struct TouchHomeView: View {
         // The daily's own day, not `createdAt` — the second of the two places
         // that made the same assumption (PRD-14; see `BoardsSheet.title`).
         case .daily(let day): return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
-        case .free(let difficulty): return difficulty.title
+        case .free(let difficulty): return Strings.difficulty(difficulty)
         }
     }
 
@@ -374,7 +374,7 @@ struct TouchHomeView: View {
                     .frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 4) {
                     Label {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                     } icon: {
                         if let glyph = difficulty.glyph { Image(systemName: glyph) }
                     }
@@ -395,7 +395,7 @@ struct TouchHomeView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
         }
         .disabled(composeInFlight && model.composing != .free(difficulty))
-        .accessibilityLabel("\(difficulty.title), \(difficulty.blurb)")
+        .accessibilityLabel("\(Strings.difficulty(difficulty)), \(difficulty.blurb)")
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -406,7 +406,7 @@ struct TouchHomeView: View {
                 if model.composing == .free(difficulty) {
                     statusLabel("Composing…", symbol: "sparkles")
                 } else {
-                    Text(difficulty.title)
+                    Text(Strings.difficulty(difficulty))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.primary)
                     Text(difficulty.blurb)
@@ -895,7 +895,7 @@ struct TouchGameScreen: View {
                                 GlassChip("Another", systemImage: "arrow.clockwise")
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Another \(difficulty.title) board")
+                            .accessibilityLabel("Another \(Strings.difficulty(difficulty)) board")
                         }
                     }
                     .transition(.opacity)

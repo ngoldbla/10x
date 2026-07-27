@@ -127,7 +127,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Continue")
                         .couchText(CouchTypography.title)
-                    Text(difficulty.title)
+                    Text(Strings.difficulty(difficulty))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -212,7 +212,7 @@ struct HomeView: View {
                     statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
                 } else {
                     Label {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                     } icon: {
                         if let glyph = difficulty.glyph { Image(systemName: glyph) }
                     }
@@ -291,7 +291,7 @@ extension Difficulty {
     /// Driven off `demands`, not off the case, so the next deep band inherits
     /// the caption by being expensive rather than by being remembered.
     var composeCaption: String? {
-        demands == nil ? nil : "\(title) takes a moment to compose"
+        demands == nil ? nil : "\(Strings.difficulty(self)) takes a moment to compose"
     }
 }
 

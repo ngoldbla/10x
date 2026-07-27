@@ -145,4 +145,30 @@ final class TipCoachTests: XCTestCase {
             XCTAssertFalse(tip.symbol.isEmpty)
         }
     }
+
+    /// The exact sentences, because `!isEmpty` above is satisfied by the
+    /// missing-key fallback too (PRD-20).
+    ///
+    /// `NineTip.message` reads `tip.<rawValue>` out of the `Phrasebook` now
+    /// rather than returning a literal, so a mistyped key, a deleted row or a
+    /// renamed case all degrade to the *key* — `"tip.pencil"` — which is a
+    /// non-empty string, and which nothing else in this file would notice. The
+    /// wording is PRD-34's and is asserted character for character on purpose:
+    /// it is a first-week player's only instruction.
+    func testEveryTipSaysExactlyWhatItSaid() {
+        XCTAssertEqual(NineTip.undo.message,
+                       "Undo takes the last digit back. Nothing here is ever stuck.")
+        XCTAssertEqual(NineTip.pencil.message,
+                       "Tap the pencil, then flick — the rose leaves corner notes instead.")
+        XCTAssertEqual(NineTip.highlight.message,
+                       "Tap any placed digit to light up every one of its kind.")
+
+        // …and no tip is its own key, which is what the fallback looks like and
+        // what every other assertion in this file lets through. Written as a
+        // loop so a fourth tip cannot be added without a row to name it.
+        for tip in NineTip.allCases {
+            XCTAssertNotEqual(tip.message, "tip.\(tip.rawValue)",
+                              "\(tip) fell back to its key — the row is missing from EnglishPhrases.table")
+        }
+    }
 }

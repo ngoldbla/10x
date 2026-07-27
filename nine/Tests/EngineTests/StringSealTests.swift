@@ -148,6 +148,59 @@ final class StringSealTests: XCTestCase {
             """)
     }
 
+    /// The Engine is Linux-clean and never localizes (PRD-20).
+    ///
+    /// The structural enforcement is that SwiftPM does not compile
+    /// `Sources/App` — but that only catches an `import SwiftUI`, not a
+    /// `displayName` returning English, which is what was actually there:
+    /// `Technique.displayName`, `Difficulty.title` and `VariantTier.title` each
+    /// held a `switch` full of English inside the module the 56 golden-corpus
+    /// hashes are made of. This catches the second kind.
+    ///
+    /// Comments are stripped first, and that is not a detail — all three enums
+    /// now carry doc comments that *name* the deleted properties, because the
+    /// most useful thing at the site of a deletion is why the thing is not
+    /// there. A rule reading raw text would fail on its own explanation.
+    func testEngineNamesNothing() throws {
+        // Substrings, not identifiers, on purpose: `var title` catches a
+        // computed property while leaving `title:` argument labels and any
+        // `titleCase` helper alone, and none of the other four is a word that
+        // means anything here except "human-readable words live below".
+        let banned = ["displayName", "var title", "blurb", "explainer", "caption"]
+        let engine = Self.nineRoot().appendingPathComponent("Sources/Engine")
+        let files = try FileManager.default.subpathsOfDirectory(atPath: engine.path)
+            .filter { $0.hasSuffix(".swift") }
+            .sorted()
+        XCTAssertFalse(files.isEmpty, "Sources/Engine has no Swift files — did the tree move?")
+
+        var offences: [String] = []
+        for file in files {
+            let raw = try String(contentsOf: engine.appendingPathComponent(file), encoding: .utf8)
+            let source = String(Self.stripComments(Array(raw)))
+            let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
+            for (offset, line) in lines.enumerated() {
+                for needle in banned where line.contains(needle) {
+                    offences.append("Sources/Engine/\(file):\(offset + 1) — \"\(needle)\"")
+                }
+            }
+        }
+
+        XCTAssertEqual(offences, [], """
+            The Engine named something:
+            \(offences.joined(separator: "\n"))
+            `Sources/Engine` emits IDs and nothing else. It compiles on Linux, \
+            where there is no bundle to look a translation up in, and its \
+            `Technique`/`Difficulty` raw values are frozen inside 56 \
+            golden-corpus hashes — which is what makes the raw value the \
+            localization identity, and a `displayName` beside it a second, \
+            unfrozen list of the same thing.
+            Fix: put the English in `EnglishPhrases.table` under \
+            `<enum>.<rawValue>.<role>` and read it through \
+            `Strings.technique(_:)` in the App layer, or `Phrasebook.current` \
+            in Shared.
+            """)
+    }
+
     /// The detector, tested against source it is handed rather than against the
     /// tree — because the tree passes, and a rule that only ever runs against
     /// passing input can rot into `return []` without anyone noticing.

@@ -20,6 +20,19 @@ targets:
       - Sources/App
       - Sources/Engine
       - Sources/Shared
+      # The String Catalog and its accessor (PRD-20). Listed by BOTH targets on
+      # purpose: NineWidgets compiles Sources/Shared and Sources/Engine in, so it
+      # needs the same keys resolved against its OWN bundle — in an app extension
+      # `Bundle.main` IS the extension. A catalog in only the app gives the
+      # widget an English Home Screen on a localized phone, and three green
+      # platform builds do not catch it. `CatalogTests` counts the two entries
+      # here; `find … -name '*.lproj'` on both built bundles is what settles it,
+      # for the reason PRD-16's alternate icons gave: that shipped green with no
+      # `CFBundleAlternateIcons` at all, and only the artifact disagreed.
+      #
+      # Deliberately not a SwiftPM target: `LocalizedStringResource` does not
+      # exist on Linux and Package.swift must stay Linux-clean.
+      - Sources/Strings
       - Assets.xcassets
       - path: PrivacyInfo.xcprivacy
         buildPhase: resources
@@ -103,6 +116,18 @@ targets:
         CFBundleDisplayName: Nine
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # PRD-20's ten launch locales. English is the source language, so it is
+        # the development region; the other nine are Nine's markets.
+        #
+        # `CFBundleLocalizations` is declared rather than inferred because
+        # xcodegen writes the Info.plist itself and the app has no per-language
+        # `.lproj` resources of its own — everything is in one String Catalog,
+        # which the build compiles into `<lang>.lproj/Localizable.strings`
+        # inside the bundle. Without this list a locale that the catalog
+        # carries but the bundle does not advertise is simply never chosen, and
+        # the app falls back to English with no error anywhere.
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
         ITSAppUsesNonExemptEncryption: false
         # Required for the Mac App Store (.pkg upload rejects without it, error
         # 90242); harmless/valid on iOS too, ignored by tvOS. Nine is a sudoku.
@@ -149,6 +174,10 @@ targets:
       - Sources/Widgets
       - Sources/Shared
       - Sources/Engine
+      # The same catalog and accessor as the app target, compiled a second time
+      # into this bundle — see the long comment on `Nine.sources`. `Bundle.main`
+      # here is the .appex, so this is the only copy the widget can read.
+      - Sources/Strings
     dependencies:
       - package: CouchKit
     settings:
@@ -177,5 +206,11 @@ targets:
         CFBundleDisplayName: Nine
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # The same ten locales as the app, declared here too because this is a
+        # separate bundle with a separate Info.plist: an extension resolves
+        # against its own `Bundle.main`, so "the app declares it" is not a fact
+        # about the widget. Same argument as listing Sources/Strings twice.
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

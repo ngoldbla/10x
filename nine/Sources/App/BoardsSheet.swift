@@ -98,7 +98,7 @@ struct BoardsSheetContent: View {
                         model.startFree(difficulty)
                         onClose?()
                     } label: {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.caption)
                             .foregroundStyle(accent)
                             .frame(maxWidth: .infinity)
@@ -115,7 +115,7 @@ struct BoardsSheetContent: View {
                             .contentShape(.accessibility, Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("New \(difficulty.title) board")
+                    .accessibilityLabel("New \(Strings.difficulty(difficulty)) board")
                 }
             }
             // The board you are on is never destroyed by this: it stays in
@@ -228,7 +228,7 @@ struct BoardsSheetContent: View {
             // archive today and the tracker listed it as "Daily · Jul 26".
             return "Daily · \(ArchiveCalendar.mediumLabel(forDayOrdinal: day))"
         case .free(let difficulty):
-            return difficulty.title
+            return Strings.difficulty(difficulty)
         }
     }
 

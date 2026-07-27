@@ -60,9 +60,9 @@ public struct SolveCardFacts: Equatable, Sendable {
         // otherwise would be the app's first dishonest pixel — on the one
         // artifact that outlives the session and cannot be corrected.
         if isDaily, streak > 0 {
-            creditLine = "\(difficulty.title) · \(Phrase.streak(streak))"
+            creditLine = "\(Phrase.difficulty(difficulty)) · \(Phrase.streak(streak))"
         } else {
-            creditLine = difficulty.title
+            creditLine = Phrase.difficulty(difficulty)
         }
         dailyLine = isDaily ? Phrase.dailyLine : nil
         shareTitle = "\(Phrase.wordmark) · \(timeLine)"
@@ -76,11 +76,31 @@ public struct SolveCardFacts: Equatable, Sendable {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
-    // PRD-20 seam: these become `LocalizedStringResource` lookups.
+    /// The card's words, through the one seam (PRD-20). These were English
+    /// literals until the catalog existed, and the same four strings were *also*
+    /// sitting in `EnglishPhrases.table` as `card.*` — character-identical by
+    /// inspection and by nothing else. Task 9 freezes that table into nine
+    /// translations, at which point "identical by inspection" would have meant
+    /// the share card stays English in every one of them. Wired rather than
+    /// pinned with an equality test, because a pin keeps two lists and this
+    /// keeps one.
     private enum Phrase {
-        static let wordmark = "NINE"
-        static let dailyLine = "Nine · daily puzzle"
-        static func solvedIn(_ clock: String) -> String { "Solved in \(clock)" }
-        static func streak(_ days: Int) -> String { "\(days) day streak" }
+        /// Never localized: it is the mark, not a word. `#"…"#` is the repo's
+        /// never-localize marker (`ShareCardMetrics.wordmark`, `strings.py`),
+        /// and a marker you have to type is a marker somebody had to mean.
+        static let wordmark = #"NINE"#
+        static var dailyLine: String { Phrasebook.current.string("card.daily") }
+        static func solvedIn(_ clock: String) -> String {
+            Phrasebook.current.string("card.time", .text(clock))
+        }
+        static func streak(_ days: Int) -> String {
+            Phrasebook.current.string("card.streak", .int(days))
+        }
+        /// Keyed off the frozen raw value, for the reason
+        /// `BoardSpeech.Phrase.techniqueName` gives: the Engine stopped naming
+        /// things, and a `switch` here would be a second list.
+        static func difficulty(_ difficulty: Difficulty) -> String {
+            Phrasebook.current.string("difficulty.\(difficulty.rawValue).title")
+        }
     }
 }

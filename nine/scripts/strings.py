@@ -33,6 +33,7 @@ Usage:
     python3 scripts/strings.py --audit             # exit 1 on regression
     python3 scripts/strings.py --audit --verbose   # list every offence
     python3 scripts/strings.py --audit --write-baseline
+    python3 scripts/strings.py --build-catalog     # regenerate the catalog's `en`
     python3 scripts/strings.py --extract           # Task 5+
     python3 scripts/strings.py --pseudo            # Task 9+
 """
@@ -102,6 +103,42 @@ NON_PROSE_LABELS = {
 
 BASELINE = os.path.join(REPO_NINE, "Tests", "StringBaselines", "offences.txt")
 CATALOG = os.path.join(REPO_NINE, "Sources", "Strings", "Localizable.xcstrings")
+
+# The catalog and its accessor. Not in `TREES` — the offence scanner must not
+# walk it, because it is the one tree whose job is to hold string keys — but
+# `swift_referenced_keys` must, because `Strings.swift` names keys.
+STRINGS_TREE = "Sources/Strings"
+ENGLISH_PHRASES = os.path.join(REPO_NINE, "Sources", "Shared", "EnglishPhrases.swift")
+
+# PRD-20's ten launch locales, in the order `project.yml` declares them.
+# `CatalogTests.testDeclaredLocalizationsAreExactlyTheNineLaunchLocales` is what
+# keeps the two lists equal.
+LOCALES = ["en", "ja", "de", "fr", "es", "it", "pt-BR", "ko", "zh-Hans", "nl"]
+
+# `"key": "value",` — the one shape `EnglishPhrases.table` is allowed to take.
+# `PhrasebookTests.testTableIsOneSortedEntryPerLineSoAScriptCanReadIt` is the
+# other half of this contract: it re-parses the same file from Swift and checks
+# the parse against the compiled dictionary, so this reader cannot drift from
+# what the app actually says.
+TABLE_ENTRY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*"(.*)",\s*$')
+
+# A key handed to the Phrasebook as a literal: `Phrasebook.current.string("…")`,
+# `Strings.string("…")`. Shared cannot name `Strings`, so this — not a
+# `Strings.foo.bar` path — is how most of Nine's keys are actually written.
+PHRASEBOOK_KEY_RE = re.compile(r'\.string\(\s*"([^"\\\n]+)"')
+
+# `case a` / `case a, b, c` on its own line. A `switch`'s `case .foo:` cannot
+# match: leading dot, trailing colon.
+ENUM_CASE_RE = re.compile(r"^\s*case\s+([A-Za-z_][A-Za-z0-9_]*"
+                          r"(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*$")
+
+# Key families built by interpolation rather than written out — one key per enum
+# case, invisible to any grep. (enum name, file that declares it, key pattern).
+INTERPOLATED_FAMILIES = [
+    ("Technique", "Sources/Engine/LogicSolver.swift", "technique.%s.name"),
+    ("Difficulty", "Sources/Engine/Generator.swift", "difficulty.%s.title"),
+    ("NineTip", "Sources/Shared/TipCoach.swift", "tip.%s"),
+]
 
 BASELINE_HEADER = """\
 # Nine — bare user-facing literals, as of the start of PRD-20.
@@ -524,8 +561,16 @@ def xcstringstool():
     return fallback if os.path.exists(fallback) else None
 
 
-CATALOG_KEY_RE = re.compile(r"Strings\.([A-Za-z_][A-Za-z0-9_]*"
-                            r"(?:\.[A-Za-z_][A-Za-z0-9_]*)*)")
+# `Strings.board.cell.label` — the App-layer accessor path Task 5 generates.
+#
+# At least two segments, and not followed by a `(`. Both clauses are load-bearing
+# and neither was, until the catalog existed to run this against: the first
+# version matched one segment and no call, so `Strings.difficulty(difficulty)`
+# and `Strings.install()` were reported as the catalog keys "difficulty" and
+# "install", missing from it. Every key is `<surface>.<group>.<role>` or at
+# least `<surface>.<role>`, so one segment is never a key — it is a function.
+CATALOG_KEY_RE = re.compile(r"Strings\.([a-z][A-Za-z0-9_]*"
+                            r"(?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?!\s*\()")
 
 
 def catalog_keys(tool, catalog=CATALOG):
@@ -554,10 +599,48 @@ def catalog_keys(tool, catalog=CATALOG):
 
 
 def swift_referenced_keys(nine=REPO_NINE):
-    """Every `Strings.foo.bar` named anywhere in the app trees."""
+    """Every catalog key this app actually asks for.
+
+    A `Strings.foo.bar` grep is only one of the three ways a key is named here,
+    and on its own it is wrong in the loudest possible direction: from the
+    moment the catalog exists it reports **every one of the Shared keys as a
+    dead string** and turns the cheap lane red. That is not a nuisance to
+    suppress, it is the check disagreeing with the design — `Sources/Shared`
+    cannot name `Strings` (it is Linux-clean and compiles into two bundles), so
+    it reaches its words through `Phrasebook.current.string("…")` instead, with
+    the key as a literal.
+
+    So the used-set is a union of four readers:
+
+      1. `Strings.foo.bar` — the App-layer accessor paths Task 5 generates.
+      2. `.string("board.cell.label")` — the literal handed to `Phrasebook`, in
+         `Sources/Shared` and in `Sources/Strings`.
+      3. The interpolated families, which no grep can see. `Strings.technique`
+         builds `"technique.\\(t.rawValue).name"`, `NineTip.message` builds
+         `"tip.\\(rawValue)"`; the keys exist only at runtime, one per enum
+         case. `INTERPOLATED_FAMILIES` names each one and its enum, so
+         *appending* a case makes it a used key — and, since the catalog is
+         generated from `EnglishPhrases.table`, a case with no row shows up as
+         `missing` rather than sailing through.
+      4. `EnglishPhrases.table` itself. Not a rubber stamp: the catalog's `en`
+         is *generated from* that table (`--build-catalog`), so the two are one
+         list read twice, and a row there is a key this app ships by
+         construction. It is also the only reader that survives the shapes (2)
+         cannot see — `BoardSpeech.Phrase.digitWordKeys` is a `[String]` of ten
+         literals indexed by the digit, which is a perfectly good way to write
+         that and hopeless to grep for. Dead rows are caught on the *table*
+         side instead, by `PhrasebookTests` and by review, where the whole
+         list is in one file.
+
+    `Sources/Strings` is read here but is not in `TREES`: the offence scanner
+    must not walk it (it is the one tree that is *supposed* to hold string
+    keys), while the key reader must.
+    """
     keys = set()
-    for tree in TREES:
+    for tree in TREES + [STRINGS_TREE]:
         root = os.path.join(nine, tree)
+        if not os.path.isdir(root):
+            continue
         for dirpath, _dirs, files in os.walk(root):
             for name in files:
                 if not name.endswith(".swift"):
@@ -566,7 +649,61 @@ def swift_referenced_keys(nine=REPO_NINE):
                           encoding="utf-8") as handle:
                     source = strip_comments(handle.read())
                 keys.update(CATALOG_KEY_RE.findall(source))
+                keys.update(PHRASEBOOK_KEY_RE.findall(source))
+    keys.update(interpolated_keys(nine))
+    keys.update(key for key, _ in read_english_table(
+        os.path.join(nine, "Sources", "Shared", "EnglishPhrases.swift")))
     return keys
+
+
+def interpolated_keys(nine=REPO_NINE):
+    """The keys built by interpolation, one per enum case.
+
+    `Technique` and `Difficulty` raw values are frozen inside 56 golden-corpus
+    hashes, which is exactly why the key is derived from them rather than
+    mapped: the ID half cannot drift.
+    """
+    keys = set()
+    for enum, path, pattern in INTERPOLATED_FAMILIES:
+        for case in swift_enum_cases(os.path.join(nine, path), enum):
+            keys.add(pattern % case)
+    return keys
+
+
+def swift_enum_cases(path, enum):
+    """The declared case names of `enum` in `path`, in declaration order.
+
+    Reads `case a` and `case a, b, c` lines inside the enum's braces and
+    nothing else. A `switch`'s `case .nakedSingle:` cannot match — it carries a
+    leading dot and a trailing colon — and no case in these three enums has an
+    associated value or an explicit raw value.
+    """
+    with open(path, "r", encoding="utf-8") as handle:
+        source = strip_comments(handle.read())
+    match = re.search(r"\benum\s+%s\b" % re.escape(enum), source)
+    if match is None:
+        sys.exit("cannot find `enum %s` in %s — did it move? The catalog's "
+                 "key families are derived from its cases." % (enum, path))
+    start = source.index("{", match.end())
+    depth, end = 0, len(source)
+    for i in range(start, len(source)):
+        if source[i] == "{":
+            depth += 1
+        elif source[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    body = source[start:end]
+    cases = []
+    for line in body.splitlines():
+        found = ENUM_CASE_RE.match(line)
+        if found:
+            cases.extend(name.strip() for name in found.group(1).split(","))
+    if not cases:
+        sys.exit("`enum %s` in %s declares no cases the parser can see."
+                 % (enum, path))
+    return cases
 
 
 def compile_catalog(tool, catalog):
@@ -633,6 +770,259 @@ def audit_catalog(verbose, catalog=CATALOG, used=None):
     if verbose and not failures:
         print("catalog: %d keys, all of them reachable." % len(keys))
     return failures
+
+
+# --------------------------------------------------------------- the catalog
+
+# What each key means, for the person who has to say it in Japanese.
+#
+# **Not optional, and not decoration.** "Sharp" is unguessable — a knife, a
+# musical accidental, a difficulty band? — and `board.announce.solved`
+# ("Solved.", a sentence VoiceOver speaks) versus `archive.day.solved`
+# ("solved", a word appended to a date) are different parts of speech that a
+# translator will get wrong exactly once per language, in a build nobody on this
+# team can read. `--build-catalog` refuses to write a key with no comment, which
+# is what makes this list impossible to forget rather than merely easy to fill
+# in.
+#
+# Three things every comment tries to carry: the part of speech, where it
+# appears, and what the arguments are. Length limits belong here too, when the
+# surface has one.
+COMMENTS = {
+    # Archive grid (PRD-14). Fragments appended after a spoken date —
+    # "12 July 2026, today, solved" — never sentences, never capitalised.
+    "archive.day.today": "VoiceOver, archive grid. Appended to a spoken date: \"12 July 2026, today\". A fragment, not a sentence — no capital, no full stop.",
+    "archive.day.solved": "VoiceOver, archive grid. Appended to a spoken date to say that day's puzzle is finished. A fragment: \"12 July 2026, solved\".",
+    "archive.day.inProgress": "VoiceOver, archive grid. Appended to a spoken date to say that day's puzzle is started but unfinished.",
+    "archive.day.notPlayed": "VoiceOver, archive grid. Appended to a spoken date to say that day's puzzle was never opened. Only ever said of a day that CAN still be played.",
+
+    # Board VoiceOver (PRD-19). The most-spoken strings in the app: 81 cell
+    # labels per screen read.
+    "board.cell.label": "VoiceOver, the name of one square. %1$lld is the row (1-9), %2$lld the column (1-9). A translation may reorder them — German and Japanese both front the column.",
+    "board.cell.placeHint": "VoiceOver hint on an empty square, spoken after the label. Describes how to enter a digit on this platform.",
+    "board.unit.row": "VoiceOver, the name of a row. %1$lld is 1-9.",
+    "board.unit.column": "VoiceOver, the name of a column. %1$lld is 1-9.",
+    "board.unit.box": "VoiceOver, the name of a 3x3 box. %1$lld is 1-9.",
+    "board.value.empty": "VoiceOver value of a square with nothing in it. A word, not a sentence.",
+    "board.value.plain": "VoiceOver value of a square the player filled in. %1$lld is the digit.",
+    "board.value.given": "VoiceOver value of a square the puzzle supplied and the player cannot change. %1$lld is the digit.",
+    "board.value.wrong": "VoiceOver value of a square holding a digit that contradicts the solution. %1$lld is the digit. Only ever spoken when the player has mistake-marking switched on.",
+    "board.value.notes": "VoiceOver value of an empty square carrying pencil marks. %1$@ is the list of noted digits, already joined.",
+    "board.value.noteSeparator": "Joins the digits in a spoken list of pencil marks. Punctuation only — use whatever this language lists with (a comma in English, an ideographic comma in Japanese).",
+    "board.box.filled": "VoiceOver, group scan: this 3x3 box is complete. A word, not a sentence.",
+    "board.box.empty": "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8.",
+    "board.announce.placed": "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"). A sentence: it ends in a full stop.",
+    "board.announce.cleared": "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word.",
+    "board.announce.noteAdded": "VoiceOver announcement after a pencil mark is added. %1$@ is the digit as a word.",
+    "board.announce.noteRemoved": "VoiceOver announcement after a pencil mark is removed. %1$@ is the digit as a word.",
+    "board.announce.remaining": "VoiceOver announcement: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\").",
+    "board.announce.allDone": "VoiceOver announcement: every instance of one digit is now placed. %1$@ is the digit's plural (\"sevens\").",
+    "board.announce.solved": "VoiceOver announcement the moment the board is finished. One word, a full sentence.",
+    "board.progress.filled": "VoiceOver board summary. %1$lld squares filled of %2$lld fillable.",
+    "board.progress.wrong": "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on.",
+    "board.streak.plain": "VoiceOver label of the streak chip. %1$lld is a number of consecutive days, always 1 or more.",
+    "board.streak.held": "VoiceOver label of the streak chip on a day already solved — the run is safe. %1$lld is a number of consecutive days.",
+
+    # Voice Control names. Matched against a speech recogniser, so no
+    # punctuation of any kind.
+    "board.voiceName.cell": "Voice Control name for a square, spoken BY the player to select it. %1$lld is the row, %2$lld the column. No punctuation at all — a recogniser never emits a comma.",
+    "board.voiceName.rowColumn": "Alternative Voice Control name for the same square, spoken by the player. %1$lld is the row, %2$lld the column. No punctuation.",
+    "board.voiceName.bare": "Shortest Voice Control name for a square: the two numbers alone. %1$lld is the row, %2$lld the column. No punctuation.",
+
+    # Digit words. Spoken, never shown — the numerals are drawn as glyphs.
+    "board.digitWord.zero": "The digit 0 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.one": "The digit 1 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.two": "The digit 2 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.three": "The digit 3 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.four": "The digit 4 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.five": "The digit 5 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.six": "The digit 6 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.seven": "The digit 7 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.eight": "The digit 8 as a spoken word, for VoiceOver announcements.",
+    "board.digitWord.nine": "The digit 9 as a spoken word, for VoiceOver announcements.",
+    "board.digitPlural.one": "\"the 1s\" — the digit 1 as a countable plural noun: \"three ones remaining\". A language without plural nouns may repeat the singular.",
+    "board.digitPlural.two": "\"the 2s\" — the digit 2 as a countable plural noun: \"three twos remaining\".",
+    "board.digitPlural.three": "\"the 3s\" — the digit 3 as a countable plural noun.",
+    "board.digitPlural.four": "\"the 4s\" — the digit 4 as a countable plural noun.",
+    "board.digitPlural.five": "\"the 5s\" — the digit 5 as a countable plural noun.",
+    "board.digitPlural.six": "\"the 6s\" — the digit 6 as a countable plural noun.",
+    "board.digitPlural.seven": "\"the 7s\" — the digit 7 as a countable plural noun.",
+    "board.digitPlural.eight": "\"the 8s\" — the digit 8 as a countable plural noun.",
+    "board.digitPlural.nine": "\"the 9s\" — the digit 9 as a countable plural noun.",
+
+    # The share card (PRD-12). A picture that leaves the app; nobody here can
+    # correct it afterwards. Two short lines, centred, under a 9x9 grid.
+    "card.daily": "Second line of the shareable solve card, marking the board as that day's puzzle. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
+    "card.time": "First line of the shareable solve card. %1$@ is an elapsed time already formatted as m:ss (\"3:40\"). Keep it short — it is set large and centred.",
+    "card.streak": "Half of the solve card's credit line, after the difficulty: \"Steady - 12 day streak\". %1$lld is a number of consecutive days, always 1 or more.",
+
+    # The coach (PRD-11). One sentence, on a card, that the player could check
+    # by hand. Never mentions the solution.
+    "coach.solved.title": "Coach card heading when the board is finished. One word.",
+    "coach.slip.title": "Coach card heading when two squares contradict each other, so no hint is possible. Gentle and blameless: the player made a slip, they did not fail.",
+    "coach.slip.body": "Coach card body when two squares contradict each other. Says that nothing can follow, without saying which square is wrong.",
+    "coach.exhausted.title": "Coach card heading when the board is consistent but no technique at its level applies. Not an error — the hint has simply run out.",
+    "coach.exhausted.body": "Coach card body when no technique at this board's level applies.",
+    "coach.axis.rows": "The word \"rows\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
+    "coach.axis.columns": "The word \"columns\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
+    "coach.nakedSingle.body": "Coach explanation, naked single. %1$@ is a square's name (\"Row 4, column 2\"), %2$@ a digit as a word (\"seven\").",
+    "coach.hiddenSingle.body": "Coach explanation, hidden single. %1$@ is a unit's name (\"Box 3\"), %2$@ a digit as a word.",
+    "coach.hiddenSingle.fallback": "Coach explanation, hidden single, when no containing unit was derived. %1$@ is a square's name, %2$@ a digit as a word.",
+    "coach.nakedPair.body": "Coach explanation, naked pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name (\"Row 7\").",
+    "coach.hiddenPair.body": "Coach explanation, hidden pair. %1$@ and %2$@ are digits as words, %3$@ a unit's name.",
+    "coach.boxLine.body": "Coach explanation, box-line reduction. %1$@ is a digit as a word, %2$@ and %3$@ are unit names. Note %1$@ and %3$@ each appear TWICE — if you reorder the sentence, move every occurrence.",
+    "coach.xWing.body": "Coach explanation, X-wing. %1$@ and %4$@ are the same digit as a word, %2$@ and %3$@ are the words \"rows\"/\"columns\". %3$@ appears twice — if you reorder, move both.",
+
+    # Difficulty bands. Names of the four settings a player picks between, shown
+    # on buttons, in menus and on the share card. Short: one or two words.
+    "difficulty.gentle.title": "Difficulty band, easiest of four. Shown on buttons and menus and on the share card. An adjective in the app's calm register — not \"Easy\", which sounds like a judgement of the player. One or two words.",
+    "difficulty.steady.title": "Difficulty band, second of four: unhurried, dependable. Shown on buttons and menus. One or two words.",
+    "difficulty.sharp.title": "Difficulty band, third of four: keen-witted, demanding. NOT the knife and NOT the musical accidental. One or two words.",
+    "difficulty.nocturne.title": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. Borrowing the musical term untranslated is fine where that word exists. One or two words.",
+
+    # Technique names. Sudoku terms of art, shown as the coach card's heading.
+    # Every language's puzzle community has settled names for these; use them
+    # rather than translating the English literally.
+    "technique.nakedSingle.name": "Sudoku technique name, coach card heading: a square with only one candidate left. Use this language's established sudoku term if it has one.",
+    "technique.hiddenSingle.name": "Sudoku technique name, coach card heading: a digit that fits only one square in a unit. Use this language's established sudoku term if it has one.",
+    "technique.nakedPair.name": "Sudoku technique name, coach card heading: two squares sharing exactly two candidates. Use this language's established sudoku term if it has one.",
+    "technique.hiddenPair.name": "Sudoku technique name, coach card heading: two digits confined to the same two squares. Use this language's established sudoku term if it has one.",
+    "technique.boxLineReduction.name": "Sudoku technique name, coach card heading: a digit confined to one line within a box. Use this language's established sudoku term (\"pointing\"/\"claiming\" family) if it has one.",
+    "technique.xWing.name": "Sudoku technique name, coach card heading. Almost always left as \"X-Wing\" — it is a term of art, not a description.",
+    "technique.cageSingle.name": "Killer-sudoku technique name, coach card heading: a cage whose sum leaves one possibility. Use this language's established killer-sudoku term if it has one.",
+    "technique.thermoBound.name": "Thermometer-sudoku technique name, coach card heading: digits must increase along a thermometer, which bounds each bulb.",
+    "technique.innieOutie.name": "Killer-sudoku technique name, coach card heading. Known in English as the rule of 45, because a row, column or box always sums to 45. Use this language's established term.",
+    "technique.cageCombination.name": "Killer-sudoku technique name, coach card heading: only some digit combinations reach a cage's sum.",
+
+    # First-week tips (PRD-34). Three for the lifetime of the install, so each
+    # one is a player's only instruction on that feature. One sentence, calm,
+    # never an imperative to go and do it now.
+    "tip.undo": "One of three lifetime tips, shown once in a chip. Explains that undo exists and that nothing can be ruined. Two short sentences; reassuring, never scolding.",
+    "tip.pencil": "One of three lifetime tips, shown once in a chip. Explains that the pencil toggle turns entry into corner notes. \"the rose\" is Nine's circular digit picker — keep the metaphor if the language has one, describe it plainly if not.",
+    "tip.highlight": "One of three lifetime tips, shown once in a chip. Explains that tapping a placed digit highlights every other copy of it on the board.",
+}
+
+
+def read_english_table(path=ENGLISH_PHRASES):
+    """`EnglishPhrases.table` as an ordered list of (key, value).
+
+    Reads the Swift file rather than importing anything, which is why that
+    file's shape is a contract rather than a style: a plain `[String: String]`
+    literal, one `"key": "value",` per line, keys sorted. Nothing in it has to
+    be *executed* to know what the English is.
+    """
+    entries = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            found = TABLE_ENTRY_RE.match(line)
+            if found:
+                entries.append((found.group(1), found.group(2)))
+    if not entries:
+        sys.exit("read no phrases out of %s — has the table's shape changed? "
+                 "It must stay one `\"key\": \"value\",` per line."
+                 % os.path.relpath(path, REPO_NINE))
+    keys = [key for key, _ in entries]
+    if keys != sorted(keys):
+        sys.exit("%s is not sorted by key. The catalog is generated by diffing "
+                 "this file; an unsorted table makes every regeneration a "
+                 "whole-file diff." % os.path.relpath(path, REPO_NINE))
+    if len(set(keys)) != len(keys):
+        duplicates = sorted({key for key in keys if keys.count(key) > 1})
+        sys.exit("duplicate key(s) in %s: %s — the Swift dictionary literal "
+                 "would keep the last one and the catalog the same, silently."
+                 % (os.path.relpath(path, REPO_NINE), ", ".join(duplicates)))
+    return entries
+
+
+def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
+    """Regenerate the catalog's `en` locale from `EnglishPhrases.table`.
+
+    One English, two consumers: `Phrasebook.english` formats from the Swift
+    table (so `swift test` and the Linux lane produce real sentences with no
+    bundle), and this writes the same strings into the catalog a translator is
+    handed. Generated rather than hand-kept because the alternative is two lists
+    that agree only by inspection — which is the exact failure this task went
+    and fixed in three other files.
+
+    **Translations are preserved.** Every non-`en` localization of a key that
+    still exists is carried across untouched; only `en` is rewritten. A key that
+    has left the table loses its translations with it, which is the point — a
+    dead string is one a translator was paid for.
+
+    Returns (added, changed, removed).
+    """
+    entries = read_english_table(phrases)
+    missing = [key for key, _ in entries if not COMMENTS.get(key)]
+    if missing:
+        sys.exit(
+            "no translator comment for: %s\n"
+            "Add one to COMMENTS in scripts/strings.py. This is a hard failure "
+            "rather than an empty string because a comment is the only context "
+            "the translator gets: \"Sharp\" is unguessable without one, and "
+            "`board.announce.solved` (\"Solved.\") versus `archive.day.solved` "
+            "(\"solved\") are different parts of speech that get confused "
+            "exactly once per language." % ", ".join(missing))
+
+    previous = {}
+    if os.path.exists(catalog):
+        with open(catalog, "r", encoding="utf-8") as handle:
+            previous = json.load(handle).get("strings", {})
+
+    strings = {}
+    added, changed = [], []
+    for key, english in entries:
+        localizations = {}
+        for locale, body in previous.get(key, {}).get("localizations", {}).items():
+            if locale != "en":
+                localizations[locale] = body
+        localizations["en"] = {
+            "stringUnit": {"state": "translated", "value": english}
+        }
+        strings[key] = {
+            "comment": COMMENTS[key],
+            # Xcode garbage-collects entries it believes its own extractor
+            # produced. Nine's keys are runtime lookups — `Phrasebook.current
+            # .string("board.cell.label")` — which that extractor cannot see, so
+            # every one of them is `manual` and stays put.
+            "extractionState": "manual",
+            "localizations": localizations,
+        }
+        if key not in previous:
+            added.append(key)
+        else:
+            was = (previous[key].get("localizations", {}).get("en", {})
+                   .get("stringUnit", {}).get("value"))
+            if was != english or previous[key].get("comment") != COMMENTS[key]:
+                changed.append(key)
+
+    removed = sorted(set(previous) - set(strings))
+    document = {"sourceLanguage": "en", "strings": strings, "version": "1.0"}
+    if not dry_run:
+        os.makedirs(os.path.dirname(catalog), exist_ok=True)
+        with open(catalog, "w", encoding="utf-8") as handle:
+            # Xcode's own formatting: 2-space indent, `" : "` between key and
+            # value, keys sorted, no ASCII escaping. Matching it means Xcode
+            # opening the catalog does not rewrite the whole file.
+            json.dump(document, handle, indent=2, sort_keys=True,
+                      separators=(",", " : "), ensure_ascii=False)
+            handle.write("\n")
+    return added, changed, removed
+
+
+def command_build_catalog(args):
+    added, changed, removed = build_catalog(dry_run=args.dry_run)
+    total = len(read_english_table())
+    verb = "would write" if args.dry_run else "wrote"
+    print("%s %s — %d key(s): %d new, %d changed, %d removed."
+          % (verb, os.path.relpath(CATALOG, REPO_NINE), total,
+             len(added), len(changed), len(removed)))
+    for key in added:
+        print("  + %s" % key)
+    for key in changed:
+        print("  ~ %s" % key)
+    for key in removed:
+        print("  - %s (its translations go with it)" % key)
+    return 0
 
 
 # ---------------------------------------------------------------------- main
@@ -782,6 +1172,9 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--audit", action="store_true",
                       help="fail on bare user-facing literals and catalog drift")
+    mode.add_argument("--build-catalog", action="store_true",
+                      help="regenerate Localizable.xcstrings' `en` from "
+                           "EnglishPhrases.table, preserving translations")
     mode.add_argument("--extract", action="store_true",
                       help="(Task 5) lift literals into the catalog")
     mode.add_argument("--pseudo", action="store_true",
@@ -794,8 +1187,12 @@ def main(argv=None):
                         help="alias for --verbose")
     parser.add_argument("--write-baseline", action="store_true",
                         help="recalibrate Tests/StringBaselines/offences.txt")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="with --build-catalog: report, write nothing")
     args = parser.parse_args(argv)
 
+    if args.build_catalog:
+        return command_build_catalog(args)
     if args.extract:
         return command_extract(args)
     if args.pseudo:

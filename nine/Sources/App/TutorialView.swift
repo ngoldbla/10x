@@ -372,7 +372,7 @@ struct TutorialView: View {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)
@@ -730,7 +730,7 @@ private struct PadDifficultyGuide: View {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 64, height: 64)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)

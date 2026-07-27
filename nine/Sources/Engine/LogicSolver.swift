@@ -22,6 +22,21 @@ import CouchCore
 ///
 /// Rank is *not* the order a variant board probes them in; see
 /// `ConstraintContext.probeOrder`.
+///
+/// **The raw value is also the localization identity** (PRD-20).
+/// `Technique.nakedSingle` is `technique.nakedSingle.name` in the catalog,
+/// derived mechanically rather than mapped by hand, because a hand-written map
+/// is a second list that can disagree with this one — and this one is already
+/// frozen by the golden hash, so the map is the half that would drift.
+///
+/// There is deliberately no `displayName` here. It used to sit below the
+/// `<` operator and return English; the Engine compiles on Linux and must never
+/// reach a bundle, so it does not get to name things.
+/// `StringSealTests.testEngineNamesNothing` is what keeps it gone. The English
+/// moved to `EnglishPhrases.table` (so `swift test` and the Linux lane still say
+/// "Naked Single") and the translations to
+/// `Sources/Strings/Localizable.xcstrings`; `Strings.technique(_:)` is the
+/// App-layer accessor and `BoardSpeech.coachTitle` the Shared one.
 public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Comparable {
     case nakedSingle
     case hiddenSingle
@@ -58,21 +73,6 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
 
     public static func < (lhs: Technique, rhs: Technique) -> Bool {
         lhs.rank < rhs.rank
-    }
-
-    public var displayName: String {
-        switch self {
-        case .nakedSingle: return "Naked Single"
-        case .hiddenSingle: return "Hidden Single"
-        case .nakedPair: return "Naked Pair"
-        case .hiddenPair: return "Hidden Pair"
-        case .boxLineReduction: return "Box-Line Reduction"
-        case .xWing: return "X-Wing"
-        case .cageSingle: return "Cage Single"
-        case .thermoBound: return "Thermometer Bound"
-        case .innieOutie: return "Rule of 45"
-        case .cageCombination: return "Cage Combination"
-        }
     }
 }
 

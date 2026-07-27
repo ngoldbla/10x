@@ -61,6 +61,19 @@ public struct Phrasebook: Sendable {
         resolve(key, args)
     }
 
+    /// The same lookup with the arguments already collected.
+    ///
+    /// Swift cannot splat an array back into a variadic parameter, so a
+    /// function that takes `PhraseArg...` and forwards it has nowhere to go —
+    /// which is exactly what `Strings.string(_:_:)`, the App layer's one-line
+    /// wrapper, needs to do. Found by the first Xcode build rather than by
+    /// `swift test`, because `Sources/Strings` is deliberately not a SwiftPM
+    /// target (`LocalizedStringResource` does not exist on Linux), so the cheap
+    /// lane compiles neither that file nor this call.
+    public func string(_ key: String, args: [PhraseArg]) -> String {
+        resolve(key, args)
+    }
+
     /// The floor. Data in, format out, no bundle anywhere.
     ///
     /// **A missing key returns the key**, not "" and not a trap. A player who

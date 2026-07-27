@@ -199,7 +199,7 @@ struct MacHomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Continue")
                         .font(CouchTypography.body)
-                    Text("\(difficulty.title) · \(Int(game.fillFraction * 100))%"
+                    Text("\(Strings.difficulty(difficulty)) · \(Int(game.fillFraction * 100))%"
                          + (model.extraPartialCount > 0 ? " · +\(model.extraPartialCount) more" : ""))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
@@ -231,7 +231,7 @@ struct MacHomeView: View {
                             statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
                         } else {
                             Label {
-                                Text(difficulty.title)
+                                Text(Strings.difficulty(difficulty))
                             } icon: {
                                 if let glyph = difficulty.glyph { Image(systemName: glyph) }
                             }
@@ -832,10 +832,10 @@ struct NineCommands: Commands {
                     // `.keyboardShortcut` takes no optional, so the branch is on
                     // the modifier rather than on the key.
                     if difficulty == .steady {
-                        Button(difficulty.title) { model.startFree(difficulty) }
+                        Button(Strings.difficulty(difficulty)) { model.startFree(difficulty) }
                             .keyboardShortcut("n", modifiers: .command)
                     } else {
-                        Button(difficulty.title) { model.startFree(difficulty) }
+                        Button(Strings.difficulty(difficulty)) { model.startFree(difficulty) }
                     }
                 }
             }
