@@ -292,13 +292,24 @@ public enum BoardSpeech {
     /// variations and this one did not. The ruling, so the next reader does not
     /// have to re-derive it:
     ///
-    /// `n == 1 ? one : other` is exactly CLDR's cardinal rule for **every one
-    /// of the nine launch locales**. `one` is n == 1 in de, nl, it, es, fr and
-    /// pt-BR; ja, ko and zh-Hans have only `other`, and a translator there
-    /// writes the same word into `board.digitWord.*` and `board.digitPlural.*`,
-    /// at which point the branch stops mattering. `remainingClause` guards
-    /// `remaining > 0` before calling this, so French's rule that 0 takes the
-    /// singular is unreachable. There is no count this can get wrong today.
+    /// `n == 1 ? one : other` picks the right category for every count this can
+    /// be handed, in all nine launch locales. The locales split three ways, and
+    /// the split matters more than the conclusion — read against CLDR itself
+    /// (babel 2.18.0), not from memory:
+    ///
+    ///   • **de, nl, it, es** — `one` is exactly n == 1, and n = 0 is `other`.
+    ///     The ternary is the rule, verbatim.
+    ///   • **fr and pt-BR** — `one` is n = **0 or 1**. Both, identically; this
+    ///     is not a French quirk, and an earlier version of this comment said
+    ///     it was and grouped pt-BR with the four above. The ternary would send
+    ///     0 to the plural in both. It never gets 0: `remainingClause` guards
+    ///     `remaining > 0` before calling (`:206`). **The guard is what makes
+    ///     this safe — not the locales agreeing, because two of them do not.**
+    ///   • **ja, ko, zh-Hans** — `other` only. A translator writes the same
+    ///     word into `board.digitWord.*` and `board.digitPlural.*` and the
+    ///     branch stops mattering.
+    ///
+    /// So: no count this function can receive gets the wrong category today.
     ///
     /// **What would break it**, precisely: a locale with a category a two-way
     /// branch cannot express — Polish or Russian (`few` at 2-4), Arabic
@@ -306,6 +317,13 @@ public enum BoardSpeech {
     /// `board.announce.remaining` has to become a plural entry keyed on the
     /// count with the digit noun folded into each category, and `digitNoun`
     /// goes away. **Adding a tenth locale is the trigger; nothing smaller is.**
+    ///
+    /// Note what is NOT a trigger: the `many` that it, es, fr and pt-BR all
+    /// select at multiples of 1,000,000. `remaining` is `0...9` by
+    /// construction (`remainingClause` clamps it), so this function cannot
+    /// reach that category. `CatalogTests.requiredPluralCategories` requires it
+    /// of those four anyway, because the *catalog* has counts that are not
+    /// bounded by nine.
     ///
     /// Not converted pre-emptively because the conversion is not free.
     /// `board.digitPlural.*` is one of the two `[String]` families

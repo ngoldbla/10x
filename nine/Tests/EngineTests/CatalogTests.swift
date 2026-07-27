@@ -263,22 +263,64 @@ final class CatalogTests: XCTestCase {
     /// So the tool cannot be the gate, and this is. It runs in the cheap lane,
     /// before any simulator exists, over the catalog as a file.
     ///
+    /// **What a hole actually does**, pinned against Foundation rather than
+    /// assumed, because the two cases are not the same failure. It resolves the
+    /// computed category, else `other`, else nothing:
+    ///
+    ///     fr/noOther:  n=2       -> "(null)"   a blank on screen
+    ///     fr/noMany:   n=10^6    -> the `other` form, silently
+    ///
+    /// A missing `other` goes blank; a missing minority category degrades to
+    /// `other` and reads as wrong grammar. Both are required below and the
+    /// failure message says which is which, because a reviewer told to expect
+    /// `(null)` and shown a plural form will conclude the gate is broken.
+    ///
     /// The categories below are the CLDR **cardinal** rules for the nine launch
     /// locales plus the source language, and they are the categories a
     /// translation MUST carry — not the ones it may. A locale is allowed to
     /// carry more (a translator who writes `few` for a language whose rules
     /// never select it is harmless); it is never allowed to carry fewer.
+    ///
+    /// **Read out of CLDR, not remembered.** Every row below was checked
+    /// against babel 2.18.0 by evaluating each locale's rule over
+    /// `0...29, 100, 1000, 10^6, 2×10^6, 10^7, 10^9` and collecting the
+    /// categories that came back. That is how the `many` row below stopped
+    /// being pt-BR alone: the brief's table gave `it`, `es` and `fr` only
+    /// `{one, other}`, and all three select `many` at multiples of 1,000,000
+    /// exactly as pt-BR does.
     static let requiredPluralCategories: [String: Set<String>] = [
         "en": ["one", "other"],
+        // `one` is exactly n == 1 here, and n = 0 is `other`.
         "de": ["one", "other"],
         "nl": ["one", "other"],
-        "it": ["one", "other"],
-        "es": ["one", "other"],
-        "fr": ["one", "other"],
-        // Portuguese (Brazil) selects `many` for 1,000,000 and up. Nine has no
-        // such count today; the category is required anyway, because "the app
-        // cannot reach it" is a fact about this month's code and the catalog is
-        // frozen into nine languages.
+        // These four all select `many` at multiples of 1,000,000, and Foundation
+        // really does select it — driven, not assumed:
+        //
+        //     fr/complete:  0=ONE  1=ONE  2=OTHER  1000000=MANY
+        //
+        // **A missing `many` is not the same failure as a missing `other`**, and
+        // the difference is measured rather than reasoned. Foundation resolves
+        // the computed category, else `other`, else nothing:
+        //
+        //     fr/noMany:   1000000=OTHER      ← silent, wrong grammar
+        //     fr/noOther:  2=(null)           ← blank
+        //
+        // So a hole in `many` degrades to the plural form instead of going
+        // blank. It is still required, for two reasons. Nine has counts that
+        // are not bounded by the board — `shelf.points.chip` and
+        // `widget.daily.points` print a lifetime points total — so a French
+        // player who reaches a million points reads the wrong grammar rather
+        // than a truncated one. And "the app cannot reach it" is a fact about
+        // this month's code, while the catalog is frozen into nine languages.
+        //
+        // `fr` and `pt-BR` additionally select `one` at n = **0** as well as 1
+        // (`fr/complete: 0=ONE` above). That does not change what they must
+        // carry; it is recorded here and at `BoardSpeech.digitNoun` because it
+        // is the difference between "the ternary is CLDR's rule" and "the
+        // ternary is safe because of a guard".
+        "it": ["one", "many", "other"],
+        "es": ["one", "many", "other"],
+        "fr": ["one", "many", "other"],
         "pt-BR": ["one", "many", "other"],
         // The three that inflect nothing. `other` alone, and asserting it is
         // not ceremony: an entry that carries only `one` in Japanese renders
@@ -309,7 +351,7 @@ final class CatalogTests: XCTestCase {
 
                 // Two shapes carry plurals: a whole-string variation, and one
                 // per axis inside `substitutions`. Both are checked, because a
-                // hole in either renders the same `(null)`.
+                // hole in either fails the same way.
                 var axes: [(String, [String: Any])] = []
                 if let plural = Self.pluralCategories(in: body) {
                     axes.append(("the whole string", plural))
@@ -324,14 +366,13 @@ final class CatalogTests: XCTestCase {
                 for (where_, plural) in axes {
                     checked += 1
                     let present = Set(plural.keys)
+                    let absent = required.subtracting(present).sorted()
                     XCTAssertTrue(present.isSuperset(of: required), """
                         \(key) [\(locale)], \(where_): has \(present.sorted()) and \
-                        needs \(required.sorted()) — missing \
-                        \(required.subtracting(present).sorted()).
-                        `xcstringstool compile` accepts this, exit 0, no warning. \
-                        At runtime the missing category renders "(null)" — \
-                        measured on this machine — so nothing between here and \
-                        the player disagrees with it.
+                        needs \(required.sorted()) — missing \(absent).
+                        `xcstringstool compile` accepts this, exit 0, no warning, so \
+                        nothing between here and the player disagrees with it.
+                        \(Self.holeEffect(absent))
                         """)
 
                     // …and every category present has to be a real one. A typo
@@ -355,6 +396,23 @@ final class CatalogTests: XCTestCase {
                              "no plural variation anywhere in the catalog — either the "
                              + "generator stopped writing them or this reader stopped "
                              + "seeing them, and both look like a green test")
+    }
+
+    /// What a hole in these categories does at runtime, measured against
+    /// Foundation rather than assumed. It resolves the computed category, else
+    /// `other`, else nothing — so the two cases fail differently and a message
+    /// that promised `(null)` for both would send the next reader looking for a
+    /// blank that is not there.
+    static func holeEffect(_ absent: [String]) -> String {
+        if absent.contains("other") {
+            return "`other` is the one that goes BLANK: every count whose category "
+                + "is absent renders \"(null)\", because `other` is what Foundation "
+                + "falls back to and there is nothing behind it."
+        }
+        let names = absent.joined(separator: "/")
+        return "This one does not go blank — Foundation falls back to `other`, so "
+            + "the player reads the plural form where the \(names) form belongs. "
+            + "Wrong grammar, silently, rather than a hole."
     }
 
     /// `localizations.<locale>.variations.plural`, or nil if this body has no
