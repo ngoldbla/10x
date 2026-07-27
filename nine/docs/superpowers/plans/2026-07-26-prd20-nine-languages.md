@@ -1326,6 +1326,30 @@ git commit -m "PRD-20: plurals, and the weekday initials that were always Englis
 
 ### Task 9: The nine languages
 
+> **Controller ruling (2026-07-26, from Task 2+4's review).** `CFBundleLocalizations`
+> is the authoritative localization list when present, and merging to `main`
+> triggers `beta_all` for the whole suite. So between Task 4 and Task 9, ten
+> declared locales with one translated locale means a Japanese TestFlight tester
+> gets Japanese system UI and Japanese month names — `ArchiveCalendar.displayFormatter`
+> deliberately follows `Locale.current` (`ArchiveCalendar.swift:262-266`) —
+> wrapped around English prose. App Store Connect would also read ten locales
+> off the build and list the app as localized into ten languages.
+>
+> **The declaration is derived, not remembered.** `CFBundleLocalizations` must
+> equal the set of locales that actually carry translations in the catalog, and
+> a test holds them in lockstep:
+>
+> - Task 4 ships `CFBundleLocalizations: [en]`, because `en` is all it has.
+> - **Task 9 adds the nine locales and flips the list in the same commit**, and
+>   the test is what makes that atomic.
+>
+> `CatalogTests.testDeclaredLocalizationsMatchTranslatedLocales` derives the
+> expected set from the catalog and compares it to both `Info.plist`s. It fails
+> the moment the two disagree in either direction — a declared locale with no
+> translations, or a translated locale nobody declared (which would ship the
+> work and never show it to a player). "Remember to flip it later" is not a
+> mechanism; this is.
+
 **Files:**
 - Modify: `nine/Sources/Strings/Localizable.xcstrings`
 - Modify: `nine/Tests/EngineTests/CatalogTests.swift`
