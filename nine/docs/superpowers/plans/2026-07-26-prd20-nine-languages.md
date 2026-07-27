@@ -633,13 +633,30 @@ git commit -m "PRD-20: the Phrasebook seam, Linux-clean and bundle-free"
 >   `AppModel` builds no phrases today.
 >
 > So the invariant Task 4 must satisfy is **once per process, before the first
-> read** — not "from `NineApp.init`". Three ways to satisfy it, and Task 4 picks
-> one: add the missing `init` on iOS/tvOS *and* a second install in
-> `NineWidgetBundle`; or have `Phrasebook.current` self-install on first read;
-> or install lazily from `Strings.string` itself. Whichever it is, note that
-> `Phrasebook.install` is a `precondition`, not an `assert` — it survives `-O`,
+> read** — not "from `NineApp.init`".
+>
+> **Controller ruling (2026-07-26): install at each `@main`, and do not
+> self-install.** Three designs were on the table and this one is chosen, so the
+> Files list below is settled rather than a menu:
+>
+> 1. **Install at each `@main` entry point** — `NineApp` (add the missing `init`
+>    on iOS/tvOS) and `NineWidgetBundle` (its own call). **Chosen.**
+> 2. *Rejected:* `Phrasebook.current` self-installs on first read. This cannot
+>    work without breaking the layering the whole seam exists to protect —
+>    `Sources/Shared` would have to name `Strings`, which lives in
+>    `Sources/Strings` and is Darwin-only. Shared depending on its own consumer
+>    is exactly the cycle the three reasons in `Phrasebook.swift`'s header rule
+>    out.
+> 3. *Rejected:* install lazily from `Strings.string`. It puts a branch on the
+>    hot read path that Task 3 spent a measurement removing (44–47 ns/label
+>    across 81 labels per AX dump), to save two call sites that a test can
+>    assert instead.
+>
+> Two entry points, both `@main`, is a rule you can state in one sentence and
+> check by grep — which is what makes it testable. Note that
+> `Phrasebook.install` is a `precondition`, not an `assert`: it survives `-O`,
 > so a double install is a trap in the shipping app rather than a silent
-> overwrite.
+> overwrite. Install exactly once per entry point.
 >
 > Nothing here is a bug on the branch today. It is the comment Tasks 4 and 5
 > would have trusted.
