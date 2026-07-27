@@ -434,13 +434,25 @@
       }
     },
     "board.box.empty" : {
-      "comment" : "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8.",
+      "comment" : "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld empty"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld empty"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld empty"
+                }
+              }
+            }
           }
         }
       }
@@ -734,7 +746,7 @@
       }
     },
     "board.progress.filled" : {
-      "comment" : "VoiceOver board summary. %1$lld squares filled of %2$lld fillable.",
+      "comment" : "VoiceOver board summary. %1$lld squares filled of %2$lld fillable. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -757,18 +769,6 @@
         }
       }
     },
-    "board.progress.percent" : {
-      "comment" : "How far through a board the player is, as a percentage. %1$lld is 3-100; `%%` is a literal percent sign. Place the sign the way this language does.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld%%"
-          }
-        }
-      }
-    },
     "board.progress.untouched" : {
       "comment" : "The words beside a saved board that has not been played at all. Said instead of \"0%\", which reads as failure rather than as a fresh start.",
       "extractionState" : "manual",
@@ -782,13 +782,25 @@
       }
     },
     "board.progress.wrong" : {
-      "comment" : "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on.",
+      "comment" : "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld wrong."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld wrong."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld wrong."
+                }
+              }
+            }
           }
         }
       }
@@ -866,13 +878,35 @@
       }
     },
     "board.stats.digitLeft" : {
-      "comment" : "VoiceOver label of one digit in the statistics panel. %1$lld is the digit 1-9, %2$lld how many of it are still unplaced (1-8).",
+      "comment" : "VoiceOver label of one digit in the statistics panel. %1$lld is the digit 1-9, %2$lld how many of it are still unplaced (1-8). PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld, %2$lld left"
+            "value" : "%1$lld, %2$#@left@"
+          },
+          "substitutions" : {
+            "left" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg left"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg left"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -914,13 +948,25 @@
       }
     },
     "board.stats.paceSeconds" : {
-      "comment" : "The pace tile's value in seconds. %1$lld is a whole number of seconds; the trailing letter is the unit abbreviation — use whatever this language abbreviates seconds to, with no space if that is the convention.",
+      "comment" : "The pace tile's value in seconds. %1$lld is a whole number of seconds; the trailing letter is the unit abbreviation — use whatever this language abbreviates seconds to, with no space if that is the convention. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$llds"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$llds"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$llds"
+                }
+              }
+            }
           }
         }
       }
@@ -950,25 +996,49 @@
       }
     },
     "board.streak.held" : {
-      "comment" : "VoiceOver label of the streak chip on a day already solved — the run is safe. %1$lld is a number of consecutive days.",
+      "comment" : "VoiceOver label of the streak chip on a day already solved — the run is safe. %1$lld is a number of consecutive days. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld day streak, held"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak, held"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak, held"
+                }
+              }
+            }
           }
         }
       }
     },
     "board.streak.plain" : {
-      "comment" : "VoiceOver label of the streak chip. %1$lld is a number of consecutive days, always 1 or more.",
+      "comment" : "VoiceOver label of the streak chip. %1$lld is a number of consecutive days, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld day streak"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              }
+            }
           }
         }
       }
@@ -1057,18 +1127,6 @@
         }
       }
     },
-    "board.value.plain" : {
-      "comment" : "VoiceOver value of a square the player filled in. %1$lld is the digit.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld"
-          }
-        }
-      }
-    },
     "board.value.wrong" : {
       "comment" : "VoiceOver value of a square holding a digit that contradicts the solution. %1$lld is the digit. Only ever spoken when the player has mistake-marking switched on.",
       "extractionState" : "manual",
@@ -1081,18 +1139,6 @@
         }
       }
     },
-    "board.voiceName.bare" : {
-      "comment" : "Shortest Voice Control name for a square: the two numbers alone. %1$lld is the row, %2$lld the column. No punctuation.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld %2$lld"
-          }
-        }
-      }
-    },
     "board.voiceName.cell" : {
       "comment" : "Voice Control name for a square, spoken BY the player to select it. %1$lld is the row, %2$lld the column. No punctuation at all — a recogniser never emits a comma.",
       "extractionState" : "manual",
@@ -1101,6 +1147,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cell %1$lld %2$lld"
+          }
+        }
+      }
+    },
+    "board.voiceName.pair" : {
+      "comment" : "How the two numbers of the shortest Voice Control name for a square are separated. %1$@ is the row and %2$@ the column, both already written as numerals — this row is ONLY the separator. Spoken BY the player at a speech recogniser, so no punctuation: English uses a space.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
           }
         }
       }
@@ -1310,13 +1368,25 @@
       }
     },
     "card.streak" : {
-      "comment" : "Half of the solve card's credit line, after the difficulty: \"Steady - 12 day streak\". %1$lld is a number of consecutive days, always 1 or more.",
+      "comment" : "Half of the solve card's credit line, after the difficulty: \"Steady - 12 day streak\". %1$lld is a number of consecutive days, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld day streak"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              }
+            }
           }
         }
       }
@@ -1946,13 +2016,55 @@
       }
     },
     "firstrun.ledger.themes" : {
-      "comment" : "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy.",
+      "comment" : "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy. PLURAL: two independent counts, one per number — inflect 'theme' and 'accent' separately.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld themes and %2$lld accents, all of them yours"
+            "value" : "%1$#@themes@ and %2$#@accents@, all of them yours"
+          },
+          "substitutions" : {
+            "accents" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg accent"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg accents"
+                    }
+                  }
+                }
+              }
+            },
+            "themes" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg theme"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg themes"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2018,13 +2130,25 @@
       }
     },
     "game.autoNotes.chip" : {
-      "comment" : "A chip confirming what the wand button just did. %1$lld is how many pencil marks were written, always 1 or more. \"Candidates\" is the sudoku term for the digits a square could still take.",
+      "comment" : "A chip confirming what the wand button just did. %1$lld is how many pencil marks were written, always 1 or more. \"Candidates\" is the sudoku term for the digits a square could still take. PLURAL: 'candidate' at one, 'candidates' otherwise.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto notes · filled %1$lld candidates"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Auto notes · filled %1$lld candidate"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Auto notes · filled %1$lld candidates"
+                }
+              }
+            }
           }
         }
       }
@@ -2054,13 +2178,25 @@
       }
     },
     "game.completion.streak" : {
-      "comment" : "The chip shown after the day's puzzle is finished. %1$lld is a number of consecutive days, always 1 or more. The separator is a middle dot.",
+      "comment" : "The chip shown after the day's puzzle is finished. %1$lld is a number of consecutive days, always 1 or more. The separator is a middle dot. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solved · %1$lld day streak"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solved · %1$lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solved · %1$lld day streak"
+                }
+              }
+            }
           }
         }
       }
@@ -2685,18 +2821,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Daily · %1$@"
-          }
-        }
-      }
-    },
-    "history.recent.points" : {
-      "comment" : "The points a solve earned, in the recent list. %1$lld is 1 or more; the plus sign is part of the display.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%1$lld"
           }
         }
       }
@@ -4070,13 +4194,25 @@
       }
     },
     "shelf.boards.subtitleCount" : {
-      "comment" : "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more.",
+      "comment" : "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld in progress"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld in progress"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld in progress"
+                }
+              }
+            }
           }
         }
       }
@@ -4106,13 +4242,25 @@
       }
     },
     "shelf.continue.captionMore" : {
-      "comment" : "Caption under the Continue card when other unfinished boards exist too. %1$@ is a difficulty name, %2$@ a progress phrase, %3$lld a count of OTHER boards (1 or more).",
+      "comment" : "Caption under the Continue card when other unfinished boards exist too. %1$@ is a difficulty name, %2$@ a progress phrase, %3$lld a count of OTHER boards (1 or more). PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · +%3$lld more"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · %2$@ · +%3$lld more"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · %2$@ · +%3$lld more"
+                }
+              }
+            }
           }
         }
       }
@@ -4226,13 +4374,25 @@
       }
     },
     "shelf.points.chip" : {
-      "comment" : "The points capsule in the shelf header. %1$lld is a lifetime points total. Very short — it shares a row with the title and the streak chip; abbreviate the unit the way this language does on a scoreboard.",
+      "comment" : "The points capsule in the shelf header. %1$lld is a lifetime points total. Very short — it shares a row with the title and the streak chip; abbreviate the unit the way this language does on a scoreboard. PLURAL: 'pt' at one, 'pts' otherwise.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld pts"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pts"
+                }
+              }
+            }
           }
         }
       }
@@ -4982,13 +5142,25 @@
       }
     },
     "widget.daily.points" : {
-      "comment" : "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same.",
+      "comment" : "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same. PLURAL: 'pt' at one, 'pts' otherwise.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld pts"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pts"
+                }
+              }
+            }
           }
         }
       }
@@ -5006,13 +5178,25 @@
       }
     },
     "widget.daily.streak" : {
-      "comment" : "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters.",
+      "comment" : "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld day streak"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld day streak"
+                }
+              }
+            }
           }
         }
       }
@@ -5102,13 +5286,25 @@
       }
     },
     "widget.streak.inline" : {
-      "comment" : "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`.",
+      "comment" : "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nine · %1$lld day streak"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nine · %1$lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nine · %1$lld day streak"
+                }
+              }
+            }
           }
         }
       }

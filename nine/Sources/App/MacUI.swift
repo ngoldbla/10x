@@ -410,7 +410,7 @@ struct MacGameScreen: View {
     private var timerChip: some View {
         if model.prefs.showTimer, let game = model.game, model.solvedAt == nil {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                GlassChip(Self.format(game.timer.elapsed(at: timeline.date)), systemImage: "clock")
+                GlassChip(SolveCardFacts.elapsedText(game.timer.elapsed(at: timeline.date)), systemImage: "clock")
             }
         }
     }
@@ -771,11 +771,6 @@ struct MacGameScreen: View {
                 if toast?.id == next.id { toast = nil }
             }
         }
-    }
-
-    private static func format(_ interval: TimeInterval) -> String {
-        let total = Int(interval)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

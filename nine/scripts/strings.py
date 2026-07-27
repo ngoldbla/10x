@@ -122,6 +122,32 @@ LOCALES = ["en", "ja", "de", "fr", "es", "it", "pt-BR", "ko", "zh-Hans", "nl"]
 # what the app actually says.
 TABLE_ENTRY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*"(.*)",\s*$')
 
+# `"key": EnglishPlural(count: 1, one: "…"),` — `EnglishPhrases.plurals`, whose
+# rows name only the CLDR `one` category. `other` is the row in `table`, so
+# there is still exactly one line per key per category and the sorted-table rule
+# above keeps meaning what it means.
+PLURAL_ENTRY_RE = re.compile(
+    r'^\s*"([^"]+)"\s*:\s*EnglishPlural\(count:\s*(\d+),\s*one:\s*"(.*)"\),\s*$')
+
+# `EnglishSubstitution(name: "themes", count: 1, one: "…", other: "…"),` — one
+# axis of `EnglishPhrases.substitutions`. The key it belongs to is the
+# `"key": [` line above it, which is why this is parsed with a tiny state
+# machine rather than a single regex.
+SUBSTITUTION_OWNER_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*\[\s*$')
+SUBSTITUTION_ENTRY_RE = re.compile(
+    r'^\s*EnglishSubstitution\(name:\s*"([^"]+)",\s*count:\s*(\d+),'
+    r'\s*one:\s*"(.*)",\s*other:\s*"(.*)"\),\s*$')
+
+# The `%N$lld` a substitution axis replaces in the frame, and the `%arg` token
+# the catalog uses for it inside a substitution's own value.
+ARG_SPECIFIER = "%%%d$lld"
+SUBSTITUTION_ARG = "%arg"
+
+# Which positional arguments a format names as integers. Used to refuse a
+# whole-string plural on a string with more than one number in it — see
+# `english_localization` for the measurement that makes that a hard failure.
+INTEGER_SPECIFIER_RE = re.compile(r"%(\d+)\$[-+ #.0-9]*(?:ll|l|h|q|j|z|t)?[diu]")
+
 # A key handed to the Phrasebook as a literal: `Phrasebook.current.string("…")`,
 # `Strings.string("…")`. Shared cannot name `Strings`, so this — not a
 # `Strings.foo.bar` path — is how most of Nine's keys are actually written.
@@ -964,13 +990,12 @@ COMMENTS = {
     "board.unit.column": "VoiceOver, the name of a column. %1$lld is 1-9.",
     "board.unit.box": "VoiceOver, the name of a 3x3 box. %1$lld is 1-9.",
     "board.value.empty": "VoiceOver value of a square with nothing in it. A word, not a sentence.",
-    "board.value.plain": "VoiceOver value of a square the player filled in. %1$lld is the digit.",
     "board.value.given": "VoiceOver value of a square the puzzle supplied and the player cannot change. %1$lld is the digit.",
     "board.value.wrong": "VoiceOver value of a square holding a digit that contradicts the solution. %1$lld is the digit. Only ever spoken when the player has mistake-marking switched on.",
     "board.value.notes": "VoiceOver value of an empty square carrying pencil marks. %1$@ is the list of noted digits, already joined.",
     "board.value.noteSeparator": "Joins the digits in a spoken list of pencil marks. Punctuation only — use whatever this language lists with (a comma in English, an ideographic comma in Japanese).",
     "board.box.filled": "VoiceOver, group scan: this 3x3 box is complete. A word, not a sentence.",
-    "board.box.empty": "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8.",
+    "board.box.empty": "VoiceOver, group scan: how many squares in this 3x3 box are still blank. %1$lld is 1-8. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "board.announce.placed": "VoiceOver announcement after a digit is entered. %1$@ is the digit as a word (\"four\"), and it arrives in its citation form — lowercase in English. If your language needs it capitalized in this position, capitalize it in board.digitWord.*; English opens with its own verb because it cannot. A sentence: it ends in a full stop.",
     "board.announce.cleared": "VoiceOver announcement after a digit is removed. %1$@ is the digit as a word, in its citation form — see board.announce.placed on where the capital comes from.",
     "board.announce.noteAdded": "VoiceOver announcement after a pencil mark is added. %1$@ is the digit as a word.",
@@ -979,16 +1004,16 @@ COMMENTS = {
     "board.announce.remaining": "VoiceOver announcement, spoken straight after board.announce.placed: how many of one digit are still missing. %1$@ is a count word (\"three\"), %2$@ the digit's plural (\"sevens\"), both in their citation form. A language that counts with numerals may write the number into the sentence and leave the words unused. Short — it is spoken on every digit placed, about fifty times a board.",
     "board.announce.allDone": "VoiceOver announcement: every instance of one digit is now placed. %1$@ is the digit's plural (\"sevens\").",
     "board.announce.solved": "VoiceOver announcement the moment the board is finished. One word, a full sentence.",
-    "board.progress.filled": "VoiceOver board summary. %1$lld squares filled of %2$lld fillable.",
-    "board.progress.wrong": "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on.",
-    "board.streak.plain": "VoiceOver label of the streak chip. %1$lld is a number of consecutive days, always 1 or more.",
-    "board.streak.held": "VoiceOver label of the streak chip on a day already solved — the run is safe. %1$lld is a number of consecutive days.",
+    "board.progress.filled": "VoiceOver board summary. %1$lld squares filled of %2$lld fillable. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
+    "board.progress.wrong": "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
+    "board.streak.plain": "VoiceOver label of the streak chip. %1$lld is a number of consecutive days, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
+    "board.streak.held": "VoiceOver label of the streak chip on a day already solved — the run is safe. %1$lld is a number of consecutive days. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
 
     # Voice Control names. Matched against a speech recogniser, so no
     # punctuation of any kind.
     "board.voiceName.cell": "Voice Control name for a square, spoken BY the player to select it. %1$lld is the row, %2$lld the column. No punctuation at all — a recogniser never emits a comma.",
+    "board.voiceName.pair": "How the two numbers of the shortest Voice Control name for a square are separated. %1$@ is the row and %2$@ the column, both already written as numerals — this row is ONLY the separator. Spoken BY the player at a speech recogniser, so no punctuation: English uses a space.",
     "board.voiceName.rowColumn": "Alternative Voice Control name for the same square, spoken by the player. %1$lld is the row, %2$lld the column. No punctuation.",
-    "board.voiceName.bare": "Shortest Voice Control name for a square: the two numbers alone. %1$lld is the row, %2$lld the column. No punctuation.",
 
     # Digit words. Spoken, never shown — the numerals are drawn as glyphs.
     "board.digitWord.zero": "The digit 0 as a spoken word, for VoiceOver announcements.",
@@ -1015,7 +1040,7 @@ COMMENTS = {
     # correct it afterwards. Two short lines, centred, under a 9x9 grid.
     "card.daily": "Second line of the shareable solve card, marking the board as that day's puzzle. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
     "card.time": "First line of the shareable solve card. %1$@ is an elapsed time already formatted as m:ss (\"3:40\"). Keep it short — it is set large and centred.",
-    "card.streak": "Half of the solve card's credit line, after the difficulty: \"Steady - 12 day streak\". %1$lld is a number of consecutive days, always 1 or more.",
+    "card.streak": "Half of the solve card's credit line, after the difficulty: \"Steady - 12 day streak\". %1$lld is a number of consecutive days, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
 
     # The coach (PRD-11). One sentence, on a card, that the player could check
     # by hand. Never mentions the solution.
@@ -1087,13 +1112,13 @@ COMMENTS = {
     "shelf.today.continueProgress": "Status line on the Today card when the day's board is started but unfinished. %1$@ is a progress phrase already formatted (\"41%\", \"Just started\"). The separator is a middle dot.",
     "shelf.continue.title": "Title of the shelf card that resumes the free-play board in progress. A verb in the imperative — what tapping it does.",
     "shelf.continue.caption": "Caption under the Continue card. %1$@ is a difficulty name (\"Steady\"), %2$@ a progress phrase (\"41%\"). Punctuation only — reorder if this language reads the other way round.",
-    "shelf.continue.captionMore": "Caption under the Continue card when other unfinished boards exist too. %1$@ is a difficulty name, %2$@ a progress phrase, %3$lld a count of OTHER boards (1 or more).",
+    "shelf.continue.captionMore": "Caption under the Continue card when other unfinished boards exist too. %1$@ is a difficulty name, %2$@ a progress phrase, %3$lld a count of OTHER boards (1 or more). PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "shelf.continue.discard": "VoiceOver label of the ✕ on the Continue card. Throws the saved board away; it is not a close button.",
-    "shelf.points.chip": "The points capsule in the shelf header. %1$lld is a lifetime points total. Very short — it shares a row with the title and the streak chip; abbreviate the unit the way this language does on a scoreboard.",
+    "shelf.points.chip": "The points capsule in the shelf header. %1$lld is a lifetime points total. Very short — it shares a row with the title and the streak chip; abbreviate the unit the way this language does on a scoreboard. PLURAL: 'pt' at one, 'pts' otherwise.",
     "shelf.boards.seeAll": "The quiet link beside the Boards heading on the shelf; opens the full board list. Two words at most.",
     "shelf.boards.seeAllLabel": "VoiceOver label for the \"See all\" link, which is too terse to speak on its own.",
     "shelf.boards.subtitleEmpty": "Subtitle of the Apple TV shelf's Boards tile when nothing is in progress — the three things the sheet is for. A list of verbs, not a sentence.",
-    "shelf.boards.subtitleCount": "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more.",
+    "shelf.boards.subtitleCount": "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "shelf.history.subtitle": "Subtitle of the Apple TV shelf's History tile — what the sheet behind it holds. A fragment, not a sentence.",
     "shelf.variants.title": "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
     "shelf.variants.subtitle": "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
@@ -1116,12 +1141,12 @@ COMMENTS = {
     "game.chip.archive": "A chip beside the board saying this is a past day's puzzle rather than today's. %1$@ is a short date (\"12 Jul\"). \"Archive\" is the noun — the record of past days — and its presence is what tells the player their streak is not at stake.",
     "game.drawer.show": "VoiceOver action that opens the pull-down statistics panel over the board.",
     "game.drawer.hide": "VoiceOver action that closes the pull-down statistics panel.",
-    "game.autoNotes.chip": "A chip confirming what the wand button just did. %1$lld is how many pencil marks were written, always 1 or more. \"Candidates\" is the sudoku term for the digits a square could still take.",
+    "game.autoNotes.chip": "A chip confirming what the wand button just did. %1$lld is how many pencil marks were written, always 1 or more. \"Candidates\" is the sudoku term for the digits a square could still take. PLURAL: 'candidate' at one, 'candidates' otherwise.",
     "game.undo.placement": "A chip confirming an undo took a placed digit back. %1$lld is that digit. Past tense, and the digit is the object of the verb.",
     "game.undo.restored": "A chip confirming an undo put back a digit that had been erased. %1$lld is that digit.",
     "game.undo.note": "A chip confirming an undo took a pencil mark back. %1$lld is that digit; \"note\" is the small corner mark, not a message.",
     "game.undo.autoNotes": "A chip confirming an undo removed the whole batch of pencil marks the wand wrote. One action, however many marks it made.",
-    "game.completion.streak": "The chip shown after the day's puzzle is finished. %1$lld is a number of consecutive days, always 1 or more. The separator is a middle dot.",
+    "game.completion.streak": "The chip shown after the day's puzzle is finished. %1$lld is a number of consecutive days, always 1 or more. The separator is a middle dot. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "game.another.title": "A chip offered after a free-play solve: start a fresh board at the same difficulty. One word, and deliberately not \"Again\" — it is a new board, not a replay.",
     "game.another.label": "VoiceOver label for the \"Another\" chip, which is too terse to speak. %1$@ is a difficulty name.",
     "game.mac.homeLabel": "VoiceOver label of the Mac's Home chip. \"Home\" is the app's start screen.",
@@ -1137,18 +1162,17 @@ COMMENTS = {
     "board.action.erase": "A VoiceOver custom action, and the label of the ring's tenth petal: clear the digit in this square. A verb in the imperative.",
     "board.rose.digit": "VoiceOver label of the ring of nine petals that appears over a square. \"Rose\" is Nine's name for that circular picker — keep the flower metaphor if this language has one, or describe it plainly.",
     "board.rose.note": "VoiceOver label of the same ring when it writes pencil marks rather than real digits.",
-    "board.stats.digitLeft": "VoiceOver label of one digit in the statistics panel. %1$lld is the digit 1-9, %2$lld how many of it are still unplaced (1-8).",
+    "board.stats.digitLeft": "VoiceOver label of one digit in the statistics panel. %1$lld is the digit 1-9, %2$lld how many of it are still unplaced (1-8). PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "board.stats.digitDone": "VoiceOver label of one digit in the statistics panel when all nine of it are placed. %1$lld is the digit 1-9.",
     "board.stats.time": "Caption under the elapsed-time tile in the board statistics panel. Lowercase, one word — these four captions are a row and read as a set.",
     "board.stats.pace": "Caption under the seconds-per-digit tile in the board statistics panel. Lowercase, one word.",
     "board.stats.notes": "Caption under the tile counting pencil marks on this board. Lowercase, plural.",
     "board.stats.undos": "Caption under the tile counting how many moves have been taken back on this board. Lowercase, plural.",
     "board.stats.hints": "Caption under the tile counting coaching hints spent on this board. Lowercase, plural. Only shown once at least one has been used.",
-    "board.stats.paceSeconds": "The pace tile's value in seconds. %1$lld is a whole number of seconds; the trailing letter is the unit abbreviation — use whatever this language abbreviates seconds to, with no space if that is the convention.",
+    "board.stats.paceSeconds": "The pace tile's value in seconds. %1$lld is a whole number of seconds; the trailing letter is the unit abbreviation — use whatever this language abbreviates seconds to, with no space if that is the convention. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "board.progress.untouched": "The words beside a saved board that has not been played at all. Said instead of \"0%\", which reads as failure rather than as a fresh start.",
     "board.progress.begun": "The words beside a saved board with only a digit or two in it, where a percentage would be a false precision.",
     "board.progress.full": "The words beside a board with every square filled in. An adjective, not \"Solved\" — a full board may still be wrong.",
-    "board.progress.percent": "How far through a board the player is, as a percentage. %1$lld is 3-100; `%%` is a literal percent sign. Place the sign the way this language does.",
     "coach.action.placeIt": "The coaching card's button when the hint resolves a square: writes that digit in. A verb in the imperative, two words.",
     "coach.action.markIt": "The coaching card's button when the hint only eliminates candidates: writes the pencil marks that follow. A verb in the imperative.",
     "coach.card.label": "VoiceOver label of the coaching card, joining its heading and its sentence into one utterance. %1$@ is a technique name or a card heading, %2$@ the explanation. Punctuation only, and it is yours: replace \". \" with \"。\" or with whatever ends a sentence here, and reorder the two if that is how this language says it.",
@@ -1328,7 +1352,7 @@ COMMENTS = {
     "firstrun.ledger.daily": "One line of the welcome card's list of what the purchase included. A fragment, no full stop — the six lines read as a list.",
     "firstrun.ledger.proof": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop.",
     "firstrun.ledger.stats": "One line of the welcome card's list. \"Honestly\" means nothing is inflated or gamified. A fragment, no full stop.",
-    "firstrun.ledger.themes": "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy.",
+    "firstrun.ledger.themes": "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy. PLURAL: two independent counts, one per number — inflect 'theme' and 'accent' separately.",
     "firstrun.ledger.sync": "One line of the welcome card's list, about iCloud sync. A fragment, no full stop.",
     "firstrun.ledger.covenant": "One line of the welcome card's list, and the promise the whole app is built on. A fragment, no full stop.",
     "firstrun.onePurchase": "The line under the welcome card's list: one price covers every platform. The device names are Apple's and stay as they are printed in this language.",
@@ -1355,7 +1379,6 @@ COMMENTS = {
     "history.gameCenter.out": "Subtitle of the Game Center row when the player is signed out. \"Settings\" is the system Settings app, not Nine's own sheet.",
     "history.recent.title": "Heading over the last fifteen solved boards. An adjective used as a heading.",
     "history.recent.daily": "How a solved daily puzzle is named in the recent list. %1$@ is a difficulty name. \"Daily\" is a noun here — the day's shared puzzle.",
-    "history.recent.points": "The points a solve earned, in the recent list. %1$lld is 1 or more; the plus sign is part of the display.",
     "boards.title": "Title of the sheet listing every board the app is holding, and of the shelf cards that open it. Plural noun.",
     "boards.close": "VoiceOver label of the ✕ that leaves the Boards sheet on Apple TV.",
     "boards.empty": "What the Boards sheet says when nothing has been played yet. \"Archive\" is a verb: set aside without deleting.",
@@ -1413,8 +1436,8 @@ COMMENTS = {
     "widget.streak.description": "Widget gallery: the one-line description under `widget.streak.name`. \"Lock Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
     "widget.brand.daily": "The small header line inside three of the widgets, naming the app and the board. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot; \"Daily\" is the day's shared puzzle. Very short — it sits above the status line in a systemMedium widget.",
     "widget.daily.header": "The header of the SMALLEST daily widget, where `widget.brand.daily` will not fit. The app's name is dropped and only the board is named. At most about 10 characters.",
-    "widget.daily.points": "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same.",
-    "widget.daily.streak": "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters.",
+    "widget.daily.points": "The points capsule in the medium daily widget. %1$lld is a lifetime points total. Very short — abbreviate the unit the way this language does on a scoreboard. Matches `shelf.points.chip`, which is the same capsule inside the app; keep the two the same. PLURAL: 'pt' at one, 'pts' otherwise.",
+    "widget.daily.streak": "The flame line on the Lock Screen rectangular widget. %1$lld is a number of consecutive days, always 1 or more. One line, no wrap, so keep it to about 14 characters. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "widget.daily.startStreak": "What the flame chip says when the run is at zero: an invitation, not a status. A fragment, no full stop. Very short — it shares a line with a flame glyph in a systemSmall widget.",
     "widget.status.openNine": "The big status word in the daily widget on a fresh install, before the app has ever written a snapshot. An instruction: launch the app. \"Nine\" is the app's name and stays untranslated.",
     "widget.status.ready": "The big status word in the daily widget when today's board exists and has not been touched. An adjective about the BOARD, not the player. One word.",
@@ -1428,7 +1451,7 @@ COMMENTS = {
     "widget.caption.done": "The quiet second line shown when today's board is finished but no time was recorded. \"Daily\" is the day's shared puzzle. A fragment, no full stop.",
     "widget.board.cta": "The whole content of the playable widget before the app has published a board for today: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
     "widget.streak.ready": "The Lock Screen INLINE accessory when the run is at zero and today's board is untouched. Shares one short line with the system clock, so it is the tightest string in the app — about 20 characters. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
-    "widget.streak.inline": "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`.",
+    "widget.streak.inline": "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
 }
 
 
@@ -1463,6 +1486,152 @@ def read_english_table(path=ENGLISH_PHRASES):
     return entries
 
 
+def read_english_plurals(path=ENGLISH_PHRASES):
+    """`EnglishPhrases.plurals` as key → (count argument, `one` form).
+
+    Same contract as `read_english_table`: one entry per line, sorted, nothing
+    that has to be executed. An empty result is NOT an error here — a repo with
+    no count-bearing phrase is a legal repo — but `PhrasebookTests` re-parses
+    the same file from Swift and compares the parse against the compiled
+    dictionary, so a shape change shows up as a red test rather than as a
+    silently unpluralised catalog.
+    """
+    plurals = {}
+    order = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            found = PLURAL_ENTRY_RE.match(line)
+            if found:
+                key, count, one = found.group(1), int(found.group(2)), found.group(3)
+                plurals[key] = (count, one)
+                order.append(key)
+    if order != sorted(order):
+        sys.exit("EnglishPhrases.plurals is not sorted by key.")
+    if len(set(order)) != len(order):
+        sys.exit("duplicate key(s) in EnglishPhrases.plurals — the Swift "
+                 "literal keeps the last one and so would the catalog.")
+    return plurals
+
+
+def read_english_substitutions(path=ENGLISH_PHRASES):
+    """`EnglishPhrases.substitutions` as key → [(name, count, one, other)].
+
+    The one sentence in Nine that carries two counts. See that table's doc
+    comment for why the mechanism is CLDR substitutions rather than a plural on
+    one of the two numbers.
+    """
+    substitutions = {}
+    owner = None
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            found = SUBSTITUTION_ENTRY_RE.match(line)
+            if found:
+                if owner is None:
+                    sys.exit("an EnglishSubstitution with no `\"key\": [` line "
+                             "above it — the parser cannot tell which phrase it "
+                             "belongs to.")
+                substitutions[owner].append(
+                    (found.group(1), int(found.group(2)), found.group(3), found.group(4)))
+                continue
+            owned = SUBSTITUTION_OWNER_RE.match(line)
+            if owned:
+                owner = owned.group(1)
+                substitutions.setdefault(owner, [])
+    return {key: axes for key, axes in substitutions.items() if axes}
+
+
+def english_localization(key, english, plurals, substitutions):
+    """The `en` localization body for one key: plain, plural, or substituted.
+
+    Three shapes, and which one a key gets is decided by the two Swift tables
+    rather than by anything here.
+
+    **The substitution frame is derived, never stored.** An axis's `other` form
+    is the fragment it owns — `"%arg themes"` — so the frame is the `table` row
+    with that fragment replaced by `%N$#@name@`. Each fragment has to appear in
+    the row exactly once, and that is the check: an `other` that has drifted
+    from the sentence it is a piece of stops matching, and a `table` row whose
+    wording changed stops matching too. Either way this is a hard exit, because
+    the alternative is a sentence with two homes that disagree — the one failure
+    generating the catalog exists to make impossible.
+    """
+    if key in substitutions:
+        frame = english
+        for name, count, _one, other in substitutions[key]:
+            fragment = other.replace(SUBSTITUTION_ARG, ARG_SPECIFIER % count)
+            if frame.count(fragment) != 1:
+                sys.exit("%s: substitution %r has `other` = %r, which spells out as "
+                         "%r and appears %d time(s) in\n  %r\n"
+                         "An axis's `other` is the fragment it owns, so it has to "
+                         "be in the sentence, exactly once."
+                         % (key, name, other, fragment, frame.count(fragment), english))
+            frame = frame.replace(fragment, "%%%d$#@%s@" % (count, name))
+        if SUBSTITUTION_ARG in frame:
+            sys.exit("%s: %s survived into the derived frame %r"
+                     % (key, SUBSTITUTION_ARG, frame))
+
+        return {
+            "stringUnit": {"state": "translated", "value": frame},
+            "substitutions": {
+                name: {
+                    "argNum": count,
+                    "formatSpecifier": "lld",
+                    "variations": {"plural": {
+                        "one": {"stringUnit": {"state": "translated", "value": one}},
+                        "other": {"stringUnit": {"state": "translated", "value": other}},
+                    }},
+                }
+                for name, count, one, other in substitutions[key]
+            },
+        }
+
+    if key in plurals:
+        count, one = plurals[key]
+        slot = ARG_SPECIFIER % count
+        if slot not in english:
+            sys.exit("%s counts argument %d, but \"%s\" never names %s. A plural "
+                     "whose count is not in the string cannot select a category."
+                     % (key, count, english, slot))
+
+        # A whole-string plural variation carries NO argument number: the
+        # catalog's `variations.plural` has nowhere to put one, and
+        # `xcstringstool` infers it from the string. It can only do that when
+        # there is exactly one integer specifier — otherwise it emits
+        # `%#@value@`, which means "the first argument", warns, and compiles.
+        #
+        # Measured on this machine with `board.stats.digitLeft`
+        # ("%1$lld, %2$lld left", where the count is argument 2), against the
+        # compiled .stringsdict with distinguishable forms planted:
+        #
+        #     digit 5, 1 left  ->  OTHER
+        #     digit 1, 5 left  ->  ONE
+        #
+        # Exactly inverted, silently, in every language that inflects. So this
+        # is a hard exit rather than a warning passed along: the fix is an
+        # explicit substitution, which writes `argNum` down instead of guessing.
+        integers = set(INTEGER_SPECIFIER_RE.findall(english))
+        if integers != {str(count)}:
+            sys.exit(
+                "%s: a whole-string plural cannot say WHICH argument it counts, "
+                "and \"%s\" names %d of them (%s) while the table counts argument "
+                "%d.\n`xcstringstool` would infer argument 1, warn, and compile — "
+                "and select on the wrong number in every language that inflects.\n"
+                "Move this key to EnglishPhrases.substitutions, where argNum is "
+                "written down."
+                % (key, english, len(integers), ", ".join("%%%s$lld" % i
+                                                          for i in sorted(integers)),
+                   count))
+
+        return {"variations": {"plural": {
+            # `one` first in the source, `other` second; `json.dump(sort_keys)`
+            # writes them alphabetically either way.
+            "one": {"stringUnit": {"state": "translated", "value": one}},
+            "other": {"stringUnit": {"state": "translated", "value": english}},
+        }}}
+
+    return {"stringUnit": {"state": "translated", "value": english}}
+
+
 def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
     """Regenerate the catalog's `en` locale from `EnglishPhrases.table`.
 
@@ -1481,6 +1650,23 @@ def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
     Returns (added, changed, removed).
     """
     entries = read_english_table(phrases)
+    plurals = read_english_plurals(phrases)
+    substitutions = read_english_substitutions(phrases)
+
+    known = {key for key, _ in entries}
+    orphans = sorted((set(plurals) | set(substitutions)) - known)
+    if orphans:
+        sys.exit("plural/substitution row(s) for key(s) that are not in "
+                 "EnglishPhrases.table: %s. The `other` form IS the table row, "
+                 "so a plural without one has no `other` at all — which "
+                 "`xcstringstool` would compile clean and render as (null)."
+                 % ", ".join(orphans))
+    both = sorted(set(plurals) & set(substitutions))
+    if both:
+        sys.exit("key(s) in both EnglishPhrases.plurals and .substitutions: %s. "
+                 "A phrase inflects on one axis or on several, not both."
+                 % ", ".join(both))
+
     missing = [key for key, _ in entries if not COMMENTS.get(key)]
     if missing:
         sys.exit(
@@ -1504,9 +1690,7 @@ def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
         for locale, body in previous.get(key, {}).get("localizations", {}).items():
             if locale != "en":
                 localizations[locale] = body
-        localizations["en"] = {
-            "stringUnit": {"state": "translated", "value": english}
-        }
+        localizations["en"] = english_localization(key, english, plurals, substitutions)
         strings[key] = {
             "comment": COMMENTS[key],
             # Xcode garbage-collects entries it believes its own extractor
@@ -1519,9 +1703,12 @@ def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
         if key not in previous:
             added.append(key)
         else:
-            was = (previous[key].get("localizations", {}).get("en", {})
-                   .get("stringUnit", {}).get("value"))
-            if was != english or previous[key].get("comment") != COMMENTS[key]:
+            # The whole `en` body, not just its `stringUnit`: adding a plural
+            # variation changes the shape rather than the value, and comparing
+            # values alone would report "0 changed" on the commit that
+            # pluralised sixteen phrases.
+            was = previous[key].get("localizations", {}).get("en")
+            if was != localizations["en"] or previous[key].get("comment") != COMMENTS[key]:
                 changed.append(key)
 
     removed = sorted(set(previous) - set(strings))

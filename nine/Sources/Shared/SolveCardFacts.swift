@@ -71,9 +71,30 @@ public struct SolveCardFacts: Equatable, Sendable {
     /// `m:ss`, with the minutes field allowed to run past 60 rather than growing
     /// an hours field — an hour-long Nocturne is a real thing, and "1:02:05"
     /// reads like a video timestamp on a card this size.
+    ///
+    /// **The one copy** (PRD-20 Task 8). `String(format: "%d:%02d", …)` was
+    /// written out eight times — this line, six files in `Sources/App`, and
+    /// `WidgetFormat.time` in the appex — and Task 6 declined to change one of
+    /// them alone on the grounds that the widget being the odd one out would be
+    /// worse than either answer. It was right; this is that change, made to all
+    /// eight at once.
+    ///
+    /// The shape above is kept exactly. What changes is the *numerals*: `%d`
+    /// emits ASCII digits, so an Arabic or Hindi player got `4:12` in the middle
+    /// of a sentence set in ٤ and १. `.formatted(.number)` asks the locale, and
+    /// `.integerLength(2)` is the localized spelling of `%02d` — it pads with
+    /// that locale's own zero, so Arabic reads `٠٧` rather than `07`.
+    ///
+    /// `.grouping(.never)` on the minutes because they are allowed past 60 and
+    /// past 999: a grouped `1,042:05` would read as a date. The `:` is left a
+    /// literal — it is the separator in every locale CLDR has a rule for, and
+    /// nothing here is a `DateComponentsFormatter` duration, which would spell
+    /// this "4 min 12 sec" and not fit the card at all.
     public static func elapsedText(_ interval: TimeInterval) -> String {
         let total = max(0, Int(interval))
-        return String(format: "%d:%02d", total / 60, total % 60)
+        let minutes = (total / 60).formatted(.number.grouping(.never))
+        let seconds = (total % 60).formatted(.number.precision(.integerLength(2)))
+        return "\(minutes):\(seconds)"
     }
 
     /// The card's words, through the one seam (PRD-20). These were English

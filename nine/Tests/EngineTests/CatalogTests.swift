@@ -247,6 +247,123 @@ final class CatalogTests: XCTestCase {
         }
     }
 
+    // MARK: - Plurals
+
+    /// **The gate Apple's tooling does not give you.**
+    ///
+    /// Measured on this machine, at the head of this task: a plural entry
+    /// missing the CLDR `other` category compiles clean —
+    /// `xcstringstool compile`, **exit 0, no warning** — and the compiled
+    /// `.stringsdict` then renders `(null)` for every count that is not 1.
+    /// Not the key, which at least reads like a bug report: the four
+    /// characters `(null)`, on the share card, in German, with every build
+    /// green and every platform building. (The brief expected the key; the
+    /// measurement said `(null)`, and `(null)` is worse.)
+    ///
+    /// So the tool cannot be the gate, and this is. It runs in the cheap lane,
+    /// before any simulator exists, over the catalog as a file.
+    ///
+    /// The categories below are the CLDR **cardinal** rules for the nine launch
+    /// locales plus the source language, and they are the categories a
+    /// translation MUST carry — not the ones it may. A locale is allowed to
+    /// carry more (a translator who writes `few` for a language whose rules
+    /// never select it is harmless); it is never allowed to carry fewer.
+    static let requiredPluralCategories: [String: Set<String>] = [
+        "en": ["one", "other"],
+        "de": ["one", "other"],
+        "nl": ["one", "other"],
+        "it": ["one", "other"],
+        "es": ["one", "other"],
+        "fr": ["one", "other"],
+        // Portuguese (Brazil) selects `many` for 1,000,000 and up. Nine has no
+        // such count today; the category is required anyway, because "the app
+        // cannot reach it" is a fact about this month's code and the catalog is
+        // frozen into nine languages.
+        "pt-BR": ["one", "many", "other"],
+        // The three that inflect nothing. `other` alone, and asserting it is
+        // not ceremony: an entry that carries only `one` in Japanese renders
+        // `(null)` for every count on earth, because ja never selects `one`.
+        "ja": ["other"],
+        "ko": ["other"],
+        "zh-Hans": ["other"],
+    ]
+
+    func testEveryPluralHasTheCategoriesItsLanguageRequires() throws {
+        let url = Self.nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                 as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        var checked = 0
+        for (key, value) in strings.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+                let body = body as? [String: Any] ?? [:]
+                let required = try XCTUnwrap(Self.requiredPluralCategories[locale], """
+                    \(key) carries a locale this test has no CLDR rule for: \
+                    \(locale). Add its cardinal categories to \
+                    `requiredPluralCategories` — an unknown locale must fail \
+                    loudly rather than be waved through, because "no rule" and \
+                    "no requirement" look identical from here.
+                    """)
+
+                // Two shapes carry plurals: a whole-string variation, and one
+                // per axis inside `substitutions`. Both are checked, because a
+                // hole in either renders the same `(null)`.
+                var axes: [(String, [String: Any])] = []
+                if let plural = Self.pluralCategories(in: body) {
+                    axes.append(("the whole string", plural))
+                }
+                for (name, substitution) in
+                        (body["substitutions"] as? [String: Any] ?? [:]).sorted(by: { $0.key < $1.key }) {
+                    if let plural = Self.pluralCategories(in: substitution as? [String: Any] ?? [:]) {
+                        axes.append(("substitution \"\(name)\"", plural))
+                    }
+                }
+
+                for (where_, plural) in axes {
+                    checked += 1
+                    let present = Set(plural.keys)
+                    XCTAssertTrue(present.isSuperset(of: required), """
+                        \(key) [\(locale)], \(where_): has \(present.sorted()) and \
+                        needs \(required.sorted()) — missing \
+                        \(required.subtracting(present).sorted()).
+                        `xcstringstool compile` accepts this, exit 0, no warning. \
+                        At runtime the missing category renders "(null)" — \
+                        measured on this machine — so nothing between here and \
+                        the player disagrees with it.
+                        """)
+
+                    // …and every category present has to be a real one. A typo
+                    // ("ohter") is a category nothing selects and a category
+                    // nothing misses, so it is invisible from both sides.
+                    let known: Set<String> = ["zero", "one", "two", "few", "many", "other"]
+                    XCTAssertTrue(present.isSubset(of: known), """
+                        \(key) [\(locale)], \(where_): \
+                        \(present.subtracting(known).sorted()) is not a CLDR \
+                        plural category. It will never be selected and never be \
+                        reported missing.
+                        """)
+                }
+            }
+        }
+
+        // The gate has to have something to gate. Zero plural entries passes
+        // every assertion above and says nothing at all — which is exactly the
+        // state this task found the catalog in.
+        XCTAssertGreaterThan(checked, 0,
+                             "no plural variation anywhere in the catalog — either the "
+                             + "generator stopped writing them or this reader stopped "
+                             + "seeing them, and both look like a green test")
+    }
+
+    /// `localizations.<locale>.variations.plural`, or nil if this body has no
+    /// whole-string plural. Also reads a substitution body, which nests the
+    /// same `variations.plural` one level in.
+    static func pluralCategories(in body: [String: Any]) -> [String: Any]? {
+        (body["variations"] as? [String: Any])?["plural"] as? [String: Any]
+    }
+
     /// Every Engine identifier the app has to name is named.
     ///
     /// The Engine stopped naming things (`Technique.displayName` and
@@ -345,13 +462,56 @@ final class CatalogTests: XCTestCase {
         for (key, value) in strings {
             let body = value as? [String: Any] ?? [:]
             let localizations = body["localizations"] as? [String: Any] ?? [:]
-            let unit = (localizations["en"] as? [String: Any])?["stringUnit"] as? [String: Any]
+            let english = localizations["en"] as? [String: Any] ?? [:]
+            let (value, state) = sentence(in: english)
             entries[key] = Entry(comment: body["comment"] as? String ?? "",
-                                 english: unit?["value"] as? String,
-                                 englishState: unit?["state"] as? String,
+                                 english: value,
+                                 englishState: state,
                                  locales: localizations.keys.sorted())
         }
         return entries
+    }
+
+    /// One localization body, reduced to the sentence a reader sees at counts
+    /// greater than one — which is exactly the row in `EnglishPhrases.table`.
+    ///
+    /// Three shapes since PRD-20 Task 8, and this reader has to understand all
+    /// three or `testEveryEnglishPhraseHasACatalogEntry` reads `nil` for the
+    /// nineteen pluralised keys and passes by comparing nothing:
+    ///
+    ///   • a plain `stringUnit`;
+    ///   • `variations.plural`, where the `other` category IS the table row;
+    ///   • a frame plus `substitutions`, where the table row is the frame with
+    ///     each `%N$#@name@` spliced back to that axis's `other`.
+    ///
+    /// The third is the load-bearing one. `scripts/strings.py` *derives* the
+    /// frame from the table row, so this is the same round trip run backwards,
+    /// in a different language, from the file rather than from the generator —
+    /// which is the only way it can catch a hand-edited catalog.
+    static func sentence(in localization: [String: Any]) -> (String?, String?) {
+        if let plural = pluralCategories(in: localization) {
+            let unit = (plural["other"] as? [String: Any])?["stringUnit"] as? [String: Any]
+            return (unit?["value"] as? String, unit?["state"] as? String)
+        }
+
+        let unit = localization["stringUnit"] as? [String: Any]
+        guard var frame = unit?["value"] as? String,
+              let substitutions = localization["substitutions"] as? [String: Any],
+              !substitutions.isEmpty else {
+            return (unit?["value"] as? String, unit?["state"] as? String)
+        }
+
+        for (name, axis) in substitutions {
+            let axis = axis as? [String: Any] ?? [:]
+            guard let argNum = axis["argNum"] as? Int,
+                  let plural = pluralCategories(in: axis),
+                  let other = ((plural["other"] as? [String: Any])?["stringUnit"]
+                                as? [String: Any])?["value"] as? String else { continue }
+            frame = frame.replacingOccurrences(
+                of: "%\(argNum)$#@\(name)@",
+                with: other.replacingOccurrences(of: "%arg", with: "%\(argNum)$lld"))
+        }
+        return (frame, unit?["state"] as? String)
     }
 
     /// `EnglishPhrases.table`, read out of the Swift source.

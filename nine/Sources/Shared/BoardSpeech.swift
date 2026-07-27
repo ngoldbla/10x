@@ -496,16 +496,51 @@ private enum Phrase {
     static func spokenCellLabel(row: Int, column: Int) -> String {
         Phrasebook.current.string("board.voiceName.rowColumn", .int(row), .int(column))
     }
+    /// **Not a catalog key** (PRD-20 Task 8) — the other half of the finding
+    /// `plainValue` records. `board.voiceName.bare` was `"%1$lld %2$lld"`: two
+    /// specifiers and a space, nothing a translator can translate and
+    /// everything a string transform can break.
+    ///
+    /// What is left is the *separator*, and that stays a catalog entry — Task
+    /// 7's rule, unchanged: whatever goes between two tokens is punctuation
+    /// this language chose, and English's happens to be a space. So the numbers
+    /// are formatted here and the join is translated, which is the same split
+    /// `board.announce.pair` makes for two sentences. A separate key because a
+    /// recogniser's input name and a spoken sentence are different registers
+    /// and a language may well separate them differently.
     static func bareAddress(row: Int, column: Int) -> String {
-        Phrasebook.current.string("board.voiceName.bare", .int(row), .int(column))
+        let rowNumeral = numeral(row)
+        let columnNumeral = numeral(column)
+        return Phrasebook.current.string("board.voiceName.pair",
+                                         .text(rowNumeral), .text(columnNumeral))
     }
 
     // Cell contents
     static func givenValue(_ digit: Int) -> String {
         Phrasebook.current.string("board.value.given", .int(digit))
     }
-    static func plainValue(_ digit: Int) -> String {
-        Phrasebook.current.string("board.value.plain", .int(digit))
+
+    /// **Not a catalog key** (PRD-20 Task 8), and this one was measured.
+    ///
+    /// `board.value.plain` was `"%1$lld"` — a translation unit whose entire
+    /// content is one format specifier. Run the app under
+    /// `-NSDoubleLocalizedStrings YES` and every digit on the board reads
+    /// **`lld 4`**: the pseudolocalizer rewrites the specifier, because to a
+    /// string transform that is all there is in the string. Nothing shipped
+    /// that way — the same build without the flag is correct — but the flag is
+    /// only standing in for what a translator who does not read printf will do
+    /// to a row that looks empty. `board.value.*` is what VoiceOver speaks for
+    /// a filled cell, so the blast radius is every square on the board.
+    ///
+    /// A bare numeral is not language, so it is formatted rather than
+    /// translated. `.formatted(.number)` is still locale-aware — this is where
+    /// Eastern Arabic and Devanagari digits come from — and `.grouping(.never)`
+    /// keeps a 1...9 digit a digit rather than risking a separator.
+    static func plainValue(_ digit: Int) -> String { numeral(digit) }
+
+    /// One numeral, in the reader's own digits. See `plainValue`.
+    static func numeral(_ value: Int) -> String {
+        value.formatted(.number.grouping(.never))
     }
     static func wrongValue(_ digit: Int) -> String {
         Phrasebook.current.string("board.value.wrong", .int(digit))

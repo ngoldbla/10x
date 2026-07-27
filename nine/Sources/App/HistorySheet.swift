@@ -170,8 +170,8 @@ struct HistorySheetContent: View {
                     TwinBar(title: Strings.difficulty(difficulty),
                             avg: avg / maxAvg,
                             best: best / maxAvg,
-                            bestLabel: Self.format(best),
-                            avgLabel: Self.format(avg),
+                            bestLabel: SolveCardFacts.elapsedText(best),
+                            avgLabel: SolveCardFacts.elapsedText(avg),
                             accent: accent,
                             track: tones.gridTone.opacity(0.10),
                             s: s)
@@ -271,21 +271,23 @@ struct HistorySheetContent: View {
                             .foregroundStyle(.tertiary)
                     }
                     Spacer()
-                    Text(Self.format(record.seconds))
+                    Text(SolveCardFacts.elapsedText(record.seconds))
                         .font(CouchTypography.caption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                    Text(Strings.string("history.recent.points", .int(record.points)))
+                    // The `+` is a sign, not a word. `history.recent.points`
+                    // was `"+%1$lld"` — a translation unit whose entire content
+                    // is a specifier and an ASCII plus, which is the shape a
+                    // pseudolocalizer or a translator who does not read printf
+                    // destroys. `.sign(strategy: .always())` gives the locale's
+                    // own plus, in its own digits, in its own position; Arabic
+                    // even puts an invisible mark in front of it (PRD-20 Task 8).
+                    Text(record.points.formatted(.number.sign(strategy: .always())))
                         .font(CouchTypography.caption)
                         .foregroundStyle(accent)
                 }
             }
         }
-    }
-
-    private static func format(_ interval: TimeInterval) -> String {
-        let total = Int(interval)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 #endif

@@ -760,6 +760,13 @@ final class BoardSpeechTests: XCTestCase {
             "noteList",      // "2, 5, 9" — numerals, already joined
             // board.announce.pair: two finished sentences, not two nouns.
             "firstSentence", "secondSentence",
+            // board.voiceName.pair: two NUMERALS, already formatted in the
+            // reader's own digits. `board.voiceName.bare` used to be
+            // `"%1$lld %2$lld"` — a translation unit whose entire content was
+            // two specifiers, which is the shape PRD-20 Task 8 measured a
+            // pseudolocalizer destroying. The numbers are formatted in Swift
+            // now; what stays translated is the separator between them.
+            "rowNumeral", "columnNumeral",
         ]
         let pattern = try NSRegularExpression(pattern: #"\.text\(([A-Za-z_][A-Za-z0-9_]*)\)"#)
         let range = NSRange(source.startIndex..., in: source)

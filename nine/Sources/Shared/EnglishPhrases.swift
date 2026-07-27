@@ -122,7 +122,6 @@ public enum EnglishPhrases {
         "board.progress.begun": "Just started",
         "board.progress.filled": "%1$lld of %2$lld filled.",
         "board.progress.full": "Full",
-        "board.progress.percent": "%1$lld%%",
         "board.progress.untouched": "Untouched",
         "board.progress.wrong": "%1$lld wrong.",
         "board.rose.digit": "Digit rose",
@@ -147,10 +146,9 @@ public enum EnglishPhrases {
         "board.value.given": "%1$lld, given",
         "board.value.noteSeparator": ", ",
         "board.value.notes": "Empty, notes %1$@",
-        "board.value.plain": "%1$lld",
         "board.value.wrong": "%1$lld, wrong",
-        "board.voiceName.bare": "%1$lld %2$lld",
         "board.voiceName.cell": "Cell %1$lld %2$lld",
+        "board.voiceName.pair": "%1$@ %2$@",
         "board.voiceName.rowColumn": "Row %1$lld column %2$lld",
         "boardAnchor.bottom": "Bottom",
         "boardAnchor.center": "Center",
@@ -283,7 +281,6 @@ public enum EnglishPhrases {
         "history.gameCenter.out": "Sign in via Settings to compete",
         "history.gameCenter.title": "Game Center",
         "history.recent.daily": "Daily · %1$@",
-        "history.recent.points": "+%1$lld",
         "history.recent.title": "Recent",
         "history.section.avgVsBest": "Average vs. best",
         "history.section.heat": "Last 12 weeks",
@@ -487,5 +484,143 @@ public enum EnglishPhrases {
         "widget.streak.inline": "Nine · %1$lld day streak",
         "widget.streak.name": "Streak",
         "widget.streak.ready": "Nine · Daily ready",
+    ]
+
+    // MARK: - Counts
+
+    /// One count-bearing phrase's `one` form. The `other` form is the row in
+    /// `table`, which is why this table names only the minority — there is
+    /// still exactly one row per key per language, and `--audit`, the sorting
+    /// rule and the catalog-versus-table test all keep working unchanged.
+    public struct EnglishPlural: Sendable {
+        /// 1-based index of the argument holding the count. Not always 1:
+        /// `board.stats.digitLeft` is `"%1$lld, %2$lld left"`, where argument 1
+        /// is *which digit* and argument 2 is how many are left.
+        public let count: Int
+        /// The CLDR `one` category, in full. A whole sentence rather than the
+        /// word that changes, for the reason Task 7 gave: the hole in a frame
+        /// carries English's grammar into languages that do not share it.
+        public let one: String
+
+        public init(count: Int, one: String) {
+            self.count = count
+            self.one = one
+        }
+    }
+
+    /// Every phrase whose grammar depends on a number.
+    ///
+    /// **English `one` and `other` being identical is not redundancy.** Nine of
+    /// the sixteen rows below read the same in both categories, because English
+    /// uses "day" attributively in "12 day streak" and does not inflect it.
+    /// The entry exists so that German, French, Spanish and Portuguese *can*
+    /// differ — and so that `CatalogTests`' plural gate has something to
+    /// enforce when Task 9 hands the catalog to nine translators. A key with no
+    /// plural entry is a key a translator cannot inflect at all.
+    ///
+    /// Three of them were wrong in English before this table existed:
+    /// `game.autoNotes.chip` read "filled 1 candidates", and both point chips
+    /// read "1 pts".
+    ///
+    /// Shape contract, same as `table`: one `"key": EnglishPlural(…),` per
+    /// line, keys sorted, nothing that has to be executed. `scripts/strings.py`
+    /// reads this file to generate the catalog's `en` plural variations, and
+    /// `PhrasebookTests` re-parses it and checks the parse against the compiled
+    /// dictionary.
+    public static let plurals: [String: EnglishPlural] = [
+        "board.box.empty": EnglishPlural(count: 1, one: "%1$lld empty"),
+        "board.progress.wrong": EnglishPlural(count: 1, one: "%1$lld wrong."),
+        "board.stats.paceSeconds": EnglishPlural(count: 1, one: "%1$llds"),
+        "board.streak.held": EnglishPlural(count: 1, one: "%1$lld day streak, held"),
+        "board.streak.plain": EnglishPlural(count: 1, one: "%1$lld day streak"),
+        "card.streak": EnglishPlural(count: 1, one: "%1$lld day streak"),
+        "game.autoNotes.chip": EnglishPlural(count: 1, one: "Auto notes · filled %1$lld candidate"),
+        "game.completion.streak": EnglishPlural(count: 1, one: "Solved · %1$lld day streak"),
+        "shelf.boards.subtitleCount": EnglishPlural(count: 1, one: "%1$lld in progress"),
+        "shelf.continue.captionMore": EnglishPlural(count: 3, one: "%1$@ · %2$@ · +%3$lld more"),
+        "shelf.points.chip": EnglishPlural(count: 1, one: "%1$lld pt"),
+        "widget.daily.points": EnglishPlural(count: 1, one: "%1$lld pt"),
+        "widget.daily.streak": EnglishPlural(count: 1, one: "%1$lld day streak"),
+        "widget.streak.inline": EnglishPlural(count: 1, one: "Nine · %1$lld day streak"),
+    ]
+
+    /// One axis of a phrase whose plural cannot be a whole-string variation.
+    ///
+    /// A `plurals` row above inflects the whole string against a single number,
+    /// and it works because **`xcstringstool` infers which argument the count
+    /// is, and can only do that when the string names exactly one of them.**
+    /// Three of Nine's phrases fail that, in two different ways.
+    ///
+    /// *Two counts in one sentence.* `firstrun.ledger.themes` is `"%1$lld
+    /// themes and %2$lld accents, all of them yours"`, so there is no single
+    /// `one` form at all. A plural on the first count would hand German one
+    /// form for "themes" and no way to inflect "accents" — the second number's
+    /// grammar frozen at whatever the translator picked.
+    ///
+    /// *A number that is not the count.* `board.stats.digitLeft` is `"%1$lld,
+    /// %2$lld left"`, where argument 1 is **which digit** and argument 2 is how
+    /// many are left. Written as a plain plural it compiles with a warning and
+    /// then, measured on this machine against the compiled `.stringsdict`,
+    /// selects on the digit:
+    ///
+    ///     digit 5, 1 left  ->  OTHER      (the count is 1; the digit is 5)
+    ///     digit 1, 5 left  ->  ONE        (the count is 5; the digit is 1)
+    ///
+    /// Exactly inverted, silently, in every language that inflects. So the
+    /// choice is not between rigour and pragmatism — a whole-string plural is
+    /// simply wrong here, and `scripts/strings.py` refuses to write one.
+    ///
+    /// CLDR substitutions are the mechanism for both. The catalog carries a
+    /// frame (`"%1$#@themes@ and %2$#@accents@, all of them yours"`,
+    /// `"%1$lld, %2$#@left@"`) and one independent plural per axis, each with
+    /// its `argNum` written down instead of guessed. `xcstringstool compile`
+    /// was measured accepting it and the compiled `.stringsdict` driven at 1/1
+    /// and 9/10 before this table was written.
+    ///
+    /// The frame is **derived**, not stored: `scripts/strings.py` builds it by
+    /// replacing `%N$lld` with `%N$#@name@` in the `table` row, and then splices
+    /// the `other` forms back in and refuses to write a catalog unless the
+    /// result is the `table` row character for character. So the sentence still
+    /// has exactly one home, which is the rule this whole file exists to hold.
+    ///
+    /// `%arg` is the catalog's own placeholder for "the number this axis
+    /// counts"; `xcstringstool` expands it to `%N$lld` from `argNum`.
+    ///
+    /// **`Phrasebook.english` does not implement substitutions**, deliberately.
+    /// It falls back to the `table` row, which is the all-`other` sentence and
+    /// is correct English for every pair of counts the app can produce — they
+    /// are `ThemeChoice.allCases.count` and `AccentChoice.allCases.count`,
+    /// 9 and 10 today. Building a second, hand-rolled plural engine inside the
+    /// one formatter in Nine that is load-bearing against segfaults, to serve a
+    /// path that only Linux and a missing catalog row can reach, would be a
+    /// worse trade than the sentence it bought.
+    public struct EnglishSubstitution: Sendable {
+        /// The name of the axis, as it appears in the frame's `%N$#@name@`.
+        public let name: String
+        /// 1-based index of the argument this axis counts.
+        public let count: Int
+        public let one: String
+        public let other: String
+
+        public init(name: String, count: Int, one: String, other: String) {
+            self.name = name
+            self.count = count
+            self.one = one
+            self.other = other
+        }
+    }
+
+    public static let substitutions: [String: [EnglishSubstitution]] = [
+        "board.progress.filled": [
+            EnglishSubstitution(name: "filled", count: 1,
+                                one: "%arg of %2$lld", other: "%arg of %2$lld"),
+        ],
+        "board.stats.digitLeft": [
+            EnglishSubstitution(name: "left", count: 2, one: "%arg left", other: "%arg left"),
+        ],
+        "firstrun.ledger.themes": [
+            EnglishSubstitution(name: "themes", count: 1, one: "%arg theme", other: "%arg themes"),
+            EnglishSubstitution(name: "accents", count: 2, one: "%arg accent", other: "%arg accents"),
+        ],
     ]
 }

@@ -131,7 +131,10 @@ struct HomeView: View {
                     HStack(spacing: 20) {
                         GlassRing(progress: game.fillFraction)
                             .frame(width: 64, height: 64)
-                        Text("\(Int(game.fillFraction * 100))%")
+                        // `.formatted(.percent)`, not `"\(n)%"`: Turkish leads
+                        // with the sign, French spaces it, and Arabic wants its
+                        // own numerals (PRD-20 Task 8).
+                        Text(Int(game.fillFraction * 100).formatted(.percent))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
                     }

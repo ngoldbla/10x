@@ -261,6 +261,219 @@ final class PhrasebookTests: XCTestCase {
         }
     }
 
+    // MARK: - Numbers are not words
+
+    /// **No translation unit is made only of numbers.**
+    ///
+    /// The finding, measured on this branch under `-NSDoubleLocalizedStrings
+    /// YES`: `board.value.plain` was `"%1$lld"` — a row whose entire content is
+    /// one format specifier — and every digit on the board rendered as
+    /// **`lld 4`**. Nothing shipped that way; the same build without the flag
+    /// was correct. But the flag only stands in for what a translator who does
+    /// not read printf will do to a row that looks empty, and `board.value.*`
+    /// is what VoiceOver speaks for a filled square, so the blast radius is the
+    /// whole grid.
+    ///
+    /// The rule that generalises it: a row may be nothing but *punctuation* —
+    /// `board.announce.pair` is `"%1$@ %2$@"`, and Task 7's ruling is that the
+    /// space between two sentences belongs to the language — but it may not be
+    /// nothing but *numbers*. A numeral is not language; `.formatted(.number)`
+    /// renders it in the reader's own digits without asking anyone to
+    /// translate it.
+    ///
+    /// Two rows failed this when it was written and both were deleted:
+    /// `board.value.plain` (`"%1$lld"`) and `board.voiceName.bare`
+    /// (`"%1$lld %2$lld"`). Two more went for the same reason with a different
+    /// remedy — `board.progress.percent` (`"%1$lld%%"`) and
+    /// `history.recent.points` (`"+%1$lld"`), now `.formatted(.percent)` and
+    /// `.formatted(.number.sign(strategy: .always()))`, which also place the
+    /// sign the way the locale does.
+    func testNoPhraseIsNothingButNumbers() {
+        for (key, value) in EnglishPhrases.table {
+            let specifiers = Self.positionalSpecifiers(in: value)
+            guard !specifiers.isEmpty, specifiers.allSatisfy({ $0.conversion != "@" }) else { continue }
+            var remainder = value
+            for (index, conversion) in specifiers {
+                remainder = remainder.replacingOccurrences(of: "%\(index)$ll\(conversion)", with: "")
+                remainder = remainder.replacingOccurrences(of: "%\(index)$\(conversion)", with: "")
+            }
+            XCTAssertFalse(
+                remainder.trimmingCharacters(in: .whitespaces).isEmpty,
+                """
+                \(key) = "\(value)" is a translation unit with nothing in it but \
+                numbers. There is nothing in it for a translator to do and \
+                everything in it for a string transform to do: under \
+                `-NSDoubleLocalizedStrings YES` this shape renders "lld 4" \
+                instead of "4". Format the numeral in Swift with \
+                `.formatted(.number)` and keep a catalog row only for what \
+                separates or surrounds it.
+                """
+            )
+        }
+    }
+
+    // MARK: - Counts
+
+    /// The plural tables answer for the same keys `table` does, in the shape
+    /// the generator reads.
+    func testPluralTablesAreWellFormedAndPointAtRealPhrases() throws {
+        XCTAssertFalse(EnglishPhrases.plurals.isEmpty,
+                       "no plural anywhere — the count-bearing phrases are back to "
+                       + "one form each, which is the state PRD-20 Task 8 found")
+
+        for (key, plural) in EnglishPhrases.plurals {
+            let other = try XCTUnwrap(EnglishPhrases.table[key], """
+                \(key) has a plural `one` form and no row in `table`. The `other` \
+                form IS the table row, so this key would have no `other` at all — \
+                which `xcstringstool` compiles clean and renders as "(null)".
+                """)
+            XCTAssertNil(EnglishPhrases.substitutions[key],
+                         "\(key) is both a plain plural and a substitution; it is one or the other")
+            XCTAssertEqual(Self.nonPositionalSpecifiers(in: plural.one), [],
+                           "\(key)'s `one` form uses a bare specifier")
+
+            // A whole-string plural carries no argument number: the catalog has
+            // nowhere to put one, and `xcstringstool` infers it from the string
+            // — which it can only do when the string names exactly one number.
+            // `board.stats.digitLeft` proved what happens otherwise. Written as
+            // a plain plural it compiled with a warning and then, measured
+            // against the compiled .stringsdict, selected on the *digit*
+            // instead of on the count: "5, 1 left" took `other` and
+            // "1, 5 left" took `one`. Exactly inverted, silently.
+            let integers = Set(Self.positionalSpecifiers(in: other)
+                                .filter { $0.conversion != "@" }.map(\.index))
+            XCTAssertEqual(integers, [plural.count], """
+                \(key) counts argument \(plural.count), but "\(other)" names \
+                \(integers.sorted()) as numbers. A whole-string plural cannot say \
+                which one it counts. Move this key to \
+                `EnglishPhrases.substitutions`, where `argNum` is written down.
+                """)
+        }
+
+        for (key, axes) in EnglishPhrases.substitutions {
+            let sentence = try XCTUnwrap(EnglishPhrases.table[key], "\(key) has no row in `table`")
+            XCTAssertFalse(axes.isEmpty, "\(key) has an empty substitution list")
+            XCTAssertEqual(Set(axes.map(\.name)).count, axes.count,
+                           "\(key) names one substitution axis twice")
+            for axis in axes {
+                // An axis's `other` is the fragment it owns, so it has to be in
+                // the sentence, exactly once. `scripts/strings.py` derives the
+                // catalog frame by cutting exactly this substring out and
+                // refuses to write a catalog when it cannot.
+                let fragment = axis.other.replacingOccurrences(of: "%arg",
+                                                               with: "%\(axis.count)$lld")
+                XCTAssertEqual(sentence.components(separatedBy: fragment).count - 1, 1, """
+                    \(key) axis "\(axis.name)": `other` spells out as "\(fragment)", \
+                    which is not in "\(sentence)" exactly once. The sentence has one \
+                    home and these two have drifted.
+                    """)
+                XCTAssertTrue(axis.one.contains("%arg") && axis.other.contains("%arg"),
+                              "\(key) axis \"\(axis.name)\" must spell its own count `%arg`")
+            }
+        }
+    }
+
+    /// The two count tables are one sorted entry per line, for exactly the
+    /// reason `table` is: `scripts/strings.py` generates the catalog's plural
+    /// variations by *reading this file*, and a literal the compiler accepts
+    /// and a script cannot parse would put the English in two places that agree
+    /// only by luck. This is the same contract
+    /// `testTableIsOneSortedEntryPerLineSoAScriptCanReadIt` holds for `table`,
+    /// checked from the compiled side.
+    func testTheCountTablesAreOneSortedEntryPerLineSoAScriptCanReadIt() throws {
+        let source = try String(contentsOf: Self.englishPhrasesSource(), encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+
+        let pluralKeys = source
+            .filter { $0.contains("\": EnglishPlural(count: ") && $0.hasSuffix("),") }
+            .compactMap { line -> String? in
+                guard let end = line.range(of: "\": EnglishPlural(count: ") else { return nil }
+                return String(line.dropFirst().prefix(upTo: end.lowerBound))
+            }
+        XCTAssertEqual(pluralKeys, EnglishPhrases.plurals.keys.sorted(), """
+            EnglishPhrases.plurals must be one `"key": EnglishPlural(count: N, \
+            one: "…"),` per line, keys sorted. The file's lines read \
+            \(pluralKeys.count); the compiled table has \
+            \(EnglishPhrases.plurals.count).
+            """)
+
+        let axisLines = source.filter { $0.hasPrefix("EnglishSubstitution(name: \"") }
+        XCTAssertEqual(axisLines.count,
+                       EnglishPhrases.substitutions.values.reduce(0) { $0 + $1.count },
+                       "the file's EnglishSubstitution lines and the compiled table disagree")
+        let owners = source
+            .filter { $0.hasSuffix("\": [") && $0.hasPrefix("\"") }
+            .map { String($0.dropFirst().dropLast(4)) }
+        XCTAssertEqual(owners, EnglishPhrases.substitutions.keys.sorted(),
+                       "EnglishPhrases.substitutions must be sorted, one `\"key\": [` per phrase")
+    }
+
+    /// English picks `one` at exactly n == 1, from the argument the table
+    /// names. `Phrasebook.english` is what `swift test`, the Linux lane and the
+    /// App's missing-key fallback all read, so this is the one plural rule in
+    /// Nine that is not ICU's.
+    func testEnglishSelectsThePluralCategoryFromTheRightArgument() {
+        // Identical in both categories, because English uses "day"
+        // attributively and does not inflect it. The entry exists so that
+        // German, French and Spanish can.
+        XCTAssertEqual(Phrasebook.english.string("board.streak.plain", .int(1)), "1 day streak")
+        XCTAssertEqual(Phrasebook.english.string("board.streak.plain", .int(12)), "12 day streak")
+
+        // The three whose English was wrong at n = 1 before this table existed.
+        XCTAssertEqual(Phrasebook.english.string("game.autoNotes.chip", .int(1)),
+                       "Auto notes · filled 1 candidate")
+        XCTAssertEqual(Phrasebook.english.string("game.autoNotes.chip", .int(2)),
+                       "Auto notes · filled 2 candidates")
+        XCTAssertEqual(Phrasebook.english.string("shelf.points.chip", .int(1)), "1 pt")
+        XCTAssertEqual(Phrasebook.english.string("shelf.points.chip", .int(2)), "2 pts")
+        XCTAssertEqual(Phrasebook.english.string("widget.daily.points", .int(1)), "1 pt")
+
+        // A count that is not argument 1: `shelf.continue.captionMore` counts
+        // argument 3, so arguments 1 and 2 must not be able to select `one`.
+        XCTAssertEqual(
+            Phrasebook.english.string("shelf.continue.captionMore",
+                                      .text("Steady"), .text("41%"), .int(4)),
+            "Steady · 41% · +4 more")
+
+        // A key with no plural entry is untouched.
+        XCTAssertEqual(Phrasebook.english.string("board.unit.row", .int(1)), "Row 1")
+    }
+
+    /// `String(localized:)` hands back the catalog's own
+    /// `NSStringLocalizedFormatKey` for a plural — `%#@value@`, or
+    /// `%1$#@themes@ and %2$#@accents@…` for a substitution — and
+    /// `Phrasebook.format` runs `String(format:)` over it, which is where the
+    /// category is actually chosen. So the guard in front of `String(format:)`
+    /// has to let that shape through, and before PRD-20 Task 8 it did not: it
+    /// read `#` as "not a conversion Nine's phrases support", which is an
+    /// `assertionFailure` in Debug and the raw `%1$#@value@` on screen in
+    /// Release — on every pluralised string in the app at once.
+    func testTheGuardAcceptsTheCatalogsOwnPluralTemplates() {
+        XCTAssertNil(Phrasebook.specifierMismatch("%#@value@", [.int(3)]),
+                     "the single-argument plural template xcstringstool emits")
+        XCTAssertNil(Phrasebook.specifierMismatch("%2$#@value@", [.text("a"), .int(3)]),
+                     "a plural whose count is argument 2")
+        XCTAssertNil(Phrasebook.specifierMismatch("%1$lld, %2$#@left@", [.int(5), .int(1)]),
+                     "a substitution beside a plain specifier")
+        XCTAssertNil(
+            Phrasebook.specifierMismatch("%1$#@themes@ and %2$#@accents@, all of them yours",
+                                         [.int(9), .int(10)]),
+            "two substitutions in one frame")
+
+        // …and the ways it can still be wrong. A plural category is selected
+        // from a number, so a substitution over text is the same class of bug
+        // `%1$@` over an Int is.
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%#@value@", [.text("x")]),
+                        "a plural category cannot be selected from text")
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%#@value@", []),
+                        "a substitution with no argument reads the stack")
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%3$#@value@", [.int(1)]),
+                        "a substitution naming an argument that was not passed")
+        XCTAssertNotNil(Phrasebook.specifierMismatch("%1$#@unterminated", [.int(1)]),
+                        "a substitution name that never closes")
+    }
+
     // MARK: - Helpers
 
     /// `(index, conversionCharacter)` for every positional specifier, in order.

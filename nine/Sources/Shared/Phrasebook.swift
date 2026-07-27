@@ -84,7 +84,25 @@ public struct Phrasebook: Sendable {
     /// a hole falls back to English rather than to the key.
     public static let english = Phrasebook { key, args in
         guard let format = EnglishPhrases.table[key] else { return key }
-        return Phrasebook.format(format, args)
+        return Phrasebook.format(Phrasebook.englishPlural(key, format, args), args)
+    }
+
+    /// The English category of a count-bearing phrase.
+    ///
+    /// English has exactly two cardinal categories and `one` is exactly n == 1,
+    /// so this is a comparison rather than a rule engine — the rule engine is
+    /// ICU's, and it runs in the shipping app, where the catalog's compiled
+    /// `.stringsdict` answers instead of this. What reaches here is `swift
+    /// test`, the Linux lane, and a key the catalog does not have.
+    ///
+    /// `EnglishPhrases.substitutions` is deliberately NOT implemented here; see
+    /// that table's doc comment. Those three keys fall through to their `table`
+    /// row, which is the all-`other` sentence.
+    static func englishPlural(_ key: String, _ format: String, _ args: [PhraseArg]) -> String {
+        guard let plural = EnglishPhrases.plurals[key],
+              plural.count >= 1, plural.count <= args.count,
+              case .int(1) = args[plural.count - 1] else { return format }
+        return plural.one
     }
 
     // **Written exactly once per PROCESS, before the first read.** Not "from
@@ -201,7 +219,8 @@ public struct Phrasebook: Sendable {
             }
         }
 
-        enum State { case literal, afterPercent, readingIndex, readingModifiers }
+        enum State { case literal, afterPercent, readingIndex, readingModifiers,
+                          expectingSubstitution, readingSubstitution }
         var state = State.literal
         var index = 0
 
@@ -212,6 +231,14 @@ public struct Phrasebook: Sendable {
 
             case .afterPercent:
                 if byte == UInt8(ascii: "%") { state = .literal; continue }   // an escaped percent
+                // `%#@name@` — a substitution with no position, which is what
+                // `xcstringstool` emits for a plural on a string that names one
+                // argument. It means argument 1. See `readingSubstitution`.
+                if byte == UInt8(ascii: "#") {
+                    index = 1
+                    state = .expectingSubstitution
+                    continue
+                }
                 guard byte >= UInt8(ascii: "0"), byte <= UInt8(ascii: "9") else {
                     return Self.bareSpecifier
                 }
@@ -226,7 +253,38 @@ public struct Phrasebook: Sendable {
                 guard byte == UInt8(ascii: "$") else { return Self.bareSpecifier }
                 state = .readingModifiers
 
+            case .expectingSubstitution:
+                guard byte == UInt8(ascii: "@") else { return Self.bareSpecifier }
+                state = .readingSubstitution
+                // The argument a substitution counts is always an integer —
+                // `formatSpecifier: "lld"` in every one the generator writes.
+                guard index >= 1, index <= args.count else {
+                    return "%\(index)$#@ but only \(args.count) argument(s) were passed"
+                }
+                guard case .int = args[index - 1] else {
+                    return "%\(index)$#@ counts argument \(index), which is text — "
+                        + "a plural category is selected from a number"
+                }
+
+            case .readingSubstitution:
+                // Names are `[A-Za-z0-9_]`, terminated by `@`. Nothing inside is
+                // validated: the real conversions live in the compiled
+                // .stringsdict's per-category values, which this process cannot
+                // see. They are checked where they CAN be — over the whole
+                // table, at build time, by `PhrasebookTests` and `CatalogTests`.
+                if byte == UInt8(ascii: "@") { state = .literal }
+
             case .readingModifiers:
+                // `%N$#@name@` — a substitution with its argument written down,
+                // which is what the catalog emits for every plural whose count
+                // is not the string's only number. This is the shape that
+                // arrives at runtime from `String(localized:)`: the catalog
+                // hands back `NSStringLocalizedFormatKey` and `String(format:)`
+                // does the category selection. Before PRD-20 Task 8 this fell
+                // through to "not a conversion Nine's phrases support", which
+                // is an `assertionFailure` in Debug and the raw `%1$#@value@`
+                // on screen in Release.
+                if byte == UInt8(ascii: "#") { state = .expectingSubstitution; continue }
                 if isModifier(byte) { continue }
                 state = .literal
                 let conversion = Character(UnicodeScalar(byte))

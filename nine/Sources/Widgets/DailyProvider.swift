@@ -84,24 +84,36 @@ extension WidgetSnapshot {
 // MARK: - Shared formatting
 
 enum WidgetFormat {
-    /// "4:12" — matches the app's completion chip.
+    /// "4:12" — matches the app's completion chip, because it now *is* the
+    /// app's completion chip.
     ///
-    /// Deliberately NOT a catalog key, and the same ruling Task 5 made in the
-    /// app: six files in `Sources/App` plus `SolveCardFacts` format an elapsed
-    /// solve with this exact expression, and m:ss carries no words to
-    /// translate. Whichever task decides Nine wants a locale-aware duration
-    /// changes all eight of them together, or none.
+    /// Task 6 left this as its own `String(format: "%d:%02d", …)` and said why:
+    /// six files in `Sources/App` plus `SolveCardFacts` spelled it the same
+    /// way, and the widget being the odd one out would be worse than either
+    /// answer. That was right, and this is the change it was waiting for — all
+    /// eight at once, into `SolveCardFacts.elapsedText`, which is the copy that
+    /// documents why the minutes are allowed past 60.
+    ///
+    /// `.rounded()` stays here rather than moving into the shared function: the
+    /// widget's seconds come off a `TimelineEntry` minted at a whole second and
+    /// the six in-app clocks truncate a live timer. Two different questions,
+    /// one format.
     static func time(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds.rounded())
-        return String(format: "%d:%02d", total / 60, total % 60)
+        SolveCardFacts.elapsedText(seconds.rounded())
     }
 
-    /// The fill percentage, through the catalog rather than through a trailing
-    /// "%" glued on in an interpolation: Turkish leads with the sign and French
-    /// spaces it, and neither is expressible from Swift interpolation. This is
-    /// the same key `BoardProgressCaption` reads inside the app — the same
-    /// figure, printed the same way, so one row for both bundles.
+    /// The fill percentage.
+    ///
+    /// **Not a catalog key any more** (PRD-20 Task 8). Task 6 routed this
+    /// through `board.progress.percent` = `"%1$lld%%"` to get the sign placed
+    /// per language — right instinct, wrong lever. That row is a translation
+    /// unit with no words in it, so nine translators are paid to move a `%`
+    /// around a specifier, by hand, correctly, nine times.
+    /// `.formatted(.percent)` is ICU answering the same question for free: it
+    /// leads with the sign in Turkish, spaces it in French, and renders the
+    /// numerals in the locale's own digits — which the catalog row could not
+    /// do at all, because `%1$lld` is always ASCII.
     static func percent(_ fill: Double) -> String {
-        Strings.string("board.progress.percent", .int(Int((fill * 100).rounded())))
+        Int((fill * 100).rounded()).formatted(.percent)
     }
 }

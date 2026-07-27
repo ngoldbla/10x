@@ -62,9 +62,13 @@ public enum Strings {
             // translator deleted, or a locale that has not caught up. Fall back
             // to the English the catalog was generated from rather than showing
             // the player a dotted identifier on a share card.
-            if format == key, let english = EnglishPhrases.table[key] {
-                return Phrasebook.format(english, args)
-            }
+            //
+            // Through `Phrasebook.english` rather than `EnglishPhrases.table`
+            // directly, so the fallback picks the right plural category too
+            // (PRD-20 Task 8). Reading the table by hand here would have made
+            // the fallback for `game.autoNotes.chip` say "filled 1 candidates"
+            // — the exact defect this task fixed everywhere else.
+            if format == key { return Phrasebook.english.string(key, args: args) }
             return Phrasebook.format(format, args)
         })
     }

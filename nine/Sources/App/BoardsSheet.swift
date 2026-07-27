@@ -153,7 +153,7 @@ struct BoardsSheetContent: View {
                     VStack(alignment: .leading, spacing: 2 * s) {
                         Text(title(for: entry))
                             .font(CouchTypography.body)
-                        Text("\(BoardProgressCaption.text(for: entry.game)) · \(Self.format(entry.game.timer.elapsed(at: Date())))")
+                        Text("\(BoardProgressCaption.text(for: entry.game)) · \(SolveCardFacts.elapsedText(entry.game.timer.elapsed(at: Date())))")
                             .font(.system(size: 11 * s, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -245,14 +245,9 @@ struct BoardsSheetContent: View {
         if entry.status == .solved {
             return Strings.string(
                 "boards.status.solved", .text(date),
-                .text(Self.format(entry.game.timer.elapsed(at: Date()))))
+                .text(SolveCardFacts.elapsedText(entry.game.timer.elapsed(at: Date()))))
         }
         return Strings.string("boards.status.archived", .text(date))
-    }
-
-    private static func format(_ interval: TimeInterval) -> String {
-        let total = Int(interval)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

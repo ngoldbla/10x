@@ -116,7 +116,7 @@ struct StatsDrawerContent: View {
                         track: track
                     )
                     HStack(spacing: 8) {
-                        tile(Self.format(game.timer.elapsed(at: timeline.date)),
+                        tile(SolveCardFacts.elapsedText(game.timer.elapsed(at: timeline.date)),
                              Strings.string("board.stats.time"))
                         tile(paceText(game, at: timeline.date),
                              Strings.string("board.stats.pace"))
@@ -168,13 +168,8 @@ struct StatsDrawerContent: View {
     private func paceText(_ game: NineGame, at now: Date) -> String {
         guard game.placementCount >= Self.paceMinimumPlacements,
               let seconds = game.averageSecondsPerPlacement(at: now) else { return "—" }
-        return seconds >= 60 ? Self.format(seconds)
+        return seconds >= 60 ? SolveCardFacts.elapsedText(seconds)
             : Strings.string("board.stats.paceSeconds", .int(Int(seconds.rounded())))
-    }
-
-    private static func format(_ interval: TimeInterval) -> String {
-        let total = Int(interval)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 #endif

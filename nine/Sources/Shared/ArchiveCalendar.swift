@@ -151,8 +151,27 @@ public enum ArchiveCalendar {
     }
 
     /// One letter per grid column, in the grid's own column order.
-    public static func weekdayInitials(firstWeekday: Int) -> [String] {
-        let sundayFirst = ["S", "M", "T", "W", "T", "F", "S"]
+    ///
+    /// **Ask the locale; do not spell them.** This returned
+    /// `["S","M","T","W","T","F","S"]` until PRD-20 — the column *order* has
+    /// always respected `firstWeekday`, and the letters were English on every
+    /// locale on earth. It is the one unambiguous live locale bug in Nine, and
+    /// nothing could see it because nothing ran in a non-English locale: hence
+    /// the `locale` argument, which exists so a test can be German
+    /// (`ArchiveCalendarTests.testWeekdayInitialsComeFromTheLocale`).
+    ///
+    /// `veryShortWeekdaySymbols` is always Sunday-first regardless of the
+    /// locale's own `firstWeekday`, which is exactly the array this rotation
+    /// was already written against.
+    ///
+    /// Gregorian, via `formatter`, for the reason `title` gives: the grid *is*
+    /// a Gregorian month and its header has to label the shape on screen.
+    public static func weekdayInitials(firstWeekday: Int, locale: Locale = .current) -> [String] {
+        let sundayFirst = formatter("", locale: locale).veryShortWeekdaySymbols ?? []
+        // Seven or nothing. A short array would index-crash the grid header,
+        // and padding it with English letters would restore the bug quietly —
+        // an empty header row is at least visibly wrong.
+        guard sundayFirst.count == 7 else { return [] }
         return (0..<7).map { sundayFirst[($0 + firstWeekday - 1) % 7] }
     }
 
@@ -201,7 +220,7 @@ public enum ArchiveCalendar {
     /// Both channels are spoken, and in that order — the date first because it
     /// is what the player is navigating by.
     public static func accessibilityLabel(
-        forDayOrdinal ordinal: Int, state: ArchiveDayState
+        forDayOrdinal ordinal: Int, state: ArchiveDayState, locale: Locale = .current
     ) -> String {
         var parts = [longLabel(forDayOrdinal: ordinal)]
         if state.position == .today { parts.append(Phrase.today) }
@@ -214,7 +233,17 @@ public enum ArchiveCalendar {
             // saying "not played" invites a player to go and play it.
             if state.isPlayable { parts.append(Phrase.notPlayed) }
         }
-        return parts.joined(separator: ", ")
+        // `", "` was a literal here until PRD-20. Japanese joins with `、` and
+        // Chinese with `，`, and a catalog entry for the separator would only
+        // move the hard-coding into a row a translator has to notice — ICU
+        // already knows this for every locale.
+        //
+        // `.narrow` rather than the default width, deliberately: this is an
+        // enumeration of facts about a day, not a conjunction. Standard English
+        // would read "July 12, today, and solved", which is a claim about the
+        // last item that the list does not make. Narrow leaves English exactly
+        // as it was and still gives Japanese its own comma.
+        return parts.formatted(.list(type: .and, width: .narrow).locale(locale))
     }
 
     /// The archive's spoken vocabulary, through the one seam (PRD-20).
@@ -278,8 +307,8 @@ public enum ArchiveCalendar {
 
     /// The archive's own labels: Gregorian, because the grid is a Gregorian
     /// month and its captions have to describe the shape on screen.
-    private static func formatter(_ template: String) -> DateFormatter {
-        cachedFormatter(template, calendar: calendar)
+    private static func formatter(_ template: String, locale: Locale = .current) -> DateFormatter {
+        cachedFormatter(template, calendar: calendar, locale: locale)
     }
 
     /// The player's calendar system, with the clock still pinned to UTC so the
@@ -288,11 +317,11 @@ public enum ArchiveCalendar {
     private static func displayFormatter(_ template: String) -> DateFormatter {
         var display = Calendar.current
         display.timeZone = calendar.timeZone
-        return cachedFormatter(template, calendar: display)
+        return cachedFormatter(template, calendar: display, locale: .current)
     }
 
-    private static func cachedFormatter(_ template: String, calendar: Calendar) -> DateFormatter {
-        let locale = Locale.current
+    private static func cachedFormatter(_ template: String, calendar: Calendar,
+                                        locale: Locale) -> DateFormatter {
         let key = "\(template)|\(locale.identifier)|\(calendar.identifier)"
         formatterLock.lock()
         defer { formatterLock.unlock() }

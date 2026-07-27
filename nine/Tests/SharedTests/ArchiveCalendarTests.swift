@@ -232,10 +232,56 @@ final class ArchiveCalendarTests: XCTestCase {
         )
     }
 
-    func testWeekdayInitialsMatchTheGridColumns() {
+    func testWeekdayInitialsMatchTheGridColumns() throws {
+        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1),
                        ["S", "M", "T", "W", "T", "F", "S"])
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 2),
                        ["M", "T", "W", "T", "F", "S", "S"])
+    }
+
+    /// The column letters come from the locale, not from a spelled-out array.
+    ///
+    /// This is the one unambiguous live locale bug PRD-20 found. The column
+    /// *order* has always respected `firstWeekday`; the letters were
+    /// `["S","M","T","W","T","F","S"]` on every locale on earth. A German
+    /// player reading a Monday-first grid saw English initials over German
+    /// month names, and no test could see it because no test ran in a
+    /// non-English locale — which is why this one takes the locale as an
+    /// argument instead of reading `Locale.current`.
+    ///
+    /// German is the sharpest case available: Dienstag and Donnerstag are both
+    /// "D" and Mittwoch is "M", so `["M","D","M","D","F","S","S"]` is a
+    /// sequence no English array can be mistaken for.
+    func testWeekdayInitialsComeFromTheLocale() {
+        let german = Locale(identifier: "de_DE")
+        XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 2, locale: german),
+                       ["M", "D", "M", "D", "F", "S", "S"],
+                       "Monday-first German: Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag")
+        XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1, locale: german),
+                       ["S", "M", "D", "M", "D", "F", "S"],
+                       "the same seven letters, rotated — the order was never the bug")
+
+        // A language whose weekday letters are not letters at all. If this ever
+        // reads back as Latin initials, the formatter is not being asked.
+        XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1,
+                                                      locale: Locale(identifier: "ja_JP")),
+                       ["日", "月", "火", "水", "木", "金", "土"])
+    }
+
+    /// The spoken list joins the way the language joins lists. Japanese uses
+    /// `、` and Chinese `，`; a literal `", "` is English punctuation shipped
+    /// to nine languages, and a catalog entry would only move the hard-coding
+    /// into a row a translator has to notice.
+    func testTheSpokenListUsesTheLocalesOwnSeparator() {
+        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
+        let label = ArchiveCalendar.accessibilityLabel(
+            forDayOrdinal: day,
+            state: ArchiveDayState(progress: .solved, position: .today),
+            locale: Locale(identifier: "ja_JP")
+        )
+        XCTAssertTrue(label.contains("、"),
+                      "Japanese joins with an ideographic comma; got \(label)")
+        XCTAssertFalse(label.contains(", "), "…and never with \", \"; got \(label)")
     }
 }
