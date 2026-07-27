@@ -510,17 +510,22 @@ public enum EnglishPhrases {
 
     /// Every phrase whose grammar depends on a number.
     ///
-    /// **English `one` and `other` being identical is not redundancy.** Nine of
-    /// the sixteen rows below read the same in both categories, because English
-    /// uses "day" attributively in "12 day streak" and does not inflect it.
-    /// The entry exists so that German, French, Spanish and Portuguese *can*
-    /// differ — and so that `CatalogTests`' plural gate has something to
+    /// **English `one` and `other` being identical is not redundancy.**
+    /// **Eleven of the fourteen rows** below read the same in both categories —
+    /// English uses "day" attributively in "12 day streak" and does not inflect
+    /// it. The entry exists so that German, French, Spanish and Portuguese
+    /// *can* differ, and so that `CatalogTests`' plural gate has something to
     /// enforce when Task 9 hands the catalog to nine translators. A key with no
     /// plural entry is a key a translator cannot inflect at all.
     ///
-    /// Three of them were wrong in English before this table existed:
+    /// The **other three** were wrong in English before this table existed:
     /// `game.autoNotes.chip` read "filled 1 candidates", and both point chips
     /// read "1 pts".
+    ///
+    /// Counts, since a wrong one here is what the next reader trusts:
+    /// **14 rows in this table, 3 in `substitutions` below (4 axes between
+    /// them), 17 keys and 18 axes in all.** The compiled `.stringsdict` carries
+    /// one entry per key, so **17**.
     ///
     /// Shape contract, same as `table`: one `"key": EnglishPlural(…),` per
     /// line, keys sorted, nothing that has to be executed. `scripts/strings.py`
@@ -612,8 +617,7 @@ public enum EnglishPhrases {
 
     public static let substitutions: [String: [EnglishSubstitution]] = [
         "board.progress.filled": [
-            EnglishSubstitution(name: "filled", count: 1,
-                                one: "%arg of %2$lld", other: "%arg of %2$lld"),
+            EnglishSubstitution(name: "filled", count: 1, one: "%arg of %2$lld", other: "%arg of %2$lld"),
         ],
         "board.stats.digitLeft": [
             EnglishSubstitution(name: "left", count: 2, one: "%arg left", other: "%arg left"),

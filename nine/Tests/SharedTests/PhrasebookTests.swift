@@ -398,8 +398,38 @@ final class PhrasebookTests: XCTestCase {
             \(EnglishPhrases.plurals.count).
             """)
 
-        let axisLines = source.filter { $0.hasPrefix("EnglishSubstitution(name: \"") }
-        XCTAssertEqual(axisLines.count,
+        // Every axis on ONE line, in the shape `scripts/strings.py`'s
+        // line-anchored regex requires: name, count, one, other, `),`.
+        //
+        // Matching only on `hasPrefix("EnglishSubstitution(name: \"")` is what
+        // this test did first, and it was a test that could not fail — a
+        // declaration wrapped across two lines still begins with that prefix,
+        // so the count matched here while the script's regex missed it
+        // entirely. Not hypothetical: `board.progress.filled` was wrapped,
+        // dropped by the generator without a word, and shipped as a plain
+        // `stringUnit` under a translator comment promising plural forms that
+        // were not in the catalog. The stated purpose of this test is "a
+        // literal the compiler accepts and a script cannot parse", and it was
+        // passing on exactly that.
+        let axisPattern = try NSRegularExpression(
+            pattern: #"^EnglishSubstitution\(name: "[^"]+", count: \d+, one: ".*", other: ".*"\),$"#)
+        var axisLines = 0
+        for line in source where line.hasPrefix("EnglishSubstitution(") {
+            axisLines += 1
+            XCTAssertEqual(
+                axisPattern.numberOfMatches(in: line,
+                                            range: NSRange(line.startIndex..., in: line)),
+                1,
+                """
+                this EnglishSubstitution is not one whole line in the shape \
+                scripts/strings.py parses:
+                  \(line)
+                A wrapped declaration compiles, reads fine, and is dropped by the \
+                generator in silence.
+                """
+            )
+        }
+        XCTAssertEqual(axisLines,
                        EnglishPhrases.substitutions.values.reduce(0) { $0 + $1.count },
                        "the file's EnglishSubstitution lines and the compiled table disagree")
         let owners = source

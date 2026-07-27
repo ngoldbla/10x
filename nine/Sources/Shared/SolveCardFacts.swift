@@ -90,6 +90,13 @@ public struct SolveCardFacts: Equatable, Sendable {
     /// literal — it is the separator in every locale CLDR has a rule for, and
     /// nothing here is a `DateComponentsFormatter` duration, which would spell
     /// this "4 min 12 sec" and not fit the card at all.
+    ///
+    /// One behaviour difference from the seven copies this replaced, named
+    /// rather than left to be discovered: they wrote `Int(interval)` and this
+    /// clamps with `max(0, …)` — which it already did, being the card's copy.
+    /// A negative interval (a clock that moved backwards under a running timer)
+    /// rendered `-1:-30` on those six screens and the widget, and renders
+    /// `0:00` now. Strictly better, and not the reason for the change.
     public static func elapsedText(_ interval: TimeInterval) -> String {
         let total = max(0, Int(interval))
         let minutes = (total / 60).formatted(.number.grouping(.never))

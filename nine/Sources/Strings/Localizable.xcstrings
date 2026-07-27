@@ -752,7 +752,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld of %2$lld filled."
+            "value" : "%1$#@filled@ filled."
+          },
+          "substitutions" : {
+            "filled" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg of %2$lld"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg of %2$lld"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

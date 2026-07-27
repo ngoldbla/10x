@@ -1516,9 +1516,9 @@ def read_english_plurals(path=ENGLISH_PHRASES):
 def read_english_substitutions(path=ENGLISH_PHRASES):
     """`EnglishPhrases.substitutions` as key → [(name, count, one, other)].
 
-    The one sentence in Nine that carries two counts. See that table's doc
-    comment for why the mechanism is CLDR substitutions rather than a plural on
-    one of the two numbers.
+    The three phrases whose plural cannot be a whole-string variation. See that
+    table's doc comment for why the mechanism is CLDR substitutions rather than
+    a plural on one of the numbers.
     """
     substitutions = {}
     owner = None
@@ -1537,7 +1537,33 @@ def read_english_substitutions(path=ENGLISH_PHRASES):
             if owned:
                 owner = owned.group(1)
                 substitutions.setdefault(owner, [])
-    return {key: axes for key, axes in substitutions.items() if axes}
+
+    # An owner with no axis the parser could read is a HARD failure, not an
+    # empty list quietly dropped — which is what this function used to do, and
+    # what it did to a real key.
+    #
+    # Measured on this branch: wrapping one `EnglishSubstitution(…)` across two
+    # lines — which the Swift compiler and every style rule accept —
+    # made `SUBSTITUTION_ENTRY_RE` miss it, because that regex is
+    # `^…$`-anchored. `board.progress.filled` then shipped as a plain
+    # `stringUnit`, carrying a translator comment that promises plural forms the
+    # catalog does not have. **Nothing else could see it**: the plural gate in
+    # `CatalogTests` inspects entries that already carry plurals, so a key with
+    # none is invisible to it by construction, and `--audit` only counts keys.
+    #
+    # "The declaration exists and the parser cannot read it" and "there is no
+    # declaration" produce the same empty list, and only one of the two is a
+    # legitimate state. So the parser has to account for every owner it saw.
+    empty = sorted(key for key, axes in substitutions.items() if not axes)
+    if empty:
+        sys.exit(
+            "EnglishPhrases.substitutions declares %s with no axis this parser "
+            "could read.\nEvery `EnglishSubstitution(name:count:one:other:)` "
+            "must sit on ONE line: the regex is line-anchored, and a wrapped "
+            "declaration is dropped silently — which ships a key whose "
+            "translator comment promises plural forms the catalog does not "
+            "have." % ", ".join(empty))
+    return substitutions
 
 
 def english_localization(key, english, plurals, substitutions):

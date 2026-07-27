@@ -285,6 +285,34 @@ public enum BoardSpeech {
     }
 
     /// The digit as a noun agreeing with `count`: 1 → "four", else "fours".
+    ///
+    /// **This ternary is a plural rule written in Swift, and PRD-20 Task 8
+    /// deliberately left it there.** Task 7's handover named it first on its
+    /// plural list; the other four items on that list became catalog plural
+    /// variations and this one did not. The ruling, so the next reader does not
+    /// have to re-derive it:
+    ///
+    /// `n == 1 ? one : other` is exactly CLDR's cardinal rule for **every one
+    /// of the nine launch locales**. `one` is n == 1 in de, nl, it, es, fr and
+    /// pt-BR; ja, ko and zh-Hans have only `other`, and a translator there
+    /// writes the same word into `board.digitWord.*` and `board.digitPlural.*`,
+    /// at which point the branch stops mattering. `remainingClause` guards
+    /// `remaining > 0` before calling this, so French's rule that 0 takes the
+    /// singular is unreachable. There is no count this can get wrong today.
+    ///
+    /// **What would break it**, precisely: a locale with a category a two-way
+    /// branch cannot express — Polish or Russian (`few` at 2-4), Arabic
+    /// (`zero`, `two`, `few`, `many`), Welsh (six). At that point
+    /// `board.announce.remaining` has to become a plural entry keyed on the
+    /// count with the digit noun folded into each category, and `digitNoun`
+    /// goes away. **Adding a tenth locale is the trigger; nothing smaller is.**
+    ///
+    /// Not converted pre-emptively because the conversion is not free.
+    /// `board.digitPlural.*` is one of the two `[String]` families
+    /// `strings.py`'s `KEY_ARRAYS` reader exists for, and folding nine digit
+    /// nouns into every category of a plural entry turns 9 rows into
+    /// 9 × categories rows that nine translators are paid for — to express a
+    /// distinction no launch locale can currently make.
     public static func digitNoun(_ digit: Int, count: Int) -> String {
         count == 1 ? digitWord(digit) : digitWordPlural(digit)
     }
