@@ -8,6 +8,30 @@
 // view teaches the touch rose on iOS and the keyboard grammar on macOS
 // (PRD-4 §2.6). On the Mac the practice board also accepts the full keyboard
 // grammar — arrows walk, digits type — alongside the pointer rose.
+
+/// The lesson's own words — the five beat titles, the two long bodies, and the
+/// three chips — shared by both tutorials in this file.
+///
+/// **Declared above every platform fence, and that is the point.** The two tutorials live in one file
+/// behind opposite `#if`s and, before PRD-20, each carried its own copy of all
+/// five titles and both long bodies — identical English in two `switch`es that
+/// no build ever compiles together, so a drift between them could not fail
+/// anything. The controller version adds one sentence to each long beat; that
+/// difference is now the only thing its `switch` says.
+enum TutorialPhrase {
+    static let title = Strings.string("tutorial.title")
+    static let nice = Strings.string("tutorial.nice")
+    static let digitPlaceholder = Strings.string("tutorial.digit.placeholder")
+
+    static let goalTitle = Strings.string("tutorial.goal.title")
+    static let goalBody = Strings.string("tutorial.goal.body")
+    static let placeTitle = Strings.string("tutorial.place.title")
+    static let pencilTitle = Strings.string("tutorial.pencil.title")
+    static let highlightTitle = Strings.string("tutorial.highlight.title")
+    static let difficultyTitle = Strings.string("tutorial.difficulty.title")
+    static let difficultyBody = Strings.string("tutorial.difficulty.body")
+}
+
 #if os(iOS) || os(macOS)
 import SwiftUI
 import CouchKit
@@ -84,7 +108,7 @@ struct TutorialView: View {
 
     private var header: some View {
         HStack {
-            Text("How to play")
+            Text(TutorialPhrase.title)
                 .couchText(CouchTypography.title)
             Spacer()
             Button(action: onDismiss) {
@@ -95,7 +119,7 @@ struct TutorialView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close tutorial")
+            .accessibilityLabel(Strings.string("tutorial.close"))
         }
     }
 
@@ -119,18 +143,18 @@ struct TutorialView: View {
 
     private var instructionTitle: String {
         switch step {
-        case .goal: return "The goal"
-        case .place: return "Place a digit"
-        case .pencil: return "Pencil notes"
-        case .highlight: return "Find every 9 (or 5, or 2…)"
-        case .difficulty: return "Pick your poison"
+        case .goal: return TutorialPhrase.goalTitle
+        case .place: return TutorialPhrase.placeTitle
+        case .pencil: return TutorialPhrase.pencilTitle
+        case .highlight: return TutorialPhrase.highlightTitle
+        case .difficulty: return TutorialPhrase.difficultyTitle
         }
     }
 
     private var instructionDetail: String {
         switch step {
         case .goal:
-            return "Fill every row, column and 3×3 box with 1–9 — each digit exactly once. This board is nearly done; you'll finish a piece of it."
+            return TutorialPhrase.goalBody
         case .place:
             return grammar.placeDetail(digit: targetDigitName)
         case .pencil:
@@ -138,26 +162,26 @@ struct TutorialView: View {
         case .highlight:
             return grammar.highlightDetail
         case .difficulty:
-            return "Every difficulty is provably solvable by logic alone — no guessing, ever. Solves earn points; faster and harder earns more."
+            return TutorialPhrase.difficultyBody
         }
     }
 
     private var targetDigitName: String {
-        guard let game else { return "digit" }
+        guard let game else { return TutorialPhrase.digitPlaceholder }
         return "\(game.puzzle.solution.cells[targetCell])"
     }
 
     @ViewBuilder
     private var footer: some View {
         if step == .goal {
-            tutorialButton("Try it") { advance() }
+            tutorialButton(Strings.string("tutorial.button.tryIt")) { advance() }
         } else if step == .difficulty {
-            tutorialButton("Done") { onDismiss() }
+            tutorialButton(Strings.string("tutorial.button.done")) { onDismiss() }
         } else if stepDone {
-            GlassChip("Nice", systemImage: "checkmark")
+            GlassChip(TutorialPhrase.nice, systemImage: "checkmark")
         } else {
             // Escape hatch so nobody is ever stuck in a lesson.
-            Button("Skip this step") { advance() }
+            Button(Strings.string("tutorial.button.skipStep")) { advance() }
                 .font(CouchTypography.caption)
                 .foregroundStyle(quieter)
                 .buttonStyle(.plain)
@@ -228,7 +252,7 @@ struct TutorialView: View {
             board
             #endif
         } else {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .frame(minHeight: 220)
         }
     }
@@ -372,7 +396,7 @@ struct TutorialView: View {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)
@@ -387,9 +411,14 @@ struct TutorialView: View {
                     .foregroundStyle(quiet)
                     .frame(width: 40)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Today")
+                    Text(Strings.string("shelf.today.title"))
                         .font(CouchTypography.body)
-                    Text("One shared Steady board a day. Solve it daily to grow your streak — streaks multiply your points.")
+                    // The band's name is an argument, not part of the sentence.
+                    // It used to be the hard-coded word "Steady", so the German
+                    // tutorial would have explained a board called "Steady"
+                    // that the German shelf calls something else.
+                    Text(Strings.string("tutorial.today.body",
+                                        .text(Strings.difficulty(.steady))))
                         .font(CouchTypography.caption)
                         .foregroundStyle(quiet)
                         .fixedSize(horizontal: false, vertical: true)
@@ -434,7 +463,7 @@ final class PadTutorialModel {
     @ObservationIgnored private var advanceTask: Task<Void, Never>?
 
     var targetDigitName: String {
-        guard let game else { return "digit" }
+        guard let game else { return TutorialPhrase.digitPlaceholder }
         return "\(game.puzzle.solution.cells[targetCell])"
     }
 
@@ -606,7 +635,7 @@ struct PadTutorialView: View {
 
     private var header: some View {
         HStack {
-            Text("How to play — controller")
+            Text(Strings.string("tutorial.titlePad"))
                 .couchText(CouchTypography.title)
             Spacer()
         }
@@ -631,18 +660,22 @@ struct PadTutorialView: View {
 
     private var instructionTitle: String {
         switch model.step {
-        case .goal: return "The goal"
-        case .place: return "Place a digit"
-        case .pencil: return "Pencil notes"
-        case .highlight: return "Find every 9 (or 5, or 2…)"
-        case .difficulty: return "Pick your poison"
+        case .goal: return TutorialPhrase.goalTitle
+        case .place: return TutorialPhrase.placeTitle
+        case .pencil: return TutorialPhrase.pencilTitle
+        case .highlight: return TutorialPhrase.highlightTitle
+        case .difficulty: return TutorialPhrase.difficultyTitle
         }
     }
 
     private var instructionDetail: String {
         switch model.step {
+        // The two long beats are the shared sentences plus one controller
+        // instruction. Composed through a key rather than concatenated in
+        // Swift, so the translator owns the join — Japanese does not put a
+        // space between sentences and would otherwise inherit an ASCII one.
         case .goal:
-            return "Fill every row, column and 3×3 box with 1–9 — each digit exactly once. This board is nearly done; you'll finish a piece of it. Press Cross to begin."
+            return Strings.string("tutorial.pad.beginBody", .text(TutorialPhrase.goalBody))
         case .place:
             return grammar.placeDetail(digit: model.targetDigitName)
         case .pencil:
@@ -650,7 +683,8 @@ struct PadTutorialView: View {
         case .highlight:
             return grammar.highlightDetail
         case .difficulty:
-            return "Every difficulty is provably solvable by logic alone — no guessing, ever. Solves earn points; faster and harder earns more. Press Cross when you're ready."
+            return Strings.string("tutorial.pad.readyBody",
+                                  .text(TutorialPhrase.difficultyBody))
         }
     }
 
@@ -694,7 +728,7 @@ struct PadTutorialView: View {
             }
             .frame(width: side + 40, height: side + 40)
         } else {
-            GlassChip("Composing…", systemImage: "sparkles")
+            GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .frame(minHeight: 300)
         }
     }
@@ -702,13 +736,13 @@ struct PadTutorialView: View {
     @ViewBuilder
     private var footer: some View {
         if model.stepDone {
-            GlassChip("Nice", systemImage: "checkmark")
+            GlassChip(TutorialPhrase.nice, systemImage: "checkmark")
         } else if model.step == .goal {
-            GlassChip("Press Cross to try it", systemImage: "circle")
+            GlassChip(Strings.string("tutorial.pad.tryIt"), systemImage: "circle")
         } else if model.step == .difficulty {
-            GlassChip("Press Cross — done", systemImage: "checkmark.circle")
+            GlassChip(Strings.string("tutorial.pad.finish"), systemImage: "checkmark.circle")
         } else {
-            GlassChip("Press Menu to skip the tutorial", systemImage: "forward")
+            GlassChip(Strings.string("tutorial.pad.skip"), systemImage: "forward")
                 .opacity(0.7)
         }
     }
@@ -730,7 +764,7 @@ private struct PadDifficultyGuide: View {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 64, height: 64)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.body)
                         Text(difficulty.explainer)
                             .font(CouchTypography.caption)

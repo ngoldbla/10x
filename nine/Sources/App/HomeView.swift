@@ -35,15 +35,12 @@ struct HomeView: View {
             // focus naturally.
             if !model.helpSeen {
                 HelpOverlay(
-                    title: "Nine",
-                    tagline: "Couch sudoku.",
-                    rows: NineLegend.full + (model.padConnected ? [
-                        LegendRow(
-                            symbol: "gamecontroller",
-                            gesture: "Controller",
-                            action: "Just start playing — the guide appears in-game"
-                        )
-                    ] : [])
+                    // The wordmark, not a word: `ShareCardMetrics.wordmark` is
+                    // the same decision on the share card.
+                    title: Phrase.wordmark,
+                    tagline: Strings.string("help.tv.tagline"),
+                    rows: NineLegend.full
+                        + (model.padConnected ? [NineLegend.padConnectedRow] : [])
                 ) {
                     model.helpSeen = true
                 }
@@ -73,7 +70,7 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 28) {
-            Text("Nine")
+            Text(verbatim: Phrase.wordmark)
                 .couchText(CouchTypography.title)
             Spacer()
             if model.displayedStreak > 0 {
@@ -87,7 +84,7 @@ struct HomeView: View {
     private var todayCard: some View {
         ShelfCard(width: 620, height: 360, isPrimary: true, action: { model.openToday() }) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Today")
+                Text(Strings.string("shelf.today.title"))
                     .couchText(CouchTypography.title)
                 Text(Date.now.formatted(date: .abbreviated, time: .omitted))
                     .font(CouchTypography.caption)
@@ -102,19 +99,19 @@ struct HomeView: View {
     @ViewBuilder
     private var todayStatus: some View {
         if isComposingDaily {
-            statusLabel("Composing…", symbol: "sparkles")
+            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
         } else if model.todaySolved {
-            statusLabel("Solved", symbol: "checkmark.circle.fill")
+            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
         } else if let daily = model.savedDaily {
             HStack(spacing: 20) {
                 GlassRing(progress: daily.fillFraction)
                     .frame(width: 64, height: 64)
-                Text("Continue")
+                Text(Strings.string("shelf.continue.title"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
             }
         } else {
-            statusLabel("One a day", symbol: "sun.max")
+            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
         }
     }
 
@@ -125,16 +122,19 @@ struct HomeView: View {
         if let (game, difficulty) = model.savedFree {
             ShelfCard(width: 460, height: 360, action: { model.continueSaved() }) {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Continue")
+                    Text(Strings.string("shelf.continue.title"))
                         .couchText(CouchTypography.title)
-                    Text(difficulty.title)
+                    Text(Strings.difficulty(difficulty))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                     HStack(spacing: 20) {
                         GlassRing(progress: game.fillFraction)
                             .frame(width: 64, height: 64)
-                        Text("\(Int(game.fillFraction * 100))%")
+                        // `.formatted(.percent)`, not `"\(n)%"`: Turkish leads
+                        // with the sign, French spaces it, and Arabic wants its
+                        // own numerals (PRD-20 Task 8).
+                        Text(Int(game.fillFraction * 100).formatted(.percent))
                             .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -161,7 +161,8 @@ struct HomeView: View {
             // Pad Play is retired: a gamepad drives shelf focus natively and the
             // controller grammar is adopted in-game on the first real gesture.
             ShelfCard(width: 440, height: 150, action: { showBoards = true }) {
-                extraTile(symbol: "square.stack.3d.up", title: "Boards",
+                extraTile(symbol: "square.stack.3d.up",
+                          title: Strings.string("boards.title"),
                           subtitle: boardsSubtitle)
             }
             ShelfCard(width: 440, height: 150, action: {
@@ -171,7 +172,9 @@ struct HomeView: View {
                 GameCenter.shared.authenticate()
                 showHistory = true
             }) {
-                extraTile(symbol: "trophy", title: "History", subtitle: "Points & best times")
+                extraTile(symbol: "trophy",
+                          title: Strings.string("history.title"),
+                          subtitle: Strings.string("shelf.history.subtitle"))
             }
         }
     }
@@ -197,7 +200,9 @@ struct HomeView: View {
 
     private var boardsSubtitle: String {
         let n = model.partials.count
-        return n == 0 ? "Resume, archive, replay" : "\(n) in progress"
+        return n == 0
+            ? Strings.string("shelf.boards.subtitleEmpty")
+            : Strings.string("shelf.boards.subtitleCount", .int(n))
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
@@ -209,10 +214,11 @@ struct HomeView: View {
                 MiniBoard(difficulty: difficulty, accent: accent)
                     .frame(width: 132, height: 132)
                 if model.composing == .free(difficulty) {
-                    statusLabel(difficulty.composeCaption ?? "Composing…", symbol: "sparkles")
+                    statusLabel(difficulty.composeCaption ?? Strings.string("status.composing"),
+                                symbol: "sparkles")
                 } else {
                     Label {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                     } icon: {
                         if let glyph = difficulty.glyph { Image(systemName: glyph) }
                     }
@@ -242,6 +248,13 @@ struct HomeView: View {
     }
 }
 
+/// The one string on this screen that is never translated.
+private enum Phrase {
+    /// Nine's name, not a numeral and not the English word — the same rule the
+    /// share card's `ShareCardMetrics.wordmark` states, so the two cannot drift.
+    static let wordmark = "Nine"
+}
+
 #endif
 
 /// What each difficulty demands, in player language — shown on the home
@@ -249,30 +262,31 @@ struct HomeView: View {
 extension Difficulty {
     var blurb: String {
         switch self {
-        case .gentle: return "Singles & scans"
-        case .steady: return "Pairs & box lines"
-        case .sharp: return "X-wings & deep logic"
+        case .gentle: return Strings.string("difficulty.gentle.blurb")
+        case .steady: return Strings.string("difficulty.steady.blurb")
+        case .sharp: return Strings.string("difficulty.sharp.blurb")
         // PRD-17 §3's blurb was "X-wings, chains — the deep end", and chains are
         // exactly what Nocturne does not have: §1 of the same PRD rules new
         // solver techniques out of scope. A band that advertises a technique the
         // verifier cannot prove is a claim the engine would have to break, so
-        // this says the two things that *are* true of every Nocturne board: it
-        // is dug to 26 clues or fewer, and its proof needs at least three
-        // deductions at box-line or above.
-        case .nocturne: return "Fewer clues, deeper logic"
+        // the catalog entry says the two things that *are* true of every
+        // Nocturne board: it is dug to 26 clues or fewer, and its proof needs at
+        // least three deductions at box-line or above.
+        case .nocturne: return Strings.string("difficulty.nocturne.blurb")
         }
     }
 
     /// The longer explainer for the difficulty guide.
     var explainer: String {
         switch self {
-        case .gentle: return "Every step is a single: one place a digit can go. A calm first board."
-        case .steady: return "Needs naked pairs and box-line eliminations. Pencil marks start to pay."
-        case .sharp: return "Demands X-wings and layered deductions. Bring notes and patience."
+        case .gentle: return Strings.string("difficulty.gentle.explainer")
+        case .steady: return Strings.string("difficulty.steady.explainer")
+        case .sharp: return Strings.string("difficulty.sharp.explainer")
         // Kept to the length of its three peers on purpose: the tvOS difficulty
         // guide is a fixed-height beat with no ScrollView, and a fourth row
         // carrying a three-line explainer is what would push it off the screen.
-        case .nocturne: return "Sharp's logic at the clue floor: fewer givens, more of the hard steps."
+        // The length budget is in the translator comment for the same reason.
+        case .nocturne: return Strings.string("difficulty.nocturne.explainer")
         }
     }
 
@@ -290,8 +304,12 @@ extension Difficulty {
     /// seconds rather than milliseconds says so *while* the player waits.
     /// Driven off `demands`, not off the case, so the next deep band inherits
     /// the caption by being expensive rather than by being remembered.
+    /// A whole-sentence key with the band's name as an argument, not a name
+    /// glued to a suffix: "Nocturne takes a moment to compose" has a subject,
+    /// and a subject is the part a language may want to move.
     var composeCaption: String? {
-        demands == nil ? nil : "\(title) takes a moment to compose"
+        demands == nil ? nil
+            : Strings.string("difficulty.composeCaption", .text(Strings.difficulty(self)))
     }
 }
 
@@ -299,69 +317,82 @@ extension Difficulty {
 /// HelpOverlay; the compact set tops the prefs sheet, so the sheet doubles
 /// as the manual ever after.
 enum NineLegend {
-    static let full: [LegendRow] = [
-        LegendRow(
-            symbol: "arrow.up.and.down.and.arrow.left.and.right",
-            gesture: "Swipe", action: "Move around the board"
-        ),
-        LegendRow(symbol: "hand.tap", gesture: "Click", action: "Open the digit rose"),
-        LegendRow(
-            symbol: "circle.grid.3x3",
-            gesture: "Swipe + Click (in rose)", action: "Preview, then place"
-        ),
-        LegendRow(symbol: "arrow.up.right", gesture: "Flick (8-way remote)", action: "Place instantly"),
-        LegendRow(symbol: "playpause", gesture: "▶︎", action: "Undo"),
-        LegendRow(symbol: "playpause.fill", gesture: "Hold ▶︎", action: "Settings"),
-        LegendRow(symbol: "arrow.backward", gesture: "Back", action: "Save + home"),
-    ]
+    static var full: [LegendRow] { [
+        row("arrow.up.and.down.and.arrow.left.and.right", "legend.remote.swipe"),
+        row("hand.tap", "legend.remote.click"),
+        row("circle.grid.3x3", "legend.remote.rose"),
+        row("arrow.up.right", "legend.remote.flick"),
+        row("playpause", "legend.remote.playPause"),
+        row("playpause.fill", "legend.remote.holdPlayPause"),
+        row("arrow.backward", "legend.remote.back"),
+    ] }
+
+    /// One legend row from one catalog scope. Every row is the same shape — a
+    /// glyph, a gesture, what it does — so the two keys are derived from one
+    /// scope rather than written out twice per row, which is 58 chances to
+    /// paste the wrong half.
+    ///
+    /// `.gesture` and `.action` are appended here rather than passed in, so a
+    /// scope with only one of the two is a missing-key fallback the audit sees
+    /// rather than a row that silently reads its own identifier.
+    private static func row(_ symbol: String, _ scope: String) -> LegendRow {
+        LegendRow(symbol: symbol,
+                  gesture: Strings.string(scope + ".gesture"),
+                  action: Strings.string(scope + ".action"))
+    }
 
     /// The four rows a player actually reaches for, for the prefs sheet.
-    static let compact: [LegendRow] = [full[0], full[1], full[4], full[5]]
+    static var compact: [LegendRow] { let all = full; return [all[0], all[1], all[4], all[5]] }
 
     /// The touch grammar (iOS/iPadOS): same concepts, finger-native verbs.
-    static let touch: [LegendRow] = [
-        LegendRow(symbol: "hand.tap", gesture: "Tap a cell", action: "Open the digit rose"),
-        LegendRow(symbol: "circle.grid.3x3", gesture: "Tap a petal", action: "Place that digit"),
-        LegendRow(symbol: "arrow.up.right", gesture: "Flick in the rose", action: "Place instantly"),
-        LegendRow(symbol: "9.square", gesture: "Tap a placed digit", action: "Light up all of its kind"),
-        LegendRow(symbol: "pencil", gesture: "Pencil toggle", action: "Corner notes instead"),
-        LegendRow(symbol: "arrow.uturn.backward", gesture: "Undo button", action: "Take back a move"),
-    ]
+    static var touch: [LegendRow] { [
+        row("hand.tap", "legend.touch.tapCell"),
+        row("circle.grid.3x3", "legend.touch.tapPetal"),
+        row("arrow.up.right", "legend.touch.flick"),
+        row("9.square", "legend.touch.highlight"),
+        row("pencil", "legend.touch.pencil"),
+        row("arrow.uturn.backward", "legend.touch.undo"),
+    ] }
 
     /// The rows the touch prefs sheet keeps as its manual.
-    static let touchCompact: [LegendRow] = [touch[0], touch[1], touch[3], touch[4]]
+    static var touchCompact: [LegendRow] { let all = touch; return [all[0], all[1], all[3], all[4]] }
 
     /// The keyboard grammar (macOS, PRD-4 §2.2): the keyboard is the
     /// superpower — arrows walk, digits type straight in.
-    static let keyboard: [LegendRow] = [
-        LegendRow(symbol: "arrow.up.arrow.down", gesture: "Arrow keys", action: "Move the cursor (wraps at edges)"),
-        LegendRow(symbol: "1.square", gesture: "1–9", action: "Place the digit"),
-        LegendRow(symbol: "shift", gesture: "⇧1–9 · P", action: "Pencil a note · sticky pencil"),
-        LegendRow(symbol: "9.square", gesture: "Space", action: "Light up the digit under the cursor"),
-        LegendRow(symbol: "arrow.right.to.line", gesture: "Tab / ⇧Tab", action: "Next / previous empty cell"),
-        LegendRow(symbol: "arrow.uturn.backward", gesture: "⌘Z", action: "Undo"),
-    ]
+    static var keyboard: [LegendRow] { [
+        row("arrow.up.arrow.down", "legend.keyboard.arrows"),
+        row("1.square", "legend.keyboard.digits"),
+        row("shift", "legend.keyboard.pencil"),
+        row("9.square", "legend.keyboard.highlight"),
+        row("arrow.right.to.line", "legend.keyboard.tab"),
+        row("arrow.uturn.backward", "legend.keyboard.undo"),
+    ] }
 
     /// The rows the macOS Settings scene keeps as its manual.
-    static let keyboardCompact: [LegendRow] = [keyboard[0], keyboard[1], keyboard[3], keyboard[5]]
+    static var keyboardCompact: [LegendRow] { let all = keyboard; return [all[0], all[1], all[3], all[5]] }
 
     /// The controller grammar (tvOS pad session, PRD-5): the right stick *is*
     /// the rose (one deflection per digit), Circle taps undo and holds erase.
     /// Symbols are gamecontroller glyphs available at the tvOS deployment floor.
-    static let pad: [LegendRow] = [
-        LegendRow(symbol: "l.joystick", gesture: "Left stick / d-pad", action: "Move around the board"),
-        LegendRow(symbol: "r.joystick", gesture: "Right stick flick", action: "Place a digit (R3 = 5)"),
-        LegendRow(symbol: "xmark", gesture: "Cross", action: "Open the rose · confirm a petal"),
-        LegendRow(symbol: "arrow.uturn.backward", gesture: "Circle tap · hold", action: "Undo · hold to erase the cell"),
-        LegendRow(symbol: "square", gesture: "Square", action: "Sticky pencil"),
-        LegendRow(symbol: "triangle", gesture: "Triangle", action: "Light up all of a digit"),
-        LegendRow(symbol: "eye", gesture: "Hold L2 · R2", action: "Peek — dim all but one kind"),
-        LegendRow(symbol: "gamecontroller", gesture: "Create", action: "Settings"),
-        LegendRow(symbol: "arrow.backward", gesture: "Menu", action: "Save + home"),
-    ]
+    static var pad: [LegendRow] { [
+        row("l.joystick", "legend.pad.move"),
+        row("r.joystick", "legend.pad.place"),
+        row("xmark", "legend.pad.cross"),
+        row("arrow.uturn.backward", "legend.pad.circle"),
+        row("square", "legend.pad.square"),
+        row("triangle", "legend.pad.triangle"),
+        row("eye", "legend.pad.peek"),
+        row("gamecontroller", "legend.pad.create"),
+        row("arrow.backward", "legend.pad.menu"),
+    ] }
+
+    /// The extra first-run row on Apple TV, shown only with a controller
+    /// attached. Built by the same helper so it cannot drift from the nine
+    /// above it.
+    static var padConnectedRow: LegendRow { row("gamecontroller", "legend.pad.controller") }
 
     /// The rows the pad prefs sheet keeps as its manual.
-    static let padCompact: [LegendRow] = [pad[0], pad[1], pad[3], pad[7]]
+    static var padCompact: [LegendRow] { let all = pad; return [all[0], all[1], all[3], all[7]] }
 }
 
 #if os(tvOS)

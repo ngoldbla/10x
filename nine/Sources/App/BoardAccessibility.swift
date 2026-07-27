@@ -84,17 +84,17 @@ struct BoardAXGrid: View {
             }
         }
         .frame(width: side + 2 * inset, height: side + 2 * inset, alignment: .topLeading)
-        .accessibilityRotor(Text(Self.emptyRotor)) {
+        .accessibilityRotor(Text(BoardActionPhrase.emptyRotor)) {
             ForEach(emptyCells, id: \.self) { cell in
                 AccessibilityRotorEntry(Text(BoardSpeech.cellLabel(cell)), id: cell, in: rotorSpace)
             }
         }
-        .accessibilityRotor(Text(Self.notesRotor)) {
+        .accessibilityRotor(Text(BoardActionPhrase.notesRotor)) {
             ForEach(notedCells, id: \.self) { cell in
                 AccessibilityRotorEntry(Text(BoardSpeech.cellLabel(cell)), id: cell, in: rotorSpace)
             }
         }
-        .accessibilityRotor(Text(Self.errorRotor)) {
+        .accessibilityRotor(Text(BoardActionPhrase.errorRotor)) {
             ForEach(errorCells, id: \.self) { cell in
                 AccessibilityRotorEntry(Text(BoardSpeech.cellLabel(cell)), id: cell, in: rotorSpace)
             }
@@ -192,7 +192,7 @@ struct BoardAXGrid: View {
             // DEVIATIONS; the fix, if a manual pass shows it, is a one-line
             // `#if os(macOS)` swap of these two blocks.
             if game.entry(at: cell) != 0 {
-                Button(Self.eraseAction) { actions.erase?(cell) }
+                Button(BoardActionPhrase.erase) { actions.erase?(cell) }
             }
             ForEach(Array((1...9).reversed()), id: \.self) { digit in
                 Button(digitActionName(digit)) {
@@ -206,8 +206,13 @@ struct BoardAXGrid: View {
         }
     }
 
+    /// A whole-sentence key per action, not a verb concatenated with a numeral.
+    /// The old form built "Place" + " " + digit, which is unsayable in any
+    /// language that puts the object first — and the same two keys label the
+    /// rose's petals (`FlickRoseView`), so a VoiceOver player and a flicking
+    /// player hear one vocabulary.
     private func digitActionName(_ digit: Int) -> String {
-        actions.pencilMode ? "\(Self.noteAction) \(digit)" : "\(Self.placeAction) \(digit)"
+        actions.pencilMode ? BoardActionPhrase.note(digit) : BoardActionPhrase.place(digit)
     }
 
     // MARK: Rotor contents
@@ -226,15 +231,25 @@ struct BoardAXGrid: View {
         showErrors ? game.errorCells : []
     }
 
-    // MARK: Phrases
-    //
-    // Every user-facing literal in this file sits here, next to the ones in
-    // `BoardSpeech.Phrase`, so PRD-20 has one seam per file to convert to
-    // `LocalizedStringResource` instead of a hunt through view code.
-    private static let emptyRotor = "Empty cells"
-    private static let notesRotor = "Cells with notes"
-    private static let errorRotor = "Wrong digits"
-    private static let placeAction = "Place"
-    private static let noteAction = "Note"
-    private static let eraseAction = "Erase"
+}
+
+/// Every user-facing literal in this file, in one block (PRD-20's seam), next
+/// to the ones in `BoardSpeech.Phrase`.
+///
+/// File-scope rather than nested in `BoardAXGrid` because `FlickRoseView` reads
+/// the same three digit actions: the rose's petals and the actions rotor are
+/// two doors onto one grammar (craft charter, "no new input concept"), and two
+/// copies of "Place 4" is two things for a translator to disagree with itself
+/// about.
+enum BoardActionPhrase {
+    static let emptyRotor = Strings.string("board.rotor.empty")
+    static let notesRotor = Strings.string("board.rotor.notes")
+    static let errorRotor = Strings.string("board.rotor.errors")
+    static let erase = Strings.string("board.action.erase")
+    static func place(_ digit: Int) -> String {
+        Strings.string("board.action.place", .int(digit))
+    }
+    static func note(_ digit: Int) -> String {
+        Strings.string("board.action.note", .int(digit))
+    }
 }

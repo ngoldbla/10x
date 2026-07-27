@@ -6,6 +6,24 @@ import WidgetKit
 
 @main
 struct NineWidgetBundle: WidgetBundle {
+
+    /// The appex's own `Strings.install()` (PRD-20).
+    ///
+    /// **A second process, not a second call.** `NineWidgets.appex` never runs
+    /// `NineApp`, so without this line `Phrasebook.current` would stay
+    /// permanently English *in the one bundle whose existence is half the
+    /// argument for the seam existing* — `Sources/Shared` compiles into both,
+    /// and inside an extension `Bundle.main` IS the extension. A Japanese phone
+    /// would show a Japanese app beside an English Home Screen widget, and all
+    /// three platform builds would stay green while it did.
+    ///
+    /// A stored property rather than an `init` for symmetry with `NineApp`,
+    /// where the position is load-bearing (see the comment there).
+    /// `WidgetBundle` has no other stored property to be ordered against today;
+    /// the symmetry is so that adding one cannot quietly reintroduce that
+    /// problem here.
+    private let phrasebook: Void = Strings.install()
+
     var body: some Widget {
         NineDailyWidget()
         NineStreakWidget()

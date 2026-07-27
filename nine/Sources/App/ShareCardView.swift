@@ -32,9 +32,9 @@ import CouchKit
 /// and cannot share a `Phrase` block, and two copies of a string is two things
 /// for PRD-20 to find and one of them to miss.
 enum ShareCardPhrase {
-    static let share = "Share"
+    static let share = Strings.string("share.button")
     /// Also the share sheet's fallback subject, so it reads as a sentence.
-    static let shareLabel = "Share your solve"
+    static let shareLabel = Strings.string("share.label")
 }
 
 /// The card's fixed geometry, in one place so a future body inherits exactly

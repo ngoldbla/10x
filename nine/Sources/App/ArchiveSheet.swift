@@ -205,13 +205,13 @@ struct ArchiveSheetContent: View {
     /// This sheet's copy, in one block — the seam PRD-20 converts to
     /// `LocalizedStringResource`.
     private enum Phrase {
-        static let title = "Archive"
-        static let close = "Close archive"
-        static let previousMonth = "Previous month"
-        static let nextMonth = "Next month"
+        static let title = Strings.string("archive.title")
+        static let close = Strings.string("archive.close")
+        static let previousMonth = Strings.string("archive.previousMonth")
+        static let nextMonth = Strings.string("archive.nextMonth")
         /// Answers the one question a player actually has before tapping a past
         /// day, and answers it before they have to wonder.
-        static let footnote = "Every past day, rebuilt from its date. Solving one never touches your streak."
+        static let footnote = Strings.string("archive.footnote")
     }
 }
 
@@ -268,7 +268,9 @@ private struct ArchiveDayCell: View {
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(accent)
         } else {
-            Text("\(ArchiveCalendar.dayNumber(forDayOrdinal: ordinal))")
+            // A date, drawn as a numeral — `ArchiveCalendar` owns every word
+            // in this grid and this is the one thing in it that is not one.
+            Text(verbatim: "\(ArchiveCalendar.dayNumber(forDayOrdinal: ordinal))")
                 .font(CouchTypography.caption)
                 .foregroundStyle(state.isPlayable ? .secondary : .tertiary)
         }

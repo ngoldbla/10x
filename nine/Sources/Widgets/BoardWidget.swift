@@ -14,8 +14,8 @@ struct NineBoardWidget: Widget {
                     BoardWidgetBackground()
                 }
         }
-        .configurationDisplayName("Playable Daily")
-        .description("Play today's puzzle right on your Home Screen.")
+        .configurationDisplayName(Strings.resource("widget.board.name"))
+        .description(Strings.resource("widget.board.description"))
         .supportedFamilies([.systemLarge])
     }
 }
@@ -112,9 +112,9 @@ struct BoardWidgetView: View {
             Image(systemName: "square.grid.3x3")
                 .font(.largeTitle)
                 .foregroundStyle(WidgetPalette.glacier)
-            Text("Tap to start today's puzzle")
+            Text(Strings.string("widget.board.cta"))
                 .font(.headline)
-            Text("Nine · Daily")
+            Text(Strings.string("widget.brand.daily"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -134,9 +134,10 @@ struct BoardWidgetView: View {
 
     private func solvedText(_ board: SharedDailyBoard) -> String {
         if let pending = board.pendingSolve {
-            return "Solved \(WidgetFormat.time(pending.seconds))"
+            return Strings.string("widget.status.solvedIn",
+                                  .text(WidgetFormat.time(pending.seconds)))
         }
-        return "Solved"
+        return Strings.string("widget.status.solved")
     }
 }
 

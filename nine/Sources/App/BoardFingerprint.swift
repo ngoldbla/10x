@@ -83,13 +83,25 @@ enum BoardProgressCaption {
         if fraction < untouchedFloor {
             return fraction == 0 ? Phrase.untouched : Phrase.begun
         }
-        return "\(Int(fraction * 100))%"
+        return Phrase.percent(Int(fraction * 100))
     }
 
-    // PRD-20 seam: these three become `LocalizedStringResource` lookups.
     private enum Phrase {
-        static let untouched = "Untouched"
-        static let begun = "Just started"
-        static let full = "Full"
+        static let untouched = Strings.string("board.progress.untouched")
+        static let begun = Strings.string("board.progress.begun")
+        static let full = Strings.string("board.progress.full")
+        /// Neither a catalog key nor an interpolation (PRD-20 Task 8).
+        ///
+        /// Task 5 moved this off `"\(value)%"` and into
+        /// `board.progress.percent` = `"%1$lld%%"`, because the sign leads the
+        /// number in Turkish and takes a space in French. Right diagnosis,
+        /// wrong lever: that row has no words in it, so what it really asked
+        /// was for nine translators to move a `%` around a specifier by hand.
+        /// `.formatted(.percent)` is ICU answering the same question, and it
+        /// renders the numerals in the locale's own digits as well — which
+        /// `%1$lld` could never do.
+        static func percent(_ value: Int) -> String {
+            value.formatted(.percent)
+        }
     }
 }

@@ -60,9 +60,9 @@ public struct SolveCardFacts: Equatable, Sendable {
         // otherwise would be the app's first dishonest pixel — on the one
         // artifact that outlives the session and cannot be corrected.
         if isDaily, streak > 0 {
-            creditLine = "\(difficulty.title) · \(Phrase.streak(streak))"
+            creditLine = "\(Phrase.difficulty(difficulty)) · \(Phrase.streak(streak))"
         } else {
-            creditLine = difficulty.title
+            creditLine = Phrase.difficulty(difficulty)
         }
         dailyLine = isDaily ? Phrase.dailyLine : nil
         shareTitle = "\(Phrase.wordmark) · \(timeLine)"
@@ -71,16 +71,64 @@ public struct SolveCardFacts: Equatable, Sendable {
     /// `m:ss`, with the minutes field allowed to run past 60 rather than growing
     /// an hours field — an hour-long Nocturne is a real thing, and "1:02:05"
     /// reads like a video timestamp on a card this size.
+    ///
+    /// **The one copy** (PRD-20 Task 8). `String(format: "%d:%02d", …)` was
+    /// written out eight times — this line, six files in `Sources/App`, and
+    /// `WidgetFormat.time` in the appex — and Task 6 declined to change one of
+    /// them alone on the grounds that the widget being the odd one out would be
+    /// worse than either answer. It was right; this is that change, made to all
+    /// eight at once.
+    ///
+    /// The shape above is kept exactly. What changes is the *numerals*: `%d`
+    /// emits ASCII digits, so an Arabic or Hindi player got `4:12` in the middle
+    /// of a sentence set in ٤ and १. `.formatted(.number)` asks the locale, and
+    /// `.integerLength(2)` is the localized spelling of `%02d` — it pads with
+    /// that locale's own zero, so Arabic reads `٠٧` rather than `07`.
+    ///
+    /// `.grouping(.never)` on the minutes because they are allowed past 60 and
+    /// past 999: a grouped `1,042:05` would read as a date. The `:` is left a
+    /// literal — it is the separator in every locale CLDR has a rule for, and
+    /// nothing here is a `DateComponentsFormatter` duration, which would spell
+    /// this "4 min 12 sec" and not fit the card at all.
+    ///
+    /// One behaviour difference from the seven copies this replaced, named
+    /// rather than left to be discovered: they wrote `Int(interval)` and this
+    /// clamps with `max(0, …)` — which it already did, being the card's copy.
+    /// A negative interval (a clock that moved backwards under a running timer)
+    /// rendered `-1:-30` on those six screens and the widget, and renders
+    /// `0:00` now. Strictly better, and not the reason for the change.
     public static func elapsedText(_ interval: TimeInterval) -> String {
         let total = max(0, Int(interval))
-        return String(format: "%d:%02d", total / 60, total % 60)
+        let minutes = (total / 60).formatted(.number.grouping(.never))
+        let seconds = (total % 60).formatted(.number.precision(.integerLength(2)))
+        return "\(minutes):\(seconds)"
     }
 
-    // PRD-20 seam: these become `LocalizedStringResource` lookups.
+    /// The card's words, through the one seam (PRD-20). These were English
+    /// literals until the catalog existed, and the same four strings were *also*
+    /// sitting in `EnglishPhrases.table` as `card.*` — character-identical by
+    /// inspection and by nothing else. Task 9 freezes that table into nine
+    /// translations, at which point "identical by inspection" would have meant
+    /// the share card stays English in every one of them. Wired rather than
+    /// pinned with an equality test, because a pin keeps two lists and this
+    /// keeps one.
     private enum Phrase {
-        static let wordmark = "NINE"
-        static let dailyLine = "Nine · daily puzzle"
-        static func solvedIn(_ clock: String) -> String { "Solved in \(clock)" }
-        static func streak(_ days: Int) -> String { "\(days) day streak" }
+        /// Never localized: it is the mark, not a word. `#"…"#` is the repo's
+        /// never-localize marker (`ShareCardMetrics.wordmark`, `strings.py`),
+        /// and a marker you have to type is a marker somebody had to mean.
+        static let wordmark = #"NINE"#
+        static var dailyLine: String { Phrasebook.current.string("card.daily") }
+        static func solvedIn(_ clock: String) -> String {
+            Phrasebook.current.string("card.time", .text(clock))
+        }
+        static func streak(_ days: Int) -> String {
+            Phrasebook.current.string("card.streak", .int(days))
+        }
+        /// Keyed off the frozen raw value, for the reason
+        /// `BoardSpeech.Phrase.techniqueName` gives: the Engine stopped naming
+        /// things, and a `switch` here would be a second list.
+        static func difficulty(_ difficulty: Difficulty) -> String {
+            Phrasebook.current.string("difficulty.\(difficulty.rawValue).title")
+        }
     }
 }

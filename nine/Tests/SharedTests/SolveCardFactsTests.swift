@@ -75,12 +75,26 @@ final class SolveCardFactsTests: XCTestCase {
         XCTAssertNil(free.dailyLine)
     }
 
-    func testEveryDifficultyNamesItself() {
+    /// Every band names itself, and names itself in *words*.
+    ///
+    /// This used to assert against `difficulty.title`, which the Engine no
+    /// longer has (PRD-20: the Engine emits IDs and names nothing). Asserting
+    /// against `EnglishPhrases.table` instead is not the same test rewritten —
+    /// it is the test that survives, because `creditLine` and the table are now
+    /// two sides of one lookup rather than two copies of one word. The
+    /// `hasPrefix` clause is what stops it being circular: if the row went
+    /// missing, both sides would be the string `"difficulty.sharp.title"` and a
+    /// plain equality would still pass.
+    func testEveryDifficultyNamesItself() throws {
         for difficulty in Difficulty.allCases {
+            let key = "difficulty.\(difficulty.rawValue).title"
+            let expected = try XCTUnwrap(EnglishPhrases.table[key], "no English for \(key)")
             XCTAssertEqual(
-                facts(difficulty: difficulty).creditLine, difficulty.title,
+                facts(difficulty: difficulty).creditLine, expected,
                 "a card for a \(difficulty) board must say so"
             )
+            XCTAssertFalse(expected.hasPrefix("difficulty."),
+                           "\(key) resolved to its own key — the missing-key fallback in disguise")
         }
     }
 

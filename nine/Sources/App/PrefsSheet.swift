@@ -33,7 +33,8 @@ struct PrefsSheetContent: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 36 * CouchScale.chrome) {
-            Text("Nine")
+            // The wordmark, not a word — see `ShareCardMetrics.wordmark`.
+            Text(verbatim: Phrase.wordmark)
                 .couchText(CouchTypography.title)
                 .padding(.bottom, 8)
 
@@ -57,27 +58,28 @@ struct PrefsSheetContent: View {
             // About — replacing the flat list the live audit walked, where
             // theme and accent sat four rows apart with resume, haptics and
             // the whole Layout block wedged between them.
-            sectionLabel("Play")
+            sectionLabel(Strings.string("prefs.section.play"))
 
             prefRow(
-                title: "Timer",
-                detail: model.prefs.showTimer ? "Shown" : "Hidden",
+                title: Strings.string("prefs.timer.title"),
+                detail: Strings.string(model.prefs.showTimer
+                                       ? "prefs.timer.shown" : "prefs.timer.hidden"),
                 symbol: model.prefs.showTimer ? "clock.fill" : "clock"
             ) {
                 model.prefs.showTimer.toggle()
             }
 
             prefRow(
-                title: "Error highlight",
-                detail: model.prefs.errorHighlight ? "On" : "Off",
+                title: Strings.string("prefs.errorHighlight.title"),
+                detail: Phrase.onOff(model.prefs.errorHighlight),
                 symbol: model.prefs.errorHighlight ? "checkmark.circle.fill" : "circle"
             ) {
                 model.prefs.errorHighlight.toggle()
             }
 
             prefRow(
-                title: "Number highlight",
-                detail: model.prefs.numberHighlight ? "On" : "Off",
+                title: Strings.string("prefs.numberHighlight.title"),
+                detail: Phrase.onOff(model.prefs.numberHighlight),
                 symbol: model.prefs.numberHighlight ? "9.square.fill" : "9.square"
             ) {
                 model.prefs.numberHighlight.toggle()
@@ -87,8 +89,8 @@ struct PrefsSheetContent: View {
             // PRD-5 §2.3 parity).
             #if os(iOS) || os(macOS) || os(tvOS)
             prefRow(
-                title: "Resume on launch",
-                detail: model.prefs.resumeOnLaunch ? "On" : "Off",
+                title: Strings.string("prefs.resume.title"),
+                detail: Phrase.onOff(model.prefs.resumeOnLaunch),
                 symbol: model.prefs.resumeOnLaunch ? "play.circle.fill" : "play.circle"
             ) {
                 model.prefs.resumeOnLaunch.toggle()
@@ -98,13 +100,13 @@ struct PrefsSheetContent: View {
             // Feel — everything the board does to your hands. One row today
             // (PRD-21 haptics); PRD-21's audio identity lands beside it.
             #if os(iOS) || os(tvOS)
-            sectionLabel("Feel")
+            sectionLabel(Strings.string("prefs.section.feel"))
             #endif
 
             #if os(iOS)
             prefRow(
-                title: "Haptics",
-                detail: model.prefs.touchHaptics ? "On" : "Off",
+                title: Strings.string("prefs.haptics.title"),
+                detail: Phrase.onOff(model.prefs.touchHaptics),
                 symbol: model.prefs.touchHaptics ? "hand.tap.fill" : "hand.tap"
             ) {
                 model.prefs.touchHaptics.toggle()
@@ -115,8 +117,8 @@ struct PrefsSheetContent: View {
             // Controller haptics — the Afterglow score in hand, and the ticks
             // during play (PRD-5 §2.2). Silences all of it in a pad session.
             prefRow(
-                title: "Controller haptics",
-                detail: model.prefs.controllerHaptics ? "On" : "Off",
+                title: Strings.string("prefs.controllerHaptics.title"),
+                detail: Phrase.onOff(model.prefs.controllerHaptics),
                 symbol: model.prefs.controllerHaptics ? "gamecontroller.fill" : "gamecontroller"
             ) {
                 model.prefs.controllerHaptics.toggle()
@@ -124,7 +126,7 @@ struct PrefsSheetContent: View {
             #endif
 
             // Appearance — the two colour controls, finally adjacent.
-            sectionLabel("Appearance")
+            sectionLabel(Strings.string("prefs.section.appearance"))
             themeRow
             accentRow
             #if os(iOS)
@@ -136,11 +138,12 @@ struct PrefsSheetContent: View {
             #if os(iOS)
             // PRD-2: board anchor + ambient slot, grouped with the existing
             // control-placement pref — all three decide where things sit.
-            sectionLabel("Layout")
+            sectionLabel(Strings.string("prefs.section.layout"))
 
             prefRow(
-                title: "Controls",
-                detail: model.prefs.controlsAtBottom ? "Bottom" : "Top",
+                title: Strings.string("prefs.controls.title"),
+                detail: Strings.string(model.prefs.controlsAtBottom
+                                       ? "prefs.controls.bottom" : "prefs.controls.top"),
                 symbol: model.prefs.controlsAtBottom
                     ? "inset.filled.bottomthird.square"
                     : "inset.filled.topthird.square"
@@ -149,7 +152,7 @@ struct PrefsSheetContent: View {
             }
 
             prefRow(
-                title: "Board position",
+                title: Strings.string("prefs.boardPosition.title"),
                 detail: model.prefs.boardAnchor.title,
                 symbol: boardAnchorSymbol
             ) {
@@ -159,7 +162,7 @@ struct PrefsSheetContent: View {
             }
 
             prefRow(
-                title: "Ambient display",
+                title: Strings.string("prefs.ambient.title"),
                 detail: model.prefs.ambientSlot.title,
                 symbol: ambientSlotSymbol
             ) {
@@ -178,14 +181,14 @@ struct PrefsSheetContent: View {
             Spacer(minLength: 12)
 
             #if os(tvOS)
-            Text("Press Back to return")
+            Text(Strings.string("sheet.dismiss.remote"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
             #elseif os(macOS)
             // The Settings window has its own chrome — no dismissal hint.
             EmptyView()
             #else
-            Text("Tap outside to return")
+            Text(Strings.string("sheet.dismiss.touch"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
             #endif
@@ -218,7 +221,7 @@ struct PrefsSheetContent: View {
     #if os(tvOS)
     private func newGameSection(_ start: @escaping @MainActor (Difficulty) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("New game")
+            Text(Strings.string("prefs.newGame.title"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 28 * CouchScale.chrome)
@@ -227,7 +230,7 @@ struct PrefsSheetContent: View {
                     Button {
                         start(difficulty)
                     } label: {
-                        Text(difficulty.title)
+                        Text(Strings.difficulty(difficulty))
                             .font(CouchTypography.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -241,7 +244,7 @@ struct PrefsSheetContent: View {
             // mints a *new* entry — the board you are on stays a partial and
             // is resumable from the shelf. The old copy said it was abandoned,
             // which scared people off a non-destructive action.
-            Text("Your current board stays on the shelf")
+            Text(Strings.string("prefs.newGame.note"))
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 28 * CouchScale.chrome)
@@ -264,7 +267,7 @@ struct PrefsSheetContent: View {
     private var accentRow: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Accent")
+                Text(Strings.string("prefs.accent.title"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -307,7 +310,7 @@ struct PrefsSheetContent: View {
     private var themeRow: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Theme")
+                Text(Strings.string("prefs.theme.title"))
                     .font(CouchTypography.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -361,7 +364,8 @@ struct PrefsSheetContent: View {
             if choice == .auto {
                 DiagonalHalf().fill(light.background)
             }
-            Text("9")
+            // A numeral drawn as a swatch, not a word.
+            Text(verbatim: "9")
                 .font(.system(size: 22 * CouchScale.chrome, weight: .semibold, design: .rounded))
                 .foregroundStyle(choice == .auto ? .gray : dark.digitTone)
         }
@@ -453,6 +457,19 @@ struct PrefsSheetContent: View {
             path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
             path.closeSubpath()
             return path
+        }
+    }
+
+    /// Every user-facing literal in this file that is not already an enum's
+    /// own `title`, in one block (PRD-20's seam).
+    private enum Phrase {
+        /// Nine's name, never translated — see `ShareCardMetrics.wordmark`.
+        static let wordmark = "Nine"
+
+        /// The value of a plain on/off row. One pair of keys for all five of
+        /// them, so a translator cannot switch registers halfway down the sheet.
+        static func onOff(_ isOn: Bool) -> String {
+            Strings.string(isOn ? "prefs.toggle.on" : "prefs.toggle.off")
         }
     }
 

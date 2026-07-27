@@ -276,16 +276,22 @@ public struct VariantPuzzle: Sendable, Codable, Equatable {
 /// persisted inside `GeneratedPuzzle` (and so inside the golden hash), and a
 /// killer board's "hardest technique" is a cage technique by construction, which
 /// would make `Difficulty.floor` comparisons meaningless.
+///
+/// **The raw values are frozen, and they are also the localization identity**
+/// (PRD-20): a `VariantTier` is persisted inside a variant board's channel and
+/// `VariantTier.gentle` would be `variantTier.gentle.title` in the catalog.
+///
+/// There is deliberately no `title` here. It used to sit above `index` and
+/// return English; the Engine compiles on Linux and must never reach a bundle,
+/// so it does not get to name things.
+/// `StringSealTests.testEngineNamesNothing` is what keeps it gone. Unlike
+/// `Technique` and `Difficulty` it needed no replacement key: PRD-23's variant
+/// surface has no shipping UI yet, so the property had zero call sites. Whoever
+/// builds that UI adds `variantTier.<raw>.title` to `EnglishPhrases.table` and
+/// re-runs `scripts/strings.py --build-catalog`; naming three tiers nobody can
+/// see today would just be three strings a translator is paid for.
 public enum VariantTier: String, CaseIterable, Sendable, Codable, Hashable {
     case gentle, steady, sharp
-
-    public var title: String {
-        switch self {
-        case .gentle: return "Gentle"
-        case .steady: return "Steady"
-        case .sharp: return "Sharp"
-        }
-    }
 
     var index: UInt64 {
         switch self {

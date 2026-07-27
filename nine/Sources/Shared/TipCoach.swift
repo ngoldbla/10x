@@ -35,12 +35,19 @@ public enum NineTip: String, CaseIterable, Sendable {
 
     /// The sentence, once, in the app's voice: what it does, not how clever
     /// the feature is. Never an instruction to go do it now.
+    ///
+    /// Through the one seam (PRD-20), keyed off the raw value the ledger
+    /// already persists. These three sentences were English literals in a
+    /// `Phrase` block below *and* rows in `EnglishPhrases.table` as `tip.*` —
+    /// character-identical by inspection and by nothing else. Task 9 freezes
+    /// that table into nine translations, at which point "identical by
+    /// inspection" would have meant three English tips inside a Japanese app.
+    /// Wired rather than pinned with an equality test, because a pin keeps two
+    /// lists and this keeps one; `TipCoachTests.testEveryTipHasCopyAndAGlyph`
+    /// only ever asserted `!isEmpty`, which the missing-key fallback also
+    /// satisfies, so the exact wording is asserted there now too.
     public var message: String {
-        switch self {
-        case .undo: return Phrase.undo
-        case .pencil: return Phrase.pencil
-        case .highlight: return Phrase.highlight
-        }
+        Phrasebook.current.string("tip.\(rawValue)")
     }
 
     /// The SF Symbol shown beside the sentence — the same glyph as the control
@@ -170,11 +177,4 @@ public enum TipCoach {
                 && moment.placements >= highlightAfter
         }
     }
-}
-
-/// Every user-facing string in this file, in one block (PRD-20's seam).
-private enum Phrase {
-    static let undo = "Undo takes the last digit back. Nothing here is ever stuck."
-    static let pencil = "Tap the pencil, then flick — the rose leaves corner notes instead."
-    static let highlight = "Tap any placed digit to light up every one of its kind."
 }

@@ -16,6 +16,21 @@ import CouchCore
 /// one: it shares Sharp's technique chain exactly (PRD-17 §1 — new solver
 /// techniques are a future engine PRD) and separates itself by *density*
 /// instead, through `demands`.
+///
+/// **The raw values are frozen, and they are also the localization identity**
+/// (PRD-20). They are persisted inside every `GeneratedPuzzle` and so inside the
+/// 56 golden-corpus hashes, and `Difficulty.gentle` is `difficulty.gentle.title`
+/// in the catalog — derived mechanically rather than mapped by hand, because a
+/// hand-written map is a second list that can disagree with the one the hash
+/// already pins.
+///
+/// There is deliberately no `title` here. It used to sit below
+/// `allowedTechniques` and return English; the Engine compiles on Linux and must
+/// never reach a bundle, so it does not get to name things.
+/// `StringSealTests.testEngineNamesNothing` is what keeps it gone. The English
+/// moved to `EnglishPhrases.table` and the translations to
+/// `Sources/Strings/Localizable.xcstrings`; `Strings.difficulty(_:)` is the
+/// App-layer accessor and `SolveCardFacts` the Shared one.
 public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
     case gentle, steady, sharp, nocturne
 
@@ -39,15 +54,6 @@ public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
 
     public var allowedTechniques: [Technique] {
         LogicSolver.techniques(upTo: ceiling)
-    }
-
-    public var title: String {
-        switch self {
-        case .gentle: return "Gentle"
-        case .steady: return "Steady"
-        case .sharp: return "Sharp"
-        case .nocturne: return "Nocturne"
-        }
     }
 
     /// Extra proof obligations beyond the technique band, applied by `verify`.

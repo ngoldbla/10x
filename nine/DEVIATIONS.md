@@ -2425,3 +2425,167 @@ per cell — the board's 81 frames and the ring's ten do not move between cells.
   cost most of the harness's wall clock to say the same thing ten times.
 - **The Increase Contrast pass is one accent per theme** for the same reason:
   the mode moves grounds, never ink.
+
+## PRD-20 — the catalog, and the five claims that were false until someone ran them (2026-07-27)
+
+The localization **infrastructure**, shipped without the nine languages. Every
+user-facing string in the app and the widget extension now resolves through a
+String Catalog; the Engine names nothing; and the gates that will hold nine
+translations honest exist and have each been fired against a deliberate defect.
+Translation itself is a separate PR — see "Not done".
+
+### The premise was wrong by a factor of three, and counting is why anyone knows
+
+`EXECUTING-A-PRD.md §4` says user-facing strings belong in one `Phrase` block per
+file, "the single seam PRD-20 converts". Eleven files had one, out of ~48 with
+copy — and three of those blocks were named something else (`CoachPhrase`,
+`ShareCardPhrase`, and an unnamed `// MARK: Phrases` run), so the obvious grep
+missed them. The blocks held the *minority*:
+
+| | in `Phrase`-style blocks | bare literals | total |
+|---|---|---|---|
+| `Sources/App` | ~40 | **~275** | ~315 |
+| `Sources/Shared` | ~55 | ~12 | ~67 |
+| `Sources/Widgets` | **0** | ~34 | ~34 |
+
+Worse for the plan: most strings never reach the screen as
+`Text(LocalizedStringKey)`. They arrive as `String` through helpers (`GlassChip`,
+`statusLabel`, `LegendRow`) and through `.accessibilityLabel(_: String)` — the
+**non**-localizing overload. Xcode's automatic extraction sees almost none of
+it, so the extraction had to be a script plus a source-grep test rather than a
+build setting. That is why the instrument is Task 1 and not Task 9.
+
+### `techniqueID` did not need to exist
+
+`PROGRAM-2.0.md:71` asks the Engine to emit "stable IDs (`techniqueID`,
+difficulty raw values)". It already did: `Technique` and `Difficulty` are
+`String`-raw-valued enums whose values are persisted inside every
+`GeneratedPuzzle` trace and therefore inside the 56 golden-corpus hashes. Adding
+a `techniqueID` field would have created a second identity that can disagree
+with the frozen one. So the Engine change is a **deletion** —
+`Technique.displayName`, `Difficulty.title`, `VariantTier.title`, all computed,
+none encoded — and the corpus was **56/56 after every one of the eight tasks**.
+
+### Five claims that were false, and the one thing they had in common
+
+Not one was a logic error. Every one was a confident statement nobody had
+executed, and each was found by running it.
+
+| Claim | What running it showed |
+|---|---|
+| `xcstringstool compile` validates a catalog | It accepts a plural with **no `other` category**, exit 0, silent |
+| A missing category renders the raw key | It renders **`(null)`** — which also defeats `Strings`' `format == key` English fallback |
+| `catalog_keys` reads `xcstringstool print` | `print` emits **bare** keys; the parser required quotes, so the key set was always empty and `dead = keys - used` could never fire |
+| `PhraseArg` closes the `String(format:)` hazard | Closing the *argument* set does nothing about the *specifier* set. `%1$@` × `.int` → **SIGSEGV, exit 139** |
+| `Array(format)` is "a rounding error" | **518 ns/label, 33% of the call**, on the 81-label AX path. Rewritten as a utf8 state machine: 44–47 ns |
+
+The `(null)` correction matters most: the degrade path built two tasks earlier
+would not have caught it either, and a reviewer told to expect the raw key would
+have concluded the gate was broken.
+
+### The plural axis had nowhere to say what it counts
+
+`board.stats.digitLeft` is `"%1$lld, %2$lld left"` — two integers. A whole-string
+`variations.plural` in an `.xcstrings` cannot record **which** one drives the
+category, so `xcstringstool` infers it, and it picked argument 1 — the *digit*,
+not the count. Measured: `"5, 1 left"` took `other` and `"1, 5 left"` took `one`.
+Exactly inverted, in English, today. Only explicit CLDR substitutions with
+`argNum` written down can express it; three keys now do, and both the generator
+and the tests hard-fail the ambiguous shape.
+
+### The guard that would have broken every plural at once
+
+`String(localized:)` returns the catalog's `NSStringLocalizedFormatKey` —
+`%#@value@` — which the specifier guard added three tasks earlier correctly saw
+as an unknown specifier and rejected. In Debug that is an `assertionFailure`; in
+Release it is a raw `%1$#@value@` on screen, on **every pluralised string
+simultaneously**. Nothing was wrong when the guard was written. Only running the
+two together revealed it.
+
+A later correction to the same area is worth recording because it inverts the
+headline: a missing **minority** category is not a hole. Foundation resolves the
+computed category, else `other`, else nothing —
+`fr` missing `many` at 1,000,000 renders `"1000000 OTHER"` (a *silent grammar
+error*), while `fr` missing `other` at 2 renders `(null)`. The assertion messages
+now name which of the two applies.
+
+### Three live bugs that predate this PRD
+
+- **`ArchiveCalendar.weekdayInitials` returned `["S","M","T","W","T","F","S"]` in
+  every locale.** The column *order* already respected `firstWeekday`; the
+  letters were always English. Now `veryShortWeekdaySymbols` off the existing
+  locale-keyed cache. German is `["M","D","M","D","F","S","S"]` from Monday, and
+  the test asserting it failed against the old code first.
+- **`streak(1)` read "1 day streak"** — 8 sites, 3 spellings, one of them the
+  share card this file already calls the artifact that "outlives the session and
+  cannot be corrected".
+- **The Mac and the phone disagreed about the same board.** The Continue caption
+  printed `Int(fillFraction * 100)%` on macOS and `BoardProgressCaption` on iOS,
+  so one saved board read "Steady · 0%" on the Mac and "Steady · Untouched" on
+  the phone. No AX baseline covers macOS, so nothing caught it and nothing would.
+
+### The dead-key gate could not fail, and then found 118
+
+`swift_referenced_keys` unioned all of `EnglishPhrases.table` into the used-set,
+and the catalog's `en` is *generated from* that table — so `dead = keys - used`
+was empty **by construction for all 394 keys**. Strict mode dropped that reader
+and reported **118**: 58 `NineLegend`, 28 `TutorialGrammar`, 19 digit-word array
+entries, 13 the second arm of a ternary the regex could not reach. Every one is
+genuinely reachable at runtime through a `scope + ".field"` shape, so the fix is
+readers that parse shapes rather than a list of names — and the drill (a planted
+key, strict exits 1, lenient exits 0) is what says the gate has teeth.
+
+### Numbers
+
+`swift test`: **336 XCTest (3 skipped) + 79 swift-testing, 0 failures**, 121.65 s
+at load average **3.95** — set beside this file's existing 111 s at load 2.31 and
+136 s at load 16.81 for the same tree before reading it as a cost. Golden corpus
+**56/56 after every task**. Catalog **425 keys** in three structural shapes, `en`
+only. Call-site offences **134 → 0**. iOS, tvOS and macOS all build; the entitlements
+diff against `origin/main` is **empty**, so no capability changed and no `match`
+re-mint is implied.
+
+### Not done
+
+- **No translations.** Nine locales were scoped and are not in this PR. The
+  catalog declares `CFBundleLocalizations: [en]`, held to the catalog's actual
+  contents by `testDeclaredLocalizationsMatchTranslatedLocales` — so the
+  declaration cannot outrun reality, and the locale list and the translations
+  must land in the same commit. `PROGRAM-2.0.md`'s own status line said this PRD
+  "needs translators, not infrastructure"; the infrastructure is the half that
+  could be finished well without a human who reads Japanese.
+- **No pseudo-loc/RTL lane, no Dynamic Type stress lane** (planned Tasks 10–11).
+  Both mechanisms were **verified by hand** so the next session does not have to
+  re-derive them: `-NSDoubleLocalizedStrings YES` fires; `-AppleTextDirection YES
+  -NSForceRightToLeftWritingDirection YES` fires and **the board already does the
+  right thing** — chrome mirrors, the board and rose do not (screenshots in
+  `.context/prd20/`). `simctl ui <udid> content_size accessibility-extra-extra-extra-large`
+  is the Dynamic Type lever. The fallback design (generating a `qps-Ploc` locale)
+  is not needed.
+- **A bare-specifier key is a loaded gun, and one probe fired it.** Under
+  double-localization every board digit rendered `lld 4` instead of `4`, because
+  `board.value.plain` was `"%1$lld"` — a translation unit whose entire content is
+  one specifier. Not shipped (the same build renders correctly unflagged), and
+  those keys are now formatted in Swift. But a translator can do what the
+  pseudolocalizer did.
+- **An omitted argument is still invisible.** `specifierMismatch` rejects an
+  index above `args.count` and a wrong conversion; a translation that simply
+  *drops* `%2$@` validates and formats fine, and half the sentence disappears.
+  Four keys are exposed (`board.announce.pair`, `board.cell.hintPair`,
+  `coach.card.label`, `shelf.continue.caption`). The translation PR needs a test
+  that every locale uses every argument index the `en` value uses.
+- **No whole-branch review.** Every task was reviewed and every finding fixed or
+  parked, but the final cross-task pass was not run.
+- **The app has not been driven in a non-English locale**, beyond the widget
+  gallery in German (verified on screen, per-key, with an untranslated key
+  correctly falling back to English). Walking every screen in `ja` and `de` on
+  three platforms belongs with the translations.
+- **`Linux-clean` remains unmeasured.** It is the stated reason `Sources/Shared`
+  has a `Phrasebook` seam instead of `LocalizedStringResource`, and all three CI
+  workflows are `macos-latest`. The discipline held; nothing proves it.
+- **CouchKit's own strings are untouched.** `HelpKit.swift:117-134` ("Click to
+  start" / "Tap to start") reaches Nine's tvOS home through `HelpOverlay`.
+  Localizing them means a catalog in a package shared by five apps — a suite
+  decision, not Nine's.
+- **No `AppShortcutsProvider` to localize** (PRD-33) and **no store-page
+  localization** (PRD-35).

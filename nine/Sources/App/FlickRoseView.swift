@@ -272,7 +272,11 @@ struct TouchRose: View {
                         .onTapGesture { onDigit(digit) }
                         .offset(x: offset.x * spacing, y: offset.y * spacing)
                         .accessibilityElement()
-                        .accessibilityLabel(state.pencil ? "Note \(digit)" : "Place \(digit)")
+                        // The same two keys the actions rotor uses
+                        // (`BoardActionPhrase`): the petals and the rotor are
+                        // two doors onto one grammar, so they say one thing.
+                        .accessibilityLabel(state.pencil ? BoardActionPhrase.note(digit)
+                                                         : BoardActionPhrase.place(digit))
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { onDigit(digit) }
                 }
@@ -283,13 +287,14 @@ struct TouchRose: View {
                         .onTapGesture { onErase() }
                         .offset(y: spacing + spacing * 0.92)
                         .accessibilityElement()
-                        .accessibilityLabel("Erase")
+                        .accessibilityLabel(BoardActionPhrase.erase)
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { onErase() }
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel(state.pencil ? "Note rose" : "Digit rose")
+            .accessibilityLabel(state.pencil ? Strings.string("board.rose.note")
+                                             : Strings.string("board.rose.digit"))
             .accessibilityAddTraits(isModal ? [.isModal] : [])
         }
         .highPriorityGesture(

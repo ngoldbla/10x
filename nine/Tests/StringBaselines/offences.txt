@@ -1,0 +1,23 @@
+# Nine — bare user-facing literals. The countdown, at zero.
+#
+# This file was a COUNTDOWN, never a permit: each line was one string that still
+# reached a player without passing through the catalog. `StringSealTests` fails
+# on any offence NOT in this list, so the rot could not grow while Tasks 5-6
+# extracted. Task 6 took the last fourteen — all of them in `Sources/Widgets` —
+# and the list below is now empty.
+#
+# **Empty, and still here.** Deleting it does not mean "no offences are
+# allowed"; it means `read_baseline` returns None, which `--audit` reports as
+# "not calibrated" and exits 1 on, forever. An empty list is the strict state:
+# every offence is a new offence. The file earns its place by being the thing
+# that says so.
+#
+# It is also an error for a line here to no longer be an offence: a stale
+# baseline is a gate that quietly stopped measuring. Regenerate with
+#
+#     python3 scripts/strings.py --audit --write-baseline
+#
+# Format: <path><TAB>"<literal>". Line numbers are deliberately absent — they
+# would make every unrelated edit above an offence look like a new one.
+
+
