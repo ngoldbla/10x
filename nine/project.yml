@@ -116,8 +116,7 @@ targets:
         CFBundleDisplayName: Nine
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        # PRD-20's ten launch locales. English is the source language, so it is
-        # the development region; the other nine are Nine's markets.
+        # English is the source language, so it is the development region.
         #
         # `CFBundleLocalizations` is declared rather than inferred because
         # xcodegen writes the Info.plist itself and the app has no per-language
@@ -126,8 +125,24 @@ targets:
         # inside the bundle. Without this list a locale that the catalog
         # carries but the bundle does not advertise is simply never chosen, and
         # the app falls back to English with no error anywhere.
+        #
+        # **`[en]`, because `en` is all the catalog has** (controller ruling,
+        # 2026-07-26, at the head of Task 9). Declaring PRD-20's other nine
+        # before they are translated is not harmless optimism:
+        # `CFBundleLocalizations` is authoritative when present, merging to main
+        # triggers `beta_all`, and a Japanese TestFlight tester would then get
+        # Japanese system UI and Japanese month names — `ArchiveCalendar`'s
+        # formatter follows `Locale.current` on purpose — wrapped around English
+        # prose. App Store Connect would also read ten locales off the build and
+        # list the app as localized into ten languages.
+        #
+        # Task 9 adds the nine locales and flips this list IN THE SAME COMMIT.
+        # `CatalogTests.testDeclaredLocalizationsMatchTranslatedLocales` derives
+        # the expected set from the catalog and fails in either direction, which
+        # is what makes that atomic — "remember to flip it later" is not a
+        # mechanism.
         CFBundleDevelopmentRegion: en
-        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
+        CFBundleLocalizations: [en]
         ITSAppUsesNonExemptEncryption: false
         # Required for the Mac App Store (.pkg upload rejects without it, error
         # 90242); harmless/valid on iOS too, ignored by tvOS. Nine is a sudoku.
@@ -206,11 +221,12 @@ targets:
         CFBundleDisplayName: Nine
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        # The same ten locales as the app, declared here too because this is a
+        # The same locales as the app, declared here too because this is a
         # separate bundle with a separate Info.plist: an extension resolves
         # against its own `Bundle.main`, so "the app declares it" is not a fact
-        # about the widget. Same argument as listing Sources/Strings twice.
+        # about the widget. Same argument as listing Sources/Strings twice, and
+        # the same ruling on the contents — `[en]` until the catalog holds more.
         CFBundleDevelopmentRegion: en
-        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
+        CFBundleLocalizations: [en]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

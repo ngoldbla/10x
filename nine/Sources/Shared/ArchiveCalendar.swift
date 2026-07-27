@@ -231,6 +231,32 @@ public enum ArchiveCalendar {
     /// Computed, not `static let`: a `let` resolves once per process, at first
     /// touch, which on a mid-session language change is whichever language the
     /// player was reading when the archive first opened.
+    ///
+    /// **What that costs, measured on this machine rather than reasoned about.**
+    /// `-O`, 300k calls each, against the compiled catalog inside the built
+    /// `Nine.app`:
+    ///
+    ///     static let, resolved once and then free              8.7 ns/read
+    ///     EnglishPhrases dict + String(format:)              507.8 ns/read
+    ///     the shipping path: catalog + String(format:)       780.8 ns/read
+    ///
+    /// So ~772 ns per read against what was here before, and `accessibilityLabel`
+    /// runs 42 times per grid body evaluation taking one or two phrases each:
+    /// **~65 µs, or 0.39% of one 16.7 ms frame.** Spending it is right — a
+    /// mid-session language change that leaves four English words in a Japanese
+    /// grid is the bug, and 0.39% is not.
+    ///
+    /// Two things this is NOT. It is not Task 3's 44-47 ns: that number is
+    /// `Phrasebook.specifierMismatch`'s scan, one component of the 780, and an
+    /// earlier version of this comment quoted it as if it were the whole path —
+    /// 18x optimistic. And note what the `DateFormatter` cache immediately below
+    /// says: "re-deriving a localized format string each time is pure waste."
+    /// This path is now exactly that shape, in the same function, uncached. The
+    /// difference is two orders of magnitude — building a `DateFormatter` is
+    /// tens of microseconds, this is sub-microsecond — so the file is not
+    /// arguing both sides, it is drawing the line in a different place. If a
+    /// profile ever says otherwise, the fix is a cache keyed on the locale, the
+    /// way the formatter's already is, not a return to `static let`.
     private enum Phrase {
         static var today: String { Phrasebook.current.string("archive.day.today") }
         static var solved: String { Phrasebook.current.string("archive.day.solved") }
