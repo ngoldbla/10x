@@ -1055,21 +1055,56 @@ duplication is the point. A translator can now render each one naturally, and
 `%1$lld` appearing twice in the X-Wing sentence is exactly why arguments are
 positional.
 
-- [ ] **Step 4: Replace the digit-word arrays with plural variants**
+- [ ] **Step 4: Move the digit words into the catalog, per digit**
 
-`digitWords`, `digitPlurals` and `zeroWord` (`:465-471`) all go. `remainingClause`
-becomes one key with CLDR plural variations, taking the digit as a number:
+**Decision taken (user, 2026-07-26) — this supersedes the "no fragments" rule
+for the digit noun specifically, and only for it.**
+
+The digit words exist for VoiceOver: speech synthesis reads "two fours
+remaining" naturally and "2 4's remaining" badly, and that is the surface PRD-19
+exists to protect. So the Swift arrays go, but the words survive as catalog
+entries — 19 keys, one per digit plus zero:
 
 ```
-board.remaining = { one: "%2$lld %1$lld remaining.", other: "%2$lld %1$lld's remaining." }
-board.allDone   = "All %1$lld's done."
+board.digitWord.1 … .9     "one" … "nine"
+board.digitPlural.1 … .9   "ones" … "nines"
+board.countWord.0          "zero"
 ```
 
-Whether a language spells the digit as a word is now the translator's decision,
-which is where it belongs. English loses "two fours remaining" in favour of
-"2 4's remaining" — **flag this to the user before shipping**; it is a real
-copy regression in the source language and may be worth an English-only
-`digitWord` variant. Record whichever way it goes.
+`remainingClause` still splices one noun into a sentence, but the splice is now
+**a translator's choice rather than an English assumption**: a Japanese, Korean
+or Chinese template simply uses the numeral and never references the word keys,
+while English, German and French use them and inflect as their grammar needs.
+
+```
+board.remaining = { one: "%1$@ %2$@ remaining.", other: "%1$@ %2$@ remaining." }
+board.allDone   = "All %1$@ done."
+```
+
+Everything else in this task's no-fragments rule stands. The coach sentences in
+Step 3 take **no** pre-formatted nouns — the unit kind is baked into the key,
+not spliced.
+
+- [ ] **Step 4a: Add the test that pins the exception's boundary**
+
+An exception that is not bounded is not an exception. This is what stops the
+next person widening it:
+
+```swift
+func testTheOnlySplicedNounIsTheDigit() throws {
+    // Decision of 2026-07-26: `board.digitWord.*` / `board.digitPlural.*` may be
+    // spliced into a sentence, because VoiceOver reads "two fours remaining"
+    // and "2 4's remaining" is a copy regression on the surface PRD-19 protects.
+    // Nothing else may. A `%@` in a coach sentence is a fragment splice and the
+    // grammar it assumes is English's.
+    for (key, format) in EnglishPhrases.table where key.hasPrefix("coach.") {
+        XCTAssertFalse(format.contains("%@"), """
+            \(key) splices a pre-formatted word. Only the digit noun is allowed \
+            to be spliced (board.digitWord.*), and only outside coach.*.
+            """)
+    }
+}
+```
 
 - [ ] **Step 5: Update `BoardSpeechTests` to assert the new wording**
 
