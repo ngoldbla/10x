@@ -159,6 +159,22 @@ final class CatalogTests: XCTestCase {
                 nothing else in this repo notices. Two trips the `precondition` \
                 in `Phrasebook.install`, in Release, at launch.
                 """)
+
+            // …and unconditionally. Counting the call is not enough, and this
+            // codebase has already been bitten by exactly the difference:
+            // `NineApp.init` was `#if os(macOS)`-gated, which is *why* iOS and
+            // tvOS had no install site at all while every build stayed green.
+            // A `#if` around this line puts the count at one and the install at
+            // zero on the platforms the fence excludes — and there is no
+            // legitimate reason for one, because `Sources/Strings` is compiled
+            // into both bundles on every platform (`project.yml`).
+            XCTAssertEqual(Self.conditionalDepth(of: "Strings.install()", in: source), 0, """
+                `Strings.install()` in \(path) is inside a `#if`. On every \
+                platform that fence excludes, the call does not exist and \
+                `Phrasebook.current` stays `.english` for the life of the \
+                process — which is precisely how iOS and tvOS shipped with no \
+                install at all, behind an `init` that was `#if os(macOS)`.
+                """)
         }
 
         // …and in NineApp, before the model.
@@ -368,6 +384,31 @@ final class CatalogTests: XCTestCase {
 
     static func occurrences(of needle: String, in haystack: String) -> Int {
         haystack.components(separatedBy: needle).count - 1
+    }
+
+    /// How many `#if` blocks enclose the first occurrence of `needle`, or -1 if
+    /// it is not there at all.
+    ///
+    /// A line scanner rather than a real preprocessor, because the question is
+    /// deliberately coarse: *is this line conditional on anything*. `#elseif`
+    /// and `#else` do not change the depth — they are still inside the block
+    /// they belong to — and `#if` is matched as a whole directive so
+    /// `#endif`, which also begins with `#e`, cannot open one.
+    ///
+    /// Comments are already blanked by `codeOnly`, so a `#if` inside prose (and
+    /// this file's own doc comments discuss several) cannot skew the count.
+    static func conditionalDepth(of needle: String, in source: String) -> Int {
+        var depth = 0
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.contains(needle) { return depth }
+            let text = line.trimmingCharacters(in: .whitespaces)
+            if text == "#if" || text.hasPrefix("#if ") {
+                depth += 1
+            } else if text == "#endif" {
+                depth -= 1
+            }
+        }
+        return -1
     }
 
     /// A Swift file with its comments blanked out, offsets preserved.

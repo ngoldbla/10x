@@ -33,7 +33,11 @@ struct StreakChip: View {
     }
 
     var body: some View {
-        GlassChip("\(days) day streak", systemImage: Self.symbol(held: held))
+        // `board.streak.plain` is the same key `BoardSpeech.streakChip` reads
+        // for the unheld case, so the capsule and the VoiceOver label behind it
+        // cannot say two different numbers of days in two different ways.
+        GlassChip(Strings.string("board.streak.plain", .int(days)),
+                  systemImage: Self.symbol(held: held))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(BoardSpeech.streakChip(days: days, held: held))
     }

@@ -83,13 +83,18 @@ enum BoardProgressCaption {
         if fraction < untouchedFloor {
             return fraction == 0 ? Phrase.untouched : Phrase.begun
         }
-        return "\(Int(fraction * 100))%"
+        return Phrase.percent(Int(fraction * 100))
     }
 
-    // PRD-20 seam: these three become `LocalizedStringResource` lookups.
     private enum Phrase {
-        static let untouched = "Untouched"
-        static let begun = "Just started"
-        static let full = "Full"
+        static let untouched = Strings.string("board.progress.untouched")
+        static let begun = Strings.string("board.progress.begun")
+        static let full = Strings.string("board.progress.full")
+        /// Through the catalog rather than string interpolation: the percent
+        /// sign leads the number in Turkish and takes a space in French, and
+        /// neither is expressible from a Swift interpolation.
+        static func percent(_ value: Int) -> String {
+            Strings.string("board.progress.percent", .int(value))
+        }
     }
 }

@@ -62,9 +62,9 @@ extension CoachAdvice {
     /// effect is erased one move later would be a button that lies.
     func actionTitle(autoNotes: Bool) -> String? {
         guard case .step(let coach) = self else { return nil }
-        if coach.step.placement != nil { return CoachPhrase.placeIt }
+        if coach.step.placement != nil { return Phrase.placeIt }
         guard !autoNotes, !coach.step.eliminations.isEmpty else { return nil }
-        return CoachPhrase.markIt
+        return Phrase.markIt
     }
 }
 
@@ -111,13 +111,29 @@ struct CoachCardContent: View {
         // there is no way to activate it, but the heading and the sentence read
         // as the one thing they are.
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(title). \(sentence)")
+        .accessibilityLabel(CoachCardLabel.spoken(title: title, sentence: sentence))
     }
 }
 #endif
 
 /// Every user-facing literal in this file, in one block (PRD-20's seam).
-private enum CoachPhrase {
-    static let placeIt = "Place it"
-    static let markIt = "Mark it"
+///
+/// Named `Phrase` like every other block in `Sources/App` — it was `CoachPhrase`
+/// until PRD-20, which is exactly the kind of file a `grep "enum Phrase"` misses.
+private enum Phrase {
+    static let placeIt = Strings.string("coach.action.placeIt")
+    static let markIt = Strings.string("coach.action.markIt")
+}
+
+/// How the coach's heading and sentence become one utterance.
+///
+/// Not `private`, and not inside `CoachCardContent`: the iOS game screen posts
+/// the identical join as a VoiceOver announcement when the card opens
+/// (`TouchUI.toggleCoach`), and the card is fenced to iOS while the announcement
+/// is not. One key, so a screen reader hears the same sentence twice rather than
+/// two spellings of it.
+enum CoachCardLabel {
+    static func spoken(title: String, sentence: String) -> String {
+        Strings.string("coach.card.label", .text(title), .text(sentence))
+    }
 }

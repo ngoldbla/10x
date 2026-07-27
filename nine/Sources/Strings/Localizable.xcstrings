@@ -1,6 +1,210 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "accent.crimson" : {
+      "comment" : "Name of an accent colour: a deep red. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crimson"
+          }
+        }
+      }
+    },
+    "accent.ember" : {
+      "comment" : "Name of an accent colour: the orange of a dying coal. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ember"
+          }
+        }
+      }
+    },
+    "accent.glacier" : {
+      "comment" : "Name of an accent colour: a pale, cold blue. Colour names are shown beside the swatch and read by VoiceOver — evocative rather than literal, and one word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glacier"
+          }
+        }
+      }
+    },
+    "accent.gold" : {
+      "comment" : "Name of an accent colour: a warm yellow. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gold"
+          }
+        }
+      }
+    },
+    "accent.lilac" : {
+      "comment" : "Name of an accent colour: a pale purple. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lilac"
+          }
+        }
+      }
+    },
+    "accent.magenta" : {
+      "comment" : "Name of an accent colour: a vivid pink-purple. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magenta"
+          }
+        }
+      }
+    },
+    "accent.meadow" : {
+      "comment" : "Name of an accent colour: a fresh grass green. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meadow"
+          }
+        }
+      }
+    },
+    "accent.moss" : {
+      "comment" : "Name of an accent colour: a muted, darker green. Distinct from Meadow, which is brighter. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moss"
+          }
+        }
+      }
+    },
+    "accent.orchid" : {
+      "comment" : "Name of an accent colour: a soft pink-mauve. Distinct from Lilac and Magenta. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orchid"
+          }
+        }
+      }
+    },
+    "accent.teal" : {
+      "comment" : "Name of an accent colour: a blue-green. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teal"
+          }
+        }
+      }
+    },
+    "ambientSlot.clock" : {
+      "comment" : "The Ambient display row's value: the dim chip beside the board shows the time of day.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clock"
+          }
+        }
+      }
+    },
+    "ambientSlot.streak" : {
+      "comment" : "The Ambient display row's value: the dim chip beside the board shows points and the daily streak.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak"
+          }
+        }
+      }
+    },
+    "appIcon.ember" : {
+      "comment" : "Name of an alternate Home Screen icon on the Ember ground. Same word as the theme and accent of that name — keep all three identical.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ember"
+          }
+        }
+      }
+    },
+    "appIcon.mono" : {
+      "comment" : "Name of an alternate Home Screen icon on the Mono ground. Keep identical to the theme of that name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mono"
+          }
+        }
+      }
+    },
+    "appIcon.original" : {
+      "comment" : "Name of the Home Screen icon Nine ships with. An adjective — the first one, not \"authentic\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original"
+          }
+        }
+      }
+    },
+    "appIcon.tide" : {
+      "comment" : "Name of an alternate Home Screen icon on the Tide ground. Keep identical to the theme of that name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tide"
+          }
+        }
+      }
+    },
+    "archive.close" : {
+      "comment" : "VoiceOver label of the ✕ that leaves the archive.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close archive"
+          }
+        }
+      }
+    },
     "archive.day.inProgress" : {
       "comment" : "VoiceOver, archive grid. Appended to a spoken date to say that day's puzzle is started but unfinished.",
       "extractionState" : "manual",
@@ -45,6 +249,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "today"
+          }
+        }
+      }
+    },
+    "archive.footnote" : {
+      "comment" : "The line under the archive grid. Says both that past boards are regenerated rather than stored, and — the part players actually want to know — that playing one cannot help or hurt the daily streak.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every past day, rebuilt from its date. Solving one never touches your streak."
+          }
+        }
+      }
+    },
+    "archive.nextMonth" : {
+      "comment" : "VoiceOver label of the › that pages the archive grid forwards.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next month"
+          }
+        }
+      }
+    },
+    "archive.previousMonth" : {
+      "comment" : "VoiceOver label of the ‹ that pages the archive grid backwards.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous month"
+          }
+        }
+      }
+    },
+    "archive.title" : {
+      "comment" : "Title of the month grid of every past daily puzzle, and the VoiceOver label of the calendar glyph that opens it. A noun — the record of past days.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive"
+          }
+        }
+      }
+    },
+    "board.action.erase" : {
+      "comment" : "A VoiceOver custom action, and the label of the ring's tenth petal: clear the digit in this square. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase"
+          }
+        }
+      }
+    },
+    "board.action.note" : {
+      "comment" : "A VoiceOver custom action on a square, and the label of one petal of the pencil ring. %1$lld is the digit 1-9. \"Note\" is a verb here: write this as a small corner mark rather than a real digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note %1$lld"
+          }
+        }
+      }
+    },
+    "board.action.place" : {
+      "comment" : "A VoiceOver custom action on a square, and the label of one petal of the digit ring. %1$lld is the digit 1-9. A verb in the imperative — this writes a real digit, not a note.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place %1$lld"
           }
         }
       }
@@ -409,6 +697,18 @@
         }
       }
     },
+    "board.progress.begun" : {
+      "comment" : "The words beside a saved board with only a digit or two in it, where a percentage would be a false precision.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just started"
+          }
+        }
+      }
+    },
     "board.progress.filled" : {
       "comment" : "VoiceOver board summary. %1$lld squares filled of %2$lld fillable.",
       "extractionState" : "manual",
@@ -421,6 +721,42 @@
         }
       }
     },
+    "board.progress.full" : {
+      "comment" : "The words beside a board with every square filled in. An adjective, not \"Solved\" — a full board may still be wrong.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full"
+          }
+        }
+      }
+    },
+    "board.progress.percent" : {
+      "comment" : "How far through a board the player is, as a percentage. %1$lld is 3-100; `%%` is a literal percent sign. Place the sign the way this language does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld%%"
+          }
+        }
+      }
+    },
+    "board.progress.untouched" : {
+      "comment" : "The words beside a saved board that has not been played at all. Said instead of \"0%\", which reads as failure rather than as a fresh start.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untouched"
+          }
+        }
+      }
+    },
     "board.progress.wrong" : {
       "comment" : "VoiceOver board summary: how many placed digits contradict the solution. %1$lld is the count. Only spoken with mistake-marking on.",
       "extractionState" : "manual",
@@ -429,6 +765,162 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld wrong."
+          }
+        }
+      }
+    },
+    "board.rose.digit" : {
+      "comment" : "VoiceOver label of the ring of nine petals that appears over a square. \"Rose\" is Nine's name for that circular picker — keep the flower metaphor if this language has one, or describe it plainly.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digit rose"
+          }
+        }
+      }
+    },
+    "board.rose.note" : {
+      "comment" : "VoiceOver label of the same ring when it writes pencil marks rather than real digits.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note rose"
+          }
+        }
+      }
+    },
+    "board.rotor.empty" : {
+      "comment" : "Name of a VoiceOver rotor that jumps between squares with nothing in them. A plural noun phrase, as rotor names are.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty cells"
+          }
+        }
+      }
+    },
+    "board.rotor.errors" : {
+      "comment" : "Name of a VoiceOver rotor that jumps between placed digits that contradict the solution. Only ever offered when the player has mistake-marking switched on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong digits"
+          }
+        }
+      }
+    },
+    "board.rotor.notes" : {
+      "comment" : "Name of a VoiceOver rotor that jumps between empty squares carrying pencil marks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cells with notes"
+          }
+        }
+      }
+    },
+    "board.stats.digitDone" : {
+      "comment" : "VoiceOver label of one digit in the statistics panel when all nine of it are placed. %1$lld is the digit 1-9.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld, done"
+          }
+        }
+      }
+    },
+    "board.stats.digitLeft" : {
+      "comment" : "VoiceOver label of one digit in the statistics panel. %1$lld is the digit 1-9, %2$lld how many of it are still unplaced (1-8).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld, %2$lld left"
+          }
+        }
+      }
+    },
+    "board.stats.hints" : {
+      "comment" : "Caption under the tile counting coaching hints spent on this board. Lowercase, plural. Only shown once at least one has been used.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hints"
+          }
+        }
+      }
+    },
+    "board.stats.notes" : {
+      "comment" : "Caption under the tile counting pencil marks on this board. Lowercase, plural.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "notes"
+          }
+        }
+      }
+    },
+    "board.stats.pace" : {
+      "comment" : "Caption under the seconds-per-digit tile in the board statistics panel. Lowercase, one word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pace"
+          }
+        }
+      }
+    },
+    "board.stats.paceSeconds" : {
+      "comment" : "The pace tile's value in seconds. %1$lld is a whole number of seconds; the trailing letter is the unit abbreviation — use whatever this language abbreviates seconds to, with no space if that is the convention.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$llds"
+          }
+        }
+      }
+    },
+    "board.stats.time" : {
+      "comment" : "Caption under the elapsed-time tile in the board statistics panel. Lowercase, one word — these four captions are a row and read as a set.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "time"
+          }
+        }
+      }
+    },
+    "board.stats.undos" : {
+      "comment" : "Caption under the tile counting how many moves have been taken back on this board. Lowercase, plural.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "undos"
           }
         }
       }
@@ -601,6 +1093,186 @@
         }
       }
     },
+    "boardAnchor.bottom" : {
+      "comment" : "The Board position row's value: the grid sits against the bottom of the screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom"
+          }
+        }
+      }
+    },
+    "boardAnchor.center" : {
+      "comment" : "The Board position row's value: the grid sits in the middle of the screen, with free space above and below.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Center"
+          }
+        }
+      }
+    },
+    "boardAnchor.top" : {
+      "comment" : "The Board position row's value: the grid sits against the top of the screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top"
+          }
+        }
+      }
+    },
+    "boards.close" : {
+      "comment" : "VoiceOver label of the ✕ that leaves the Boards sheet on Apple TV.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close boards"
+          }
+        }
+      }
+    },
+    "boards.empty" : {
+      "comment" : "What the Boards sheet says when nothing has been played yet. \"Archive\" is a verb: set aside without deleting.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a board and it lands here — resume it any time, or archive it for later."
+          }
+        }
+      }
+    },
+    "boards.fresh.label" : {
+      "comment" : "VoiceOver label of one of those buttons. %1$@ is a difficulty name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New %1$@ board"
+          }
+        }
+      }
+    },
+    "boards.fresh.note" : {
+      "comment" : "Reassurance under the Boards sheet's new-game buttons: starting one destroys nothing.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your current board stays in this list"
+          }
+        }
+      }
+    },
+    "boards.fresh.title" : {
+      "comment" : "Heading over the four difficulty buttons at the top of the Boards sheet — the way to start a new game from here.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fresh board"
+          }
+        }
+      }
+    },
+    "boards.row.archive" : {
+      "comment" : "VoiceOver label of the button that sets a board aside without deleting it. \"Archive\" is a verb.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive board"
+          }
+        }
+      }
+    },
+    "boards.row.delete" : {
+      "comment" : "VoiceOver label of the button that removes a board for good.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete board"
+          }
+        }
+      }
+    },
+    "boards.section.inProgress" : {
+      "comment" : "Heading over the boards that are started but unfinished.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In progress"
+          }
+        }
+      }
+    },
+    "boards.section.played" : {
+      "comment" : "Heading over the boards that are finished or set aside.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previously played"
+          }
+        }
+      }
+    },
+    "boards.status.archived" : {
+      "comment" : "The line under a board that was set aside. %1$@ is the date. \"Archived\" is a past participle.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archived · %1$@"
+          }
+        }
+      }
+    },
+    "boards.status.solved" : {
+      "comment" : "The line under a finished board in the Boards sheet. %1$@ is the date it was solved, %2$@ how long it took (m:ss). Middle dots separate the three.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solved · %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "boards.title" : {
+      "comment" : "Title of the sheet listing every board the app is holding, and of the shelf cards that open it. Plural noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boards"
+          }
+        }
+      }
+    },
     "card.daily" : {
       "comment" : "Second line of the shareable solve card, marking the board as that day's puzzle. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
       "extractionState" : "manual",
@@ -637,6 +1309,30 @@
         }
       }
     },
+    "coach.action.markIt" : {
+      "comment" : "The coaching card's button when the hint only eliminates candidates: writes the pencil marks that follow. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark it"
+          }
+        }
+      }
+    },
+    "coach.action.placeIt" : {
+      "comment" : "The coaching card's button when the hint resolves a square: writes that digit in. A verb in the imperative, two words.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place it"
+          }
+        }
+      }
+    },
     "coach.axis.columns" : {
       "comment" : "The word \"columns\" as used inside a coach sentence about an X-wing. Lowercase, plural, mid-sentence.",
       "extractionState" : "manual",
@@ -669,6 +1365,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Every %1$@ still possible in %2$@ sits in %3$@, so no other square in %3$@ can be a %1$@."
+          }
+        }
+      }
+    },
+    "coach.card.label" : {
+      "comment" : "VoiceOver label of the coaching card, joining its heading and its sentence into one utterance. %1$@ is a technique name or a card heading, %2$@ the explanation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. %2$@"
           }
         }
       }
@@ -805,6 +1513,42 @@
         }
       }
     },
+    "difficulty.composeCaption" : {
+      "comment" : "Shown in place of a difficulty card's blurb while that band's board is being generated, which can take seconds. %1$@ is the band's name. An honest apology for a wait, not a progress report.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ takes a moment to compose"
+          }
+        }
+      }
+    },
+    "difficulty.gentle.blurb" : {
+      "comment" : "One-line blurb under the Gentle difficulty card: the two sudoku techniques its boards need. Both are terms of art — use this language's puzzle vocabulary. Very short; it sits under a 64pt tile.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Singles & scans"
+          }
+        }
+      }
+    },
+    "difficulty.gentle.explainer" : {
+      "comment" : "The longer explanation of the Gentle band, in the difficulty guide. \"A single\" is the sudoku term for a square with only one possibility. Two short sentences — the guide has no room to scroll.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every step is a single: one place a digit can go. A calm first board."
+          }
+        }
+      }
+    },
     "difficulty.gentle.title" : {
       "comment" : "Difficulty band, easiest of four. Shown on buttons and menus and on the share card. An adjective in the app's calm register — not \"Easy\", which sounds like a judgement of the player. One or two words.",
       "extractionState" : "manual",
@@ -813,6 +1557,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gentle"
+          }
+        }
+      }
+    },
+    "difficulty.nocturne.blurb" : {
+      "comment" : "One-line blurb under the Nocturne difficulty card. \"Clues\" are the digits the puzzle supplies; Nocturne gives fewer of them than any other band. Very short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewer clues, deeper logic"
+          }
+        }
+      }
+    },
+    "difficulty.nocturne.explainer" : {
+      "comment" : "The longer explanation of the Nocturne band. \"Sharp\" here is the name of the band below it — translate it the same way as `difficulty.sharp.title`. \"Givens\" are the digits the puzzle supplies. One sentence, kept to the length of its three siblings so the guide still fits one screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharp's logic at the clue floor: fewer givens, more of the hard steps."
           }
         }
       }
@@ -829,6 +1597,30 @@
         }
       }
     },
+    "difficulty.sharp.blurb" : {
+      "comment" : "One-line blurb under the Sharp difficulty card. \"X-wing\" is a sudoku term of art, almost always left untranslated. Very short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "X-wings & deep logic"
+          }
+        }
+      }
+    },
+    "difficulty.sharp.explainer" : {
+      "comment" : "The longer explanation of the Sharp band. \"X-wing\" is a term of art. Two short sentences.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demands X-wings and layered deductions. Bring notes and patience."
+          }
+        }
+      }
+    },
     "difficulty.sharp.title" : {
       "comment" : "Difficulty band, third of four: keen-witted, demanding. NOT the knife and NOT the musical accidental. One or two words.",
       "extractionState" : "manual",
@@ -841,6 +1633,30 @@
         }
       }
     },
+    "difficulty.steady.blurb" : {
+      "comment" : "One-line blurb under the Steady difficulty card, naming the techniques its boards need. Terms of art. Very short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pairs & box lines"
+          }
+        }
+      }
+    },
+    "difficulty.steady.explainer" : {
+      "comment" : "The longer explanation of the Steady band. \"Naked pair\" and \"box-line elimination\" are sudoku terms of art. Two short sentences.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs naked pairs and box-line eliminations. Pencil marks start to pay."
+          }
+        }
+      }
+    },
     "difficulty.steady.title" : {
       "comment" : "Difficulty band, second of four: unhurried, dependable. Shown on buttons and menus. One or two words.",
       "extractionState" : "manual",
@@ -849,6 +1665,2550 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Steady"
+          }
+        }
+      }
+    },
+    "firstrun.beat.detail" : {
+      "comment" : "The longer instruction in the first-launch lesson. %1$lld and %2$lld are the SAME digit, written twice — if you reorder the sentence, move both. \"Rose\" is Nine's circular digit picker.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rose is open on the empty cell. Drag from its middle toward the %1$lld and let go — or just tap the %2$lld. That is the whole game."
+          }
+        }
+      }
+    },
+    "firstrun.beat.doneDetail" : {
+      "comment" : "The second half of the first-launch lesson's ending. \"The shelf\" is the app's start screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every board works exactly like that. Today's is waiting on the shelf."
+          }
+        }
+      }
+    },
+    "firstrun.beat.doneTitle" : {
+      "comment" : "What replaces the instruction once the player places the right digit: the lesson is over because there is nothing more to it. Light, not congratulatory.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's it."
+          }
+        }
+      }
+    },
+    "firstrun.beat.hint" : {
+      "comment" : "The quiet line under the first-launch lesson, promising it is short and escapable.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One cell, one digit. You can skip this at any time."
+          }
+        }
+      }
+    },
+    "firstrun.beat.prompt" : {
+      "comment" : "The instruction in the first-launch lesson. %1$lld is the digit the empty square wants. \"Flick\" is a short directional drag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick to the %1$lld."
+          }
+        }
+      }
+    },
+    "firstrun.beat.skip" : {
+      "comment" : "The escape hatch in the corner of the first-launch lesson. A verb in the imperative, one word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        }
+      }
+    },
+    "firstrun.beat.title" : {
+      "comment" : "Heading of the playable first-launch lesson: one square, one digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your first digit"
+          }
+        }
+      }
+    },
+    "firstrun.begin" : {
+      "comment" : "The welcome card's only button. A verb in the imperative, one word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begin"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.covenant" : {
+      "comment" : "One line of the welcome card's list, and the promise the whole app is built on. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ads, no subscription, nothing else to buy"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.daily" : {
+      "comment" : "One line of the welcome card's list of what the purchase included. A fragment, no full stop — the six lines read as a list.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new board every day, and a streak that keeps count"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.proof" : {
+      "comment" : "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three difficulties, every board proved solvable by logic"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.stats" : {
+      "comment" : "One line of the welcome card's list. \"Honestly\" means nothing is inflated or gamified. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your times, points and trends — kept honestly"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.sync" : {
+      "comment" : "One line of the welcome card's list, about iCloud sync. A fragment, no full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boards, streak and stats follow you between devices"
+          }
+        }
+      }
+    },
+    "firstrun.ledger.themes" : {
+      "comment" : "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld themes and %2$lld accents, all of them yours"
+          }
+        }
+      }
+    },
+    "firstrun.onePurchase" : {
+      "comment" : "The line under the welcome card's list: one price covers every platform. The device names are Apple's and stay as they are printed in this language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One purchase · iPhone, iPad, Mac & Apple TV"
+          }
+        }
+      }
+    },
+    "firstrun.welcome.tagline" : {
+      "comment" : "Tagline under the welcome heading. \"Couch\" means played from the sofa; the second half says it is on every device the player owns.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couch sudoku — everywhere you sit."
+          }
+        }
+      }
+    },
+    "firstrun.welcome.title" : {
+      "comment" : "Heading of the card shown once, on the very first launch. \"Nine\" is the app's name and stays untranslated.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome to Nine"
+          }
+        }
+      }
+    },
+    "game.another.label" : {
+      "comment" : "VoiceOver label for the \"Another\" chip, which is too terse to speak. %1$@ is a difficulty name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another %1$@ board"
+          }
+        }
+      }
+    },
+    "game.another.title" : {
+      "comment" : "A chip offered after a free-play solve: start a fresh board at the same difficulty. One word, and deliberately not \"Again\" — it is a new board, not a replay.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another"
+          }
+        }
+      }
+    },
+    "game.autoNotes.chip" : {
+      "comment" : "A chip confirming what the wand button just did. %1$lld is how many pencil marks were written, always 1 or more. \"Candidates\" is the sudoku term for the digits a square could still take.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto notes · filled %1$lld candidates"
+          }
+        }
+      }
+    },
+    "game.chip.archive" : {
+      "comment" : "A chip beside the board saying this is a past day's puzzle rather than today's. %1$@ is a short date (\"12 Jul\"). \"Archive\" is the noun — the record of past days — and its presence is what tells the player their streak is not at stake.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive · %1$@"
+          }
+        }
+      }
+    },
+    "game.chip.pencil" : {
+      "comment" : "A chip beside the board saying that pencil mode is on, so digits become corner notes. One word — it is a status, not a button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil"
+          }
+        }
+      }
+    },
+    "game.completion.streak" : {
+      "comment" : "The chip shown after the day's puzzle is finished. %1$lld is a number of consecutive days, always 1 or more. The separator is a middle dot.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solved · %1$lld day streak"
+          }
+        }
+      }
+    },
+    "game.control.autoNotes" : {
+      "comment" : "VoiceOver label of the wand button, which fills every empty square's pencil marks automatically.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto notes"
+          }
+        }
+      }
+    },
+    "game.control.hint" : {
+      "comment" : "VoiceOver label of the lightbulb button, which shows one coaching card. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint"
+          }
+        }
+      }
+    },
+    "game.control.home" : {
+      "comment" : "VoiceOver label of the chevron that saves the board and returns to the shelf, and the text of the same chip on the Mac. \"Home\" is the app's start screen, not a house.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        }
+      }
+    },
+    "game.control.pencil" : {
+      "comment" : "VoiceOver label of the pencil button, which switches digit entry to small corner notes. \"Pencil marks\" is the sudoku term for those notes.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil marks"
+          }
+        }
+      }
+    },
+    "game.control.settings" : {
+      "comment" : "VoiceOver label of the gear button, which opens this app's own settings sheet. Use the same word the system Settings app uses in this language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "game.control.undo" : {
+      "comment" : "VoiceOver label of the undo button. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "game.drawer.hide" : {
+      "comment" : "VoiceOver action that closes the pull-down statistics panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide board stats"
+          }
+        }
+      }
+    },
+    "game.drawer.show" : {
+      "comment" : "VoiceOver action that opens the pull-down statistics panel over the board.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show board stats"
+          }
+        }
+      }
+    },
+    "game.mac.exitDesk" : {
+      "comment" : "VoiceOver label of the glyph that restores the full Mac window from the small board-only pane. \"Desk mode\" is that pane's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit desk mode"
+          }
+        }
+      }
+    },
+    "game.mac.homeLabel" : {
+      "comment" : "VoiceOver label of the Mac's Home chip. \"Home\" is the app's start screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to home"
+          }
+        }
+      }
+    },
+    "game.tv.disconnected" : {
+      "comment" : "A chip shown when a game controller drops mid-game and the Siri Remote takes over. A statement of fact, not an error.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controller disconnected"
+          }
+        }
+      }
+    },
+    "game.tv.padHint" : {
+      "comment" : "A chip flashed once when a game controller takes over on Apple TV. The three names are controller buttons — keep whatever this language's controller documentation calls them. Middle dots separate the three.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right stick places · Circle undoes · Create for settings"
+          }
+        }
+      }
+    },
+    "game.tv.remoteHint" : {
+      "comment" : "A chip flashed once per launch on the Apple TV board. \"Click\" is the Siri Remote's clickpad press; ▶︎ is the play/pause key and stays as the glyph.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a cell for digits · Hold ▶︎ for settings"
+          }
+        }
+      }
+    },
+    "game.undo.autoNotes" : {
+      "comment" : "A chip confirming an undo removed the whole batch of pencil marks the wand wrote. One action, however many marks it made.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undid auto notes"
+          }
+        }
+      }
+    },
+    "game.undo.note" : {
+      "comment" : "A chip confirming an undo took a pencil mark back. %1$lld is that digit; \"note\" is the small corner mark, not a message.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undid note %1$lld"
+          }
+        }
+      }
+    },
+    "game.undo.placement" : {
+      "comment" : "A chip confirming an undo took a placed digit back. %1$lld is that digit. Past tense, and the digit is the object of the verb.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undid %1$lld"
+          }
+        }
+      }
+    },
+    "game.undo.restored" : {
+      "comment" : "A chip confirming an undo put back a digit that had been erased. %1$lld is that digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored %1$lld"
+          }
+        }
+      }
+    },
+    "grammar.keyboard.advanceHint" : {
+      "comment" : "One-line reminder of the Mac keyboard controls, under a tutorial beat. ⌘Z is a keyboard shortcut and stays as the glyphs.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrows move · digits place · ⌘Z undoes"
+          }
+        }
+      }
+    },
+    "grammar.keyboard.highlightDetail" : {
+      "comment" : "The Mac keyboard instruction for the same-number highlight. \"Space\" is a key name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the cursor onto any placed digit and press Space. Every copy lights up — pencil notes too. Space again switches the lights off."
+          }
+        }
+      }
+    },
+    "grammar.keyboard.highlightVerb" : {
+      "comment" : "The Mac keyboard's key for lighting up every copy of a digit. A key name — use whatever this language prints on the space bar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space"
+          }
+        }
+      }
+    },
+    "grammar.keyboard.pencilDetail" : {
+      "comment" : "The Mac keyboard instruction for pencil notes. \"Shift\" and \"P\" are key names; \"sticky\" means the mode stays on until switched off.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold Shift and press a digit to pencil a note — small in the corner until a real digit lands. Press P for sticky pencil."
+          }
+        }
+      }
+    },
+    "grammar.keyboard.pencilVerb" : {
+      "comment" : "The Mac keyboard's verb for entering a pencil note: hold Shift while typing the digit. \"Shift\" is the key name and keeps its capital.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift-type"
+          }
+        }
+      }
+    },
+    "grammar.keyboard.placeDetail" : {
+      "comment" : "The Mac keyboard instruction for placing a digit. %1$@ is the target numeral. \"Rose\" is the circular picker the other platforms use; the point is that the Mac needs no picker at all.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk to the glowing cell with the arrow keys, then press %1$@. Digits type straight in — no rose, no modes."
+          }
+        }
+      }
+    },
+    "grammar.keyboard.placeVerb" : {
+      "comment" : "The Mac keyboard's verb for entering a digit. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "type"
+          }
+        }
+      }
+    },
+    "grammar.pad.advanceHint" : {
+      "comment" : "One-line reminder of the game controller's controls, under a tutorial beat. \"Circle\" is a button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left stick moves · right stick flicks a digit · Circle taps undo, holds to erase"
+          }
+        }
+      }
+    },
+    "grammar.pad.highlightDetail" : {
+      "comment" : "The game controller's instruction for the same-number highlight and the peek. \"Triangle\" and \"L2\" are button names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rest on any placed digit and press Triangle — every copy lights up, pencil notes too. Hold L2 to dim everything except that kind. Triangle again switches the lights off."
+          }
+        }
+      }
+    },
+    "grammar.pad.highlightVerb" : {
+      "comment" : "The game controller's button for the same-number highlight. A button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triangle"
+          }
+        }
+      }
+    },
+    "grammar.pad.pencilDetail" : {
+      "comment" : "The game controller's instruction for pencil notes. \"Square\" is a button name; \"sticky\" means the mode stays on until switched off.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press Square for sticky pencil, then flick a note into an empty cell — small in the corner until a real digit lands. Square again turns pencil off."
+          }
+        }
+      }
+    },
+    "grammar.pad.pencilVerb" : {
+      "comment" : "The game controller's button for pencil notes. A button name — use whatever this language's controller documentation calls it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Square"
+          }
+        }
+      }
+    },
+    "grammar.pad.placeDetail" : {
+      "comment" : "The game controller's full instruction for placing a digit. %1$@ is the target numeral. \"Cross\" and \"R3\" are button names; \"rose\" is the circular picker and \"petals\" its nine segments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk to the glowing cell with the left stick, then flick the right stick toward %1$@ — the cell is always armed, so it's one flick per digit, no rose to open. (Cross opens the rose if you'd rather learn the petals; R3 places 5.)"
+          }
+        }
+      }
+    },
+    "grammar.pad.placeVerb" : {
+      "comment" : "The game controller's verb for entering a digit. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "flick the right stick"
+          }
+        }
+      }
+    },
+    "grammar.remote.advanceHint" : {
+      "comment" : "One-line reminder of the Siri Remote's controls, under a tutorial beat. \"Rose\" is Nine's circular digit picker; ▶︎ is the play/pause key and stays as the glyph. Middle dots separate the three.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe to move · click for the rose · ▶︎ undoes"
+          }
+        }
+      }
+    },
+    "grammar.remote.highlightDetail" : {
+      "comment" : "The Siri Remote's full instruction for the same-number highlight.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Park the cursor on any placed digit and every copy of it lights up — pencil notes too."
+          }
+        }
+      }
+    },
+    "grammar.remote.highlightVerb" : {
+      "comment" : "The Siri Remote's verb for lighting up every copy of a digit: leave the selection sitting on it. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "park the cursor"
+          }
+        }
+      }
+    },
+    "grammar.remote.pencilDetail" : {
+      "comment" : "The Siri Remote's full instruction for pencil notes. \"Rose\" is the circular picker.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold-click an empty cell for the pencil rose. Notes sit small in the corner until a real digit lands."
+          }
+        }
+      }
+    },
+    "grammar.remote.pencilVerb" : {
+      "comment" : "The Siri Remote's verb for entering a pencil note: press and hold the clickpad. Lowercase, hyphenated as one action.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hold-click"
+          }
+        }
+      }
+    },
+    "grammar.remote.placeDetail" : {
+      "comment" : "The Siri Remote's full instruction for placing a digit. %1$@ is the target numeral. \"Rose\" is the circular picker and \"petal\" one of its nine segments — keep the flower metaphor if this language has one.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe to the glowing cell and click for the rose, then flick toward %1$@ — or swipe to a petal and click."
+          }
+        }
+      }
+    },
+    "grammar.remote.placeVerb" : {
+      "comment" : "The Siri Remote's verb for entering a digit: a quick directional swipe. A verb in the bare infinitive, used mid-sentence and lowercase.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "flick"
+          }
+        }
+      }
+    },
+    "grammar.touch.advanceHint" : {
+      "comment" : "One-line reminder of the touch controls, under a tutorial beat. \"Rose\" is the circular picker, \"petal\" one of its segments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a cell for the rose · tap a petal to place"
+          }
+        }
+      }
+    },
+    "grammar.touch.highlightDetail" : {
+      "comment" : "The touch instruction for the same-number highlight.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap any placed digit on the board. Every copy of it lights up — pencil notes too. Tap one again to switch the lights off."
+          }
+        }
+      }
+    },
+    "grammar.touch.highlightVerb" : {
+      "comment" : "The touch verb for lighting up every copy of a digit. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tap a placed digit"
+          }
+        }
+      }
+    },
+    "grammar.touch.pencilDetail" : {
+      "comment" : "The touch instruction for pencil notes. \"Note\" is a verb in the second sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil is on. Tap an empty cell and note a digit you're considering — notes sit small in the corner until a real digit lands."
+          }
+        }
+      }
+    },
+    "grammar.touch.pencilVerb" : {
+      "comment" : "The touch name for the button that switches digit entry to corner notes. A noun phrase, lowercase.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pencil toggle"
+          }
+        }
+      }
+    },
+    "grammar.touch.placeDetail" : {
+      "comment" : "The touch instruction for placing a digit. %1$@ is the target numeral. The parenthesis explains that the ring is laid out like a 3×3 number pad.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the glowing cell, then tap the %1$@ in the rose. (You can also flick toward it — the rose is a 3×3 keypad.)"
+          }
+        }
+      }
+    },
+    "grammar.touch.placeVerb" : {
+      "comment" : "The touch verb for entering a digit. \"Petal\" is one of the nine segments of Nine's circular picker. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tap a petal"
+          }
+        }
+      }
+    },
+    "help.tv.tagline" : {
+      "comment" : "The tagline under Nine's name on the Apple TV first-run card. \"Couch\" means played from the sofa, on a television — the whole app's posture in one word. A fragment with a full stop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couch sudoku."
+          }
+        }
+      }
+    },
+    "history.close" : {
+      "comment" : "VoiceOver label of the ✕ that leaves the History sheet on Apple TV.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close history"
+          }
+        }
+      }
+    },
+    "history.empty" : {
+      "comment" : "What the History sheet says before there is enough history to chart. Explains what will appear, without urging the player to go and play.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solve a board and it lands here — time, difficulty and points."
+          }
+        }
+      }
+    },
+    "history.gameCenter.in" : {
+      "comment" : "Subtitle of the Game Center row when the player is signed in: what is behind it. Both are Game Center's own terms.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaderboards & achievements"
+          }
+        }
+      }
+    },
+    "history.gameCenter.out" : {
+      "comment" : "Subtitle of the Game Center row when the player is signed out. \"Settings\" is the system Settings app, not Nine's own sheet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in via Settings to compete"
+          }
+        }
+      }
+    },
+    "history.gameCenter.title" : {
+      "comment" : "The row that opens Apple's Game Center dashboard. A product name — use Apple's own name for it in this language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game Center"
+          }
+        }
+      }
+    },
+    "history.recent.daily" : {
+      "comment" : "How a solved daily puzzle is named in the recent list. %1$@ is a difficulty name. \"Daily\" is a noun here — the day's shared puzzle.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily · %1$@"
+          }
+        }
+      }
+    },
+    "history.recent.points" : {
+      "comment" : "The points a solve earned, in the recent list. %1$lld is 1 or more; the plus sign is part of the display.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%1$lld"
+          }
+        }
+      }
+    },
+    "history.recent.title" : {
+      "comment" : "Heading over the last fifteen solved boards. An adjective used as a heading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent"
+          }
+        }
+      }
+    },
+    "history.section.avgVsBest" : {
+      "comment" : "Heading over a chart comparing each difficulty's average solve time with its fastest. \"vs.\" is an abbreviation — spell it out if this language has no equivalent.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average vs. best"
+          }
+        }
+      }
+    },
+    "history.section.heat" : {
+      "comment" : "Heading over a grid of one square per day for the last twelve weeks, shaded by how much was solved that day.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 12 weeks"
+          }
+        }
+      }
+    },
+    "history.section.trend" : {
+      "comment" : "Heading over a line chart of the last twenty solve times.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solve time trend"
+          }
+        }
+      }
+    },
+    "history.stat.bestStreak" : {
+      "comment" : "Caption under the longest run of consecutive daily solves ever reached. Lowercase.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "best streak"
+          }
+        }
+      }
+    },
+    "history.stat.points" : {
+      "comment" : "Caption under the lifetime points total. Lowercase — the three totals read as a row.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "points"
+          }
+        }
+      }
+    },
+    "history.stat.solved" : {
+      "comment" : "Caption under the count of boards finished. Lowercase, and a past participle used as a noun — \"how many solved\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "solved"
+          }
+        }
+      }
+    },
+    "history.title" : {
+      "comment" : "Title of the sheet, window and shelf card holding every solved board. A noun — the record, not the academic subject.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
+          }
+        }
+      }
+    },
+    "history.trend.faster" : {
+      "comment" : "Shown beside the trend heading when recent solves are quicker than older ones. The triangle is a downward arrow and stays as the glyph.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▼ faster"
+          }
+        }
+      }
+    },
+    "legend.keyboard.arrows.action" : {
+      "comment" : "What the arrow keys do. The parenthesis says the selection reappears on the opposite side rather than stopping.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the cursor (wraps at edges)"
+          }
+        }
+      }
+    },
+    "legend.keyboard.arrows.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend. A key name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow keys"
+          }
+        }
+      }
+    },
+    "legend.keyboard.digits.action" : {
+      "comment" : "What a number key does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place the digit"
+          }
+        }
+      }
+    },
+    "legend.keyboard.digits.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend: the number keys. Numerals joined by an en dash.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1–9"
+          }
+        }
+      }
+    },
+    "legend.keyboard.highlight.action" : {
+      "comment" : "What the space bar does: highlights every copy of the selected digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light up the digit under the cursor"
+          }
+        }
+      }
+    },
+    "legend.keyboard.highlight.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend: the space bar. Use whatever this language prints on that key.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space"
+          }
+        }
+      }
+    },
+    "legend.keyboard.pencil.action" : {
+      "comment" : "What those keys do: one note, or a mode that stays on. \"Pencil\" is a verb in the first half. Middle dot separates the two.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil a note · sticky pencil"
+          }
+        }
+      }
+    },
+    "legend.keyboard.pencil.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend: Shift with a number, or the P key. The glyphs and letters stay.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⇧1–9 · P"
+          }
+        }
+      }
+    },
+    "legend.keyboard.tab.action" : {
+      "comment" : "What Tab does: jumps the selection to the next square with nothing in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next / previous empty cell"
+          }
+        }
+      }
+    },
+    "legend.keyboard.tab.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend: Tab, or Shift with Tab. Key names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab / ⇧Tab"
+          }
+        }
+      }
+    },
+    "legend.keyboard.undo.action" : {
+      "comment" : "What ⌘Z does. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "legend.keyboard.undo.gesture" : {
+      "comment" : "Left column of the Mac keyboard legend: the standard undo shortcut. Stays as the glyphs.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘Z"
+          }
+        }
+      }
+    },
+    "legend.pad.circle.action" : {
+      "comment" : "What Circle does, pressed and held.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo · hold to erase the cell"
+          }
+        }
+      }
+    },
+    "legend.pad.circle.gesture" : {
+      "comment" : "Left column of the game controller legend: a face button, pressed or held.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Circle tap · hold"
+          }
+        }
+      }
+    },
+    "legend.pad.controller.action" : {
+      "comment" : "The controller row of the first-run legend: nothing has to be set up, and the controller's own tutorial appears on the board.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just start playing — the guide appears in-game"
+          }
+        }
+      }
+    },
+    "legend.pad.controller.gesture" : {
+      "comment" : "Left column of the first-run legend on Apple TV, shown only when a game controller is connected. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controller"
+          }
+        }
+      }
+    },
+    "legend.pad.create.action" : {
+      "comment" : "What that button does: opens this app's settings sheet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "legend.pad.create.gesture" : {
+      "comment" : "Left column of the game controller legend: the button Sony calls Create and Microsoft calls View. Use this language's name for it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
+          }
+        }
+      }
+    },
+    "legend.pad.cross.action" : {
+      "comment" : "What Cross does. \"Rose\" is the circular digit picker, \"petal\" one of its segments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the rose · confirm a petal"
+          }
+        }
+      }
+    },
+    "legend.pad.cross.gesture" : {
+      "comment" : "Left column of the game controller legend: a face button. Use the name this language's controller documentation gives it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross"
+          }
+        }
+      }
+    },
+    "legend.pad.menu.action" : {
+      "comment" : "What Menu does: keeps the board and returns to the start screen. A fragment.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save + home"
+          }
+        }
+      }
+    },
+    "legend.pad.menu.gesture" : {
+      "comment" : "Left column of the game controller legend: the button that leaves a game on Apple TV.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu"
+          }
+        }
+      }
+    },
+    "legend.pad.move.action" : {
+      "comment" : "What the left stick does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move around the board"
+          }
+        }
+      }
+    },
+    "legend.pad.move.gesture" : {
+      "comment" : "Left column of the game controller legend. Both are controller part names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left stick / d-pad"
+          }
+        }
+      }
+    },
+    "legend.pad.peek.action" : {
+      "comment" : "What holding a trigger does: everything except one digit fades while held. \"Peek\" is a noun here.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek — dim all but one kind"
+          }
+        }
+      }
+    },
+    "legend.pad.peek.gesture" : {
+      "comment" : "Left column of the game controller legend: either trigger, held. Button names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold L2 · R2"
+          }
+        }
+      }
+    },
+    "legend.pad.place.action" : {
+      "comment" : "What a right-stick flick does. \"R3\" is the name of the right stick's click, which places a 5.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place a digit (R3 = 5)"
+          }
+        }
+      }
+    },
+    "legend.pad.place.gesture" : {
+      "comment" : "Left column of the game controller legend: a quick deflection of the right stick.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right stick flick"
+          }
+        }
+      }
+    },
+    "legend.pad.square.action" : {
+      "comment" : "What Square does: switches to corner notes and stays there until pressed again.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sticky pencil"
+          }
+        }
+      }
+    },
+    "legend.pad.square.gesture" : {
+      "comment" : "Left column of the game controller legend: a face button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Square"
+          }
+        }
+      }
+    },
+    "legend.pad.triangle.action" : {
+      "comment" : "What Triangle does: highlights every copy of the selected digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light up all of a digit"
+          }
+        }
+      }
+    },
+    "legend.pad.triangle.gesture" : {
+      "comment" : "Left column of the game controller legend: a face button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triangle"
+          }
+        }
+      }
+    },
+    "legend.remote.back.action" : {
+      "comment" : "What Back does: keeps the board and returns to the start screen. Two nouns joined by a plus sign — a fragment, not a sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save + home"
+          }
+        }
+      }
+    },
+    "legend.remote.back.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: the Back button. Use the name printed in this language's Apple TV documentation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "legend.remote.click.action" : {
+      "comment" : "What a clickpad press does. \"Rose\" is Nine's circular digit picker.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the digit rose"
+          }
+        }
+      }
+    },
+    "legend.remote.click.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: pressing the clickpad. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click"
+          }
+        }
+      }
+    },
+    "legend.remote.flick.action" : {
+      "comment" : "What a flick does: writes the digit with no confirmation step.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place instantly"
+          }
+        }
+      }
+    },
+    "legend.remote.flick.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend. The parenthesis names the remote generation that can report diagonal directions.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick (8-way remote)"
+          }
+        }
+      }
+    },
+    "legend.remote.holdPlayPause.action" : {
+      "comment" : "What holding play/pause does: opens this app's settings sheet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "legend.remote.holdPlayPause.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: press and hold the play/pause key. The glyph stays.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold ▶︎"
+          }
+        }
+      }
+    },
+    "legend.remote.playPause.action" : {
+      "comment" : "What the play/pause key does. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "legend.remote.playPause.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: the play/pause key. Stays as the glyph in every language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▶︎"
+          }
+        }
+      }
+    },
+    "legend.remote.rose.action" : {
+      "comment" : "What swiping and clicking inside the picker does: show the digit before committing it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview, then place"
+          }
+        }
+      }
+    },
+    "legend.remote.rose.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: two gestures in sequence, while the picker is open.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe + Click (in rose)"
+          }
+        }
+      }
+    },
+    "legend.remote.swipe.action" : {
+      "comment" : "Right column of the Siri Remote control legend: what a swipe does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move around the board"
+          }
+        }
+      }
+    },
+    "legend.remote.swipe.gesture" : {
+      "comment" : "Left column of the Siri Remote control legend: the gesture. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe"
+          }
+        }
+      }
+    },
+    "legend.touch.flick.action" : {
+      "comment" : "What a flick does: writes the digit with no confirmation step.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place instantly"
+          }
+        }
+      }
+    },
+    "legend.touch.flick.gesture" : {
+      "comment" : "Left column of the touch control legend: a quick directional drag inside the open picker.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick in the rose"
+          }
+        }
+      }
+    },
+    "legend.touch.highlight.action" : {
+      "comment" : "What tapping a placed digit does: every other copy of that digit on the board is highlighted.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light up all of its kind"
+          }
+        }
+      }
+    },
+    "legend.touch.highlight.gesture" : {
+      "comment" : "Left column of the touch control legend: touching a square that already holds a digit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a placed digit"
+          }
+        }
+      }
+    },
+    "legend.touch.pencil.action" : {
+      "comment" : "What the pencil toggle does. A fragment, not a sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corner notes instead"
+          }
+        }
+      }
+    },
+    "legend.touch.pencil.gesture" : {
+      "comment" : "Left column of the touch control legend: the button that switches digit entry to corner notes.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil toggle"
+          }
+        }
+      }
+    },
+    "legend.touch.tapCell.action" : {
+      "comment" : "What tapping a square does. \"Rose\" is Nine's circular digit picker.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the digit rose"
+          }
+        }
+      }
+    },
+    "legend.touch.tapCell.gesture" : {
+      "comment" : "Left column of the touch control legend. \"Cell\" is one square of the grid.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a cell"
+          }
+        }
+      }
+    },
+    "legend.touch.tapPetal.action" : {
+      "comment" : "What tapping a petal does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place that digit"
+          }
+        }
+      }
+    },
+    "legend.touch.tapPetal.gesture" : {
+      "comment" : "Left column of the touch control legend. \"Petal\" is one of the picker's nine segments.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a petal"
+          }
+        }
+      }
+    },
+    "legend.touch.undo.action" : {
+      "comment" : "What the undo button does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take back a move"
+          }
+        }
+      }
+    },
+    "legend.touch.undo.gesture" : {
+      "comment" : "Left column of the touch control legend.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo button"
+          }
+        }
+      }
+    },
+    "menu.edit.undo" : {
+      "comment" : "The Mac Edit menu's undo item, replacing the system one. Use exactly the word macOS itself uses in this language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "menu.game.boards" : {
+      "comment" : "The Mac menu item that opens the board list. The ellipsis is macOS convention for an item that opens a further window — keep it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boards…"
+          }
+        }
+      }
+    },
+    "menu.game.discard" : {
+      "comment" : "The Mac menu item that throws the saved board away. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Board"
+          }
+        }
+      }
+    },
+    "menu.game.newGame" : {
+      "comment" : "The Mac menu item that opens a submenu of difficulties. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Game"
+          }
+        }
+      }
+    },
+    "menu.game.title" : {
+      "comment" : "A menu in the Mac menu bar. Title Case, as macOS menus are.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game"
+          }
+        }
+      }
+    },
+    "menu.game.today" : {
+      "comment" : "The Mac menu item that opens the day's shared board. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Puzzle"
+          }
+        }
+      }
+    },
+    "menu.help.howToPlay" : {
+      "comment" : "The Mac Help menu's item that opens the tutorial. Title Case, unlike the sentence-case `tutorial.title` used on the other platforms — macOS menu items follow the platform's own capitalisation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play"
+          }
+        }
+      }
+    },
+    "menu.view.accent" : {
+      "comment" : "The Mac View menu's accent-colour picker label. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accent"
+          }
+        }
+      }
+    },
+    "menu.view.appearance" : {
+      "comment" : "The Mac View menu's theme picker label. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "menu.view.enterDesk" : {
+      "comment" : "The Mac View menu's item that shrinks the window to a small board-only pane. \"Desk mode\" is that pane's name. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Desk Mode"
+          }
+        }
+      }
+    },
+    "menu.view.errorHighlight" : {
+      "comment" : "The Mac View menu's item for marking digits that contradict the solution. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error Highlight"
+          }
+        }
+      }
+    },
+    "menu.view.exitDesk" : {
+      "comment" : "The Mac View menu's item that restores the full window from the small pane. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit Desk Mode"
+          }
+        }
+      }
+    },
+    "menu.view.floatDesk" : {
+      "comment" : "The Mac View menu's item that keeps the small pane above other windows. \"Float\" is a verb. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Float Desk on Top"
+          }
+        }
+      }
+    },
+    "menu.view.numberHighlight" : {
+      "comment" : "The Mac View menu's item for lighting up every copy of a clicked digit. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number Highlight"
+          }
+        }
+      }
+    },
+    "menu.view.showTimer" : {
+      "comment" : "The Mac View menu's item for the elapsed-time chip. Title Case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Timer"
+          }
+        }
+      }
+    },
+    "prefs.accent.title" : {
+      "comment" : "Heading over the row of colour swatches that tints the app. \"Accent\" is the single highlight colour, not a decoration on a letter.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accent"
+          }
+        }
+      }
+    },
+    "prefs.ambient.title" : {
+      "comment" : "Settings row: the optional dim chip parked beside the board — a clock, or points and streak. \"Ambient\" as in unobtrusive, always-on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ambient display"
+          }
+        }
+      }
+    },
+    "prefs.appIcon.title" : {
+      "comment" : "Heading over the row of swatches that changes Nine's icon on the Home Screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App icon"
+          }
+        }
+      }
+    },
+    "prefs.boardPosition.title" : {
+      "comment" : "Settings row: whether the grid parks against the top or bottom edge, or sits centred.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board position"
+          }
+        }
+      }
+    },
+    "prefs.controllerHaptics.title" : {
+      "comment" : "Settings row: whether a game controller rumbles as digits land.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controller haptics"
+          }
+        }
+      }
+    },
+    "prefs.controls.bottom" : {
+      "comment" : "The Controls row's value: the buttons sit along the bottom edge.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom"
+          }
+        }
+      }
+    },
+    "prefs.controls.title" : {
+      "comment" : "Settings row: which edge of the screen the row of buttons sits on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls"
+          }
+        }
+      }
+    },
+    "prefs.controls.top" : {
+      "comment" : "The Controls row's value: the buttons sit along the top edge.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top"
+          }
+        }
+      }
+    },
+    "prefs.errorHighlight.title" : {
+      "comment" : "Settings row: whether digits contradicting the solution are marked on the board. Sentence case, not Title Case — these rows are a list, not menu items.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error highlight"
+          }
+        }
+      }
+    },
+    "prefs.haptics.title" : {
+      "comment" : "Settings row: whether the phone taps back as digits land.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haptics"
+          }
+        }
+      }
+    },
+    "prefs.newGame.note" : {
+      "comment" : "Reassurance under the Apple TV settings sheet's new-game buttons: starting one destroys nothing. The \"shelf\" is the app's start screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your current board stays on the shelf"
+          }
+        }
+      }
+    },
+    "prefs.newGame.title" : {
+      "comment" : "Heading over the four difficulty buttons at the foot of the Apple TV settings sheet — the couch's route to a fresh board.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New game"
+          }
+        }
+      }
+    },
+    "prefs.numberHighlight.title" : {
+      "comment" : "Settings row: whether tapping a placed digit lights up every other copy of it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number highlight"
+          }
+        }
+      }
+    },
+    "prefs.resume.title" : {
+      "comment" : "Settings row: whether opening the app returns to the board in progress rather than to the shelf.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume on launch"
+          }
+        }
+      }
+    },
+    "prefs.section.appearance" : {
+      "comment" : "Heading over the theme, accent and icon settings. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "prefs.section.feel" : {
+      "comment" : "Heading over the settings rows about haptics — what the board does to your hands. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feel"
+          }
+        }
+      }
+    },
+    "prefs.section.layout" : {
+      "comment" : "Heading over the settings that decide where things sit on the screen. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layout"
+          }
+        }
+      }
+    },
+    "prefs.section.play" : {
+      "comment" : "Heading over the settings rows about how the board behaves. A noun.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        }
+      }
+    },
+    "prefs.theme.title" : {
+      "comment" : "Heading over the row of swatches that sets the whole app's ground and text colours.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theme"
+          }
+        }
+      }
+    },
+    "prefs.timer.hidden" : {
+      "comment" : "The Timer row's value when the clock is not visible.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden"
+          }
+        }
+      }
+    },
+    "prefs.timer.shown" : {
+      "comment" : "The Timer row's value when the clock is visible. An adjective, paired with `prefs.timer.hidden`.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown"
+          }
+        }
+      }
+    },
+    "prefs.timer.title" : {
+      "comment" : "Settings row: whether the elapsed-time chip is shown while playing.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer"
+          }
+        }
+      }
+    },
+    "prefs.toggle.off" : {
+      "comment" : "The value of a settings row that is switched off. Also the Ambient display row's value when no chip is shown.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "prefs.toggle.on" : {
+      "comment" : "The value of a settings row that is switched on. Also the Ambient display row's value when a chip is shown.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "share.button" : {
+      "comment" : "The chip that hands the finished board's picture to the system share sheet. A verb in the imperative, one word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        }
+      }
+    },
+    "share.label" : {
+      "comment" : "VoiceOver label of the share chip, and the share sheet's own subject line, so it reads as a phrase rather than a bare verb. \"Solve\" is a noun here: the finished board.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share your solve"
+          }
+        }
+      }
+    },
+    "sheet.dismiss.remote" : {
+      "comment" : "Footer of every Apple TV sheet, saying how to leave it. \"Back\" is the Siri Remote's Back button — use the name printed in this language's Apple TV documentation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press Back to return"
+          }
+        }
+      }
+    },
+    "sheet.dismiss.touch" : {
+      "comment" : "Footer of every iPhone and iPad sheet, saying how to leave it: touch anywhere outside the panel.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap outside to return"
+          }
+        }
+      }
+    },
+    "shelf.ambient.empty" : {
+      "comment" : "The ambient chip beside the board when the player has neither points nor a streak. Flat and factual, never an encouragement to go and play.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No solves yet"
+          }
+        }
+      }
+    },
+    "shelf.archive.hint" : {
+      "comment" : "VoiceOver hint on the calendar glyph in the corner of the Today card: what opening the archive gets you. A fragment, as VoiceOver hints are.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every past daily, on a month grid"
+          }
+        }
+      }
+    },
+    "shelf.boards.seeAll" : {
+      "comment" : "The quiet link beside the Boards heading on the shelf; opens the full board list. Two words at most.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        }
+      }
+    },
+    "shelf.boards.seeAllLabel" : {
+      "comment" : "VoiceOver label for the \"See all\" link, which is too terse to speak on its own.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all boards"
+          }
+        }
+      }
+    },
+    "shelf.boards.subtitleCount" : {
+      "comment" : "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld in progress"
+          }
+        }
+      }
+    },
+    "shelf.boards.subtitleEmpty" : {
+      "comment" : "Subtitle of the Apple TV shelf's Boards tile when nothing is in progress — the three things the sheet is for. A list of verbs, not a sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume, archive, replay"
+          }
+        }
+      }
+    },
+    "shelf.continue.caption" : {
+      "comment" : "Caption under the Continue card. %1$@ is a difficulty name (\"Steady\"), %2$@ a progress phrase (\"41%\"). Punctuation only — reorder if this language reads the other way round.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "shelf.continue.captionMore" : {
+      "comment" : "Caption under the Continue card when other unfinished boards exist too. %1$@ is a difficulty name, %2$@ a progress phrase, %3$lld a count of OTHER boards (1 or more).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · +%3$lld more"
+          }
+        }
+      }
+    },
+    "shelf.continue.discard" : {
+      "comment" : "VoiceOver label of the ✕ on the Continue card. Throws the saved board away; it is not a close button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard saved game"
+          }
+        }
+      }
+    },
+    "shelf.continue.title" : {
+      "comment" : "Title of the shelf card that resumes the free-play board in progress. A verb in the imperative — what tapping it does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "shelf.daily.date" : {
+      "comment" : "How a past day's board is named in a list of boards. %1$@ is a date (\"12 Jul 2026\"). \"Daily\" here is a noun — the day's shared puzzle — not an adverb.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily · %1$@"
+          }
+        }
+      }
+    },
+    "shelf.difficulty.label" : {
+      "comment" : "VoiceOver label of a free-play difficulty card. %1$@ is the band's name (\"Nocturne\"), %2$@ its one-line blurb. Punctuation only.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "shelf.grace.body" : {
+      "comment" : "Body of the streak-held card. Says the missed day cost nothing, without framing rest as something spent — there is no allowance and no counter.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You took yesterday off; one rest day won't cost you."
+          }
+        }
+      }
+    },
+    "shelf.grace.hint" : {
+      "comment" : "VoiceOver hint on the streak-held card: tapping it only makes it go away. A verb phrase in the third person, as VoiceOver hints are.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismisses this card"
+          }
+        }
+      }
+    },
+    "shelf.grace.label" : {
+      "comment" : "VoiceOver label of the streak-held card, joining its heading and its body into one spoken sentence. %1$@ is `shelf.grace.title`, %2$@ `shelf.grace.body`.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "shelf.grace.title" : {
+      "comment" : "Heading of the card shown the morning after a missed day was bridged (PRD-13). Reassurance, past tense: the run survived. Never mentions a limit or a count.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your streak held"
+          }
+        }
+      }
+    },
+    "shelf.history.subtitle" : {
+      "comment" : "Subtitle of the Apple TV shelf's History tile — what the sheet behind it holds. A fragment, not a sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points & best times"
+          }
+        }
+      }
+    },
+    "shelf.points.chip" : {
+      "comment" : "The points capsule in the shelf header. %1$lld is a lifetime points total. Very short — it shares a row with the title and the streak chip; abbreviate the unit the way this language does on a scoreboard.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld pts"
+          }
+        }
+      }
+    },
+    "shelf.today.continueProgress" : {
+      "comment" : "Status line on the Today card when the day's board is started but unfinished. %1$@ is a progress phrase already formatted (\"41%\", \"Just started\"). The separator is a middle dot.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue · %1$@"
+          }
+        }
+      }
+    },
+    "shelf.today.oneADay" : {
+      "comment" : "Status line on the Today card before the day's puzzle has been opened: there is exactly one new board per day. Three words at most — it sits beside a sun glyph.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One a day"
+          }
+        }
+      }
+    },
+    "shelf.today.title" : {
+      "comment" : "Title of the shelf card that opens the day's shared puzzle, and the heading of the same explanation in the tutorial's last beat. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "shelf.variants.answer" : {
+      "comment" : "What the variants teaser says once tapped, replacing its subtitle for a few seconds. The point is that nothing is being asked of the player — no email, no notification, no purchase.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the works — they'll simply appear here."
+          }
+        }
+      }
+    },
+    "shelf.variants.subtitle" : {
+      "comment" : "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New variants, coming soon."
+          }
+        }
+      }
+    },
+    "shelf.variants.title" : {
+      "comment" : "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Killer · Thermo"
+          }
+        }
+      }
+    },
+    "status.composing" : {
+      "comment" : "Status word shown while a puzzle is being generated — on the shelf cards, in place of the board, and as a chip over a board being replaced. One word plus an ellipsis; it appears next to a sparkles glyph. Keep it short.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Composing…"
+          }
+        }
+      }
+    },
+    "status.solved" : {
+      "comment" : "Status word on a shelf card and on the chip that appears after the last digit lands: this board is finished. A word, not a sentence, and capitalised — `archive.day.solved` is the lowercase fragment version and `board.announce.solved` the spoken sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solved"
           }
         }
       }
@@ -973,6 +4333,114 @@
         }
       }
     },
+    "theme.auto" : {
+      "comment" : "Name of the theme that follows the system's light or dark setting rather than pinning one. Short — it sits beside a swatch.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        }
+      }
+    },
+    "theme.blueprint" : {
+      "comment" : "Name of a deep blue theme, after the architectural drawing.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blueprint"
+          }
+        }
+      }
+    },
+    "theme.camel" : {
+      "comment" : "Name of a warm, sandy light theme — the colour, not the animal, if this language separates them.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camel"
+          }
+        }
+      }
+    },
+    "theme.dark" : {
+      "comment" : "Name of the dark theme: near-black, the app's default and its identity. A noun — empty space — not the verb \"to void\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Void"
+          }
+        }
+      }
+    },
+    "theme.ember" : {
+      "comment" : "Name of a dark rust-red theme, after a dying coal. Same word as the accent of the same name — keep them identical.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ember"
+          }
+        }
+      }
+    },
+    "theme.forest" : {
+      "comment" : "Name of a dark green theme.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forest"
+          }
+        }
+      }
+    },
+    "theme.light" : {
+      "comment" : "Name of the light theme: an off-white page. The material, not a document.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paper"
+          }
+        }
+      }
+    },
+    "theme.mono" : {
+      "comment" : "Name of a neutral grey theme with no colour in it at all. Short for monochrome; keep it abbreviated if this language does.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mono"
+          }
+        }
+      }
+    },
+    "theme.tide" : {
+      "comment" : "Name of a dark blue-green theme, after the sea.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tide"
+          }
+        }
+      }
+    },
     "tip.highlight" : {
       "comment" : "One of three lifetime tips, shown once in a chip. Explains that tapping a placed digit highlights every other copy of it on the board.",
       "extractionState" : "manual",
@@ -1005,6 +4473,258 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Undo takes the last digit back. Nothing here is ever stuck."
+          }
+        }
+      }
+    },
+    "tutorial.button.done" : {
+      "comment" : "Button that closes the tutorial on its last beat. Use the same word this language's system UI uses to finish a sheet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "tutorial.button.skipStep" : {
+      "comment" : "The escape hatch under a tutorial beat: move on without doing the exercise.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip this step"
+          }
+        }
+      }
+    },
+    "tutorial.button.tryIt" : {
+      "comment" : "Button that leaves the tutorial's first beat and starts the playable part. A verb in the imperative, two words.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try it"
+          }
+        }
+      }
+    },
+    "tutorial.close" : {
+      "comment" : "VoiceOver label of the ✕ that leaves the tutorial.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close tutorial"
+          }
+        }
+      }
+    },
+    "tutorial.difficulty.body" : {
+      "comment" : "The promise behind every board Nine composes, plus how points work. \"Provably\" is load-bearing: the app verifies it, so this is a claim of fact.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every difficulty is provably solvable by logic alone — no guessing, ever. Solves earn points; faster and harder earns more."
+          }
+        }
+      }
+    },
+    "tutorial.difficulty.title" : {
+      "comment" : "Heading of the tutorial's last beat, which explains the four difficulty bands. A wry idiom for \"choose how hard you want it\" — replace it with an equivalent idiom rather than translating the words.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick your poison"
+          }
+        }
+      }
+    },
+    "tutorial.digit.placeholder" : {
+      "comment" : "Stands in for a numeral in the tutorial's instructions before the practice board has finished generating. Lowercase, mid-sentence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "digit"
+          }
+        }
+      }
+    },
+    "tutorial.goal.body" : {
+      "comment" : "The rules of sudoku in one sentence, plus what this practice board is. \"Box\" is the 3×3 block — use this language's sudoku vocabulary. The dash is an em dash; the range is an en dash.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill every row, column and 3×3 box with 1–9 — each digit exactly once. This board is nearly done; you'll finish a piece of it."
+          }
+        }
+      }
+    },
+    "tutorial.goal.title" : {
+      "comment" : "Heading of the tutorial's first beat, which explains what solving a sudoku means.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "tutorial.highlight.title" : {
+      "comment" : "Heading of the tutorial beat that teaches the same-number highlight. The numerals are examples and stay as numerals.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find every 9 (or 5, or 2…)"
+          }
+        }
+      }
+    },
+    "tutorial.nice" : {
+      "comment" : "A chip shown for a moment when the player completes a tutorial exercise. Warm and brief — praise, not a score. One word.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nice"
+          }
+        }
+      }
+    },
+    "tutorial.pad.beginBody" : {
+      "comment" : "The tutorial's first beat on a game controller: the shared explanation followed by the button to press. %1$@ is `tutorial.goal.body`. \"Cross\" is the controller button — use the name this language's controller documentation gives it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Press Cross to begin."
+          }
+        }
+      }
+    },
+    "tutorial.pad.finish" : {
+      "comment" : "A chip on the controller tutorial's last beat: pressing this button closes the tutorial. \"Cross\" is a controller button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press Cross — done"
+          }
+        }
+      }
+    },
+    "tutorial.pad.readyBody" : {
+      "comment" : "The tutorial's last beat on a game controller. %1$@ is `tutorial.difficulty.body`. \"Cross\" is a controller button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Press Cross when you're ready."
+          }
+        }
+      }
+    },
+    "tutorial.pad.skip" : {
+      "comment" : "A chip offering the escape hatch on Apple TV. \"Menu\" is the Siri Remote's back button — use the name printed in this language's Apple TV documentation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press Menu to skip the tutorial"
+          }
+        }
+      }
+    },
+    "tutorial.pad.tryIt" : {
+      "comment" : "A chip on the controller tutorial's first beat, naming the button that starts the playable part. \"Cross\" is a controller button name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press Cross to try it"
+          }
+        }
+      }
+    },
+    "tutorial.pencil.title" : {
+      "comment" : "Heading of the tutorial beat that teaches corner notes. \"Pencil notes\" is the sudoku term for the small marks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pencil notes"
+          }
+        }
+      }
+    },
+    "tutorial.place.title" : {
+      "comment" : "Heading of the tutorial beat that teaches digit entry. A verb in the imperative.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place a digit"
+          }
+        }
+      }
+    },
+    "tutorial.title" : {
+      "comment" : "Title of the tutorial, and of the two shelf cards that open it. Sentence case.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play"
+          }
+        }
+      }
+    },
+    "tutorial.titlePad" : {
+      "comment" : "Title of the game-controller version of the tutorial on Apple TV. The dash separates the subject; use this language's punctuation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play — controller"
+          }
+        }
+      }
+    },
+    "tutorial.today.body" : {
+      "comment" : "What the daily puzzle is, in the tutorial's last beat. %1$@ is a difficulty name — the band the daily always composes at. \"Shared\" means every player gets the same board that day.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One shared %1$@ board a day. Solve it daily to grow your streak — streaks multiply your points."
           }
         }
       }

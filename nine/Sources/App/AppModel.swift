@@ -30,18 +30,21 @@ import CouchKit
 enum AccentChoice: String, Codable, Sendable, CaseIterable {
     case glacier, ember, meadow, lilac, crimson, gold, teal, magenta, moss, orchid
 
+    /// Written out rather than built from `rawValue` on purpose: an
+    /// interpolated key is invisible to `scripts/strings.py`, which is the only
+    /// thing that would notice a case added here with no row in the catalog.
     var title: String {
         switch self {
-        case .glacier: return "Glacier"
-        case .ember: return "Ember"
-        case .meadow: return "Meadow"
-        case .lilac: return "Lilac"
-        case .crimson: return "Crimson"
-        case .gold: return "Gold"
-        case .teal: return "Teal"
-        case .magenta: return "Magenta"
-        case .moss: return "Moss"
-        case .orchid: return "Orchid"
+        case .glacier: return Strings.string("accent.glacier")
+        case .ember: return Strings.string("accent.ember")
+        case .meadow: return Strings.string("accent.meadow")
+        case .lilac: return Strings.string("accent.lilac")
+        case .crimson: return Strings.string("accent.crimson")
+        case .gold: return Strings.string("accent.gold")
+        case .teal: return Strings.string("accent.teal")
+        case .magenta: return Strings.string("accent.magenta")
+        case .moss: return Strings.string("accent.moss")
+        case .orchid: return Strings.string("accent.orchid")
         }
     }
 
@@ -187,17 +190,19 @@ struct ThemeTones {
 enum ThemeChoice: String, Codable, Sendable, CaseIterable {
     case auto, dark, light, camel, blueprint, forest, ember, tide, mono
 
+    /// The raw values are the persisted spelling (`dark`, `light`) and the
+    /// names are not (`Void`, `Paper`), so this mapping cannot be derived.
     var title: String {
         switch self {
-        case .auto: return "Auto"
-        case .dark: return "Void"
-        case .light: return "Paper"
-        case .camel: return "Camel"
-        case .blueprint: return "Blueprint"
-        case .forest: return "Forest"
-        case .ember: return "Ember"
-        case .tide: return "Tide"
-        case .mono: return "Mono"
+        case .auto: return Strings.string("theme.auto")
+        case .dark: return Strings.string("theme.dark")
+        case .light: return Strings.string("theme.light")
+        case .camel: return Strings.string("theme.camel")
+        case .blueprint: return Strings.string("theme.blueprint")
+        case .forest: return Strings.string("theme.forest")
+        case .ember: return Strings.string("theme.ember")
+        case .tide: return Strings.string("theme.tide")
+        case .mono: return Strings.string("theme.mono")
         }
     }
 
@@ -301,9 +306,9 @@ enum BoardAnchor: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .top: return "Top"
-        case .center: return "Center"
-        case .bottom: return "Bottom"
+        case .top: return Strings.string("boardAnchor.top")
+        case .center: return Strings.string("boardAnchor.center")
+        case .bottom: return Strings.string("boardAnchor.bottom")
         }
     }
 }
@@ -315,9 +320,11 @@ enum AmbientSlot: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .none: return "Off"
-        case .clock: return "Clock"
-        case .streak: return "Streak"
+        // The same "Off" every other settings row shows — one key, so a
+        // translator cannot make this row disagree with the toggles above it.
+        case .none: return Strings.string("prefs.toggle.off")
+        case .clock: return Strings.string("ambientSlot.clock")
+        case .streak: return Strings.string("ambientSlot.streak")
         }
     }
 }

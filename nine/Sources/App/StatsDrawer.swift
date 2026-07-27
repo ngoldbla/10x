@@ -83,7 +83,9 @@ struct DigitRingRow: View {
         .frame(width: ringSize, height: ringSize)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(complete ? "\(digit), done" : "\(digit), \(left) left")
+        .accessibilityLabel(complete ? Strings.string("board.stats.digitDone", .int(digit))
+                                     : Strings.string("board.stats.digitLeft",
+                                                      .int(digit), .int(left)))
     }
 }
 
@@ -114,17 +116,19 @@ struct StatsDrawerContent: View {
                         track: track
                     )
                     HStack(spacing: 8) {
-                        tile(Self.format(game.timer.elapsed(at: timeline.date)), "time")
-                        tile(paceText(game, at: timeline.date), "pace")
-                        tile("\(game.pencilMarkCount)", "notes")
-                        tile("\(game.undoCount)", "undos")
+                        tile(Self.format(game.timer.elapsed(at: timeline.date)),
+                             Strings.string("board.stats.time"))
+                        tile(paceText(game, at: timeline.date),
+                             Strings.string("board.stats.pace"))
+                        tile("\(game.pencilMarkCount)", Strings.string("board.stats.notes"))
+                        tile("\(game.undoCount)", Strings.string("board.stats.undos"))
                         // Only once a hint has actually been spent (PRD-11 §6).
                         // A player who never opens the coach never sees coach
                         // chrome, and a fifth tile reading "0" would be a
                         // reproach rather than a fact — honest absence over
                         // fake data, per the craft charter.
                         if model.coachHints > 0 {
-                            tile("\(model.coachHints)", "hints")
+                            tile("\(model.coachHints)", Strings.string("board.stats.hints"))
                         }
                     }
                 }
@@ -164,7 +168,8 @@ struct StatsDrawerContent: View {
     private func paceText(_ game: NineGame, at now: Date) -> String {
         guard game.placementCount >= Self.paceMinimumPlacements,
               let seconds = game.averageSecondsPerPlacement(at: now) else { return "—" }
-        return seconds >= 60 ? Self.format(seconds) : "\(Int(seconds.rounded()))s"
+        return seconds >= 60 ? Self.format(seconds)
+            : Strings.string("board.stats.paceSeconds", .int(Int(seconds.rounded())))
     }
 
     private static func format(_ interval: TimeInterval) -> String {

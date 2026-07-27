@@ -29,10 +29,10 @@ enum AppIconChoice: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .original: return "Original"
-        case .ember: return "Ember"
-        case .tide: return "Tide"
-        case .mono: return "Mono"
+        case .original: return Strings.string("appIcon.original")
+        case .ember: return Strings.string("appIcon.ember")
+        case .tide: return Strings.string("appIcon.tide")
+        case .mono: return Strings.string("appIcon.mono")
         }
     }
 
@@ -103,7 +103,7 @@ struct AppIconRow: View {
         if AppIcons.supported {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("App icon")
+                    Text(Strings.string("prefs.appIcon.title"))
                         .font(CouchTypography.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
