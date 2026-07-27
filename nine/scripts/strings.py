@@ -366,20 +366,42 @@ def is_translatable(body):
     if re.search(r"[._:/]", trimmed):
         return False          # SF Symbol, bundle id, key path, URL
 
-    # Kebab: two or more alphanumeric segments, like `pad-probe` (a launch arg)
-    # or `AppIcon-Ember` (an asset-catalog set). This arm used to also require
-    # `.islower()`, which let `AppIcon-Ember` through as prose — the exact
-    # asset name PRD-20 says must never fire. Case cannot be the test, because
-    # asset sets are conventionally capitalised.
+    # Kebab. This branch has now been wrong twice, in opposite directions, and
+    # each time only a probe caught it — so the reasoning is written out.
     #
-    # Known and accepted false negative: a genuinely hyphenated English word
-    # in a sink — `Text("Sign-in")` — is dropped. There is no shape that tells
-    # it apart from an asset name, the extraction tasks read every string
-    # anyway, and the alternative is reporting every asset name as
-    # translatable.
+    # Round 1 required `.islower()`, which let `AppIcon-Ember` through as prose:
+    # the exact asset name PRD-20 says must never fire. Round 2 dropped case
+    # entirely, which swallowed `Sign-in`, `Auto-save` and `Best-of-3`.
+    #
+    # What actually separates the two sets is not *whether* segments are
+    # capitalised but *how*. Every hyphenated machine name in this repo is
+    # either uniformly lowercase or contains a CamelCase segment:
+    #
+    #   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide  UTF-8        <- CamelCase segment
+    #   pad-probe  cloud-sync  widget-bridge  d-pad  hold-click <- all lowercase
+    #
+    # while hyphenated English never has an uppercase letter *inside* a word and
+    # is not uniformly lowercase, because at least one segment starts a phrase:
+    #
+    #   Sign-in  Re-solve  Auto-save  Multi-line  Best-of-3  Auto-Save  X-Ray
+    #
+    # "All segments share a case class" was the first thing tried and is not
+    # enough: it drops `Auto-Save` and `Well-Being`, and Title Case is exactly
+    # what the Mac menu bar uses ("New Game", "Float Desk on Top"), so that is a
+    # shape this app will really produce.
+    #
+    # Residual false negative, and it is a real string in this tree rather than
+    # a hypothetical: `TutorialGrammar.pencilVerb` is `"hold-click"` on one
+    # platform and `"Shift-type"` on another. `Shift-type` flags, `hold-click`
+    # does not — nothing distinguishes it from `pad-probe`. Neither reaches the
+    # rule today (they are struct fields, not sink arguments), but whoever does
+    # Tasks 5-8 should extract that pair by hand.
     segments = trimmed.split("-")
     if len(segments) >= 2 and all(s.isalnum() for s in segments):
-        return False
+        uniformly_lower = all(not any(c.isupper() for c in s) for s in segments)
+        has_camel_segment = any(any(c.isupper() for c in s[1:]) for s in segments)
+        if uniformly_lower or has_camel_segment:
+            return False
     return True
 
 

@@ -184,10 +184,18 @@ final class StringSealTests: XCTestCase {
                     Text("nine.history")
                     Text("AppIcon-Ember")
                     Text("pad-probe")
+                    Text("UTF-8")
                     // ...and the boundary the shape rule used to overrun.
                     // Prose that ends in punctuation is prose.
                     Text("Time:")                                   // 8
                     Button("Undone.") { }                           // 9
+                    // Hyphenated English. Uniformly-cased kebab is a machine
+                    // name, mixed-case kebab is a phrase — the round-2 rule
+                    // dropped all five of these as if they were asset sets.
+                    Text("Sign-in")                                 // 10
+                    Text("Auto-save")                               // 11
+                    Text("Auto-Save")                               // 12
+                    Text("Best-of-3")                               // 13
                 }
                 .accessibilityLabel("Board")                        // 10
                 .accessibilityAction(named: "Show board stats") { } // 11
@@ -207,6 +215,10 @@ final class StringSealTests: XCTestCase {
             "Show Timer",
             "Time:",
             "Undone.",
+            "Sign-in",
+            "Auto-save",
+            "Auto-Save",
+            "Best-of-3",
             "Board",
             "Show board stats",
             "Discard this board?",
@@ -492,22 +504,49 @@ final class StringSealTests: XCTestCase {
         // where prose would have none.
         if trimmed.contains(where: { "._:/".contains($0) }) { return false }
 
-        // Kebab: two or more alphanumeric segments, like `pad-probe` (a launch
-        // arg) or `AppIcon-Ember` (an asset-catalog set). This arm used to
-        // also require all-lowercase, which let `AppIcon-Ember` through as
-        // prose — the exact asset name PRD-20 says must never fire. Case
-        // cannot be the test, because asset sets are conventionally
-        // capitalised.
+        // Kebab. This branch has now been wrong twice, in opposite directions,
+        // and each time only a probe caught it — so the reasoning is written
+        // out.
         //
-        // Known and accepted false negative: a genuinely hyphenated English
-        // word in a sink — `Text("Sign-in")` — is dropped. There is no shape
-        // that tells it apart from an asset name, the extraction tasks read
-        // every string anyway, and the alternative is reporting every asset
-        // name as translatable.
+        // Round 1 required all-lowercase, which let `AppIcon-Ember` through as
+        // prose: the exact asset name PRD-20 says must never fire. Round 2
+        // dropped case entirely, which swallowed `Sign-in`, `Auto-save` and
+        // `Best-of-3`.
+        //
+        // What separates the two sets is not *whether* segments are
+        // capitalised but *how*. Every hyphenated machine name in this repo is
+        // either uniformly lowercase or contains a CamelCase segment:
+        //
+        //   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide  UTF-8   <- CamelCase
+        //   pad-probe  cloud-sync  widget-bridge  d-pad        <- all lower
+        //
+        // while hyphenated English never has an uppercase letter *inside* a
+        // word and is not uniformly lowercase, because at least one segment
+        // starts a phrase:
+        //
+        //   Sign-in  Re-solve  Auto-save  Multi-line  Best-of-3  Auto-Save
+        //
+        // "All segments share a case class" was the first thing tried and is
+        // not enough: it drops `Auto-Save` and `Well-Being`, and Title Case is
+        // exactly what the Mac menu bar uses ("New Game", "Float Desk on
+        // Top"), so that is a shape this app will really produce.
+        //
+        // Residual false negative, and it is a real string in this tree rather
+        // than a hypothetical: `TutorialGrammar.pencilVerb` is `"hold-click"`
+        // on one platform and `"Shift-type"` on another. `Shift-type` flags,
+        // `hold-click` does not — nothing distinguishes it from `pad-probe`.
+        // Neither reaches the rule today (they are struct fields, not sink
+        // arguments), but whoever does Tasks 5-8 should extract that pair by
+        // hand.
         let segments = trimmed.split(separator: "-", omittingEmptySubsequences: false)
-        if segments.count >= 2, segments.allSatisfy({ segment in
+        let alphanumericSegments = segments.count >= 2 && segments.allSatisfy { segment in
             !segment.isEmpty && segment.allSatisfy { $0.isLetter || $0.isNumber }
-        }) { return false }
+        }
+        if alphanumericSegments {
+            let uniformlyLower = segments.allSatisfy { !$0.contains(where: \.isUppercase) }
+            let hasCamelSegment = segments.contains { $0.dropFirst().contains(where: \.isUppercase) }
+            if uniformlyLower || hasCamelSegment { return false }
+        }
         return true
     }
 
