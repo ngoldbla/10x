@@ -2571,9 +2571,63 @@ re-mint is implied.
 - **An omitted argument is still invisible.** `specifierMismatch` rejects an
   index above `args.count` and a wrong conversion; a translation that simply
   *drops* `%2$@` validates and formats fine, and half the sentence disappears.
-  Four keys are exposed (`board.announce.pair`, `board.cell.hintPair`,
-  `coach.card.label`, `shelf.continue.caption`). The translation PR needs a test
-  that every locale uses every argument index the `en` value uses.
+  ~~Four keys are exposed (`board.announce.pair`, `board.cell.hintPair`,
+  `coach.card.label`, `shelf.continue.caption`).~~ **Closed here, and the count
+  was wrong: 32 keys are exposed, not four.** Those four are a sample. Every key
+  carrying two or more positional indices is exposed — the whole
+  `coach.*.sentence.*` family, and most of `board.*`, `shelf.*` and
+  `firstrun.*`. `testEveryLocaleUsesEveryArgumentIndexTheEnglishValueUses` and
+  `testEverySubstitutionVariationStillNamesItsCount` hold it now.
+
+  **How the 32nd key hid is the transferable part.** `board.progress.filled` is
+  `%1$#@filled@ filled.` at the top level — one index — and its `%2$lld` lives
+  inside the substitution's plural forms. So a reader that examines each stored
+  value on its own counts 31, and the first script written to justify the
+  assertion returned exactly 31. The Swift test, written from the same
+  understanding but unioning the two levels, disagreed with it and was right.
+  Argument coverage has to be computed per *rendering* — top-level ∪ the
+  selected substitution form — not per stored value.
+
+  **The hole was measured before it was closed.** A `ja` locale was injected
+  carrying four deliberate defects: a dropped `%2$@`; a `%2$lld` dropped from
+  inside a substitution; an index dropped from one plural category only; and a
+  substitution form with no `%arg`. Against that catalog `strings.py --audit`
+  was green, `strings.py --selftest-catalog` was green, and `xcstringstool
+  compile` **exited 0 with no warning** — emitting `"board.announce.pair" =>
+  "%1$@"` straight into the shipping `.strings`. Of the entire existing
+  `CatalogTests` suite, nothing failed but the undeclared-locale tripwire. The
+  two new tests failed on all four, naming the key and the category.
+
+- **`needs_review` is erased by compilation — measured, not repeated.** A
+  catalog whose every unit is `needs_review` and the same catalog marked
+  `translated` compile to byte-identical output: `ja.lproj/*.strings` sha256
+  `6a874df5…ba35` both ways, `*.stringsdict` `285b4548…9678` both ways, and the
+  token `needs_review` appears **zero** times in any compiled artifact. The
+  state exists only in the source catalog, so
+  `testEveryMachineDraftIsMarkedNeedsReview` is the only thing that keeps "nobody
+  on this project reads these nine languages" true in the repo rather than in a
+  comment.
+
+- **Task 11 (Dynamic Type at AX5) was retired, not deferred.** It specified an
+  AX5 sweep, and the sweep would have measured its own absence: `Sources/App`
+  holds **0** `@ScaledMetric`, **0** `dynamicTypeSize` and **0** `relativeTo:`
+  against **64** fixed `.system(size:)` and **107** `CouchTypography`
+  references, and `CouchTypography` itself
+  (`couchkit/Sources/CouchKit/CouchUI.swift:22-31`) is fixed points on both
+  branches of its `#if os(tvOS)`. Nothing in the app grows, so AX5 renders
+  identically to the default size and returns green. Making Nine scale means
+  changing `CouchTypography`, which all five Couch Suite apps render through —
+  the same class of suite decision as the `HelpKit` strings below. Recorded as
+  **[PRD-36](PRD-36.md)**.
+
+  The plan's prediction was stale in both directions: it named the six
+  `GlassIconButton`s as the first failure *and* `.contentShape(.accessibility,
+  Circle())` as the fix, and that fix had already landed in PRD-19 at
+  `TouchUI.swift:1558`. The one place text does grow today is the widget
+  extension — 22 semantic text styles, and `BoardWidget.swift:129` grows into a
+  `.frame(height: 34)` with no `lineLimit` and no `minimumScaleFactor`. That is
+  a real bug, reachable now, and PRD-36 ships it first because it needs no suite
+  coordination.
 - **No whole-branch review.** Every task was reviewed and every finding fixed or
   parked, but the final cross-task pass was not run.
 - **The app has not been driven in a non-English locale**, beyond the widget
