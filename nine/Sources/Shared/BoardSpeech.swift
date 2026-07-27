@@ -167,7 +167,14 @@ public enum BoardSpeech {
 
     /// Spoken when the board is finished. The caller decides when — this type
     /// has no opinion about celebration timing.
-    public static let solvedAnnouncement = Phrase.solved
+    ///
+    /// Computed, not a `static let`. A `let` here would be a lazy global whose
+    /// value is frozen at whatever the first read saw — which is fine today
+    /// (`Phrasebook.install` runs in `NineApp.init`, before any of this is
+    /// reachable) and silently wrong the day the player changes language
+    /// mid-session. Nothing else in this file caches a word; this should not
+    /// either.
+    public static var solvedAnnouncement: String { Phrase.solved }
 
     /// "Four cleared."
     public static func eraseAnnouncement(digit: Int) -> String {
@@ -206,7 +213,7 @@ public enum BoardSpeech {
     /// Anything else returns "" — callers guard first.
     public static func digitWord(_ digit: Int) -> String {
         guard isValidDigit(digit) else { return "" }
-        return Phrase.digitWords[digit - 1]
+        return Phrase.digitWord(digit)
     }
 
     /// `digitWord` with a leading capital, for sentence-initial position.
@@ -217,7 +224,7 @@ public enum BoardSpeech {
     /// The plural noun for a digit: "fours", "sixes".
     public static func digitWordPlural(_ digit: Int) -> String {
         guard isValidDigit(digit) else { return "" }
-        return Phrase.digitPlurals[digit - 1]
+        return Phrase.digitPlural(digit)
     }
 
     /// The digit as a noun agreeing with `count`: 1 → "four", else "fours".
@@ -229,7 +236,7 @@ public enum BoardSpeech {
     /// back to numerals rather than growing an English number generator here.
     public static func countWord(_ count: Int) -> String {
         guard (0...9).contains(count) else { return String(count) }
-        return count == 0 ? Phrase.zeroWord : Phrase.digitWords[count - 1]
+        return Phrase.digitWord(count)
     }
 
     public static func countWordCapitalized(_ count: Int) -> String {
@@ -365,93 +372,138 @@ public enum BoardSpeech {
 
 // MARK: - Phrase book
 //
-// EVERY user-facing literal in this file lives here and nowhere else. That is
-// the whole point: PRD-20 (localization) replaces the bodies below with
-// `LocalizedStringResource` lookups and the formatting logic above does not
-// move a line. Do not interpolate an English word anywhere outside this block,
-// and do not add a String Catalog yet — the seam is the deliverable, the
-// catalog comes with PRD-20.
+// EVERY user-facing literal in this file lives here and nowhere else, and as of
+// PRD-20 none of them is a literal at all: each body is one `Phrasebook` key.
+// That was the whole point of the block — the formatting logic above did not
+// move a line when the words became data.
+//
+// Nothing here reaches for a bundle. `Phrasebook.current` is English until the
+// App installs a resolver (see `Phrasebook.swift` for the three independent
+// reasons `LocalizedStringResource` cannot appear in this target), which is what
+// keeps `BoardSpeechTests` runnable as the first, cheapest step in CI — before
+// the simulator exists.
 //
 // Sentences end in a period so VoiceOver takes a breath between them. Labels
-// and values do not: they are fragments VoiceOver stitches together itself.
+// and values do not: they are fragments VoiceOver stitches together itself. That
+// distinction now lives in `EnglishPhrases`, and
+// `testSentencesEndInPeriodsAndValuesDoNot` still holds it from this side.
 private enum Phrase {
     // Cell identity
-    static func cellLabel(row: Int, column: Int) -> String { "Row \(row), column \(column)" }
-    static func row(_ n: Int) -> String { "Row \(n)" }
-    static func column(_ n: Int) -> String { "Column \(n)" }
-    static func box(_ n: Int) -> String { "Box \(n)" }
-    static let placeInstruction = "Flick or use the actions rotor to place a digit."
+    static func cellLabel(row: Int, column: Int) -> String {
+        Phrasebook.current.string("board.cell.label", .int(row), .int(column))
+    }
+    static func row(_ n: Int) -> String { Phrasebook.current.string("board.unit.row", .int(n)) }
+    static func column(_ n: Int) -> String { Phrasebook.current.string("board.unit.column", .int(n)) }
+    static func box(_ n: Int) -> String { Phrasebook.current.string("board.unit.box", .int(n)) }
+    static var placeInstruction: String { Phrasebook.current.string("board.cell.placeHint") }
 
     // Streak chip (PRD-13). Values, not sentences: no trailing period.
-    static func streak(_ days: Int) -> String { "\(days) day streak" }
-    static func streakHeld(_ days: Int) -> String { "\(days) day streak, held" }
+    static func streak(_ days: Int) -> String {
+        Phrasebook.current.string("board.streak.plain", .int(days))
+    }
+    static func streakHeld(_ days: Int) -> String {
+        Phrasebook.current.string("board.streak.held", .int(days))
+    }
 
     // Group scan. A value, so no trailing period.
-    static let boxFilled = "Filled"
-    static func boxEmptyCount(_ count: Int) -> String { "\(count) empty" }
+    static var boxFilled: String { Phrasebook.current.string("board.box.filled") }
+    static func boxEmptyCount(_ count: Int) -> String {
+        Phrasebook.current.string("board.box.empty", .int(count))
+    }
 
     // Voice Control names. No punctuation anywhere: these are matched against
     // a speech recogniser's output, which never emits a comma.
-    static func cellAddress(row: Int, column: Int) -> String { "Cell \(row) \(column)" }
-    static func spokenCellLabel(row: Int, column: Int) -> String { "Row \(row) column \(column)" }
-    static func bareAddress(row: Int, column: Int) -> String { "\(row) \(column)" }
+    static func cellAddress(row: Int, column: Int) -> String {
+        Phrasebook.current.string("board.voiceName.cell", .int(row), .int(column))
+    }
+    static func spokenCellLabel(row: Int, column: Int) -> String {
+        Phrasebook.current.string("board.voiceName.rowColumn", .int(row), .int(column))
+    }
+    static func bareAddress(row: Int, column: Int) -> String {
+        Phrasebook.current.string("board.voiceName.bare", .int(row), .int(column))
+    }
 
     // Cell contents
-    static func givenValue(_ digit: Int) -> String { "\(digit), given" }
-    static func plainValue(_ digit: Int) -> String { "\(digit)" }
-    static func wrongValue(_ digit: Int) -> String { "\(digit), wrong" }
-    static let empty = "Empty"
-    static func emptyWithNotes(_ list: String) -> String { "Empty, notes \(list)" }
-    static let listSeparator = ", "
+    static func givenValue(_ digit: Int) -> String {
+        Phrasebook.current.string("board.value.given", .int(digit))
+    }
+    static func plainValue(_ digit: Int) -> String {
+        Phrasebook.current.string("board.value.plain", .int(digit))
+    }
+    static func wrongValue(_ digit: Int) -> String {
+        Phrasebook.current.string("board.value.wrong", .int(digit))
+    }
+    static var empty: String { Phrasebook.current.string("board.value.empty") }
+    static func emptyWithNotes(_ list: String) -> String {
+        Phrasebook.current.string("board.value.notes", .text(list))
+    }
+    static var listSeparator: String { Phrasebook.current.string("board.value.noteSeparator") }
 
     // Move announcements
-    static func placed(_ digitWord: String) -> String { "\(digitWord) placed." }
-    static func remaining(_ countWord: String, _ digitNoun: String) -> String {
-        "\(countWord) \(digitNoun) remaining."
+    static func placed(_ digitWord: String) -> String {
+        Phrasebook.current.string("board.announce.placed", .text(digitWord))
     }
-    static func allDone(_ digitPlural: String) -> String { "All \(digitPlural) done." }
-    static func cleared(_ digitWord: String) -> String { "\(digitWord) cleared." }
-    static func noteAdded(_ digitWord: String) -> String { "Note \(digitWord) added." }
-    static func noteRemoved(_ digitWord: String) -> String { "Note \(digitWord) removed." }
-    static let solved = "Solved."
+    static func remaining(_ countWord: String, _ digitNoun: String) -> String {
+        Phrasebook.current.string("board.announce.remaining", .text(countWord), .text(digitNoun))
+    }
+    static func allDone(_ digitPlural: String) -> String {
+        Phrasebook.current.string("board.announce.allDone", .text(digitPlural))
+    }
+    static func cleared(_ digitWord: String) -> String {
+        Phrasebook.current.string("board.announce.cleared", .text(digitWord))
+    }
+    static func noteAdded(_ digitWord: String) -> String {
+        Phrasebook.current.string("board.announce.noteAdded", .text(digitWord))
+    }
+    static func noteRemoved(_ digitWord: String) -> String {
+        Phrasebook.current.string("board.announce.noteRemoved", .text(digitWord))
+    }
+    static var solved: String { Phrasebook.current.string("board.announce.solved") }
 
     // Board summary
-    static func filled(_ filled: Int, of total: Int) -> String { "\(filled) of \(total) filled." }
-    static func wrongCount(_ count: Int) -> String { "\(count) wrong." }
+    static func filled(_ filled: Int, of total: Int) -> String {
+        Phrasebook.current.string("board.progress.filled", .int(filled), .int(total))
+    }
+    static func wrongCount(_ count: Int) -> String {
+        Phrasebook.current.string("board.progress.wrong", .int(count))
+    }
 
     // Coach (PRD-11). Every one of these is a claim about the board the player
     // could check by hand — not one of them consults the solution, which is why
     // the wording is identical whether "show mistakes" is on or off.
-    static let coachSlipTitle = "A slip somewhere"
-    static let coachSlip = "Two of these squares disagree, so nothing can follow from here."
-    static let coachExhaustedTitle = "Nothing follows"
-    static let coachExhausted = "Nothing at this board's level follows from here."
-    static let coachSolvedTitle = "Done"
-    static let rowsWord = "rows"
-    static let columnsWord = "columns"
+    static var coachSlipTitle: String { Phrasebook.current.string("coach.slip.title") }
+    static var coachSlip: String { Phrasebook.current.string("coach.slip.body") }
+    static var coachExhaustedTitle: String { Phrasebook.current.string("coach.exhausted.title") }
+    static var coachExhausted: String { Phrasebook.current.string("coach.exhausted.body") }
+    static var coachSolvedTitle: String { Phrasebook.current.string("coach.solved.title") }
+    static var rowsWord: String { Phrasebook.current.string("coach.axis.rows") }
+    static var columnsWord: String { Phrasebook.current.string("coach.axis.columns") }
     static func coachNakedSingle(_ cell: String, _ digit: String) -> String {
-        "\(cell) has one candidate left: \(digit)."
+        Phrasebook.current.string("coach.nakedSingle.body", .text(cell), .text(digit))
     }
     static func coachHiddenSingle(_ unit: String, _ digit: String) -> String {
-        "Only one square in \(unit) can take a \(digit)."
+        Phrasebook.current.string("coach.hiddenSingle.body", .text(unit), .text(digit))
     }
     static func coachHiddenSingleFallback(_ cell: String, _ digit: String) -> String {
-        "\(cell) is the only square left that can take a \(digit)."
+        Phrasebook.current.string("coach.hiddenSingle.fallback", .text(cell), .text(digit))
     }
     static func coachNakedPair(_ first: String, _ second: String, _ unit: String) -> String {
-        "\(first) and \(second) fill these two squares between them, "
-            + "so neither can go anywhere else in \(unit)."
+        Phrasebook.current.string("coach.nakedPair.body", .text(first), .text(second), .text(unit))
     }
     static func coachHiddenPair(_ first: String, _ second: String, _ unit: String) -> String {
-        "\(first) and \(second) fit only these two squares in \(unit), so nothing else fits there."
+        Phrasebook.current.string("coach.hiddenPair.body", .text(first), .text(second), .text(unit))
     }
+    /// The target unit is named twice in English and once in the arguments —
+    /// `%3$@` appears twice in `coach.boxLine.body`. That is the reason the
+    /// specifiers are positional rather than bare: a bare `%@` cannot be reused.
     static func coachBoxLine(_ digit: String, _ source: String, _ target: String) -> String {
-        "Every \(digit) still possible in \(source) sits in \(target), "
-            + "so no other square in \(target) can be a \(digit)."
+        Phrasebook.current.string("coach.boxLine.body",
+                                  .text(digit), .text(source), .text(target))
     }
     static func coachXWing(_ plural: String, base: String, cover: String, _ digit: String) -> String {
-        "\(sentenceCased(plural)) in these two \(base) can only sit in two \(cover), "
-            + "so no other square in those \(cover) can be a \(digit)."
+        Phrasebook.current.string("coach.xWing.body",
+                                  .text(sentenceCased(plural)), .text(base), .text(cover),
+                                  .text(digit))
     }
     /// `BoardSpeech.capitalizedFirst` is private to the formatter above; the
     /// phrase book needs the same tweak for a sentence-initial plural.
@@ -460,13 +512,26 @@ private enum Phrase {
         return String(first).uppercased() + word.dropFirst()
     }
 
-    // Number words. Index 0 is the digit 1 — there is no zero digit on a board,
-    // and `zeroWord` is only ever a *count*.
-    static let digitWords = [
-        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    // Number words, one catalog key per digit — the ruling on PRD-20's plan, so
+    // that a language whose "four" inflects by case can spell each one. Indexed
+    // by the number itself: `digitWordKeys[0]` is "zero", which is only ever a
+    // *count*, never a digit on a board.
+    static func digitWord(_ number: Int) -> String {
+        Phrasebook.current.string(digitWordKeys[number])
+    }
+    /// The plural noun for a digit, 1...9.
+    static func digitPlural(_ digit: Int) -> String {
+        Phrasebook.current.string(digitPluralKeys[digit - 1])
+    }
+    private static let digitWordKeys = [
+        "board.digitWord.zero", "board.digitWord.one", "board.digitWord.two",
+        "board.digitWord.three", "board.digitWord.four", "board.digitWord.five",
+        "board.digitWord.six", "board.digitWord.seven", "board.digitWord.eight",
+        "board.digitWord.nine",
     ]
-    static let digitPlurals = [
-        "ones", "twos", "threes", "fours", "fives", "sixes", "sevens", "eights", "nines",
+    private static let digitPluralKeys = [
+        "board.digitPlural.one", "board.digitPlural.two", "board.digitPlural.three",
+        "board.digitPlural.four", "board.digitPlural.five", "board.digitPlural.six",
+        "board.digitPlural.seven", "board.digitPlural.eight", "board.digitPlural.nine",
     ]
-    static let zeroWord = "zero"
 }
