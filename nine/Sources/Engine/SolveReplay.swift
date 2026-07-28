@@ -244,6 +244,70 @@ public struct SolveReplay: Sendable, Equatable, Codable {
     }
 }
 
+/// Replaying a move log onto a board — the one place undo is unwound.
+///
+/// Two things need this and they must not each own a copy: `ReplayAnalysis`
+/// classifies each placement against the board as it stood, and `CometTimeline`
+/// draws that same board at an arbitrary instant. Two walkers would drift the
+/// moment a `LoggedMove.Kind` case is appended, and they would drift silently —
+/// a desynced undo mirror renders a plausible board that never existed.
+public enum ReplayWalk {
+
+    /// One step of the walk: the move, its index, and the board *before* it.
+    public struct Beat: Sendable, Equatable {
+        public let index: Int
+        public let move: LoggedMove
+        /// The 81 entries as they stood when the player made this move.
+        public let before: [Int]
+    }
+
+    /// Walk `moves` over `puzzle`, calling `visit` once per move.
+    ///
+    /// `LoggedMove` does not record what an undo undid, so this mirrors the
+    /// game's own undo stack — which is exactly how the game knew.
+    public static func walk(
+        puzzle: [Int], moves: [LoggedMove], visit: (Beat) -> Void
+    ) -> [Int] {
+        var entries = puzzle
+        var stack: [(kind: LoggedMove.Kind, cell: Int, previousEntry: Int)] = []
+        guard entries.count == 81 else { return entries }
+
+        for (index, move) in moves.enumerated() {
+            guard (0..<81).contains(move.cell) else { continue }
+            visit(Beat(index: index, move: move, before: entries))
+            switch move.kind {
+            case .pencil:
+                // Notes move no entry, but undo still pops them, so the mirror
+                // has to carry them.
+                stack.append((.pencil, move.cell, entries[move.cell]))
+            case .place:
+                guard (1...9).contains(move.digit) else { continue }
+                stack.append((.place, move.cell, entries[move.cell]))
+                entries[move.cell] = move.digit
+            case .erase:
+                stack.append((.erase, move.cell, entries[move.cell]))
+                entries[move.cell] = 0
+            case .undo:
+                // **`digit == 0` is an undone auto-notes fill, exactly.**
+                // `applyAutoNotes` pushes an undo entry and appends *nothing*
+                // to the move log, so its undo has no move here to pop — and it
+                // is discriminable without ambiguity, because every real
+                // pencil, place and erase guards `(1...9).contains(digit)`.
+                // Skipping it is what keeps this mirror aligned with the stack
+                // the game actually popped.
+                guard move.digit != 0, let undone = stack.popLast() else { continue }
+                if undone.kind != .pencil { entries[undone.cell] = undone.previousEntry }
+            }
+        }
+        return entries
+    }
+
+    /// The board after the first `count` moves.
+    public static func board(puzzle: [Int], moves: [LoggedMove], through count: Int) -> [Int] {
+        walk(puzzle: puzzle, moves: Array(moves.prefix(max(0, count)))) { _ in }
+    }
+}
+
 /// Every replay this device holds, in its own top-level `CouchStored` blob
 /// (`nine.replays`) — not a field on `LibraryEntry` (PRD-26 §4).
 ///

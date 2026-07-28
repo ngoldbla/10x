@@ -107,48 +107,16 @@ public struct ReplayAnalysis: Sendable, Equatable {
     ) -> ReplayAnalysis {
         guard puzzle.count == 81, solution.count == 81 else { return ReplayAnalysis(placements: []) }
 
-        var entries = puzzle
-        // A mirror of the game's own undo stack, so `.undo` events pop the move
-        // they actually reverted. `LoggedMove` does not say what an undo undid,
-        // and reconstructing it from the stack is exactly how the game knew.
-        var stack: [(kind: LoggedMove.Kind, cell: Int, previousEntry: Int)] = []
+        // The undo mirror lives in `ReplayWalk`, once, because the comet needs
+        // the identical walk and two copies would drift silently the moment a
+        // `LoggedMove.Kind` case is appended.
         var placements: [ClassifiedPlacement] = []
-
-        for (index, move) in moves.enumerated() {
-            switch move.kind {
-            case .pencil:
-                // Notes never move a candidate the solver can see — it derives
-                // them from entries — so this is a no-op for classification.
-                // It is still pushed, because undo pops it.
-                stack.append((.pencil, move.cell, entries[move.cell]))
-
-            case .place:
-                guard (0..<81).contains(move.cell), (1...9).contains(move.digit) else { continue }
-                placements.append(classify(
-                    moveIndex: index, cell: move.cell, digit: move.digit,
-                    entries: entries, solution: solution, allowed: allowed, context: context
-                ))
-                stack.append((.place, move.cell, entries[move.cell]))
-                entries[move.cell] = move.digit
-
-            case .erase:
-                guard (0..<81).contains(move.cell) else { continue }
-                stack.append((.erase, move.cell, entries[move.cell]))
-                entries[move.cell] = 0
-
-            case .undo:
-                // **`digit == 0` is an undone auto-notes fill, exactly.**
-                // `applyAutoNotes` pushes an undo entry and appends *nothing*
-                // to the move log, so its undo has no move to pop here — and it
-                // is discriminable without ambiguity, because every real
-                // pencil, place and erase guards `(1...9).contains(digit)`.
-                // Skipping it is what keeps this mirror aligned with the stack
-                // the game actually popped.
-                guard move.digit != 0, let undone = stack.popLast() else { continue }
-                if undone.kind != .pencil, (0..<81).contains(undone.cell) {
-                    entries[undone.cell] = undone.previousEntry
-                }
-            }
+        _ = ReplayWalk.walk(puzzle: puzzle, moves: moves) { beat in
+            guard beat.move.kind == .place, (1...9).contains(beat.move.digit) else { return }
+            placements.append(classify(
+                moveIndex: beat.index, cell: beat.move.cell, digit: beat.move.digit,
+                entries: beat.before, solution: solution, allowed: allowed, context: context
+            ))
         }
         return ReplayAnalysis(placements: placements)
     }
