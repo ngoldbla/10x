@@ -57,10 +57,16 @@ struct CoachCardContent: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 9)
                         .couchGlass(in: Capsule())
-                        .contentShape(.accessibility, Capsule())
+                        // The same 36 pt capsule PRD-25 measured on its own
+                        // card, against the charter's 44 pt floor. `minHeight`
+                        // outside the glass: the target grows, the drawn
+                        // capsule does not move. PRD-19 sized the *chrome* to
+                        // 44 and this button was never in that sweep — no AX
+                        // baseline covers a card, so nothing has ever looked.
+                        .frame(minHeight: 44)
+                        .contentShape(.accessibility, Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 2)
             }
         }
         .padding(.horizontal, 18)

@@ -33,6 +33,10 @@ import CouchCore
 /// App-layer accessor and `SolveCardFacts` the Shared one.
 public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
     case gentle, steady, sharp, nocturne
+    // PRD-25 — the deep end. Appended, because `CaseIterable` order is the
+    // order of the difficulty cards on every shelf, and because a band's raw
+    // value is persisted.
+    case tempest, abyss
 
     /// Highest technique the puzzle may require.
     public var ceiling: Technique {
@@ -40,20 +44,71 @@ public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
         case .gentle: return .hiddenSingle
         case .steady: return .boxLineReduction
         case .sharp, .nocturne: return .xWing
+        case .tempest: return .xyWing
+        case .abyss: return .simpleColoring
         }
     }
 
     /// Lowest rank the *hardest* required technique must reach (nil = none).
+    ///
+    /// Tempest and Abyss are floor-defined bands rather than parameter-defined
+    /// ones: Nocturne could only be "harder than Sharp" by taking clues away,
+    /// because it had no technique Sharp lacked. These two have one each, so
+    /// the floor *is* the band — a Tempest board is one that genuinely cannot
+    /// be finished without a swordfish, a skyscraper or an XY-wing.
     public var floor: Technique? {
         switch self {
         case .gentle: return nil
         case .steady: return .nakedPair
         case .sharp, .nocturne: return .xWing
+        case .tempest: return .swordfish
+        case .abyss: return .simpleColoring
         }
     }
 
+    /// The chain this band solves inside.
+    ///
+    /// **Classic only, and the filter is not cosmetic.** `techniques(upTo:)`
+    /// works on rank, and PRD-25's four classic techniques rank *above*
+    /// PRD-23's four variant ones because rank is append-only — so a Tempest
+    /// ceiling of `.xyWing` sweeps up `cageSingle` and friends on the way past.
+    /// They would find nothing on a classic board (no cages, no thermometers),
+    /// so this changes no output; it keeps the *claim* true, which is what
+    /// `testNoDifficultyBandAllowsAVariantTechnique` reads. The four bands that
+    /// shipped before PRD-25 have no rank above 5 to filter, so their lists are
+    /// unchanged — the golden corpus is the proof.
+    ///
+    /// Six arrays, built once.
+    ///
+    /// This is read per `solve` call, per orbit, per attempt, and a Nocturne
+    /// board can need ~12,000 attempts. It used to allocate one array per read
+    /// (`techniques(upTo:)`); PRD-25's classic filter made it two, and a table
+    /// makes it none.
+    ///
+    /// **Measured, and it bought nothing**: `swift test` is 3:47 with the table
+    /// and 3:44 without it, which is noise. It stays because strictly less work
+    /// on a loop that runs twelve thousand times is not worth arguing about —
+    /// but the number is here so nobody re-derives it as a win.
+    private static let allowed: [Difficulty: [Technique]] = Dictionary(
+        uniqueKeysWithValues: Difficulty.allCases.map {
+            ($0, LogicSolver.techniques(upTo: $0.ceiling).filter(\.isClassic))
+        })
+
     public var allowedTechniques: [Technique] {
-        LogicSolver.techniques(upTo: ceiling)
+        // Never nil — the table is built from `allCases` — but a `!` on a hot
+        // path that a future band could make wrong is not worth the character
+        // it saves.
+        Self.allowed[self] ?? LogicSolver.techniques(upTo: ceiling).filter(\.isClassic)
+    }
+
+    /// True for the bands whose dig re-offers every healed orbit back to the
+    /// hole. Sharp is deliberately absent: its output is inside 56 golden
+    /// hashes and must not move. See the pass itself in `attemptGenerate`.
+    var redigsAfterHealing: Bool {
+        switch self {
+        case .gentle, .steady, .sharp: return false
+        case .nocturne, .tempest, .abyss: return true
+        }
     }
 
     /// Extra proof obligations beyond the technique band, applied by `verify`.
@@ -70,6 +125,13 @@ public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
         case .gentle, .steady, .sharp: return nil
         case .nocturne:
             return BandDemands(maxGivens: 26, advancedFloor: .boxLineReduction, minAdvancedSteps: 3)
+        // Tempest and Abyss carry none, and that is a decision rather than an
+        // omission. Nocturne needed demands because it had no technique Sharp
+        // lacked, so "harder" had to be measured in clues and density. These
+        // two are defined by a floor no other band can reach; adding a clue
+        // ceiling on top would multiply an already-rare search by a second rare
+        // event, and §5's measured p95 is what that would show up as.
+        case .tempest, .abyss: return nil
         }
     }
 
@@ -79,6 +141,8 @@ public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
         case .steady: return 2
         case .sharp: return 3
         case .nocturne: return 4
+        case .tempest: return 5
+        case .abyss: return 6
         }
     }
 }
@@ -234,9 +298,16 @@ public enum PuzzleGenerator {
                     for (offset, cell) in orbit.enumerated() { puzzle[cell] = saved[offset] }
                 }
             }
-        case .sharp, .nocturne:
+        case .sharp, .nocturne, .tempest, .abyss:
             // Dig for maximal uniqueness first (fast), then let the healing
-            // pass below back off if the result overshoots the X-wing chain.
+            // pass below back off if the result overshoots the band's chain.
+            //
+            // The deep-end bands ride this branch unchanged, and the reason is
+            // worth stating because it is why they are affordable at all: a
+            // maximally-dug board usually needs *more* than an X-wing, which is
+            // exactly why Sharp has to heal so much of its own dig back. Widen
+            // the chain and the healing loop stops earlier — so the boards
+            // Sharp throws away are the boards Tempest is looking for.
             var removed: [[Int]] = []
             for orbit in orbits {
                 let saved = orbit.map { puzzle[$0] }
@@ -258,7 +329,7 @@ public enum PuzzleGenerator {
                 restored.append(removed[healIndex])
                 healIndex -= 1
             }
-            // Nocturne only — sharp's output must not move (the golden corpus
+            // Not sharp — sharp's output must not move (the golden corpus
             // is the proof that it doesn't). Healing walks the dig order
             // backwards and stops at the first solvable state, so it routinely
             // puts back a whole run of orbits when the chain only needed one of
@@ -267,7 +338,7 @@ public enum PuzzleGenerator {
             // drives the clue count to a local minimum by construction instead
             // of leaving it to the luck of the dig order, which is what makes
             // Nocturne's clue ceiling reachable without pure rejection.
-            if difficulty == .nocturne {
+            if difficulty.redigsAfterHealing {
                 for orbit in restored {
                     let saved = orbit.map { puzzle[$0] }
                     for cell in orbit { puzzle[cell] = 0 }

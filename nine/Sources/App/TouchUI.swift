@@ -20,6 +20,7 @@ struct TouchHomeView: View {
 
     @State private var showHistory = false
     @State private var showTutorial = false
+    @State private var showSchool = false
     @State private var showBoards = false
     @State private var showArchive = false
     /// The variants teaser's answer, swapped in place of its own subtitle so
@@ -94,7 +95,14 @@ struct TouchHomeView: View {
                 .transition(.opacity)
             }
         }
+        .overlay {
+            if showSchool {
+                SchoolView(model: model, accent: accent) { showSchool = false }
+                    .transition(.opacity)
+            }
+        }
         .animation(.couchFast, value: showTutorial)
+        .animation(.couchFast, value: showSchool)
         .onDisappear { variantsChipDismissal?.cancel() }
     }
 
@@ -116,6 +124,9 @@ struct TouchHomeView: View {
 
     // MARK: Learn + records
 
+    /// Three across, matching the free-play row above it. School joins the
+    /// tutorial and the records rather than hiding inside the tutorial: it is
+    /// a place a player returns to, and the tutorial is a thing you do once.
     private var learnRow: some View {
         HStack(spacing: 14) {
             TouchCard(action: { showTutorial = true }) {
@@ -135,6 +146,17 @@ struct TouchHomeView: View {
                         .foregroundStyle(.secondary)
                     Text(Strings.string("history.title"))
                         .font(CouchTypography.caption)
+                }
+                .frame(maxWidth: .infinity, minHeight: 74)
+            }
+            TouchCard(action: { showSchool = true }) {
+                VStack(spacing: 10) {
+                    Image(systemName: "graduationcap")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(Strings.string("school.title"))
+                        .font(CouchTypography.caption)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, minHeight: 74)
             }
@@ -355,18 +377,21 @@ struct TouchHomeView: View {
     // MARK: Free play
 
     private var freePlayRow: some View {
-        // Three across, then the deep end on its own line (PRD-17 §3). Not a
-        // hierarchy — a fourth column on a 393pt iPhone leaves each card ~90pt
-        // for a title plus a two-line blurb, which truncates all four rather
-        // than just the new one. Full width is what lets Nocturne keep the same
-        // blurb the other three get.
+        // Three across, then the deep end on its own lines (PRD-17 §3, widened
+        // by PRD-25). Not a hierarchy — a fourth column on a 393pt iPhone
+        // leaves each card ~90pt for a title plus a two-line blurb, which
+        // truncates all four rather than just the new one. Full width is what
+        // lets a deep band keep the same blurb the three above it get, and it
+        // is why three of them stack rather than becoming a second row.
         VStack(spacing: 14) {
             HStack(spacing: 14) {
                 ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                     difficultyCard(difficulty)
                 }
             }
-            deepEndCard(.nocturne)
+            ForEach(Difficulty.deepBands, id: \.self) { difficulty in
+                deepEndCard(difficulty)
+            }
         }
     }
 
@@ -541,6 +566,31 @@ struct TouchGameScreen: View {
     /// because a card is a presentation: dismissing it changes no board state,
     /// and nothing about it should survive leaving the screen.
     @State private var coachAdvice: CoachAdvice?
+    /// The why-chain on screen (PRD-25), held here for `coachAdvice`'s reason:
+    /// a narration is a presentation. Two states rather than one enum, because
+    /// a refusal has no beats to page through and folding them together would
+    /// give every read site an emptiness check it would eventually forget.
+    @State private var why: WhyNarration?
+    @State private var whyRefusal: WhyRefusal?
+    /// Where the finger last went down, for the long press.
+    ///
+    /// **`LongPressGesture` reports no location** — it is the one gesture in
+    /// SwiftUI that tells you *that* it happened and not *where* — so the point
+    /// has to come from a zero-distance `DragGesture` running beside it.
+    ///
+    /// The first version sequenced the two (`longPress.sequenced(before: drag)`)
+    /// and read `startLocation` off the sequence's second phase. It never
+    /// fired: a press-and-hold that does not move produces `.second(true, nil)`
+    /// and no drag value at all, so the point stayed `.zero` and `askWhy` was
+    /// asked about a cell off the top-left corner of the board. Found by
+    /// long-pressing a real board on a simulator, and by nothing else — it
+    /// compiles, it type-checks, and it silently does nothing.
+    ///
+    /// Plain `@State`, and the ordering is what makes it safe: the drag's
+    /// `onChanged` fires at touch-down, ~0.45 s before the long press can
+    /// succeed, so the point a completed press reads is always that press's
+    /// own. An abandoned press leaves a stale point that nothing reads.
+    @State private var pressPoint: CGPoint = .zero
     /// The one chip auto notes shows when it fills a board.
     @State private var autoNotesChip: String?
     @State private var chipDismissal: Task<Void, Never>?
@@ -610,6 +660,7 @@ struct TouchGameScreen: View {
             }
             // Above the board, below the drawer and the prefs sheet.
             .overlay { coachView }
+            .overlay { whyView }
             .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
             // The grabber sits *under* the drawer it advertises, so the panel
             // slides over it rather than the hairline floating on the glass.
@@ -653,6 +704,9 @@ struct TouchGameScreen: View {
         // it beats leaving a card on screen that is quietly no longer true.
         .onChange(of: model.game?.entries) { _, _ in
             if coachAdvice != nil { dismissCoach() }
+            // A derivation describes one position too, and more sharply: its
+            // whole subject is what a square's candidates are right now.
+            if why != nil || whyRefusal != nil { dismissWhy() }
         }
         .onChange(of: model.solvedAt) { _, solved in
             guard solved != nil else { return }
@@ -680,6 +734,8 @@ struct TouchGameScreen: View {
             chipDismissal?.cancel()
             autoNotesChip = nil
             coachAdvice = nil
+            why = nil
+            whyRefusal = nil
         }
     }
 
@@ -1124,7 +1180,7 @@ struct TouchGameScreen: View {
                 previewDigit: nil, // touch petals are direct — nothing to preview
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
-                coachFocus: coachAdvice.flatMap(CoachFocus.init),
+                coachFocus: boardFocus,
                 // Afterglow: the wave detonates from the winning cell, and
                 // after the sweep the gyro steers the trophy sheen.
                 waveOrigin: model.lastPlacedCell,
@@ -1137,6 +1193,21 @@ struct TouchGameScreen: View {
             .onTapGesture { location in
                 handleBoardTap(at: location, side: side, inset: inset)
             }
+            // PRD-25's one gesture. Additive by construction: a plain tap still
+            // opens the rose, so the first-flick covenant is untouched, and the
+            // long press only ever *asks a question* — it never writes.
+            //
+            // Two gestures, not one composed one — see `pressPoint` for the
+            // composition that looked right and did nothing. The drag records
+            // where the finger is; the long press says when to ask.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { pressPoint = $0.startLocation }
+            )
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .onEnded { _ in askWhy(at: pressPoint, side: side, inset: inset) }
+            )
             .overlay {
                 if let rose, let lens, model.solvedAt == nil {
                     // Scrim: any touch beside the rose cancels it — and blocks
@@ -1316,6 +1387,106 @@ struct TouchGameScreen: View {
         considerTip()
     }
 
+    // MARK: Why must this be a seven? (PRD-25)
+
+    /// What the board is lit with. The narration wins when one is running —
+    /// the two are never opened at once (each dismisses the other), and a
+    /// single source here is what makes that structural rather than a rule the
+    /// next person has to remember.
+    private var boardFocus: CoachFocus? {
+        if let why { return why.focus }
+        if let whyRefusal { return whyRefusal.focus }
+        return coachAdvice.flatMap(CoachFocus.init)
+    }
+
+    /// The long press landed. Empty cells only — a filled square has no
+    /// candidates left to argue about, and the gesture stays silent rather
+    /// than explaining that.
+    private func askWhy(at point: CGPoint, side: CGFloat, inset: CGFloat) {
+        guard let game = model.game, model.solvedAt == nil, rose == nil else { return }
+        let local = CGPoint(x: point.x - inset, y: point.y - inset)
+        guard let cell = BoardMetrics.cellIndex(at: local, side: side),
+              game.entry(at: cell) == 0 else { return }
+        guard why == nil, whyRefusal == nil else { return }
+
+        dismissTip()
+        closeDrawer()
+        dismissCoach()
+        cursor = cell
+        guard let outcome = model.requestDerivation(forCell: cell) else { return }
+        // No haptic. The board lighting up *is* the feedback, and a buzz for a
+        // question the player asked — rather than for a change they made —
+        // spends the sensory budget on an event that has no consequence.
+        withAnimation(.couchFast) {
+            switch outcome {
+            case .success(let derivation): why = WhyNarration(derivation)
+            case .failure(let refusal): whyRefusal = WhyRefusal(refusal: refusal)
+            }
+        }
+        announceWhy()
+    }
+
+    private func advanceWhy() {
+        guard var running = why else { return }
+        running.advance()
+        withAnimation(.couchFast) { why = running }
+        announceWhy()
+    }
+
+    private func dismissWhy() {
+        withAnimation(.couchFast) {
+            why = nil
+            whyRefusal = nil
+        }
+    }
+
+    /// VoiceOver hears the beat it cannot see the board light up. Same join as
+    /// the hint card's, through the same key, so a screen reader is told the
+    /// same sentence the card shows rather than a second spelling of it.
+    private func announceWhy() {
+        if let beat = why?.beat {
+            announce(CoachCardLabel.spoken(
+                title: BoardSpeech.coachTitle(.step(beat.coach)),
+                sentence: BoardSpeech.coachSentence(.step(beat.coach))))
+        } else if let whyRefusal {
+            announce(CoachCardLabel.spoken(title: whyRefusal.title,
+                                           sentence: whyRefusal.sentence))
+        }
+    }
+
+    /// The card, in the same free band the hint uses and dismissed the same
+    /// way. Never auto-advances: a player reading a proof sets the pace.
+    @ViewBuilder
+    private var whyView: some View {
+        if why != nil || whyRefusal != nil {
+            ZStack(alignment: model.prefs.controlsAtBottom ? .top : .bottom) {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismissWhy() }
+                Group {
+                    if let why {
+                        WhyCardContent(narration: why, accent: accent, onNext: advanceWhy) {
+                            // Through the ordinary door, so the wave, the error
+                            // rules, the haptics and persistence are exactly
+                            // what the rose would have left. The player asked.
+                            model.place($0.digit, at: $0.cell)
+                            hapticsAfterPlacing(at: $0.cell)
+                            dismissWhy()
+                        }
+                    } else if let whyRefusal {
+                        WhyRefusalContent(refusal: whyRefusal, accent: accent)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(model.prefs.controlsAtBottom ? .top : .bottom, 8)
+                .transition(.opacity.combined(
+                    with: .move(edge: model.prefs.controlsAtBottom ? .top : .bottom)
+                ))
+            }
+        }
+    }
+
     // MARK: Coach (PRD-11)
 
     /// The lightbulb is a toggle, not a dispenser: pressing it again puts the
@@ -1324,6 +1495,7 @@ struct TouchGameScreen: View {
         guard model.game != nil, model.solvedAt == nil else { return }
         guard coachAdvice == nil else { return dismissCoach() }
         guard let advice = model.requestCoachAdvice() else { return }
+        dismissWhy()
         dismissTip()
         closeDrawer()
         withAnimation(.couchFast) { coachAdvice = advice }

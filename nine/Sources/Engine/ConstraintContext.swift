@@ -105,6 +105,10 @@ public final class ConstraintContext: Sendable {
         .nakedSingle, .hiddenSingle, .cageSingle,
         .thermoBound, .innieOutie, .cageCombination,
         .nakedPair, .hiddenPair, .boxLineReduction, .xWing,
+        // PRD-25's deep end sits at the far end for a variant too: a killer
+        // player reaches for a cage before a swordfish, and these four are the
+        // last resort on any board.
+        .swordfish, .skyscraper, .xyWing, .simpleColoring,
     ]
 
     // MARK: - Thermometer tables

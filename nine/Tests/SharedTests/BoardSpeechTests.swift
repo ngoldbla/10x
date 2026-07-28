@@ -843,9 +843,17 @@ final class BoardSpeechTests: XCTestCase {
         }
     }
 
-    /// The unit-kind expansion, as a number. Six functions became seventeen
-    /// entries, and the duplication is the point — so a diff that quietly folds
-    /// two of them back into one template has to say so here.
+    /// The unit-kind expansion, as a list. Six functions became seventeen
+    /// entries, and PRD-25 took it to twenty-five; the duplication is the point
+    /// — so a diff that quietly folds two of them back into one template has to
+    /// say so here.
+    ///
+    /// The six added for the deep end are worth reading as a group, because
+    /// they show the rule holding at a new joint: the two swordfish entries
+    /// split on which axis is the base (as X-wing's do), and the two colouring
+    /// entries split on **which rule fired** — a wrap and a trap are different
+    /// arguments, not one sentence with a clause swapped, so they are different
+    /// entries and each language writes its own.
     func testEveryCoachSentenceKeyIsAccountedFor() {
         let sentences = EnglishPhrases.table.keys
             .filter { $0.hasPrefix("coach.") && $0.contains(".sentence") }
@@ -867,9 +875,15 @@ final class BoardSpeechTests: XCTestCase {
             "coach.nakedPair.sentence.col",
             "coach.nakedPair.sentence.row",
             "coach.nakedSingle.sentence",
+            "coach.simpleColoring.sentence.trap",
+            "coach.simpleColoring.sentence.wrap",
+            "coach.skyscraper.sentence",
             "coach.slip.sentence",
+            "coach.swordfish.sentence.colBase",
+            "coach.swordfish.sentence.rowBase",
             "coach.xWing.sentence.colBase",
             "coach.xWing.sentence.rowBase",
+            "coach.xyWing.sentence",
         ])
     }
 

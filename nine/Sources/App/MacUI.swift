@@ -342,6 +342,11 @@ struct MacGameScreen: View {
     @State private var shareCard: ShareCardExport?
     @State private var highlightedDigit: Int?
     @State private var hoverCell: Int?
+    /// PRD-25's why-chain, and its refusal. The Mac's first coach surface of
+    /// any kind — PRD-11 §3 deferred the hint card here, and this arrives
+    /// instead because ⌥-click is a pointer idiom that needs no chrome.
+    @State private var why: WhyNarration?
+    @State private var whyRefusal: WhyRefusal?
     @State private var deskHovering = false
     /// The Mac's trophy tilt: the pointer steers the sheen (PRD-4 §2.6).
     @State private var pointer = AfterglowPointer()
@@ -364,6 +369,7 @@ struct MacGameScreen: View {
             .overlay(alignment: .topLeading) { if !isDesk { homeChip.padding(20) } }
             .overlay(alignment: .topTrailing) { if !isDesk { statusChips.padding(20) } }
             .overlay(alignment: .bottom) { toastView.padding(.bottom, isDesk ? 12 : 28) }
+            .overlay(alignment: .bottom) { whyView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, isDesk ? 40 : 72) }
             .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .top) { composingChip.padding(.top, isDesk ? 8 : 16) }
@@ -382,6 +388,13 @@ struct MacGameScreen: View {
         // falls through (the §5 "focus wars" risk, observed in validation).
         .onAppear { boardFocused = true }
         .onChange(of: isDesk) { boardFocused = true }
+        // A derivation describes one position, and its whole subject is what a
+        // square's candidates are right now. Any move makes it stale.
+        .onChange(of: model.game?.entries) { _, _ in dismissWhy() }
+        .onDisappear {
+            why = nil
+            whyRefusal = nil
+        }
     }
 
     // MARK: Chrome
@@ -549,6 +562,7 @@ struct MacGameScreen: View {
                 previewDigit: nil,
                 previewPencil: false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
+                coachFocus: why?.focus ?? whyRefusal?.focus,
                 hoverCell: model.solvedAt == nil ? hoverCell : nil,
                 waveOrigin: model.lastPlacedCell,
                 afterglowTilt: { pointer.tilt(at: $0) },
@@ -557,6 +571,21 @@ struct MacGameScreen: View {
                 axActions: axActions
             )
             .contentShape(Rectangle())
+            // ⌥-click asks "why must this be a 7?" (PRD-25 §2.1, and PRD-33's
+            // "Mac: ⌥-click why" line). `SpatialTapGesture().modifiers(.option)`
+            // is the only gesture in SwiftUI that reports **both** a location
+            // and a modifier — `onTapGesture(location:)` reports no modifiers
+            // at all, which is why the plain click path below cannot tell the
+            // two apart on its own.
+            //
+            // `highPriorityGesture`, not `simultaneousGesture`: with the option
+            // key down this must be the *only* thing that happens, or the click
+            // also moves the cursor and blooms the rose over the answer.
+            .highPriorityGesture(
+                SpatialTapGesture()
+                    .modifiers(.option)
+                    .onEnded { value in askWhy(at: value.location, side: side, inset: inset) }
+            )
             .onContinuousHover(coordinateSpace: .local) { phase in
                 switch phase {
                 case .active(let location):
@@ -631,6 +660,55 @@ struct MacGameScreen: View {
             withAnimation(.couchFast) {
                 rose = RoseState(pencil: pencilMode)
             }
+        }
+    }
+
+    // MARK: Why must this be a seven? (PRD-25)
+
+    /// Empty cells only, exactly as on touch: a filled square has no candidates
+    /// left to argue about, and the gesture stays silent rather than saying so.
+    private func askWhy(at location: CGPoint, side: CGFloat, inset: CGFloat) {
+        guard let game = model.game, model.solvedAt == nil, rose == nil else { return }
+        let point = CGPoint(x: location.x - inset, y: location.y - inset)
+        guard let cell = BoardMetrics.cellIndex(at: point, side: side),
+              game.entry(at: cell) == 0 else { return }
+        cursor = cell
+        guard let outcome = model.requestDerivation(forCell: cell) else { return }
+        withAnimation(.couchFast) {
+            switch outcome {
+            case .success(let derivation):
+                why = WhyNarration(derivation)
+                whyRefusal = nil
+            case .failure(let refusal):
+                why = nil
+                whyRefusal = WhyRefusal(refusal: refusal)
+            }
+        }
+    }
+
+    private func advanceWhy() {
+        guard var running = why else { return }
+        running.advance()
+        withAnimation(.couchFast) { why = running }
+    }
+
+    private func dismissWhy() {
+        guard why != nil || whyRefusal != nil else { return }
+        withAnimation(.couchFast) {
+            why = nil
+            whyRefusal = nil
+        }
+    }
+
+    @ViewBuilder
+    private var whyView: some View {
+        if let why {
+            WhyCardContent(narration: why, accent: accent, onNext: advanceWhy) {
+                model.place($0.digit, at: $0.cell)
+                dismissWhy()
+            }
+        } else if let whyRefusal {
+            WhyRefusalContent(refusal: whyRefusal, accent: accent)
         }
     }
 

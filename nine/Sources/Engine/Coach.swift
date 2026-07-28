@@ -131,7 +131,7 @@ extension LogicSolver {
     /// The unit containing every pattern cell *and* every elimination. Exact
     /// for pairs and box-line reductions; nil for an X-wing, whose victims
     /// span two lines, and for techniques that eliminate nothing.
-    private static func targetUnit(for step: SolveStep, in state: CandidateState) -> Int? {
+    static func targetUnit(for step: SolveStep, in state: CandidateState) -> Int? {
         guard !step.eliminations.isEmpty else { return nil }
         let touched = Set(step.cells + step.eliminations.map(\.cell))
         return state.context.units.indices.first {
@@ -145,7 +145,7 @@ extension LogicSolver {
     /// in exactly two units and the eliminations are in one of them, so the
     /// other is the source. Pointing gives box → line, claiming gives line →
     /// box, and neither needs a special case.
-    private static func patternUnit(
+    static func patternUnit(
         for step: SolveStep, in state: CandidateState, target: Int?
     ) -> Int? {
         if step.technique == .hiddenSingle {

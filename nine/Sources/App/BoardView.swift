@@ -23,6 +23,25 @@ struct CoachFocus: Equatable, Sendable {
     let victims: [Int]
     /// The digit under discussion, when the step is about exactly one.
     let digit: Int?
+    /// The single cell a deduction turns on — an XY-wing's pivot. Drawn as a
+    /// thin inner ring, so a pattern cell that is *also* the pivot reads as
+    /// both rather than as neither. Trace schema v2's `.pivot` role, and the
+    /// fourth of the four this file's header predicted would arrive.
+    let pivot: Int?
+    /// The cell the player asked about, held for the whole chain so a
+    /// three-beat narration never loses its subject. Nil for a plain hint,
+    /// which has no subject to hold.
+    let asked: Int?
+
+    init(pattern: [Int], target: Int?, victims: [Int], digit: Int?,
+         pivot: Int? = nil, asked: Int? = nil) {
+        self.pattern = pattern
+        self.target = target
+        self.victims = victims
+        self.digit = digit
+        self.pivot = pivot
+        self.asked = asked
+    }
 
     /// Nil for a solved board: the Afterglow owns that moment and nothing
     /// should wash over it.
@@ -31,21 +50,31 @@ struct CoachFocus: Equatable, Sendable {
         case .solved:
             return nil
         case .exhausted:
-            pattern = []
-            target = nil
-            victims = []
-            digit = nil
+            self.init(pattern: [], target: nil, victims: [], digit: nil)
         case .contradiction(let cells):
-            pattern = cells
-            target = nil
-            victims = []
-            digit = nil
+            self.init(pattern: cells, target: nil, victims: [], digit: nil)
         case .step(let coach):
-            pattern = coach.step.cells
-            target = coach.step.placement?.cell
-            victims = Set(coach.step.eliminations.map(\.cell)).sorted()
-            digit = coach.step.digits.count == 1 ? coach.step.digits.first : nil
+            self.init(coach.step, asked: nil)
         }
+    }
+
+    /// One beat of a why-chain (PRD-25). Same wash, same dashes, same ring —
+    /// the narration is this file's existing vocabulary driven from an array
+    /// instead of a single value, which is what `CoachCard`'s header said it
+    /// would be.
+    init(_ beat: DerivedStep, asked: Int) {
+        self.init(beat.coach.step, asked: asked)
+    }
+
+    private init(_ step: SolveStep, asked: Int?) {
+        pattern = step.cells
+        target = step.placement?.cell
+        victims = Set(step.eliminations.map(\.cell)).sorted()
+        digit = step.digits.count == 1 ? step.digits.first : nil
+        // Read off `roles` rather than off the technique, so a technique that
+        // grows a pivot later gets the ring without touching this file.
+        pivot = step.roles?.firstIndex(of: .pivot).map { step.cells[$0] }
+        self.asked = asked
     }
 }
 
@@ -547,6 +576,19 @@ struct BoardView: View {
                     )
                 )
             }
+            // The pivot: a thin *inner* ring, so a cell that is both pattern
+            // and pivot reads as both. Drawn before the target ring, because a
+            // step that has a pivot never also places, and a step that places
+            // should keep the loudest mark on the board.
+            if let pivot = coachFocus.pivot {
+                let rect = BoardMetrics.rect(of: pivot, side: size.width)
+                    .insetBy(dx: 8 * scale, dy: 8 * scale)
+                context.stroke(
+                    Path(roundedRect: rect, cornerRadius: 9 * scale),
+                    with: .color(accent.opacity(0.85)),
+                    lineWidth: max(1.5, 2 * scale)
+                )
+            }
             if let target = coachFocus.target {
                 let rect = BoardMetrics.rect(of: target, side: size.width)
                     .insetBy(dx: 2 * scale, dy: 2 * scale)
@@ -554,6 +596,22 @@ struct BoardView: View {
                     Path(roundedRect: rect, cornerRadius: 15 * scale),
                     with: .color(accent),
                     lineWidth: max(2.5, 4 * scale)
+                )
+            }
+            // The cell the player asked about, held for the whole chain
+            // (PRD-25). Last, so it is never covered: a narration that loses
+            // track of its own subject is a narration about nothing. Distinct
+            // from the target ring by being *outside* the cell rather than
+            // inside it, so the two read as different claims when a beat's
+            // step finally resolves the asked cell and both land at once.
+            if let asked = coachFocus.asked, asked != coachFocus.target {
+                let rect = BoardMetrics.rect(of: asked, side: size.width)
+                    .insetBy(dx: 1 * scale, dy: 1 * scale)
+                context.stroke(
+                    Path(roundedRect: rect, cornerRadius: 16 * scale),
+                    with: .color(accent.opacity(0.7)),
+                    style: StrokeStyle(lineWidth: max(2, 3 * scale),
+                                       dash: [10 * scale, 5 * scale])
                 )
             }
         }

@@ -131,6 +131,20 @@ struct StatsDrawerContent: View {
                             tile("\(model.coachHints)", Strings.string("board.stats.hints"))
                         }
                     }
+                    // PRD-25's one number, in a sentence rather than a tile —
+                    // and only once the player has met something. A tile would
+                    // make it a score sitting beside four measurements of this
+                    // board; a sentence, shown only when it is non-zero, is a
+                    // fact about the person. It is the ONLY place the count
+                    // appears anywhere in Nine (`CoachProgress`'s header).
+                    if model.techniquesMet.met > 0 {
+                        Text(Strings.string("stats.techniquesMet",
+                                            .int(model.techniquesMet.met),
+                                            .int(model.techniquesMet.total)))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                    }
                 }
             }
         }

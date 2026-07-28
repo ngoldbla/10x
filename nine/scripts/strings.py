@@ -1125,7 +1125,7 @@ COMMENTS = {
     # generator, so the next `--build-catalog` would have deleted the only
     # do-not-translate instruction in the catalog and told nobody. `--audit` now
     # runs the generator dry to make that class of drift a failure.
-    "difficulty.nocturne.title": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testNocturneIsIdenticalInEveryLocale. The other three bands (gentle/steady/sharp) are descriptions and do translate.",
+    "difficulty.nocturne.title": "Difficulty band, fourth of six. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and do translate.",
 
     # Technique names. Sudoku terms of art, shown as the coach card's heading.
     # Every language's puzzle community has settled names for these; use them
@@ -1140,6 +1140,53 @@ COMMENTS = {
     "technique.thermoBound.name": "Thermometer-sudoku technique name, coach card heading: digits must increase along a thermometer, which bounds each bulb.",
     "technique.innieOutie.name": "Killer-sudoku technique name, coach card heading. Known in English as the rule of 45, because a row, column or box always sums to 45. Use this language's established term.",
     "technique.cageCombination.name": "Killer-sudoku technique name, coach card heading: only some digit combinations reach a cage's sum.",
+    "difficulty.tempest.title": "Difficulty band, fifth of six. A storm — the one where the patterns spread across the whole board. DO NOT TRANSLATE: like Nocturne, Tempest is a coined name and stays \"Tempest\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and translate.",
+    "difficulty.abyss.title": "Difficulty band, hardest of six. DO NOT TRANSLATE: like Nocturne and Tempest, Abyss is a coined name and stays \"Abyss\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale.",
+    "difficulty.tempest.blurb": "One-line blurb under the Tempest difficulty card. \"Wings\" and \"swordfish\" are the sudoku patterns the band is defined by — match technique.xyWing.name and technique.swordfish.name. Very short.",
+    "difficulty.abyss.blurb": "One-line blurb under the Abyss difficulty card. Refers to colouring one digit's candidates in two alternating colours — match technique.simpleColoring.name. Very short.",
+    "difficulty.tempest.explainer": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
+    "difficulty.abyss.explainer": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
+    # PRD-25 — Technique School. A list of lessons, never a task list: no
+    # counts, no percentages, nothing that reads as a score.
+    "school.title": "Title of the Technique School screen — a list of lessons, one per sudoku technique. Two words if the language has them.",
+    "school.subtitle": "One line under the School title. \"A way a board can be read\" means a solving technique. Calm, not instructional.",
+    "school.close": "Button that leaves the School or a lesson. One word.",
+    "school.action.showMe": "Button that reveals the pattern on the lesson's board, after the player has had a chance to find it themselves. Two words.",
+    "school.action.gotIt": "Button acknowledging that the player has understood the revealed pattern. Casual and short — the register of \"got it\", not \"confirm\".",
+    "school.lesson.look": "Instruction at the start of a lesson, before the pattern is revealed. \"Settled\" means the square's digit is now forced. Encourages looking before being told.",
+    "school.lesson.done": "Closing line of a lesson. %1$@ is the technique's name — it comes from technique.*.name, already translated, so it may need an article or a case ending here. \"You will meet it again\" is reassurance, not a promise of difficulty.",
+    "school.row.met": "VoiceOver label for a School list row the player has already met. %1$@ is the technique name.",
+    "school.row.new": "VoiceOver label for a School list row the player has not met yet. %1$@ is the technique name. Never scolding — it is a statement, not a task.",
+    "stats.techniquesMet": "One line in the stats drawer: how many of Nine's teachable techniques the player has met, out of how many exist. The ONLY place this number is ever shown. Both values are numbers.",
+
+    # PRD-25 — the deep end's four coach sentences, and the why-chain's copy.
+    # Same rule as the sentences above them: one whole entry per rendering, no
+    # noun handed into a hole whose grammar is English's.
+    "coach.swordfish.sentence.rowBase": "Coach sentence for a row-based Swordfish. %1$lld is the digit, and it appears TWICE — a translation that moves one occurrence must move both. \"These three rows\" refers to rows the board is already highlighting, so it need not name them.",
+    "coach.swordfish.sentence.colBase": "Coach sentence for a column-based Swordfish. The mirror of coach.swordfish.sentence.rowBase, with rows and columns swapped. %1$lld appears twice.",
+    "coach.skyscraper.sentence": "Coach sentence for a Skyscraper. Two lines each have only two places for the digit and share one of them, so one of the two FAR ends must hold it. \"Seeing\" is sudoku's word for sharing a row, column or box. %1$lld appears twice.",
+    "coach.xyWing.sentence": "Coach sentence for an XY-Wing. \"The ringed square\" is the pivot, drawn with a ring on the board — refer to it however this language would refer to a highlighted square. %1$lld and %2$lld are the pivot's two candidates; %3$lld is the digit being eliminated and appears twice.",
+    "coach.simpleColoring.sentence.wrap": "Coach sentence for simple colouring's wrap rule: two squares of the SAME colour can see each other, so that colour is impossible. \"Shaded group\" is the colour class as drawn on the board. %1$lld appears once.",
+    "coach.simpleColoring.sentence.trap": "Coach sentence for simple colouring's trap rule: exactly one of the two colours is the true one, so a square seeing both cannot hold the digit. %1$lld appears twice.",
+
+    # The why-chain (PRD-25). Short lines in a small card — the whole feature is
+    # "narrate on the board, never a text wall", so length is a requirement.
+    "why.heading": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one. It carries NO article on purpose — the English was \"Why a %1$lld?\" and rendered \"Why a 8?\", and choosing a/an from a numeral is English grammar that no other language shares. If this language needs an article before a numeral, write the one that is always correct or rephrase.",
+    "why.position": "Which beat of the explanation is on screen, e.g. \"2 of 4\". Both numbers; no words needed if this language would use none.",
+    "why.action.next": "Button that advances to the next beat of the explanation. One word.",
+    "why.effect.leaves": "Final line of a why-chain beat: every other candidate is gone and %1$lld is what remains. One short sentence.",
+    "why.effect.rulesOutOne": "Line under a why-chain beat when the step removed exactly one possibility, %1$lld, from the square the player asked about.",
+    "why.effect.rulesOutTwo": "The same for exactly two possibilities, %1$lld and %2$lld. A separate entry rather than a list, so this language writes its own conjunction.",
+    "why.effect.rulesOutMore": "The same for three or more. Deliberately carries no number — past two the count stops being the point.",
+    "why.elsewhere": "Shown when the explanation skipped steps that were about other squares. Reassurance that the chain is a summary, not the whole proof. No number.",
+    "why.untold": "Shown when the chain is longer than the six beats the card will narrate. The beats nearest the answer are the ones kept.",
+    "why.beyond.title": "Heading when the coach cannot explain this square inside the board's difficulty. Two or three words.",
+    "why.beyond.sentence": "The sentence under why.beyond.title. \"This board's level\" is its difficulty band. Declining, never apologising.",
+
+    "technique.swordfish.name": "Sudoku technique name, coach card heading. The three-line member of the X-Wing family. A term of art like X-Wing — usually kept, occasionally calqued (German \"Schwertfisch\"); do not describe it.",
+    "technique.skyscraper.name": "Sudoku technique name, coach card heading: two lines sharing one column, with two ends of unequal height. A term of art; calque it (\"Wolkenkratzer\") only if that is the established local term.",
+    "technique.xyWing.name": "Sudoku technique name, coach card heading. Almost always left as \"XY-Wing\" — a term of art, and the letters are the digit names in the pattern, not English words.",
+    "technique.simpleColoring.name": "Sudoku technique name, coach card heading: colour one digit's forced pairs in two alternating colours. Use this language's established term; \"colouring\" is the English one.",
 
     # First-week tips (PRD-34). Three for the lifetime of the install, so each
     # one is a player's only instruction on that feature. One sentence, calm,
@@ -1396,7 +1443,7 @@ COMMENTS = {
     "firstrun.welcome.title": "Heading of the card shown once, on the very first launch. \"Nine\" is the app's name and stays untranslated.",
     "firstrun.welcome.tagline": "Tagline under the welcome heading. \"Couch\" means played from the sofa; the second half says it is on every device the player owns.",
     "firstrun.ledger.daily": "One line of the welcome card's list of what the purchase included. A fragment, no full stop — the six lines read as a list.",
-    "firstrun.ledger.proof": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop.",
+    "firstrun.ledger.proof": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop. It used to open with a count of difficulty bands and said \"Three\" while there were four, then six — copy that counts something the app can grow does not survive the app growing, so the count is gone rather than corrected.",
     "firstrun.ledger.stats": "One line of the welcome card's list. \"Honestly\" means nothing is inflated or gamified. A fragment, no full stop.",
     "firstrun.ledger.themes": "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy. PLURAL: two independent counts, one per number — inflect 'theme' and 'accent' separately.",
     "firstrun.ledger.sync": "One line of the welcome card's list, about iCloud sync. A fragment, no full stop.",
@@ -1704,6 +1751,24 @@ def english_localization(key, english, plurals, substitutions):
     return {"stringUnit": {"state": "translated", "value": english}}
 
 
+def _uses_xcode_spacing(catalog):
+    """True when the catalog on disk separates keys from values Xcode's way.
+
+    Read from the first line that can show it rather than parsed, because the
+    whole question is about bytes that JSON throws away.
+    """
+    try:
+        with open(catalog, encoding="utf-8") as handle:
+            for line in handle:
+                if '" : ' in line:
+                    return True
+                if '": ' in line:
+                    return False
+    except OSError:
+        pass
+    return True
+
+
 def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
     """Regenerate the catalog's `en` locale from `EnglishPhrases.table`.
 
@@ -1785,14 +1850,27 @@ def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
 
     removed = sorted(set(previous) - set(strings))
     document = {"sourceLanguage": "en", "strings": strings, "version": "1.0"}
+
     if not dry_run:
         os.makedirs(os.path.dirname(catalog), exist_ok=True)
+        # Sniffed BEFORE the file is opened for writing: `open(…, "w")`
+        # truncates, so reading it inside the block reads an empty file and
+        # silently takes the default.
+        separator = " : " if _uses_xcode_spacing(catalog) else ": "
         with open(catalog, "w", encoding="utf-8") as handle:
-            # Xcode's own formatting: 2-space indent, `" : "` between key and
-            # value, keys sorted, no ASCII escaping. Matching it means Xcode
-            # opening the catalog does not rewrite the whole file.
+            # 2-space indent, keys sorted, no ASCII escaping — and whichever
+            # key/value separator the file on disk already uses.
+            #
+            # Xcode writes `"key" : value` and everything else on earth writes
+            # `"key": value`, and PRD-20's translation passes left the committed
+            # catalog in the second form. Hard-coding either one means the next
+            # `--build-catalog` emits a **41,000-line whitespace diff** with the
+            # four real new rows buried inside it, which is a review that does
+            # not happen. Preserving what is there makes a regeneration diff as
+            # its content in both directions; a brand-new catalog still gets
+            # Xcode's form, because that is what Xcode would do to it anyway.
             json.dump(document, handle, indent=2, sort_keys=True,
-                      separators=(",", " : "), ensure_ascii=False)
+                      separators=(",", separator), ensure_ascii=False)
             handle.write("\n")
     return added, changed, removed
 

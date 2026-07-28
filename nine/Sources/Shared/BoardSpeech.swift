@@ -462,6 +462,37 @@ public enum BoardSpeech {
             let baseIsRow = victims.isSubset(of: corners)
             return Phrase.coachXWing(digit: digit, baseIsRow: baseIsRow)
 
+        case .swordfish:
+            guard isValidDigit(digit) else { return "" }
+            // Same tell as the X-wing, one size up: the corners span both axes
+            // either way, and the victims are what say which axis was the base.
+            let corners = Set(step.cells.map(Sudoku.col(of:)))
+            let victims = Set(step.eliminations.map { Sudoku.col(of: $0.cell) })
+            return Phrase.coachSwordfish(digit: digit,
+                                         baseIsRow: victims.isSubset(of: corners))
+
+        case .skyscraper:
+            guard isValidDigit(digit) else { return "" }
+            return Phrase.coachSkyscraper(digit: digit)
+
+        case .xyWing:
+            // `digits` is `[conclusion, pivotFirst, pivotSecond]` — the
+            // conclusion leads because every other consumer reads position 0.
+            guard step.digits.count == 3, step.digits.allSatisfy(isValidDigit) else { return "" }
+            return Phrase.coachXYWing(pivotFirst: step.digits[1],
+                                      pivotSecond: step.digits[2],
+                                      conclusion: step.digits[0])
+
+        case .simpleColoring:
+            guard isValidDigit(digit) else { return "" }
+            // The wrap rule eliminates *from the chain itself*; the trap rule
+            // eliminates from cells outside it. That is the whole difference
+            // between the two arguments, and it is readable off the step.
+            let chain = Set(step.cells)
+            let wraps = step.eliminations.allSatisfy { chain.contains($0.cell) }
+            return wraps ? Phrase.coachColoringWrap(digit: digit)
+                         : Phrase.coachColoringTrap(digit: digit)
+
         default:
             // The four variant techniques (PRD-23). Naming them here would trip
             // the channel seal, and they are unreachable on a classic board.
@@ -779,6 +810,31 @@ private enum Phrase {
         baseIsRow
             ? Phrasebook.current.string("coach.xWing.sentence.rowBase", .int(digit))
             : Phrasebook.current.string("coach.xWing.sentence.colBase", .int(digit))
+    }
+
+    // PRD-25's four. Same rule as the sentences above: one whole entry per
+    // rendering, nothing assembled in Swift, and no noun handed around in a
+    // hole whose grammar is English's.
+    static func coachSwordfish(digit: Int, baseIsRow: Bool) -> String {
+        baseIsRow
+            ? Phrasebook.current.string("coach.swordfish.sentence.rowBase", .int(digit))
+            : Phrasebook.current.string("coach.swordfish.sentence.colBase", .int(digit))
+    }
+    static func coachSkyscraper(digit: Int) -> String {
+        Phrasebook.current.string("coach.skyscraper.sentence", .int(digit))
+    }
+    static func coachXYWing(pivotFirst: Int, pivotSecond: Int, conclusion: Int) -> String {
+        Phrasebook.current.string("coach.xyWing.sentence",
+                                  .int(pivotFirst), .int(pivotSecond), .int(conclusion))
+    }
+    /// Two rules, two sentences: a wrap proves a whole colour false, a trap
+    /// catches a cell that can see both. They are different arguments, so
+    /// they are different entries rather than one with a clause swapped.
+    static func coachColoringWrap(digit: Int) -> String {
+        Phrasebook.current.string("coach.simpleColoring.sentence.wrap", .int(digit))
+    }
+    static func coachColoringTrap(digit: Int) -> String {
+        Phrasebook.current.string("coach.simpleColoring.sentence.trap", .int(digit))
     }
 
     /// The two ends of the Crown-rose run. Named rather than drawn, because

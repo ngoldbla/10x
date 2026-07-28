@@ -54,7 +54,16 @@ final class VariantTechniqueTests: XCTestCase {
                         .hiddenPair, .boxLineReduction, .xWing],
                        "the six classic cases and their order are frozen")
         XCTAssertTrue(Technique.allCases.prefix(6).allSatisfy(\.isClassic))
-        XCTAssertFalse(Technique.allCases.dropFirst(6).contains(where: \.isClassic))
+        // PRD-25 broke the "everything after the sixth is a variant" reading of
+        // this list, and deliberately: rank is append-only, so its four classic
+        // techniques sort *above* PRD-23's four variant ones. What is still
+        // true — and is the thing this file actually needs — is that the four
+        // variant cases are the only non-classic ones, named rather than
+        // counted, so appending another classic technique cannot quietly widen
+        // the set of things a killer board's `minVariantSteps` counts.
+        XCTAssertEqual(
+            Set(Technique.allCases.filter { !$0.isClassic }),
+            [.cageSingle, .thermoBound, .innieOutie, .cageCombination])
     }
 
     /// Classic's technique band cannot reach a variant technique by rank, which

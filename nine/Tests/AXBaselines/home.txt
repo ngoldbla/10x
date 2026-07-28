@@ -4,15 +4,16 @@
 # Regenerate: nine/scripts/ax-snapshot.py --record
 
 [Content]
-  Button "Archive"  (330,154 44x44)
-  Button "Today, <today>, One a day"  (38,164 89x129)
-  Button "4 of 53 filled., Continue, Steady · 7%"  (43,355 321x44)
-  Button "Gentle, Singles & scans"  (44,461 64x126)
-  Button "Steady, Pairs & box lines"  (169,461 64x126)
-  Button "Sharp, X-wings & deep logic"  (294,461 64x126)
-  Button "Nocturne, Fewer clues, deeper logic"  (38,637 212x64)
+  Button "Gentle, Singles & scans"  (44,108 64x126)
+  Button "Steady, Pairs & box lines"  (169,108 64x126)
+  Button "Sharp, X-wings & deep logic"  (294,108 64x126)
+  Button "Nocturne, Fewer clues, deeper logic"  (38,284 212x64)
+  Button "Tempest, Wings & swordfish"  (38,398 176x64)
+  Button "Abyss, One digit, two colours"  (38,512 193x64)
+  Button "Technique School"  (293,634 67x73)
+  Button "How to play"  (39,645 73x52)
+  Button "History"  (178,644 45x54)
 [Bottom]
-  Button "How to play"  (71,769 73x52)
-  Button "History"  (272,768 45x54)
+  Button "Killer · Thermo, New variants, coming soon."  (45,763 318x39)
 
-# 9 elements in 2 containers
+# 10 elements in 2 containers

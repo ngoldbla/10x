@@ -577,41 +577,64 @@ final class CatalogTests: XCTestCase {
             """)
     }
 
-    /// Decision 2: `Nocturne` is a coined name and does not translate; `Gentle`,
-    /// `Steady` and `Sharp` are descriptions and do.
+    /// Decision 2, as PRD-25 widened it: `Nocturne`, `Tempest` and `Abyss` are
+    /// **coined names** and do not translate; `Gentle`, `Steady` and `Sharp` are
+    /// **descriptions** and do.
     ///
     /// Pinned rather than commented, because the next translation pass will not
     /// have read the plan and "Nocturne" looks exactly like an untranslated
-    /// string that somebody forgot. The catalog comment on the entry says the
+    /// string that somebody forgot. The catalog comment on each entry says the
     /// same thing to a human; this says it to CI.
-    func testNocturneIsIdenticalInEveryLocale() throws {
+    ///
+    /// The two lists are written out rather than derived from `Difficulty`,
+    /// **and that is the point**: which side a band falls on is a naming
+    /// decision, not a property of the enum, so adding a case must fail here
+    /// until someone makes it. The count check below is what makes "fail" true
+    /// rather than "silently gets ignored".
+    func testCoinedBandNamesAreIdenticalInEveryLocale() throws {
         let catalog = try Self.rawStrings()
-        let entry = try XCTUnwrap(catalog["difficulty.nocturne.title"] as? [String: Any],
-                                  "difficulty.nocturne.title is gone from the catalog")
+        let coined = ["nocturne": "Nocturne", "tempest": "Tempest", "abyss": "Abyss"]
+        let described = ["gentle", "steady", "sharp"]
 
-        let comment = entry["comment"] as? String ?? ""
-        XCTAssertTrue(comment.lowercased().contains("do not translate")
-                      || comment.lowercased().contains("does not translate"), """
-            difficulty.nocturne.title's catalog comment no longer tells a translator \
-            to leave it alone. This test is the CI half of that instruction; the \
-            comment is the half a human reads, and a translator who only sees "Nocturne" \
-            with no note will helpfully fix it.
+        XCTAssertEqual(
+            Set(coined.keys).union(described),
+            Set(Difficulty.allCases.map(\.rawValue)), """
+            a difficulty band is on neither list. Every band is either a coined \
+            name that stays in English everywhere or a description that must be \
+            translated — decide which, add it above, and say so in its catalog \
+            comment. A band on neither list is one no test has an opinion about.
             """)
 
-        let localizations = entry["localizations"] as? [String: Any] ?? [:]
-        for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
-            let value = ((body as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
-            XCTAssertEqual(value, "Nocturne", """
-                difficulty.nocturne.title [\(locale)] is "\(value ?? "nil")". Nocturne is \
-                a coined name and stays "Nocturne" in every locale — unlike \
-                gentle/steady/sharp, which are descriptions and must translate.
+        for (band, name) in coined.sorted(by: { $0.key < $1.key }) {
+            let key = "difficulty.\(band).title"
+            let entry = try XCTUnwrap(catalog[key] as? [String: Any],
+                                      "\(key) is gone from the catalog")
+
+            let comment = entry["comment"] as? String ?? ""
+            XCTAssertTrue(comment.lowercased().contains("do not translate")
+                          || comment.lowercased().contains("does not translate"), """
+                \(key)'s catalog comment no longer tells a translator to leave it \
+                alone. This test is the CI half of that instruction; the comment is \
+                the half a human reads, and a translator who only sees "\(name)" with \
+                no note will helpfully fix it.
                 """)
+
+            let localizations = entry["localizations"] as? [String: Any] ?? [:]
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) {
+                let value = ((body as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+                XCTAssertEqual(value, name, """
+                    \(key) [\(locale)] is "\(value ?? "nil")". \(name) is a coined name \
+                    and stays "\(name)" in every locale — unlike gentle/steady/sharp, \
+                    which are descriptions and must translate.
+                    """)
+            }
         }
 
-        // The other half of the decision: if the three describable ones stopped
-        // being translated, this file would still be green and the rule would
-        // have quietly become "difficulty names do not translate".
-        for key in ["difficulty.gentle.title", "difficulty.steady.title", "difficulty.sharp.title"] {
+        // The other half of the decision: if the describable ones stopped being
+        // translated, this file would still be green and the rule would have
+        // quietly become "difficulty names do not translate".
+        for band in described {
+            let key = "difficulty.\(band).title"
             let entry = try XCTUnwrap(catalog[key] as? [String: Any])
             let localizations = entry["localizations"] as? [String: Any] ?? [:]
             let english = ((localizations["en"] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
@@ -619,9 +642,9 @@ final class CatalogTests: XCTestCase {
                 let value = ((localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
                 XCTAssertNotEqual(value, english, """
                     \(key) [\(locale)] is still the English "\(english ?? "")". Gentle, \
-                    Steady and Sharp describe a band and translate; only Nocturne is \
-                    pinned. If this locale genuinely borrows the English word, say so \
-                    in the catalog comment and exempt it here by name.
+                    Steady and Sharp describe a band and translate; only the coined \
+                    names are pinned. If this locale genuinely borrows the English \
+                    word, say so in the catalog comment and exempt it here by name.
                     """)
             }
         }
@@ -777,9 +800,16 @@ final class CatalogTests: XCTestCase {
         XCTAssertGreaterThan(keysCarryingArguments, 0,
                              "no key in the catalog takes an argument — either the "
                              + "catalog changed shape or `renderings` stopped reading it")
-        XCTAssertEqual(keysCarryingTwoOrMore, 32, """
+        // 32 → 36 for PRD-25, and the four are named rather than counted so the
+        // next person can check the move instead of trusting it:
+        // `coach.xyWing.sentence` (three indices), `why.position`,
+        // `why.effect.rulesOutTwo` and `stats.techniquesMet` (two each).
+        // Every other key this PRD added carries one index or none — the
+        // swordfish and skyscraper sentences repeat `%1$lld`, which is one
+        // argument used twice, not two arguments.
+        XCTAssertEqual(keysCarryingTwoOrMore, 36, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 32 this test was calibrated against. That is fine and the \
+            not the 36 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

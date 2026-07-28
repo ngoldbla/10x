@@ -3092,3 +3092,159 @@ home baseline still rots whenever the rendered date changes width — a
 one-or-two-digit day boundary, or a longer month name. Daily rot is fixed;
 monthly rot is not. Doing it properly means pinning the clock in the seeded
 state, which is `simrig.py`'s territory and a change every lane would inherit.
+
+## PRD-25 — the board shows its work, and the two bands that were cheaper than the one above them (2026-07-28)
+
+`PRD-25.md` did not exist when this started; `PROGRAM-2.0.md:84` was the whole
+spec. The PRD is written now and is the forward document; this is what happened.
+
+### The deep end costs less than Nocturne, and that is the finding
+
+Two bands, 200 seeds each, Mac **Release** (`scripts/compose-scan.sh`'s rule —
+`swift test` builds Debug and generation is ~50× slower there):
+
+| band | p50 | p90 | p95 | p99 | max | givens (min/med/max) |
+|---|---|---|---|---|---|---|
+| tempest | 0.00 s | 0.01 s | **0.02 s** | 0.03 s | 0.07 s | 24 / 28 / 33 |
+| abyss | 0.05 s | 0.15 s | **0.23 s** | 0.41 s | 0.44 s | 24 / 28 / 33 |
+| *nocturne, for scale* | | | *5.25 s* | | | *≤26* |
+
+**The two deepest bands compose 25–250× faster than the band above them.** The
+reason is worth keeping: a maximally-dug board usually needs *more* than an
+X-wing, which is exactly why Sharp has to heal so much of its own dig back.
+Widen the chain and the healing loop stops earlier — so the boards Sharp throws
+away are the boards Tempest is looking for. Difficulty and compose cost are not
+the same axis, and Nocturne's 5.25 s is the cost of *rejecting* hard boards
+rather than of making them.
+
+Neither band carries `BandDemands`, and that is a decision. Nocturne needed them
+because it had no technique Sharp lacked, so "harder" had to be measured in
+clues and density. These two are defined by a floor no other band can reach.
+
+**Zero Tempest boards are defined by a swordfish.** Across 200 seeds the hardest
+step is `skyscraper` 117 / `xyWing` 83. Swordfish appears mid-chain — the School
+teaches it from a real Tempest trace — but it is never the top of one. Recorded
+rather than tuned away: forcing it would mean a demand, and a demand is what the
+p95 above is cheap *because* of.
+
+### What "minimal sub-chain" turned into
+
+PROGRAM-2.0 says the engine "re-derives the minimal `SolveStep` sub-chain forcing
+that cell". Taken literally that is a trap, and it was measured before it was
+designed around: a hidden single reads a whole unit and a naked single reads
+every peer, so within a few steps almost everything transitively supports almost
+everything and the "minimal" chain is the whole chain. A backward dependency
+slice and a drop-one-and-retry reduction both converge on ~the full trace.
+
+What ships instead answers the question the player actually asked. "Why must
+this be a 7" is "here is what killed the 3, here is what killed the 5, and that
+leaves the 7": the solver runs forward and records only the steps that touch
+*this cell's* candidates, reporting the number it skipped rather than hiding
+them. Bounded by construction at nine (a cell has nine candidates), usually two
+or three. `DerivationTests` pins the replay invariant.
+
+### Four defects found only by driving it
+
+Each of these compiles, renders, and is invisible to every test in the repo.
+
+**The long-press gesture never fired.** `LongPressGesture` reports no location —
+it is the one gesture that tells you *that* and not *where* — so the first
+version sequenced it before a zero-distance drag and read `startLocation` off the
+second phase. A press-and-hold that does not move produces `.second(true, nil)`
+and no drag value at all, so the point stayed `.zero` and the board was asked
+about a cell off its top-left corner. It is two simultaneous gestures now: the
+drag records where the finger is at touch-down, the long press says when to ask.
+
+**The narration card's action button was not in the accessibility tree.**
+`.accessibilityElement(children: .contain)` with an explicit label — which is
+what `CoachCardContent` does, and what its header says keeps the button
+activatable — exposed three of six subviews and no button, so a VoiceOver user
+could read the first beat and had no way to reach the second. The container
+holds only the prose now and the button is its sibling.
+
+**A School row was tappable only across its own text.** A `Button`'s hit region
+is its label's *content*, and the label is a dot, a `Text` and a `Spacer`; a
+`Spacer` has no content, so a row 334 pt wide responded only in its leftmost
+~120. Every tap at the row centre landed on nothing, which looks exactly like a
+button that does not work. It took a scrim temporarily wired to dismiss on tap
+to prove the touch was reaching the card and being swallowed rather than never
+arriving. `.contentShape(RoundedRectangle(…))` fixes the touch; a second
+`.contentShape(.accessibility, …)` fixes the tree, where the same row measured
+104×16.
+
+**Three action buttons were under the 44 pt floor.** Measured at 69×36 and 36×16
+in `describe-ui` dumps. `.frame(minHeight: 44)` *outside* the glass, so the
+target grows and the drawn capsule does not move. One of the three is PRD-11's
+shipped hint card, which PRD-19's 44 pt sweep never covered because **no AX
+baseline reaches a card** — nothing has ever looked at one.
+
+### Two pieces of copy that had rotted
+
+**"Three difficulties, every board proved solvable by logic"** on the welcome
+card. There were four when PRD-17 shipped Nocturne and nobody noticed; this PRD
+would have made it six. Copy that counts something the app can grow does not
+survive the app growing, so the count is gone rather than corrected.
+
+**"Why a 8?"** — the narration's own heading, `Why a %1$lld?`. Choosing *a* or
+*an* from a numeral is English grammar that no other language shares, and this
+repo already bans that class of thing (`BoardSpeechTests.testNoSentenceCasingHelperSurvives`).
+Rephrased to `Why must this be %1$lld?`, which needs no article anywhere.
+
+Found and **not** fixed: the shipped `coach.hiddenSingle.sentence.col` renders
+"can take a 8" with the same defect. It is a 1.5-era string with nine
+translations behind it, and changing it invalidates all nine for a bug this PRD
+did not introduce. It is a one-line fix for whoever next opens that family.
+
+### The AX lane needed a scroll, and would otherwise have gone quiet
+
+Three stacked deep-end cards pushed the learn row past the fold on an iPhone 17
+Pro, and the home baseline's anchor ("How to play") stopped being on screen.
+Re-anchoring on the last visible card would have kept the lane green and quietly
+dropped the tutorial, records and School cards out of the baseline — a shorter
+file that reads like a passing diff. `ax-snapshot.py` scrolls to the bottom
+before reading home now, in short swipes against the stop rather than one fling,
+because where momentum stops is not deterministic and a hard stop is.
+
+`home.txt` re-recorded (11 lines). `game`, `game-quiet`, `game-rose` and `prefs`
+are untouched, which is the signal that mattered: the board's 81 children, its
+9 box containers and the rotors did not move.
+
+### `strings.py --build-catalog` emitted a 41,000-line whitespace diff
+
+It wrote Xcode's `"key" : value` while the committed catalog is in the compact
+form PRD-20's translation pass left it in, so every regeneration buried the real
+rows inside a whole-file reformat. It sniffs the file now — **before** opening it
+for write, because `"w"` truncates and reading it inside the block reads an empty
+file and silently takes the default.
+
+### Not done, each with its reason
+
+- **tvOS narration.** `.holdBegan` on an empty non-given cell is already the
+  pencil rose *and* the four-way remote's only door to Prefs (`GameScreen.swift`
+  and PRD-5). Re-gesturing that is a PRD-5 decision, not this one's.
+- **W-Wing and any full chain.** PROGRAM-2.0 marks W-Wing optional and states
+  the limit this PRD kept: explanation complexity, not difficulty. A technique
+  Nine cannot say in one sentence has no business in a band Nine sells.
+- **School lessons for the four variant techniques.** They are behind PRD-23's
+  channel seal; a lesson for a board the player cannot reach is a lie with an
+  animation on it.
+- **`swift test` is 3:47, against the ~120 s budget in EXECUTING-A-PRD §5.** It
+  was **2:40 before this PRD** — already over — and the new suites add ~28 s
+  (`DeepTechniqueTests` 14 s, `TechniqueSchoolTests` 8 s, `DerivationTests` 3 s).
+  Both numbers are here rather than one, because the budget was already broken
+  and this PRD is not the reason. The generation-heavy files share their boards
+  through file-level `static let`s, which is where the cheap savings were.
+- **No device compose measurement**, same standing gap as PRD-17 and PRD-23. The
+  numbers above are Mac Release; PROGRAM-2.0's nightly lane is where a device
+  number belongs.
+- **The nine languages are machine-drafted and unreviewed** — 39 new keys ×
+  9 locales, every one `needs_review`, consistent with PRD-20's standing
+  headline deferral. Lowest confidence: "lines" in the skyscraper sentence,
+  where French and Brazilian Portuguese have no word that is not already "row"
+  in this catalog (`alignements` / `unidades`), and the XY-wing's "ringed
+  square" and "partners", which have no precedent in the catalog at all.
+- **The narration card can cover the board's first row.** It sits in PRD-2's
+  free band, which is ~190 pt on an iPhone 17 Pro against a card that reaches
+  ~195 pt with both honesty lines showing. Measured, bounded, and the same
+  behaviour PRD-11's card already has; a taller card would need the band resized,
+  which moves the board.

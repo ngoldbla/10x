@@ -24,6 +24,8 @@ public enum SolveScore {
         case .steady: points = 250
         case .sharp: points = 500
         case .nocturne: points = 800
+        case .tempest: points = 1200
+        case .abyss: points = 1600
         }
         if isDaily {
             points += 50 + 25 * max(0, min(streak, streakBonusCap))
@@ -157,7 +159,13 @@ extension Difficulty {
     var wireBand: Difficulty {
         switch self {
         case .gentle, .steady, .sharp: return self
-        case .nocturne: return .sharp
+        // Nocturne, Tempest and Abyss all degrade to Sharp, and all three for
+        // the same reason: Sharp is the deepest band every *shipped* decoder
+        // knows. Degrading Tempest to Nocturne would be truer and would take
+        // the history down on any build from before PRD-17, which is most of
+        // them. The stand-in is bounded by what is in the wild, not by what is
+        // in this file.
+        case .nocturne, .tempest, .abyss: return .sharp
         }
     }
 
