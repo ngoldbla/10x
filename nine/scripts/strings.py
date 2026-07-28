@@ -1144,6 +1144,20 @@ COMMENTS = {
     "difficulty.abyss.title": "Difficulty band, hardest of six. DO NOT TRANSLATE: like Nocturne and Tempest, Abyss is a coined name and stays \"Abyss\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale.",
     "difficulty.tempest.blurb": "One-line blurb under the Tempest difficulty card. \"Wings\" and \"swordfish\" are the sudoku patterns the band is defined by — match technique.xyWing.name and technique.swordfish.name. Very short.",
     "difficulty.abyss.blurb": "One-line blurb under the Abyss difficulty card. Refers to colouring one digit's candidates in two alternating colours — match technique.simpleColoring.name. Very short.",
+    # PRD-26 — the debrief, a card the player pulls up after solving. Never
+    # forced, never a score: every string here is a neutral statement of fact
+    # about the solve that just happened.
+    "debrief.title": "Heading of the post-solve debrief card. Possessive: the solve belongs to the player. Two or three words.",
+    "debrief.placements": "One of three counts on the debrief card, joined by middle dots: how many digits the player committed over the whole solve, corrections included. Neutral — this is not a score and nothing is being judged. PLURAL: %1$lld is the count, 0 or more.",
+    "debrief.corrections": "One of three counts on the debrief card: erasures and undos. Deliberately neutral — a solve with many corrections is a longer look, not a worse solve, so avoid any word implying error or mistake. PLURAL: %1$lld is the count, 0 or more.",
+    "debrief.notes": "One of three counts on the debrief card: pencil marks written. \"Notes\" are the small candidate digits in a cell's corner — match game.autoNotes.chip. PLURAL: %1$lld is the count, 0 or more.",
+    "debrief.headline": "The one congratulatory sentence in the whole app, shown only when the player resolved a cell with a technique harder than a single. %1$@ is a technique name (already translated, e.g. technique.xWing.name); %2$lld is which placement it was, counting only committed digits. Warm but quiet — this is not a trophy.",
+    "debrief.fastest": "Debrief line naming the 3x3 box the player filled with the least hesitation. %1$@ is already-translated text like \"Box 4\" (board.unit.box). The separator is a middle dot. \"Region\" means one of the nine 3x3 boxes.",
+    "debrief.longest": "Debrief line naming the cell the player kept coming back to before finally filling it. %1$@ is already-translated text like \"Row 3, column 5\" (board.cell.label). \"Circled\" is figurative — the player circled around it, returning again and again. The separator is a middle dot.",
+    "debrief.replay": "Button that plays the comet — an animated retrace of the player's own solve — on the debrief card. A noun or a short imperative verb.",
+    "debrief.empty": "Shown in place of the comet when this solve has no recorded move log to replay (an older board, or one solved on another device). A plain statement, not an apology or an error.",
+    "debrief.open": "VoiceOver label for the control that pulls the debrief card up. Imperative verb plus the card's name; match debrief.title's noun.",
+    "debrief.close": "VoiceOver label for the control that dismisses the debrief card. The exact opposite of debrief.open, using the same noun.",
     "difficulty.tempest.explainer": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
     "difficulty.abyss.explainer": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
     # PRD-25 — Technique School. A list of lessons, never a task list: no

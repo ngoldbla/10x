@@ -179,58 +179,48 @@ public struct ReplayAnalysis: Sendable, Equatable {
             return result(.forced)
         }
 
-        // **The question is what *unlocked* the cell, not what placed it.**
+        // **The question is what unlocked *this cell*, and PRD-25 already
+        // answers it.** `derivation` walks the ordinary solver and records only
+        // the steps that touch this cell's own candidates — which is exactly
+        // "why must this be a 7", asked at the moment the player answered it.
         //
-        // The obvious implementation — "does technique T place this cell?" —
-        // is a lane that cannot fire, and it was written before it was
-        // measured. PRD-25 §2.4 already records the reason: every pair,
-        // box-line, fish and wing *eliminates*; only the singles (and
-        // `cageSingle`) ever carry a `placement`. So a per-technique placement
-        // probe can only ever answer `hiddenSingle`, `headline` would be
-        // permanently nil, and "You found the X-Wing at move 31" would never
-        // appear on any board — with every test green.
+        // Two wrong versions were written and measured before this one, and
+        // both are worth naming because each looks right:
         //
-        // So: exhaust the singles first. If the cell falls to them, the player
-        // did the reachable thing. If it does not, run the full chain and name
-        // the hardest technique above the singles that fired before the cell
-        // came out — that technique is what the player had to see.
-        if resolves(cell, to: digit, from: state, allowed: singles) { return result(.forced) }
+        //   1. *"Does technique T place this cell?"* — a lane that cannot fire.
+        //      Every pair, box-line, fish and wing **eliminates**; only the
+        //      singles ever carry a `placement` (PRD-25 §2.4). It can answer
+        //      nothing but `hiddenSingle`, so `headline` is permanently nil and
+        //      "You found the X-Wing at move 31" never appears on any board.
+        //   2. *"Run the whole chain until the cell falls, name the hardest
+        //      technique that fired."* — credits an X-Wing on the far side of
+        //      the grid for a cell it never touched, and since every board is
+        //      proved solvable by logic it makes `.leap` unreachable. That is
+        //      what `testALeapIsReachable` caught.
+        let grid = SudokuGrid(cells: visible)
+        guard case .success(let derivation) = LogicSolver.derivation(
+            forCell: cell, in: grid, allowed: allowed, context: context
+        ), derivation.digit == digit else { return result(.leap) }
 
-        var chain = state
-        var unlocked: Technique?
-        for _ in 0..<chainBudget {
-            guard let step = LogicSolver.nextStep(in: chain, allowed: allowed) else { break }
-            if step.technique.rank > Technique.hiddenSingle.rank {
-                unlocked = max(unlocked ?? step.technique, step.technique)
-            }
-            LogicSolver.apply(step, to: &chain)
-            if chain.values[cell] != 0 {
-                guard chain.values[cell] == digit, let unlocked else { return result(.leap) }
-                return result(.found, unlocked)
-            }
-        }
-        return result(.leap)
-    }
+        // **`elsewhere` is deliberately not consulted, and that was measured.**
+        // Gating on `elsewhere == 0` — "no unrelated work first" — reads as the
+        // principled bar and fails the solver's own path: the chain takes
+        // elimination-only steps between placements, none of which bear on the
+        // cell it is about to fill, so a perfectly-played Sharp board produced
+        // seven leaps and a Tempest board named no technique at all. Any
+        // non-zero bar would be a number nobody could defend, so there is none.
+        //
+        // What is left is exactly PRD-25's answer to "why must this be a 7",
+        // reused rather than re-litigated: the hardest technique that bore on
+        // *this* cell. `.leap` is what the board refusing looks like — a
+        // contradiction the player's own slip introduced, or a cell that does
+        // not follow inside the band's ceiling.
 
-    /// The two techniques that place rather than eliminate. Named once, here,
-    /// because three things below depend on the same list agreeing.
-    private static let singles: [Technique] = [.nakedSingle, .hiddenSingle]
-
-    /// How far the chain may run looking for one cell. A classic board's whole
-    /// solve is ~60 steps, so this is generous rather than tight; it exists so
-    /// a pathological state cannot turn a debrief into a hang.
-    private static let chainBudget = 200
-
-    /// Does `allowed`, run to exhaustion from `state`, put `digit` in `cell`?
-    private static func resolves(
-        _ cell: Int, to digit: Int, from state: CandidateState, allowed: [Technique]
-    ) -> Bool {
-        var chain = state
-        for _ in 0..<chainBudget {
-            guard let step = LogicSolver.nextStep(in: chain, allowed: allowed) else { break }
-            LogicSolver.apply(step, to: &chain)
-            if chain.values[cell] != 0 { return chain.values[cell] == digit }
-        }
-        return false
+        // All-singles is `.forced`: a hidden single is the reachable move on a
+        // cell with a choice, and "You found the Hidden Single" is a sentence
+        // that would appear on nearly every board and mean nothing on any.
+        guard let hardest = derivation.steps.map(\.coach.step.technique).max(),
+              hardest.rank > Technique.hiddenSingle.rank else { return result(.forced) }
+        return result(.found, hardest)
     }
 }

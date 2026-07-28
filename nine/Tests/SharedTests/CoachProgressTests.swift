@@ -165,4 +165,49 @@ struct CoachProgressTests {
         let bytes = try JSONEncoder().encode(progress).count
         #expect(bytes < 2048, "a full blob is \(bytes) bytes; PRD-25 §2.5 budgets under 2 KB")
     }
+
+    /// The worst case PRD-26 introduced: every row carrying every field. A
+    /// synthesized encoder would spell all three on all 32 rows and clear
+    /// 2 KB; `Met.encode(to:)` omits defaults, which is why the cap did not
+    /// have to move.
+    @Test func aFullyPopulatedBlobStillFits() throws {
+        var progress = CoachProgress()
+        for technique in Technique.allCases {
+            progress.recordExplanation(of: technique)
+            progress.recordLessonFinished(technique)
+            progress.recordUse(of: technique)
+        }
+        let bytes = try JSONEncoder().encode(progress).count
+        #expect(bytes < 2048, "every technique met three ways is \(bytes) bytes")
+    }
+
+    /// PRD-26 §3.4 — the third route to meeting a technique, and the only one
+    /// that does not involve being told.
+    @Test func usingATechniqueMeetsIt() {
+        var progress = CoachProgress()
+        #expect(!progress.hasMet(.xWing))
+        progress.recordUse(of: .xWing)
+        #expect(progress.hasMet(.xWing))
+        #expect(progress.record(for: .xWing).usedInSolve)
+        // Not a count. A second use is not a bigger number, because a number
+        // here is a score and the covenant bans one.
+        #expect(progress.record(for: .xWing).explained == 0)
+    }
+
+    @Test func recordingTheSameUseTwiceChangesNothing() {
+        var progress = CoachProgress()
+        progress.recordUse(of: .swordfish)
+        let once = progress
+        progress.recordUse(of: .swordfish)
+        #expect(progress == once)
+    }
+
+    /// A build that has never heard of `usedInSolve` must read the row, not
+    /// choke on it — and its rewrite may only cost the bool.
+    @Test func anOlderBuildsRowStillDecodes() throws {
+        let legacy = Data(#"{"met":{"xWing":{"explained":2}},"order":["xWing"]}"#.utf8)
+        let progress = try JSONDecoder().decode(CoachProgress.self, from: legacy)
+        #expect(progress.hasMet(.xWing))
+        #expect(!progress.record(for: .xWing).usedInSolve)
+    }
 }
