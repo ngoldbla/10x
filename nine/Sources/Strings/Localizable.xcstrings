@@ -12364,67 +12364,67 @@
       }
     },
     "firstrun.ledger.proof": {
-      "comment": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop.",
+      "comment": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop. It used to open with a count of difficulty bands and said \"Three\" while there were four, then six — copy that counts something the app can grow does not survive the app growing, so the count is gone rather than corrected.",
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Drei Schwierigkeitsstufen, jedes Spielfeld nachweislich mit Logik lösbar"
+            "value": "Jedes Brett ist per Logik lösbar bewiesen, nie durch Raten"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Three difficulties, every board proved solvable by logic"
+            "value": "Every board proved solvable by logic, never by guessing"
           }
         },
         "es": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Tres dificultades, cada tablero comprobado resoluble con lógica"
+            "value": "Cada tablero demostrado resoluble con lógica, nunca adivinando"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Trois difficultés, chaque grille prouvée résoluble par la logique"
+            "value": "Chaque grille prouvée résoluble par la logique, jamais au hasard"
           }
         },
         "it": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Tre difficoltà, ogni griglia dimostrata risolvibile con la logica"
+            "value": "Ogni griglia dimostrata risolvibile con la logica, mai tirando a indovinare"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "3つの難易度、どの盤面も論理だけで解けることを検証済み"
+            "value": "すべての盤面は論理だけで解けることを証明済み。当てずっぽうは要りません"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "난이도 세 가지, 논리만으로 풀리도록 검증된 모든 보드"
+            "value": "모든 판은 논리만으로 풀린다는 것이 증명되어 있습니다. 찍을 필요가 없습니다"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Drie moeilijkheidsgraden, elk bord bewezen oplosbaar met logica"
+            "value": "Elk bord bewezen oplosbaar met logica, nooit met gokken"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Três dificuldades, todo tabuleiro comprovadamente solúvel pela lógica"
+            "value": "Cada tabuleiro comprovadamente resolvível por lógica, nunca por chute"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "三种难度，每张棋盘都经过验证，可用逻辑解出"
+            "value": "每一盘都已验证可用逻辑解出，无需猜测"
           }
         }
       }
@@ -31642,67 +31642,67 @@
       }
     },
     "why.heading": {
-      "comment": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one.",
+      "comment": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one. It carries NO article on purpose — the English was \"Why a %1$lld?\" and rendered \"Why a 8?\", and choosing a/an from a numeral is English grammar that no other language shares. If this language needs an article before a numeral, write the one that is always correct or rephrase.",
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Warum eine %1$lld?"
+            "value": "Warum muss hier %1$lld stehen?"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Why a %1$lld?"
+            "value": "Why must this be %1$lld?"
           }
         },
         "es": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "¿Por qué un %1$lld?"
+            "value": "¿Por qué tiene que ser %1$lld?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Pourquoi un %1$lld ?"
+            "value": "Pourquoi est-ce forcément %1$lld ?"
           }
         },
         "it": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Perché un %1$lld?"
+            "value": "Perché deve essere %1$lld?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "なぜ %1$lld なのか？"
+            "value": "なぜここは %1$lld なの？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "왜 %1$lld 일까요?"
+            "value": "왜 여기는 %1$lld일까요?"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Waarom een %1$lld?"
+            "value": "Waarom moet dit %1$lld zijn?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Por que %1$lld?"
+            "value": "Por que tem que ser %1$lld?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "为什么是 %1$lld？"
+            "value": "这里为什么一定是 %1$lld？"
           }
         }
       }

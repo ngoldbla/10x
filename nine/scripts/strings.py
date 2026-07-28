@@ -1171,7 +1171,7 @@ COMMENTS = {
 
     # The why-chain (PRD-25). Short lines in a small card — the whole feature is
     # "narrate on the board, never a text wall", so length is a requirement.
-    "why.heading": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one.",
+    "why.heading": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one. It carries NO article on purpose — the English was \"Why a %1$lld?\" and rendered \"Why a 8?\", and choosing a/an from a numeral is English grammar that no other language shares. If this language needs an article before a numeral, write the one that is always correct or rephrase.",
     "why.position": "Which beat of the explanation is on screen, e.g. \"2 of 4\". Both numbers; no words needed if this language would use none.",
     "why.action.next": "Button that advances to the next beat of the explanation. One word.",
     "why.effect.leaves": "Final line of a why-chain beat: every other candidate is gone and %1$lld is what remains. One short sentence.",
@@ -1443,7 +1443,7 @@ COMMENTS = {
     "firstrun.welcome.title": "Heading of the card shown once, on the very first launch. \"Nine\" is the app's name and stays untranslated.",
     "firstrun.welcome.tagline": "Tagline under the welcome heading. \"Couch\" means played from the sofa; the second half says it is on every device the player owns.",
     "firstrun.ledger.daily": "One line of the welcome card's list of what the purchase included. A fragment, no full stop — the six lines read as a list.",
-    "firstrun.ledger.proof": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop.",
+    "firstrun.ledger.proof": "One line of the welcome card's list. \"Proved\" is literal: the app verifies every board is solvable without guessing. A fragment, no full stop. It used to open with a count of difficulty bands and said \"Three\" while there were four, then six — copy that counts something the app can grow does not survive the app growing, so the count is gone rather than corrected.",
     "firstrun.ledger.stats": "One line of the welcome card's list. \"Honestly\" means nothing is inflated or gamified. A fragment, no full stop.",
     "firstrun.ledger.themes": "One line of the welcome card's list. %1$lld is how many colour themes ship, %2$lld how many accent colours — both counted from the code, so the sentence cannot go stale. \"Yours\" means unlocked, with nothing to buy. PLURAL: two independent counts, one per number — inflect 'theme' and 'accent' separately.",
     "firstrun.ledger.sync": "One line of the welcome card's list, about iCloud sync. A fragment, no full stop.",

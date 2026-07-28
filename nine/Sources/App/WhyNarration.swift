@@ -116,6 +116,43 @@ struct WhyCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // **The prose is one element; the button is its sibling.**
+            //
+            // The first version put the whole card — button included — under a
+            // single `.accessibilityElement(children: .contain)` with an
+            // explicit label, which is what `CoachCardContent` does and what
+            // its header says keeps the button activatable. On this card it did
+            // not: `describe-ui` showed three of the six subviews and **no
+            // button at all**, so a VoiceOver user could read the first beat
+            // and had no way to reach the second. Found by dumping the tree on
+            // a simulator, and by nothing else — it compiles, it renders, and
+            // it reads correctly to everyone who can see it.
+            //
+            // Rather than discover which of the six children `.contain` was
+            // willing to keep, the container now holds only the prose, and the
+            // button is an ordinary `Button` in an ordinary `VStack` — the same
+            // shape as every chrome control, none of which has ever gone
+            // missing. A card's action must not depend on container semantics
+            // to exist.
+            prose
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    CoachCardLabel.spoken(title: heading, sentence: sentence))
+
+            if let placement = narration.offeredPlacement {
+                action(Phrase.placeIt) { onPlace(placement) }
+            } else if !narration.isLast {
+                action(Phrase.next, then: onNext)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .frame(maxWidth: 360, alignment: .leading)
+        .couchGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private var prose: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(heading)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -149,19 +186,8 @@ struct WhyCardContent: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
-
-            if let placement = narration.offeredPlacement {
-                action(Phrase.placeIt) { onPlace(placement) }
-            } else if !narration.isLast {
-                action(Phrase.next, then: onNext)
-            }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: 360, alignment: .leading)
-        .couchGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(CoachCardLabel.spoken(title: heading, sentence: sentence))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func action(_ title: String, then perform: @escaping @MainActor () -> Void) -> some View {
@@ -172,10 +198,16 @@ struct WhyCardContent: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 9)
                 .couchGlass(in: Capsule())
-                .contentShape(.accessibility, Capsule())
+                // 15 pt of text plus 9 pt each side draws a **36 pt** capsule,
+                // and the craft charter's floor is 44. `minHeight` on the frame
+                // *around* the glass rather than on the glass itself, so the
+                // accessibility target grows and the drawn capsule does not
+                // move a pixel — measured at 69×36 in a `describe-ui` dump
+                // before this line existed.
+                .frame(minHeight: 44)
+                .contentShape(.accessibility, Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.top, 2)
     }
 }
 

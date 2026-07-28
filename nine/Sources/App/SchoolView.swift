@@ -37,6 +37,8 @@ struct SchoolView: View {
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+
     /// Rank order, with the first unmet lesson floated to the top.
     private var order: [Technique] {
         model.coachProgress.suggestedOrder(TechniqueSchool.lessons.map(\.technique))
@@ -44,17 +46,40 @@ struct SchoolView: View {
 
     var body: some View {
         ZStack {
-            theme.tones(for: colorScheme).plane.ignoresSafeArea()
-            if let open {
-                SchoolLessonView(lesson: open, accent: accent) { finished in
-                    if finished { model.noteLessonFinished(open.exemplar.technique) }
-                    withAnimation(.couchFast) { self.open = nil }
+            // The tutorial's scrim, for the tutorial's reason: a light theme
+            // needs *less* wash (the card is glass over paper and a heavy one
+            // turns the page grey), a dark one needs more (the void behind is
+            // already dark and the card has to separate from it). The tap is
+            // swallowed — the way out is Close, not a mis-hit on the backdrop.
+            //
+            // The first version washed with `tones.plane` and the home shelf
+            // read straight through it: the difficulty cards were legible
+            // *behind* the lesson list, and the title ran under the Dynamic
+            // Island. Both are visible in the first screenshot of this screen.
+            tones.background.opacity(tones.isLight ? 0.42 : 0.62)
+                .ignoresSafeArea()
+                .onTapGesture { }
+
+            Group {
+                if let open {
+                    SchoolLessonView(lesson: open, accent: accent) { finished in
+                        if finished { model.noteLessonFinished(open.exemplar.technique) }
+                        withAnimation(.couchFast) { self.open = nil }
+                    }
+                } else {
+                    list
                 }
-                .transition(.opacity)
-            } else {
-                list.transition(.opacity)
             }
+            .frame(maxWidth: 560)
+            .couchGlass(in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // The shelf underneath stays on screen and, without this, stays in the
+        // accessibility tree: `describe-ui` read the difficulty cards *through*
+        // the School. An overlay is a sibling, not a presentation, so nothing
+        // makes it modal for us.
+        .accessibilityAddTraits(.isModal)
     }
 
     private var list: some View {
@@ -72,10 +97,14 @@ struct SchoolView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(accent)
                     .font(CouchTypography.caption)
-                    .contentShape(.accessibility, Capsule())
+                    // A caption-sized word draws a 36×16 target; the charter's
+                    // floor is 44. The frame grows the target, not the text.
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                    .contentShape(.accessibility, Rectangle())
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 18)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 14)
 
             ScrollView {
                 VStack(spacing: 10) {
@@ -83,11 +112,10 @@ struct SchoolView: View {
                         row(technique)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 20)
             }
         }
-        .frame(maxWidth: 560)
     }
 
     private func row(_ technique: Technique) -> some View {
@@ -115,10 +143,27 @@ struct SchoolView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // **Both content shapes, and they fix two different bugs.**
+            //
+            // A `Button`'s hit region is its label's *content*, and this label
+            // is a dot, a `Text` and a `Spacer` — a `Spacer` has no content, so
+            // the tappable area ended at the end of the word. A row 334 pt wide
+            // responded to taps only in its leftmost ~120: every tap at the row
+            // centre, which is where a finger goes, landed on nothing. It looks
+            // exactly like a button that does not work, and it took a scrim
+            // that dismissed on tap to prove the touch was reaching the card
+            // and being swallowed rather than never arriving.
+            //
+            // The accessibility shape is the same defect one layer over:
+            // `describe-ui` measured the row at 104×16 against a drawn 334×48.
+            // PRD-19 hit that on the chrome's SF Symbols and fixed it the same
+            // way. Neither is visible in a screenshot.
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .couchGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(loading != nil)
+        .contentShape(.accessibility, RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityLabel(Phrase.rowLabel(Strings.technique(technique), met: met))
     }
 
@@ -171,7 +216,8 @@ private struct SchoolLessonView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(accent)
                     .font(CouchTypography.caption)
-                    .contentShape(.accessibility, Capsule())
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                    .contentShape(.accessibility, Rectangle())
             }
 
             if let game {
@@ -205,7 +251,8 @@ private struct SchoolLessonView: View {
                     .padding(.horizontal, 22)
                     .padding(.vertical, 10)
                     .couchGlass(in: Capsule())
-                    .contentShape(.accessibility, Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(.accessibility, Rectangle())
             }
             .buttonStyle(.plain)
         }

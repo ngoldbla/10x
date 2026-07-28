@@ -77,8 +77,28 @@ public enum Difficulty: String, CaseIterable, Sendable, Codable, Hashable {
     /// `testNoDifficultyBandAllowsAVariantTechnique` reads. The four bands that
     /// shipped before PRD-25 have no rank above 5 to filter, so their lists are
     /// unchanged — the golden corpus is the proof.
+    ///
+    /// Six arrays, built once.
+    ///
+    /// This is read per `solve` call, per orbit, per attempt, and a Nocturne
+    /// board can need ~12,000 attempts. It used to allocate one array per read
+    /// (`techniques(upTo:)`); PRD-25's classic filter made it two, and a table
+    /// makes it none.
+    ///
+    /// **Measured, and it bought nothing**: `swift test` is 3:47 with the table
+    /// and 3:44 without it, which is noise. It stays because strictly less work
+    /// on a loop that runs twelve thousand times is not worth arguing about —
+    /// but the number is here so nobody re-derives it as a win.
+    private static let allowed: [Difficulty: [Technique]] = Dictionary(
+        uniqueKeysWithValues: Difficulty.allCases.map {
+            ($0, LogicSolver.techniques(upTo: $0.ceiling).filter(\.isClassic))
+        })
+
     public var allowedTechniques: [Technique] {
-        LogicSolver.techniques(upTo: ceiling).filter(\.isClassic)
+        // Never nil — the table is built from `allCases` — but a `!` on a hot
+        // path that a future band could make wrong is not worth the character
+        // it saves.
+        Self.allowed[self] ?? LogicSolver.techniques(upTo: ceiling).filter(\.isClassic)
     }
 
     /// True for the bands whose dig re-offers every healed orbit back to the

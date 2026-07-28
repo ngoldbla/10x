@@ -81,8 +81,7 @@ final class DeepTechniqueTests: XCTestCase {
     func testFishOfTwoIsByteIdenticalToTheFrozenXWing() {
         var statesWalked = 0
         var xWingsSeen = 0
-        for seed in [3002, 3003, 3007, 3013, 3015, 3017] as [UInt64] {
-            let puzzle = PuzzleGenerator.generate(seed: seed, difficulty: .sharp)
+        for (seed, puzzle) in zip(Self.walkSeeds, Self.walkBoards) {
             var state = CandidateState(grid: puzzle.puzzle)
             while !state.isSolved {
                 statesWalked += 1
@@ -117,23 +116,28 @@ final class DeepTechniqueTests: XCTestCase {
 
     // MARK: - Soundness
 
+    /// The six cheap sharp seeds the golden corpus already pays for. Generation
+    /// dominates this file's cost — a sharp board is ~0.7 s in Debug and the
+    /// median seed is far worse (`GoldenCorpusTests`' header has the arithmetic)
+    /// — so every soak here walks *these* boards.
+    private static let walkSeeds: [UInt64] = [3002, 3003, 3007, 3013, 3015, 3017]
+
+    /// And each is generated **once for the file**, not once per test: two soaks
+    /// want the same six boards, which is the difference between 17 s and 14 s
+    /// in a suite that is already over its budget.
+    private static let walkBoards: [GeneratedPuzzle] =
+        walkSeeds.map { PuzzleGenerator.generate(seed: $0, difficulty: .sharp) }
+
     /// A technique may only eliminate a candidate that is impossible and only
     /// place a digit that is forced. Checked against the *solution*, which no
     /// technique is allowed to see.
     ///
     /// Runs each new technique alone on positions taken from real solves, so a
     /// step it emits is judged in a state the board could genuinely be in.
-    /// The six cheap sharp seeds the golden corpus already pays for. Generation
-    /// dominates this file's cost — a sharp board is ~0.7 s in Debug and the
-    /// median seed is far worse (`GoldenCorpusTests`' header has the arithmetic)
-    /// — so every soak below walks *these* boards and each is generated once.
-    private static let walkSeeds: [UInt64] = [3002, 3003, 3007, 3013, 3015, 3017]
-
     func testNoDeepTechniqueEverContradictsTheSolution() {
         let deep: [Technique] = [.swordfish, .skyscraper, .xyWing, .simpleColoring]
         var emitted = [Technique: Int]()
-        for seed in Self.walkSeeds {
-            let puzzle = PuzzleGenerator.generate(seed: seed, difficulty: .sharp)
+        for (seed, puzzle) in zip(Self.walkSeeds, Self.walkBoards) {
             let solution = puzzle.solution.cells
             var state = CandidateState(grid: puzzle.puzzle)
             var walked = 0

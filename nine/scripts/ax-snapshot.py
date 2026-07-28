@@ -300,7 +300,18 @@ def screens():
         dict(name="prefs", prefs=PREFS_ERRORS_ON, taps=["Settings"],
              anchor="Resume on launch, On", probe=False),
         # The shelf, with the frozen board's fingerprint and progress caption.
-        dict(name="home", prefs=PREFS_ERRORS_ON, taps=["Home"],
+        #
+        # **Scrolled to the bottom before it is read**, and PRD-25 is why: the
+        # deep end went from one full-width card to three, which pushed the
+        # learn row past the fold on an iPhone 17 Pro. Anchoring on the last
+        # card still on screen would have kept the lane green and quietly
+        # dropped the tutorial, records and School cards out of the baseline —
+        # a shorter file that looks like a passing diff.
+        #
+        # Scrolling to the *bottom* rather than by a measured amount: the
+        # bottom is a hard stop, so where it lands is a property of the content
+        # rather than of the swipe, and the frames do not move between runs.
+        dict(name="home", prefs=PREFS_ERRORS_ON, taps=["Home", "SCROLL_BOTTOM"],
              anchor="How to play", probe=False),
     ]
 
@@ -312,10 +323,27 @@ def first_empty_label(targets):
     sys.exit("the frozen board has no empty cell to open the rose on")
 
 
+def scroll_to_bottom(udid, swipes=3):
+    """Flick up until the scroll view is against its bottom stop.
+
+    Repeated rather than one long drag: a single fling carries momentum, and
+    where momentum stops is not deterministic. Short swipes against the stop
+    are, and the stop is what we want to be standing on.
+    """
+    for _ in range(swipes):
+        run(["sim-use", "swipe", "--device", udid,
+             "--start-x", "200", "--start-y", "700",
+             "--end-x", "200", "--end-y", "220", "--duration", "0.35"])
+        time.sleep(0.6)
+
+
 def capture(udid, screen, targets, runtime):
     relaunch(udid, screen["prefs"])
     data = wait_for(udid, "Row 1, column 1")
     for step in screen["taps"]:
+        if step == "SCROLL_BOTTOM":
+            scroll_to_bottom(udid)
+            continue
         label = first_empty_label(targets) if step == "FIRST_EMPTY" else step
         data = wait_for(udid, label)
         tap(udid, data, label)

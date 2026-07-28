@@ -572,11 +572,25 @@ struct TouchGameScreen: View {
     /// give every read site an emptiness check it would eventually forget.
     @State private var why: WhyNarration?
     @State private var whyRefusal: WhyRefusal?
-    /// Where the finger went down, for the long press. A `@GestureState`, not
-    /// `@State`: it resets itself the moment the gesture ends or is cancelled,
-    /// so a press that was abandoned cannot leave a stale point behind for the
-    /// next one to answer about.
-    @GestureState private var pressPoint: CGPoint = .zero
+    /// Where the finger last went down, for the long press.
+    ///
+    /// **`LongPressGesture` reports no location** — it is the one gesture in
+    /// SwiftUI that tells you *that* it happened and not *where* — so the point
+    /// has to come from a zero-distance `DragGesture` running beside it.
+    ///
+    /// The first version sequenced the two (`longPress.sequenced(before: drag)`)
+    /// and read `startLocation` off the sequence's second phase. It never
+    /// fired: a press-and-hold that does not move produces `.second(true, nil)`
+    /// and no drag value at all, so the point stayed `.zero` and `askWhy` was
+    /// asked about a cell off the top-left corner of the board. Found by
+    /// long-pressing a real board on a simulator, and by nothing else — it
+    /// compiles, it type-checks, and it silently does nothing.
+    ///
+    /// Plain `@State`, and the ordering is what makes it safe: the drag's
+    /// `onChanged` fires at touch-down, ~0.45 s before the long press can
+    /// succeed, so the point a completed press reads is always that press's
+    /// own. An abandoned press leaves a stale point that nothing reads.
+    @State private var pressPoint: CGPoint = .zero
     /// The one chip auto notes shows when it fills a board.
     @State private var autoNotesChip: String?
     @State private var chipDismissal: Task<Void, Never>?
@@ -1183,24 +1197,16 @@ struct TouchGameScreen: View {
             // opens the rose, so the first-flick covenant is untouched, and the
             // long press only ever *asks a question* — it never writes.
             //
-            // `LongPressGesture` reports no location, so the point comes from a
-            // zero-distance `DragGesture` running alongside it. Sequenced, not
-            // simultaneous: the drag has to have started (and so recorded a
-            // point) before the press can complete, and `.updating` keeps the
-            // point in a gesture-scoped value that resets itself if the finger
-            // leaves — a `@State` write from a gesture body would survive a
-            // cancelled press and answer about the wrong square.
+            // Two gestures, not one composed one — see `pressPoint` for the
+            // composition that looked right and did nothing. The drag records
+            // where the finger is; the long press says when to ask.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { pressPoint = $0.startLocation }
+            )
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.45)
-                    .sequenced(before: DragGesture(minimumDistance: 0))
-                    .updating($pressPoint) { value, point, _ in
-                        if case .second(_, let drag?) = value { point = drag.startLocation }
-                    }
-                    .onChanged { value in
-                        guard case .second(true, let drag) = value else { return }
-                        askWhy(at: drag?.startLocation ?? pressPoint,
-                               side: side, inset: inset)
-                    }
+                    .onEnded { _ in askWhy(at: pressPoint, side: side, inset: inset) }
             )
             .overlay {
                 if let rose, let lens, model.solvedAt == nil {

@@ -33,6 +33,10 @@ cannot.
 - **tvOS:** deferred — see §6. `.holdBegan` on an empty non-given cell is
   already the pencil rose *and* the four-way remote's only door to Prefs.
 
+The heading carries **no article**: `Why must this be 8?`, not `Why a 8?`.
+Choosing *a* or *an* from a numeral is English grammar no other language shares,
+and it shipped wrong in the first build on a simulator.
+
 The gesture is additive: a plain tap still opens the rose, so the first-flick
 covenant is untouched. This is **not** a new input concept in the craft-charter
 sense — long-press-for-explanation is the platform's own idiom, and the release
@@ -42,7 +46,7 @@ spends its one concept allowance on nothing else.
 
 No card, no scroll, no paragraph. The board narrates:
 
-1. The chain is derived (§3.2) and reduced to its **minimal** ordered form.
+1. The chain is derived (§3.2) — the steps that bear on *this cell*, in order.
 2. Step 1's pattern cells breathe in — the accent wash PRD-11 already
    established — its victims dash, its placement rings.
 3. One line of copy sits in the PRD-2 free band: the technique's name and its
@@ -58,8 +62,11 @@ is a text wall wearing an animation.
 
 ### 2.3 Technique School
 
-The playable tutorial (`TutorialView`) gains a second door: **School**. One
-lesson per technique, ordered by rank, each a *real position from a real board*:
+**School** is a third card on the home shelf's learn row, beside How to play
+and Records — not a door inside the tutorial. The tutorial is a thing you do
+once; School is a place you come back to, and burying it inside a first-run flow
+would have made it a thing you meet once and never find again. One lesson per
+technique, ordered by rank, each a *real position from a real board*:
 
 > An exemplar is `(seed, difficulty, stepIndex)` — about 20 bytes. The device
 > regenerates the puzzle (pure function of the pair), replays the trace to
@@ -72,11 +79,18 @@ then the board handed back to the player to make the move themselves. Locked
 lessons do not exist — every lesson is open from the first launch. The list is
 ordered, not gated.
 
-### 2.4 Hints become "show me the next why"
+### 2.4 Hints and the why-chain stay separate
 
-PRD-11's coach card gains one action alongside **Place it** / **Mark it**:
-**Why?** — which starts the §2.2 narration on the step the card is already
-showing. The card is the summary; the narration is the proof.
+PROGRAM-2.0 asks for hints to become "show me the next why" — a **Why?** action
+on PRD-11's card. **Not built, and the reason is in the shape of the data:** a
+hint's step frequently has no placement at all (every pair, box-line, fish and
+wing *eliminates*), so there is no cell for a derivation to be *about*. The
+action would appear on singles and vanish on everything else, which is worse
+than a card that never offers it.
+
+The two surfaces are one gesture apart and each dismisses the other, so nothing
+is lost but a button. If it comes back it should be per-*cell* — "why not here?"
+on a victim — which is a different feature with a different sentence.
 
 ### 2.5 What the coach remembers
 
@@ -196,19 +210,20 @@ it:
 
 ## 5. Verification checklist
 
-- [ ] Golden corpus 56/56 **after every commit**, not at the end.
-- [ ] `fish(2)` emits byte-identical steps to the frozen `xWing` on a fixture
-      corpus — a named tripwire below the golden hash, so a failure says *where*.
-- [ ] Every new technique is sound: a soak asserting no emitted placement
+- [x] Golden corpus 56/56 **after every commit**, not at the end.
+- [x] `fish(2)` emits byte-identical steps to the frozen `xWing`
+      (`DeepTechniqueTests`, every intermediate state of six real solves).
+- [x] Every new technique is sound: a soak asserting no emitted placement
       disagrees with the solution and no elimination removes a solution digit.
-- [ ] `validate` round-trip: every emitted step validates where it was emitted.
-- [ ] Every exemplar in the School catalog regenerates and proves, in CI.
-- [ ] Compose p95 per new band, Release, ≥100 seeds, published as a number.
-- [ ] `swift test` under ~120 s.
-- [ ] Three platform builds + a Release archive.
-- [ ] `ax-snapshot.py` diff clean, or re-recorded with a stated reason.
-- [ ] Driven on a simulator: long-press an empty cell on a Steady board, walk a
-      chain, screenshots kept.
+- [x] Replay: every derivation's beats, applied in order, land the digit named.
+- [x] Every exemplar in the School catalog regenerates and proves, in CI.
+- [x] Compose p95: **tempest 0.02 s, abyss 0.23 s**, 200 seeds, Mac Release.
+- [~] `swift test` is **3:47**; it was **2:40** before this PRD. Both in DEVIATIONS.
+- [x] Three platform builds + a Release archive.
+- [x] `ax-snapshot.py`: `home` re-recorded (the shelf grew); the four board
+      and sheet baselines untouched.
+- [x] Driven on a simulator. **Four defects found there and nowhere else** —
+      see DEVIATIONS; the gesture did not fire at all in the first build.
 - [ ] Taste ritual: 11pm-in-bed, roommate, first-flick, delete-it-for-a-week,
       idle-pixel.
 
