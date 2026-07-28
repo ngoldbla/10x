@@ -52,7 +52,7 @@ REPO_NINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # never localizes (it must stay Linux-clean and its `Technique`/`Difficulty` raw
 # values are frozen inside 56 golden-corpus hashes), and `Sources/Shared`
 # is here because it compiles into the widget extension.
-TREES = ["Sources/App", "Sources/Widgets", "Sources/Shared"]
+TREES = ["Sources/App", "Sources/Widgets", "Sources/Shared", "Sources/Watch"]
 
 # Debug-only surfaces the player never sees. Each one is named, never
 # pattern-matched: an exemption that can grow by accident is not an exemption,
@@ -1049,6 +1049,16 @@ COMMENTS = {
 
     # Digit words. Spoken, never shown — the numerals are drawn as glyphs.
     "board.digitWord.zero": "The digit 0 as a spoken word, for VoiceOver announcements.",
+    "watch.app.name": "The app's own name, shown as the watch's navigation title. DO NOT TRANSLATE: Nine is the product name and stays \"Nine\" in every locale, exactly as it does on the App Store.",
+    "watch.dial.empty": "VoiceOver name for the Crown rose's resting position, before any digit is chosen.",
+    "watch.dial.erase": "VoiceOver name for the erase stop at the end of the Crown rose's run.",
+    "watch.nav.home": "Back button on the watch board, returning to the list of boards.",
+    "watch.nav.map": "Back button inside the watch's zoomed 3x3 box, returning to the full 9x9 board.",
+    "watch.rail.column": "VoiceOver name for the watch strip listing digits already placed in the selected cell's column.",
+    "watch.rail.empty": "Spoken value of a watch peer strip when no digits are placed on that row or column yet.",
+    "watch.rail.row": "VoiceOver name for the watch strip listing digits already placed in the selected cell's row.",
+    "watch.today.waiting": "Watch status for today's puzzle when it has not arrived from the phone yet.",
+    "watch.today.waitingHint": "VoiceOver hint telling the player how to get today's puzzle onto the watch.",
     "board.digitWord.one": "The digit 1 as a spoken word, for VoiceOver announcements.",
     "board.digitWord.two": "The digit 2 as a spoken word, for VoiceOver announcements.",
     "board.digitWord.three": "The digit 3 as a spoken word, for VoiceOver announcements.",

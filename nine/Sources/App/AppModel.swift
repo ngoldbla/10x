@@ -138,7 +138,27 @@ final class AppModel {
     private(set) var composing: GameKind?
 
     var prefs: NinePrefs {
-        didSet { prefsStore.wrappedValue = prefs }
+        didSet {
+            prefsStore.wrappedValue = prefs
+            publishAppearance()
+        }
+    }
+
+    /// Mirror theme + accent into the cloud-synced sibling key the watch reads
+    /// (PRD-6). `nine.prefs` itself stays local — a Mac has no business
+    /// inheriting an iPhone's thumb reach — but what Nine *looks like* should
+    /// follow the player onto their wrist, and a watch with its own appearance
+    /// settings would be a settings screen on a watch.
+    ///
+    /// Written on every platform, not just iOS: the value travels by KVS, so a
+    /// player who only ever changes their theme on the Apple TV should still
+    /// see it on the wrist.
+    private func publishAppearance() {
+        let published = SharedAppearance(
+            theme: prefs.theme.rawValue, accent: prefs.accent.rawValue
+        )
+        guard appearanceStore.wrappedValue != published else { return }
+        appearanceStore.wrappedValue = published
     }
     /// First-run lesson seen: flips true (forever) once the playable first
     /// beat is finished or skipped. On tvOS and macOS this still gates the
@@ -230,6 +250,12 @@ final class AppModel {
         CouchStored(wrappedValue: NinePrefs(), "nine.prefs")
     @ObservationIgnored private let streakStore =
         CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
+    /// Theme + accent, mirrored for the watch (PRD-6). A sibling top-level key
+    /// rather than a field on `nine.prefs`, because `nine.prefs` ships in every
+    /// released build and an older one's next write erases a field it has no
+    /// property for (EXECUTING-A-PRD §2).
+    @ObservationIgnored private let appearanceStore =
+        CouchStored(wrappedValue: SharedAppearance(), SharedAppearance.storeKey, cloudSynced: true)
     @ObservationIgnored private let libraryStore =
         CouchStored(wrappedValue: BoardLibrary(), "nine.library")
     /// Legacy single-slot store — read once for migration, then blanked so a
@@ -496,6 +522,8 @@ final class AppModel {
         // Post-load publish covers state that changed without the widget
         // hearing about it (reinstall, iCloud KVS sync, midnight).
         WidgetBridge.publish(from: self)
+        PhoneWatchLink.shared.activate(model: self)
+        publishDailyToWatch()
         #endif
 
         // Cloud library (PRD-8). Ambient or absent: no iCloud account →
@@ -788,6 +816,16 @@ final class AppModel {
                 switch kind {
                 case .daily(let day):
                     id = self.library.adoptDaily(game: newGame, day: day, now: now)
+                    #if os(iOS)
+                    // The watch may not compose above gentle and the daily is
+                    // steady, so this is the only route today's board has to
+                    // the wrist (PRD-6). Publishing here rather than on every
+                    // move is deliberate: the payload is the immutable puzzle,
+                    // so nothing but midnight can change it.
+                    if day == self.todayOrdinal {
+                        PhoneWatchLink.shared.publishDaily(puzzle, day: day)
+                    }
+                    #endif
                 case .free:
                     id = self.library.create(kind: kind, game: newGame, now: now)
                 }
@@ -1113,6 +1151,77 @@ final class AppModel {
     }
 
     #if os(iOS)
+    // MARK: - Solves made somewhere that isn't this app
+
+    /// Record a daily solved on another surface — the widget (PRD-3) or the
+    /// watch (PRD-6) — into streak, archive, history and Game Center.
+    ///
+    /// **Idempotent per day, and that is the whole design.** `hasCompleted`
+    /// gates every write, so a re-ingested widget board, a re-sent watch
+    /// report and a phone that also solved today all converge on one record.
+    /// Both callers rely on that rather than on delivering exactly once, which
+    /// is not a guarantee either transport can make.
+    ///
+    /// Extracted rather than copied. `BoardIntents.swift` records what a
+    /// second hand-written copy of the streak rule cost the last time: it went
+    /// out of sync with PRD-13's grace bridge and shamed the player.
+    private func recordSolveMadeElsewhere(day: Int, solve: PendingSolve) {
+        guard !streak.hasCompleted(day: day) else { return }
+        // Callers pin `day` to today, so this can never be an archive board —
+        // but say so in the call rather than leaving it to a guard elsewhere.
+        streak.recordCompletion(day: day, openedOn: day)
+        try? streakStore.flushNow()
+        // The archive's checkmark, which `finishSolve` writes for every other
+        // solve. Without it a daily finished entirely off-app shows no check
+        // until the next COLD LAUNCH's backfill — and `BoardLibrary.prune()`'s
+        // 20-entry cap can eat the library entry that backfill reads before
+        // that launch ever happens, losing the day permanently.
+        var ledger = archive
+        if ledger.markSolved(day: day) {
+            archive = ledger
+            try? archiveStore.flushNow()
+        }
+        let record = SolveRecord(
+            date: solve.solvedAt,
+            difficulty: .steady, // the daily composes at steady
+            isDaily: true,
+            seconds: solve.seconds,
+            points: SolveScore.points(
+                difficulty: .steady, isDaily: true,
+                streak: streak.current, seconds: solve.seconds
+            )
+        )
+        history.record(record)
+        try? historyStore.flushNow()
+        GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+    }
+
+    /// Hand today's daily to the watch if this phone already has it composed.
+    ///
+    /// `compose` publishes the board it just made; this covers the far commoner
+    /// case where the daily was composed yesterday's-tomorrow, or on another
+    /// device and synced in, so no compose runs today at all. Called from the
+    /// same two places as widget publication — launch and scene activation —
+    /// because "the watch came into range" is not an event the phone can hear.
+    func publishDailyToWatch() {
+        let day = todayOrdinal
+        guard let entry = library.dailyEntry(day: day) else { return }
+        PhoneWatchLink.shared.publishDaily(entry.game.puzzle, day: day)
+    }
+
+    /// A daily solved on the wrist (PRD-6).
+    ///
+    /// The board itself does not come back — PRD-6 §2.5 keeps play state off
+    /// the link — so unlike a widget solve there is no game to adopt. The
+    /// library's day entry is left alone: it holds whatever this phone last
+    /// played, which is the honest thing to show, and the streak is what the
+    /// player actually cares about having crossed over.
+    func ingestWatchSolve(_ report: WatchSolveReport) {
+        guard report.dayOrdinal == todayOrdinal else { return }
+        recordSolveMadeElsewhere(day: report.dayOrdinal, solve: report.solve)
+        WidgetBridge.publish(from: self)
+    }
+
     // MARK: - Widget board ingestion (PRD-3 §4)
 
     /// Adopt the shared daily board when the widget moved it forward. Runs
@@ -1139,38 +1248,7 @@ final class AppModel {
             // Solved entirely in the widget. recordCompletion is idempotent
             // per day, and pendingSolve is cleared below, so a same-day
             // re-ingest no-ops.
-            if !streak.hasCompleted(day: shared.dayOrdinal) {
-                // `shared.isCurrent(today:)` above already pins dayOrdinal to
-                // today, so this board can never be an archive one — but say so
-                // in the call rather than leaving it to a guard three lines up.
-                streak.recordCompletion(day: shared.dayOrdinal, openedOn: shared.dayOrdinal)
-                try? streakStore.flushNow()
-                // The archive's checkmark, which `finishSolve` writes for every
-                // other solve. Without it a daily finished entirely in the
-                // widget shows no check until the next COLD LAUNCH's backfill —
-                // and `BoardLibrary.prune()`'s 20-entry cap can eat the library
-                // entry that backfill reads before that launch ever happens,
-                // losing the day permanently. This is the app's only other
-                // solve path; it needed the same line.
-                var ledger = archive
-                if ledger.markSolved(day: shared.dayOrdinal) {
-                    archive = ledger
-                    try? archiveStore.flushNow()
-                }
-                let record = SolveRecord(
-                    date: pending.solvedAt,
-                    difficulty: .steady, // the daily composes at steady
-                    isDaily: true,
-                    seconds: pending.seconds,
-                    points: SolveScore.points(
-                        difficulty: .steady, isDaily: true,
-                        streak: streak.current, seconds: pending.seconds
-                    )
-                )
-                history.record(record)
-                try? historyStore.flushNow()
-                GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
-            }
+            recordSolveMadeElsewhere(day: shared.dayOrdinal, solve: pending)
             // Adopt the finished board into the one day entry and mark it solved
             // (free-play entries structurally untouched — the clobber fix).
             let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())

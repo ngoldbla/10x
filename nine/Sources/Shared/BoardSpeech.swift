@@ -284,6 +284,17 @@ public enum BoardSpeech {
         return Phrase.digitWord(digit)
     }
 
+    /// What a Crown-rose stop is called out loud (PRD-6 §2.3). Digits speak
+    /// as digits — "four", the same word the board uses — so the dial and the
+    /// cell it fills never call the same thing two different names.
+    public static func dialStopName(_ stop: CrownDial) -> String {
+        switch stop {
+        case .empty: return Phrase.dialEmpty
+        case .erase: return Phrase.dialErase
+        case .digit(let digit): return digitWord(digit)
+        }
+    }
+
     /// The plural noun for a digit: "fours", "sixes".
     public static func digitWordPlural(_ digit: Int) -> String {
         guard isValidDigit(digit) else { return "" }
@@ -769,6 +780,11 @@ private enum Phrase {
             ? Phrasebook.current.string("coach.xWing.sentence.rowBase", .int(digit))
             : Phrasebook.current.string("coach.xWing.sentence.colBase", .int(digit))
     }
+
+    /// The two ends of the Crown-rose run. Named rather than drawn, because
+    /// VoiceOver reads the dial and "circle" is not what ∅ means.
+    static var dialEmpty: String { Phrasebook.current.string("watch.dial.empty") }
+    static var dialErase: String { Phrasebook.current.string("watch.dial.erase") }
 
     // Number words, one catalog key per digit — the ruling on PRD-20's plan, so
     // that a language whose "four" inflects by case can spell each one. Indexed

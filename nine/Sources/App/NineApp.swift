@@ -146,6 +146,9 @@ struct RootView: View {
             switch phase {
             case .active:
                 model.ingestSharedDailyBoard()
+                // The watch coming back into range is not an event the phone
+                // can hear, so today's daily is re-offered on every activation.
+                model.publishDailyToWatch()
                 model.syncOnForeground()
             case .background:
                 WidgetBridge.publish(from: model)

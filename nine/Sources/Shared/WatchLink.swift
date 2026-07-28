@@ -160,6 +160,14 @@ public enum WatchComposePolicy {
 public enum WatchLinkWire {
     public static let handoffKey = "nine.watch.handoff"
     public static let reportKey = "nine.watch.solve"
+    /// The phone's acknowledgement, carrying the day ordinal it ingested.
+    ///
+    /// Without it the watch could only *hope* its solve landed. With it the
+    /// watch keeps the report in its ledger — across being out of range, being
+    /// killed, and being relaunched — and re-sends until the phone says it has
+    /// the fact. Re-sending is free: the phone's ingest is guarded by
+    /// `StreakState.hasCompleted(day:)`, which is idempotent per day.
+    public static let acknowledgedSolveKey = "nine.watch.solveAck"
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
