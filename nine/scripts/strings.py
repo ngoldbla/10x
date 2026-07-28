@@ -1227,6 +1227,7 @@ COMMENTS = {
     "shelf.boards.subtitleEmpty": "Subtitle of the Apple TV shelf's Boards tile when nothing is in progress — the three things the sheet is for. A list of verbs, not a sentence.",
     "shelf.boards.subtitleCount": "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "shelf.history.subtitle": "Subtitle of the Apple TV shelf's History tile — what the sheet behind it holds. A fragment, not a sentence.",
+    "shelf.replays.subtitle": "Subtitle of the Apple TV shelf's Replays tile, which opens an ambient screen replaying the player's own finished boards. \"Retraced\" means drawn again, following the same path. A fragment, not a sentence.",
     "shelf.variants.title": "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
     "shelf.variants.subtitle": "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
     "shelf.variants.answer": "What the variants teaser says once tapped, replacing its subtitle for a few seconds. The point is that nothing is being asked of the player — no email, no notification, no purchase.",

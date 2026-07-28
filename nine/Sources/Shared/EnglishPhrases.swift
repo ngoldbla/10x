@@ -440,6 +440,7 @@ public enum EnglishPhrases {
         "shelf.grace.label": "%1$@. %2$@",
         "shelf.grace.title": "Your streak held",
         "shelf.history.subtitle": "Points & best times",
+        "shelf.replays.subtitle": "Your solves, retraced",
         "shelf.points.chip": "%1$lld pts",
         "shelf.today.continueProgress": "Continue · %1$@",
         "shelf.today.oneADay": "One a day",
