@@ -885,6 +885,15 @@ def main():
             simrig.run(["xcrun", "simctl", "shutdown", udid], check=False)
         return
 
+    # `text` was never assigned on this path — the verify run measured every
+    # cell correctly and then died on `NameError` before it could gate any of
+    # them, so the contrast lane has been red on every PR since PRD-22 added it
+    # and green on none. Rendered here in the same order and shape `--record`
+    # writes the baseline in, so the artifact diffs cleanly against it.
+    measured = sorted(rows, key=lambda r: (r[0][2] != "standard",
+                                           THEMES.index(r[0][0]) if r[0][0] in THEMES else 99,
+                                           ACCENTS.index(r[0][1]) if r[0][1] in ACCENTS else 99))
+    text = render(measured, runtime["version"], shape(measured))
     captured = os.path.join(shots, "matrix.txt")
     with open(captured, "w") as handle:
         handle.write(text)
