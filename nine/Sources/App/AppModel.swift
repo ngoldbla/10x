@@ -11,292 +11,6 @@ import CouchKit
 
 // MARK: - Persisted value types
 
-/// Accent tints offered in prefs. Vivid, mutually distinct hues; never pure
-/// red or green (colorblind-safe rule: errors pair a coral underline with a
-/// dot — crimson sits at rose ~345°, far from the coral marker's ~9°).
-/// Light-leaning themes get a deepened variant of each hue: the vivid values
-/// wash out on high-luminance backgrounds.
-///
-/// PRD-16 added Moss and Orchid. Their exact values are load-bearing rather
-/// than decorative, and `Tests/EngineTests/AppearancePaletteTests.swift` pins
-/// them: an accent has to stay legible on all six dark grounds *and* stay
-/// separable from its eight siblings and from coral under three kinds of
-/// colorblind vision, and those two pull against each other. The obvious
-/// candidate for the glacier→lilac gap — a periwinkle indigo — cannot satisfy
-/// both: dark enough to stay clear of Lilac, it falls to 4.08:1 on Blueprint's
-/// blue ground; light enough to read on Blueprint, it collapses to ΔE 2.05
-/// against Lilac under deuteranopia. That gap is closed in practice, so the two
-/// hues here fill the gold→meadow gap and the magenta→crimson one instead.
-enum AccentChoice: String, Codable, Sendable, CaseIterable {
-    case glacier, ember, meadow, lilac, crimson, gold, teal, magenta, moss, orchid
-
-    /// Written out rather than built from `rawValue` on purpose: an
-    /// interpolated key is invisible to `scripts/strings.py`, which is the only
-    /// thing that would notice a case added here with no row in the catalog.
-    var title: String {
-        switch self {
-        case .glacier: return Strings.string("accent.glacier")
-        case .ember: return Strings.string("accent.ember")
-        case .meadow: return Strings.string("accent.meadow")
-        case .lilac: return Strings.string("accent.lilac")
-        case .crimson: return Strings.string("accent.crimson")
-        case .gold: return Strings.string("accent.gold")
-        case .teal: return Strings.string("accent.teal")
-        case .magenta: return Strings.string("accent.magenta")
-        case .moss: return Strings.string("accent.moss")
-        case .orchid: return Strings.string("accent.orchid")
-        }
-    }
-
-    /// The vivid base tint — right on dark themes and in picker swatches.
-    var color: Color {
-        switch self {
-        case .glacier: return Color(red: 0.33, green: 0.68, blue: 0.98)
-        case .ember: return Color(red: 1.00, green: 0.56, blue: 0.20)
-        case .meadow: return Color(red: 0.36, green: 0.84, blue: 0.48)
-        case .lilac: return Color(red: 0.66, green: 0.50, blue: 0.98)
-        case .crimson: return Color(red: 1.00, green: 0.36, blue: 0.56)
-        case .gold: return Color(red: 0.98, green: 0.75, blue: 0.18)
-        case .teal: return Color(red: 0.15, green: 0.80, blue: 0.76)
-        case .magenta: return Color(red: 0.88, green: 0.42, blue: 0.90)
-        case .moss: return Color(red: 0.62, green: 0.85, blue: 0.30)
-        case .orchid: return Color(red: 0.94, green: 0.38, blue: 0.68)
-        }
-    }
-
-    /// The vivid base tint as raw components, for the DualSense light bar
-    /// (PRD-5 Phase 3). Kept parallel to `color` rather than extracted from it —
-    /// SwiftUI `Color` → RGB round-tripping is unreliable on tvOS.
-    var lightBarRGB: (red: Double, green: Double, blue: Double) {
-        switch self {
-        case .glacier: return (0.33, 0.68, 0.98)
-        case .ember: return (1.00, 0.56, 0.20)
-        case .meadow: return (0.36, 0.84, 0.48)
-        case .lilac: return (0.66, 0.50, 0.98)
-        case .crimson: return (1.00, 0.36, 0.56)
-        case .gold: return (0.98, 0.75, 0.18)
-        case .teal: return (0.15, 0.80, 0.76)
-        case .magenta: return (0.88, 0.42, 0.90)
-        case .moss: return (0.62, 0.85, 0.30)
-        case .orchid: return (0.94, 0.38, 0.68)
-        }
-    }
-
-    /// The tint resolved for the surface it sits on.
-    func color(isLight: Bool) -> Color {
-        guard isLight else { return color }
-        switch self {
-        case .glacier: return Color(red: 0.07, green: 0.34, blue: 0.66)
-        case .ember: return Color(red: 0.57, green: 0.25, blue: 0.02)
-        case .meadow: return Color(red: 0.08, green: 0.40, blue: 0.20)
-        case .lilac: return Color(red: 0.39, green: 0.26, blue: 0.70)
-        case .crimson: return Color(red: 0.67, green: 0.11, blue: 0.28)
-        case .gold: return Color(red: 0.46, green: 0.32, blue: 0.01)
-        case .teal: return Color(red: 0.02, green: 0.39, blue: 0.37)
-        case .magenta: return Color(red: 0.58, green: 0.16, blue: 0.58)
-        case .moss: return Color(red: 0.27, green: 0.38, blue: 0.04)
-        case .orchid: return Color(red: 0.66, green: 0.08, blue: 0.39)
-        }
-    }
-}
-
-/// The board's tonal palette, resolved from a `ThemeChoice`. Flat colors
-/// only — box borders stay luminance steps in `gridTone`, never hard lines.
-struct ThemeTones {
-    /// Full-bleed backdrop behind the glass.
-    let background: Color
-    /// Box washes, hairlines, pencil digits (at reduced opacity).
-    let gridTone: Color
-    /// Given digits.
-    let digitTone: Color
-    /// Light-leaning themes flip the wash opacities and deepen the accent.
-    let isLight: Bool
-    /// The error marker (PRD-22). Was one constant on `BoardView` for four
-    /// releases, and `scripts/contrast-harness.py` measured what that cost on
-    /// the two light themes it had never been checked against: **1.92:1** on
-    /// Camel. Deepened for light grounds exactly the way
-    /// `AccentChoice.color(isLight:)` already deepens the accents.
-    let coral: Color
-    /// The wash the board Canvas lays down between the glass and the drawing
-    /// (PRD-22).
-    ///
-    /// `couchGlass` is a *material*: what it draws is dominated by the system's
-    /// own glass, not by the colour behind it. Solved back through the two box
-    /// wash opacities from screenshots — and the nine boxes agree to within a
-    /// level — Void's `(0, 0, 0)` reaches the board as `(19, 19, 19)` and
-    /// Camel's `(204, 178, 140)` as `(250, 230, 200)`. So every number the
-    /// palette test computed was against a ground the board never had, and the
-    /// theme's own hue was barely present under it. Mono is the control: its
-    /// declared `(28, 28, 31)` arrives as `(29, 29, 32)`, because it already
-    /// *was* the material's luminance.
-    ///
-    /// This puts a measured amount of the ground back. It is drawn *beside* the
-    /// Canvas rather than inside it, so the two Afterglow shaders keep sampling
-    /// drawn content only and the celebration is untouched.
-    let plane: Color
-    /// Box borders under Increase Contrast (PRD-22). The board's borders are
-    /// luminance steps by design (PRD §4.2) — a wash you read as an edge rather
-    /// than a line — which is the right default and the wrong answer for
-    /// someone who has asked the system for more contrast.
-    let hairline: Color
-
-    /// The shipped error coral, unchanged. Measured on the composited glass at
-    /// 5.20–6.11:1 across the six dark themes — comfortably past PRD-22's 3:1.
-    static let coralOnDark = Color(red: 1.00, green: 0.45, blue: 0.38)
-    /// …and its light-ground twin. The vivid one is 1.92:1 on Camel, which is
-    /// an error marker nobody can see; this is the same hue taken down to where
-    /// it reads on paper.
-    static let coralOnLight = Color(red: 0.72, green: 0.13, blue: 0.06)
-
-    /// The three derived tones have defaults rather than nine hand-written
-    /// copies: a theme that wants the usual treatment says nothing, and the one
-    /// that does not is visible as an override at its own case.
-    init(
-        background: Color,
-        gridTone: Color,
-        digitTone: Color,
-        isLight: Bool,
-        coral: Color? = nil,
-        plane: Color? = nil,
-        planeOpacity: Double? = nil,
-        hairline: Color? = nil
-    ) {
-        self.background = background
-        self.gridTone = gridTone
-        self.digitTone = digitTone
-        self.isLight = isLight
-        self.coral = coral ?? (isLight ? Self.coralOnLight : Self.coralOnDark)
-        // How much of the theme's own ground reaches the board. Not 1.0 on
-        // purpose: the wash covers the grid square only, so the 12–28pt inset
-        // stays pure material and the board still reads as a pane of glass
-        // with a screen inside it rather than as a painted rectangle.
-        //
-        // **Zero on light themes, and that is measured, not an oversight.**
-        // Every mark a light theme draws — givens, accents, the coral — is
-        // *darker* than its ground, so restoring the theme's ground lowers the
-        // ground's luminance and costs contrast on all three at once. On Camel
-        // a 0.58 wash took givens from 10.28:1 to 8.15:1 and bought nothing.
-        // Light themes are fixed by deepening the ink instead
-        // (`AccentChoice.color(isLight:)` and `coralOnLight`).
-        self.plane = (plane ?? background)
-            .opacity(planeOpacity ?? (isLight ? 0 : 0.70))
-        self.hairline = hairline ?? gridTone.opacity(isLight ? 0.42 : 0.34)
-    }
-}
-
-/// Color scheme for the whole app — both platforms. `auto` follows the
-/// system; the tinted themes (camel, blueprint, forest, ember, tide, mono) pin
-/// their leaning so materials and secondary text follow along.
-enum ThemeChoice: String, Codable, Sendable, CaseIterable {
-    case auto, dark, light, camel, blueprint, forest, ember, tide, mono
-
-    /// The raw values are the persisted spelling (`dark`, `light`) and the
-    /// names are not (`Void`, `Paper`), so this mapping cannot be derived.
-    var title: String {
-        switch self {
-        case .auto: return Strings.string("theme.auto")
-        case .dark: return Strings.string("theme.dark")
-        case .light: return Strings.string("theme.light")
-        case .camel: return Strings.string("theme.camel")
-        case .blueprint: return Strings.string("theme.blueprint")
-        case .forest: return Strings.string("theme.forest")
-        case .ember: return Strings.string("theme.ember")
-        case .tide: return Strings.string("theme.tide")
-        case .mono: return Strings.string("theme.mono")
-        }
-    }
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .auto: return nil
-        case .light, .camel: return .light
-        case .dark, .blueprint, .forest, .ember, .tide, .mono: return .dark
-        }
-    }
-
-    /// Tones for this theme; `resolved` decides only for `auto`, where the
-    /// system's scheme picks Void or Paper.
-    func tones(for resolved: ColorScheme) -> ThemeTones {
-        switch self {
-        case .auto:
-            return (resolved == .light ? ThemeChoice.light : .dark).tones(for: resolved)
-        case .dark:
-            return ThemeTones(
-                background: CouchPalette.void,
-                gridTone: .white,
-                digitTone: CouchPalette.paper,
-                isLight: false
-            )
-        case .light:
-            return ThemeTones(
-                background: Color(red: 0.94, green: 0.93, blue: 0.90),
-                gridTone: .black,
-                digitTone: Color(red: 0.17, green: 0.16, blue: 0.14),
-                isLight: true
-            )
-        case .camel:
-            return ThemeTones(
-                background: Color(red: 0.80, green: 0.70, blue: 0.55),
-                gridTone: Color(red: 0.20, green: 0.13, blue: 0.06),
-                digitTone: Color(red: 0.23, green: 0.15, blue: 0.07),
-                isLight: true
-            )
-        case .blueprint:
-            return ThemeTones(
-                background: Color(red: 0.05, green: 0.14, blue: 0.33),
-                gridTone: Color(red: 0.75, green: 0.85, blue: 1.00),
-                digitTone: Color(red: 0.86, green: 0.92, blue: 1.00),
-                isLight: false,
-                // The one theme whose backdrop and whose board ground are
-                // different jobs, and the only theme where the default wash
-                // made things *worse*. Blueprint's backdrop is a saturated blue
-                // that reads well full-bleed and is lighter than the composited
-                // glass — so putting it back under the board raised the ground
-                // and pulled every accent down (crimson 3.93 → 3.79). This is
-                // the same hue taken to where a board wants it; Blueprint is
-                // the binding ground for all ten accents in the matrix, so the
-                // whole palette's worst cell is set here.
-                plane: Color(red: 0.022, green: 0.065, blue: 0.165),
-                planeOpacity: 0.80
-            )
-        case .forest:
-            return ThemeTones(
-                background: Color(red: 0.05, green: 0.13, blue: 0.09),
-                gridTone: Color(red: 0.80, green: 0.92, blue: 0.84),
-                digitTone: Color(red: 0.89, green: 0.94, blue: 0.88),
-                isLight: false
-            )
-        // PRD-16. All three are dark-leaning and all three clear the floors
-        // Blueprint set: given digits ≥12:1, grid tone ≥10:1, and the coral
-        // error marker ≥5.5:1 against the ground (pinned in
-        // AppearancePaletteTests). Ember is the one to watch — a rust ground
-        // sits ~8° from coral's hue, so its legibility is bought with
-        // luminance (6.94:1), not with hue.
-        case .ember:
-            return ThemeTones(
-                background: Color(red: 0.14, green: 0.05, blue: 0.03),
-                gridTone: Color(red: 0.98, green: 0.86, blue: 0.78),
-                digitTone: Color(red: 0.99, green: 0.91, blue: 0.85),
-                isLight: false
-            )
-        case .tide:
-            return ThemeTones(
-                background: Color(red: 0.02, green: 0.12, blue: 0.14),
-                gridTone: Color(red: 0.76, green: 0.93, blue: 0.94),
-                digitTone: Color(red: 0.86, green: 0.96, blue: 0.96),
-                isLight: false
-            )
-        case .mono:
-            return ThemeTones(
-                background: Color(red: 0.11, green: 0.11, blue: 0.12),
-                gridTone: Color(red: 0.88, green: 0.88, blue: 0.89),
-                digitTone: Color(red: 0.95, green: 0.95, blue: 0.96),
-                isLight: false
-            )
-        }
-    }
-}
-
 /// Where the board parks vertically on iOS (PRD-2). Anchoring to an edge
 /// collects all free space in one contiguous band — room for a system
 /// Picture-in-Picture window to sit without covering the grid. tvOS ignores
@@ -424,7 +138,27 @@ final class AppModel {
     private(set) var composing: GameKind?
 
     var prefs: NinePrefs {
-        didSet { prefsStore.wrappedValue = prefs }
+        didSet {
+            prefsStore.wrappedValue = prefs
+            publishAppearance()
+        }
+    }
+
+    /// Mirror theme + accent into the cloud-synced sibling key the watch reads
+    /// (PRD-6). `nine.prefs` itself stays local — a Mac has no business
+    /// inheriting an iPhone's thumb reach — but what Nine *looks like* should
+    /// follow the player onto their wrist, and a watch with its own appearance
+    /// settings would be a settings screen on a watch.
+    ///
+    /// Written on every platform, not just iOS: the value travels by KVS, so a
+    /// player who only ever changes their theme on the Apple TV should still
+    /// see it on the wrist.
+    private func publishAppearance() {
+        let published = SharedAppearance(
+            theme: prefs.theme.rawValue, accent: prefs.accent.rawValue
+        )
+        guard appearanceStore.wrappedValue != published else { return }
+        appearanceStore.wrappedValue = published
     }
     /// First-run lesson seen: flips true (forever) once the playable first
     /// beat is finished or skipped. On tvOS and macOS this still gates the
@@ -516,6 +250,12 @@ final class AppModel {
         CouchStored(wrappedValue: NinePrefs(), "nine.prefs")
     @ObservationIgnored private let streakStore =
         CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
+    /// Theme + accent, mirrored for the watch (PRD-6). A sibling top-level key
+    /// rather than a field on `nine.prefs`, because `nine.prefs` ships in every
+    /// released build and an older one's next write erases a field it has no
+    /// property for (EXECUTING-A-PRD §2).
+    @ObservationIgnored private let appearanceStore =
+        CouchStored(wrappedValue: SharedAppearance(), SharedAppearance.storeKey, cloudSynced: true)
     @ObservationIgnored private let libraryStore =
         CouchStored(wrappedValue: BoardLibrary(), "nine.library")
     /// Legacy single-slot store — read once for migration, then blanked so a
@@ -782,6 +522,8 @@ final class AppModel {
         // Post-load publish covers state that changed without the widget
         // hearing about it (reinstall, iCloud KVS sync, midnight).
         WidgetBridge.publish(from: self)
+        PhoneWatchLink.shared.activate(model: self)
+        publishDailyToWatch()
         #endif
 
         // Cloud library (PRD-8). Ambient or absent: no iCloud account →
@@ -1074,6 +816,16 @@ final class AppModel {
                 switch kind {
                 case .daily(let day):
                     id = self.library.adoptDaily(game: newGame, day: day, now: now)
+                    #if os(iOS)
+                    // The watch may not compose above gentle and the daily is
+                    // steady, so this is the only route today's board has to
+                    // the wrist (PRD-6). Publishing here rather than on every
+                    // move is deliberate: the payload is the immutable puzzle,
+                    // so nothing but midnight can change it.
+                    if day == self.todayOrdinal {
+                        PhoneWatchLink.shared.publishDaily(puzzle, day: day)
+                    }
+                    #endif
                 case .free:
                     id = self.library.create(kind: kind, game: newGame, now: now)
                 }
@@ -1399,6 +1151,77 @@ final class AppModel {
     }
 
     #if os(iOS)
+    // MARK: - Solves made somewhere that isn't this app
+
+    /// Record a daily solved on another surface — the widget (PRD-3) or the
+    /// watch (PRD-6) — into streak, archive, history and Game Center.
+    ///
+    /// **Idempotent per day, and that is the whole design.** `hasCompleted`
+    /// gates every write, so a re-ingested widget board, a re-sent watch
+    /// report and a phone that also solved today all converge on one record.
+    /// Both callers rely on that rather than on delivering exactly once, which
+    /// is not a guarantee either transport can make.
+    ///
+    /// Extracted rather than copied. `BoardIntents.swift` records what a
+    /// second hand-written copy of the streak rule cost the last time: it went
+    /// out of sync with PRD-13's grace bridge and shamed the player.
+    private func recordSolveMadeElsewhere(day: Int, solve: PendingSolve) {
+        guard !streak.hasCompleted(day: day) else { return }
+        // Callers pin `day` to today, so this can never be an archive board —
+        // but say so in the call rather than leaving it to a guard elsewhere.
+        streak.recordCompletion(day: day, openedOn: day)
+        try? streakStore.flushNow()
+        // The archive's checkmark, which `finishSolve` writes for every other
+        // solve. Without it a daily finished entirely off-app shows no check
+        // until the next COLD LAUNCH's backfill — and `BoardLibrary.prune()`'s
+        // 20-entry cap can eat the library entry that backfill reads before
+        // that launch ever happens, losing the day permanently.
+        var ledger = archive
+        if ledger.markSolved(day: day) {
+            archive = ledger
+            try? archiveStore.flushNow()
+        }
+        let record = SolveRecord(
+            date: solve.solvedAt,
+            difficulty: .steady, // the daily composes at steady
+            isDaily: true,
+            seconds: solve.seconds,
+            points: SolveScore.points(
+                difficulty: .steady, isDaily: true,
+                streak: streak.current, seconds: solve.seconds
+            )
+        )
+        history.record(record)
+        try? historyStore.flushNow()
+        GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+    }
+
+    /// Hand today's daily to the watch if this phone already has it composed.
+    ///
+    /// `compose` publishes the board it just made; this covers the far commoner
+    /// case where the daily was composed yesterday's-tomorrow, or on another
+    /// device and synced in, so no compose runs today at all. Called from the
+    /// same two places as widget publication — launch and scene activation —
+    /// because "the watch came into range" is not an event the phone can hear.
+    func publishDailyToWatch() {
+        let day = todayOrdinal
+        guard let entry = library.dailyEntry(day: day) else { return }
+        PhoneWatchLink.shared.publishDaily(entry.game.puzzle, day: day)
+    }
+
+    /// A daily solved on the wrist (PRD-6).
+    ///
+    /// The board itself does not come back — PRD-6 §2.5 keeps play state off
+    /// the link — so unlike a widget solve there is no game to adopt. The
+    /// library's day entry is left alone: it holds whatever this phone last
+    /// played, which is the honest thing to show, and the streak is what the
+    /// player actually cares about having crossed over.
+    func ingestWatchSolve(_ report: WatchSolveReport) {
+        guard report.dayOrdinal == todayOrdinal else { return }
+        recordSolveMadeElsewhere(day: report.dayOrdinal, solve: report.solve)
+        WidgetBridge.publish(from: self)
+    }
+
     // MARK: - Widget board ingestion (PRD-3 §4)
 
     /// Adopt the shared daily board when the widget moved it forward. Runs
@@ -1425,38 +1248,7 @@ final class AppModel {
             // Solved entirely in the widget. recordCompletion is idempotent
             // per day, and pendingSolve is cleared below, so a same-day
             // re-ingest no-ops.
-            if !streak.hasCompleted(day: shared.dayOrdinal) {
-                // `shared.isCurrent(today:)` above already pins dayOrdinal to
-                // today, so this board can never be an archive one — but say so
-                // in the call rather than leaving it to a guard three lines up.
-                streak.recordCompletion(day: shared.dayOrdinal, openedOn: shared.dayOrdinal)
-                try? streakStore.flushNow()
-                // The archive's checkmark, which `finishSolve` writes for every
-                // other solve. Without it a daily finished entirely in the
-                // widget shows no check until the next COLD LAUNCH's backfill —
-                // and `BoardLibrary.prune()`'s 20-entry cap can eat the library
-                // entry that backfill reads before that launch ever happens,
-                // losing the day permanently. This is the app's only other
-                // solve path; it needed the same line.
-                var ledger = archive
-                if ledger.markSolved(day: shared.dayOrdinal) {
-                    archive = ledger
-                    try? archiveStore.flushNow()
-                }
-                let record = SolveRecord(
-                    date: pending.solvedAt,
-                    difficulty: .steady, // the daily composes at steady
-                    isDaily: true,
-                    seconds: pending.seconds,
-                    points: SolveScore.points(
-                        difficulty: .steady, isDaily: true,
-                        streak: streak.current, seconds: pending.seconds
-                    )
-                )
-                history.record(record)
-                try? historyStore.flushNow()
-                GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
-            }
+            recordSolveMadeElsewhere(day: shared.dayOrdinal, solve: pending)
             // Adopt the finished board into the one day entry and mark it solved
             // (free-play entries structurally untouched — the clobber fix).
             let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())

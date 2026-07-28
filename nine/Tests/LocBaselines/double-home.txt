@@ -1,6 +1,6 @@
 # mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
 # role        x,y     w x h   label
-Button       38,164 175x129 "Today Today,  , Jul 27, 2026,  , One a day One a day"
+Button       38,164 175x129 "Today Today,  , <today>,  , One a day One a day"
 Button       38,468  75x155 "Gentle Gentle,  , Singles & scans Singles & scans"
 Button       38,680 283x64  "1$@, 2$@ Nocturne Nocturne, Fewer clues, deeper logic Fewer clues, deeper logic"
 Button       43,350 321x56  "1$#@filled@ filled. %1$#@filled@ filled.,  , Continue Continue,  , 1$@ \u00b7 2$@ Steady Steady \u00b7 7%"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The watch app (PRD-6). Checked in rather than generated because the
+	     KVS identifier below is a literal that must NOT be derived from this
+	     bundle's own id, and because .gitignore's blanket */*.entitlements
+	     rule would otherwise swallow it. -->
+
+	<!-- THE SYNC KEYSTONE. Every other target in this repo writes
+	     `$(TeamIdentifierPrefix)$(CFBundleIdentifier)`, which expands to the
+	     app's own bundle id and is correct there because all three platforms
+	     share `com.couchsuite.nine`. The watch app does not: its bundle id is
+	     `com.couchsuite.nine.watchkitapp`, so the same expression would give it
+	     a key-value store of its own, and a solve on the wrist would build a
+	     streak the phone never sees — silently, forever, with no error
+	     anywhere. Pinned to the app's identifier as a literal (PRD-6 §2.5). -->
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)com.couchsuite.nine</string>
+
+	<!-- Deliberately absent, each for a reason:
+
+	     • CloudKit. The library does not reach the wrist (PRD-6 §2.5 — boards
+	       do not hand off), and declaring `icloud-services` would also oblige
+	       `aps-environment` or App Store Connect rejects the upload with error
+	       90575. Nothing on the watch would use either.
+	     • App groups. The watch's WidgetKit extension is 6b; it is the thing
+	       that needs a watch-side group, and it can add one when it exists.
+	     • Game Center. The watch reports nothing directly; a solve travels to
+	       the phone as a WatchSolveReport and the phone reports it, so the
+	       entitlement would buy a capability with no caller. -->
+</dict>
+</plist>

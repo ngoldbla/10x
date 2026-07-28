@@ -65,7 +65,7 @@ final class StringSealTests: XCTestCase {
         "tabItem", "navigationSubtitle", "accessibilityCustomContent", "prompt",
     ]
 
-    private static let trees = ["Sources/App", "Sources/Widgets", "Sources/Shared"]
+    private static let trees = ["Sources/App", "Sources/Widgets", "Sources/Shared", "Sources/Watch"]
 
     /// Debug-only surfaces the player never sees. Each one is named, never
     /// pattern-matched: an exemption that can grow by accident is not an

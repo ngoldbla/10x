@@ -4,10 +4,11 @@
 // Two targets by design:
 //   • CouchCore — pure Swift + Foundation. Every algorithm lives here so it
 //     builds and tests anywhere (including Linux CI, which has no SwiftUI).
-//   • CouchKit  — the SwiftUI layer. Glass, typography, persistence and help
-//     components compile for tvOS, iOS *and* macOS (Nine ships universal —
-//     PRD-4 adds the Mac as the third destination); the remote-input layer
-//     (RemoteKit) and TV-only kits stay `#if os(tvOS)`. Every file carries a
+//   • CouchKit  — the SwiftUI layer. Glass, typography and persistence compile
+//     for tvOS, iOS, macOS *and* watchOS (Nine ships universal — PRD-4 adds
+//     the Mac, PRD-6 the wrist); the remote-input layer (RemoteKit) and TV-only
+//     kits stay `#if os(tvOS)`, and HelpKit stays off the wrist because a
+//     control legend is a thing you read on a couch. Every file carries a
 //     platform guard so the target compiles to nothing on platforms that
 //     lack the APIs it wraps.
 import PackageDescription
@@ -17,7 +18,11 @@ let package = Package(
     platforms: [
         .tvOS(.v18),
         .iOS(.v18),
-        .macOS(.v15)
+        .macOS(.v15),
+        // Adding a platform only introduces a floor for that platform; it
+        // cannot move tvOS/iOS/macOS. Proved rather than assumed — a sibling
+        // tvOS app is built in the same commit (PRD-6 Task 1 Step 5).
+        .watchOS(.v11)
     ],
     products: [
         .library(name: "CouchKit", targets: ["CouchKit", "CouchCore"])

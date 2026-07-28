@@ -1,7 +1,7 @@
 // CouchUI foundations: typography, palette, accent derivation, springs.
 // Art direction: "Pixels under glass" — dark-first, content full-bleed,
 // chrome transient. No component in this file draws an opaque background.
-#if os(tvOS) || os(iOS) || os(macOS)
+#if os(tvOS) || os(iOS) || os(macOS) || os(watchOS)
 import SwiftUI
 @_exported import CouchCore
 
@@ -19,6 +19,17 @@ public enum CouchTypography {
     public static let body = Font.system(size: 38, weight: .medium, design: .rounded)
     /// Chips, dates, footnotes. 29pt semibold (small type needs weight on TV).
     public static let caption = Font.system(size: 29, weight: .semibold, design: .rounded)
+    #elseif os(watchOS)
+    // A 45mm screen is ~198pt wide, so the handheld ramp below overflows it:
+    // `title` at 30pt fits four characters. These are the handheld sizes taken
+    // down roughly a third, with `caption` held at 12 rather than 11 because
+    // below that SF Rounded stops being legible at arm's length in sunlight
+    // (PRD-6 §5's outdoor-readability risk). `display` is unused on the wrist
+    // and kept only so the ramp stays total.
+    public static let display = Font.system(size: 34, weight: .heavy, design: .rounded)
+    public static let title = Font.system(size: 22, weight: .bold, design: .rounded)
+    public static let body = Font.system(size: 15, weight: .medium, design: .rounded)
+    public static let caption = Font.system(size: 12, weight: .semibold, design: .rounded)
     #else
     /// Hero numerals, scores, the one huge word.
     public static let display = Font.system(size: 48, weight: .heavy, design: .rounded)
@@ -41,6 +52,11 @@ public enum CouchScale {
     // (0.55): a pointer-scale chrome that still reads across a room (PRD-4
     // §0). First-guess per PRD; tune on screenshot review.
     public static let chrome: CGFloat = 0.70
+    #elseif os(watchOS)
+    // PRD-6 §4 Step 0 fixes this number. Wrist distance is closer than the
+    // hand (0.55), but the screen is a quarter the size, so chrome has to give
+    // up more than viewing distance alone would ask.
+    public static let chrome: CGFloat = 0.42
     #else
     public static let chrome: CGFloat = 0.55
     #endif

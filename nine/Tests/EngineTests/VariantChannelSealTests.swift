@@ -29,7 +29,7 @@ final class VariantChannelSealTests: XCTestCase {
 
     /// App-layer source trees. `Sources/Engine` is exempt: that is where this
     /// lives. `Sources/Shared` is included because it compiles into the widget.
-    private static let sealedTrees = ["Sources/App", "Sources/Widgets", "Sources/Shared"]
+    private static let sealedTrees = ["Sources/App", "Sources/Widgets", "Sources/Shared", "Sources/Watch"]
 
     func testNoAppSurfaceCanReachTheVariantEngine() throws {
         let nine = URL(fileURLWithPath: #filePath)

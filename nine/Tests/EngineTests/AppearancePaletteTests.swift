@@ -7,7 +7,7 @@
 // pins things it cannot link against:
 //
 //   • the numbers live here, as a table, and a source-literal check fails if
-//     `AppModel.swift` ever disagrees with the table (the
+//     `Theme.swift` ever disagrees with the table (the
 //     `VariantChannelSealTests` pattern — a source check fires on the line that
 //     introduces the drift, in the PR that introduces it);
 //   • the *properties* those numbers must have — WCAG contrast against the
@@ -129,24 +129,24 @@ final class AppearancePaletteTests: XCTestCase {
 
     // MARK: - Source parity
 
-    private static var appModelSource: String {
+    private static var themeSource: String {
         get throws {
             let nine = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()   // EngineTests
                 .deletingLastPathComponent()   // Tests
                 .deletingLastPathComponent()   // nine
             return try String(
-                contentsOf: nine.appendingPathComponent("Sources/App/AppModel.swift"),
+                contentsOf: nine.appendingPathComponent("Sources/App/Theme.swift"),
                 encoding: .utf8)
         }
     }
 
     /// Swift source writes `0.33`, not `0.330000`. Two decimals is what every
-    /// literal in `AppModel.swift` uses; `1.0` is written `1.00`.
+    /// literal in `Theme.swift` uses; `1.0` is written `1.00`.
     private func lit(_ value: Double) -> String { String(format: "%.2f", value) }
 
     func testEveryAccentLiteralMatchesTheTable() throws {
-        let source = try Self.appModelSource
+        let source = try Self.themeSource
         for (name, rgb) in Self.accents {
             let expected =
                 "case .\(name): return Color(red: \(lit(rgb.r)), green: \(lit(rgb.g)), blue: \(lit(rgb.b)))"
@@ -161,7 +161,7 @@ final class AppearancePaletteTests: XCTestCase {
     /// The table must be *complete*, not merely correct: a ninth accent added to
     /// the enum and forgotten here would ship unmeasured.
     func testAccentTableNamesEveryCase() throws {
-        let source = try Self.appModelSource
+        let source = try Self.themeSource
         let declared = try declaredCases(of: "AccentChoice", in: source)
         XCTAssertEqual(
             declared, Self.accents.map(\.name),
@@ -169,7 +169,7 @@ final class AppearancePaletteTests: XCTestCase {
     }
 
     func testThemeTableNamesEveryDarkCase() throws {
-        let source = try Self.appModelSource
+        let source = try Self.themeSource
         let declared = try declaredCases(of: "ThemeChoice", in: source)
         // `auto` resolves to Void or Paper and has no tones of its own; `light`
         // and `camel` are light-leaning (see `darkThemes`' doc comment).
@@ -183,7 +183,7 @@ final class AppearancePaletteTests: XCTestCase {
     private func declaredCases(of enumName: String, in source: String) throws -> [String] {
         let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
         guard let start = lines.firstIndex(where: { $0.hasPrefix("enum \(enumName):") }) else {
-            XCTFail("enum \(enumName) not found in AppModel.swift — did it move?")
+            XCTFail("enum \(enumName) not found in Theme.swift — did it move?")
             return []
         }
         guard let caseLine = lines[start...].first(where: {
@@ -266,7 +266,7 @@ final class AppearancePaletteTests: XCTestCase {
     }
 
     func testEveryLightAccentLiteralMatchesTheTable() throws {
-        let source = try Self.appModelSource
+        let source = try Self.themeSource
         for (name, rgb) in Self.lightAccents {
             let expected =
                 "case .\(name): return Color(red: \(lit(rgb.r)), green: \(lit(rgb.g)), blue: \(lit(rgb.b)))"

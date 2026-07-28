@@ -4,7 +4,7 @@
 // On iOS and macOS the same components render at handheld / desk scale
 // (CouchScale.chrome); focus-engine affordances (FocusHalo) degrade to
 // no-ops there. On macOS a GlassSheet dismisses on a scrim click, as iOS.
-#if os(tvOS) || os(iOS) || os(macOS)
+#if os(tvOS) || os(iOS) || os(macOS) || os(watchOS)
 import SwiftUI
 import CouchCore
 import Observation

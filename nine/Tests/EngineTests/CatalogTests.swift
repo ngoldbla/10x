@@ -27,9 +27,9 @@ import Foundation
 
 final class CatalogTests: XCTestCase {
 
-    // MARK: - The two bundles
+    // MARK: - The three bundles
 
-    func testBothTargetsListTheStringsTree() throws {
+    func testEveryTargetListsTheStringsTree() throws {
         let yml = try String(contentsOf: Self.nineRoot.appendingPathComponent("project.yml"),
                             encoding: .utf8)
         // Per target, not file-wide. Counting `- Sources/Strings` across the
@@ -37,19 +37,19 @@ final class CatalogTests: XCTestCase {
         // that need them: drop it from NineWidgets, add a second copy anywhere
         // under Nine, and the count, the test and all three platform builds
         // stay green while the widget ships permanently English.
-        for target in ["Nine", "NineWidgets"] {
+        for target in ["Nine", "NineWidgets", "NineWatch"] {
             let block = try XCTUnwrap(Self.targetBlock(target, in: yml),
                                       "project.yml has no target named \(target) at "
                                       + "two-space indent — this test is reading the "
                                       + "wrong shape of file, not measuring anything.")
             XCTAssertTrue(block.contains("- Sources/Strings"), """
-                \(target) does not list Sources/Strings. It must be listed by BOTH \
-                the Nine and NineWidgets targets: NineWidgets compiles \
-                Sources/Shared and Sources/Engine in, so it asks for the same keys \
-                — but against its OWN bundle, because in an app extension \
-                `Bundle.main` is the extension. A widget without the catalog \
-                renders English on a localized phone, and every platform build \
-                stays green.
+                \(target) does not list Sources/Strings. All three targets must: \
+                NineWidgets and NineWatch compile Sources/Shared and \
+                Sources/Engine in, so they ask for the same keys — but against \
+                their OWN bundle, because in an app extension and in a watch app \
+                `Bundle.main` is that bundle. A widget or a watch app without the \
+                catalog renders English on a localized phone, and every platform \
+                build stays green.
                 """)
 
             // Sources/Shared is the tree whose presence in both targets is the
@@ -57,7 +57,7 @@ final class CatalogTests: XCTestCase {
             // being true, the assertion above is measuring nothing.
             XCTAssertTrue(block.contains("- Sources/Shared"),
                           "\(target) no longer lists Sources/Shared — re-derive why "
-                          + "the catalog needs to be in two bundles, before trusting "
+                          + "the catalog needs to be in three bundles, before trusting "
                           + "the assertion above.")
         }
     }
@@ -107,12 +107,13 @@ final class CatalogTests: XCTestCase {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.hasPrefix("CFBundleLocalizations:") }
 
-        // Two: the app's Info.plist and the widget extension's. An extension is
-        // a separate bundle with a separate Info.plist, so "the app declares
-        // it" is not a fact about the widget.
-        XCTAssertEqual(declared.count, 2, """
-            CFBundleLocalizations must be declared by BOTH bundles — Nine.app \
-            and NineWidgets.appex. Found \(declared.count).
+        // Three: the app's Info.plist, the widget extension's, and the watch
+        // app's. Each is a separate bundle with a separate Info.plist, so "the
+        // app declares it" is a fact about none of the others — and an
+        // extension or a watch app resolves against its OWN `Bundle.main`.
+        XCTAssertEqual(declared.count, 3, """
+            CFBundleLocalizations must be declared by ALL THREE bundles — \
+            Nine.app, NineWidgets.appex and NineWatch.app. Found \(declared.count).
             """)
 
         for line in declared {
@@ -131,8 +132,8 @@ final class CatalogTests: XCTestCase {
                 """)
         }
 
-        XCTAssertEqual(Self.occurrences(of: "CFBundleDevelopmentRegion: en", in: yml), 2,
-                       "English is the source language; both bundles must say so.")
+        XCTAssertEqual(Self.occurrences(of: "CFBundleDevelopmentRegion: en", in: yml), 3,
+                       "English is the source language; all three bundles must say so.")
     }
 
     // MARK: - The two entry points

@@ -13,46 +13,6 @@
 import SwiftUI
 import CouchKit
 
-/// The cells a hint lights, by the part each plays in it.
-///
-/// Arrays rather than a `[Int: Role]` dictionary: where two roles land on one
-/// cell the draw order decides what the player sees, and dictionary iteration
-/// order is not defined.
-struct CoachFocus: Equatable, Sendable {
-    /// The cells forming the pattern — an accent wash.
-    let pattern: [Int]
-    /// The cell the step resolves, if any — a stronger ring.
-    let target: Int?
-    /// Cells losing a candidate — a dashed, dimmer border.
-    let victims: [Int]
-    /// The digit under discussion, when the step is about exactly one.
-    let digit: Int?
-
-    /// Nil for a solved board: the Afterglow owns that moment and nothing
-    /// should wash over it.
-    init?(_ advice: CoachAdvice) {
-        switch advice {
-        case .solved:
-            return nil
-        case .exhausted:
-            pattern = []
-            target = nil
-            victims = []
-            digit = nil
-        case .contradiction(let cells):
-            pattern = cells
-            target = nil
-            victims = []
-            digit = nil
-        case .step(let coach):
-            pattern = coach.step.cells
-            target = coach.step.placement?.cell
-            victims = Set(coach.step.eliminations.map(\.cell)).sorted()
-            digit = coach.step.digits.count == 1 ? coach.step.digits.first : nil
-        }
-    }
-}
-
 extension CoachAdvice {
     /// The card's one action, or nil when the coach has nothing to offer but
     /// the sentence.

@@ -2886,3 +2886,209 @@ green, and the widget permanently English. Both now name what they check.
   downgrading its state.** Harmless while everything is `needs_review`; it
   becomes a live hazard the first time a human reviews a locale and flips it to
   `translated`.
+
+---
+
+## PRD-6 — Nine on the wrist (6a)
+
+A watchOS app: the board as a glanceable map, a tap to dive into a 3×3 box, and
+the Digital Crown as the rose. Shipped with today's daily arriving over
+WatchConnectivity, because the watch is not allowed to compose it.
+
+### Nine decisions, taken rather than deferred
+
+`PRD-6.md` was written before `PROGRAM-2.0.md`'s engineering-foundations line,
+and they disagree in two places. The program doc and the kickoff are later and
+therefore controlling; each reconciliation is here with its reason.
+
+**The link carries a puzzle down and a solve up, never play state.** PRD-6 §3
+listed WatchConnectivity as a non-goal; `PROGRAM-2.0.md:112` requires it. Both
+are satisfiable at once, because what the wrist actually needs from the phone is
+the *board*, not the game. The reason not to send play state is written into
+`SharedDailyBoard.swift:6-7`, which this pattern is borrowed from: that file is
+safe under last-writer-wins because "both sides only ever append moves to the
+same day's board, so a lost race costs a move, never corruption." A watch has
+undo and erase. It can legitimately hold *fewer* filled cells than the phone it
+is syncing with, so the identical rule stops losing moves and starts deleting a
+player's evening. A `GeneratedPuzzle` is a pure function of the day, so a
+revision conflict on it cannot lose anything, and PRD-6 §2.5's "in-progress
+boards do not hand off in v1" stands unamended.
+
+**The watch composes gentle and nothing harder.** The kickoff's rule, taken
+literally. There is no fast-seed catalog in the repo — `grep -rni pantry`
+returns two lines, both in `PROGRAM-2.0.md`, and PRD-23 shipped with
+"catalogs/pantry" explicitly not done — so "catalog-easy" can only mean the
+easiest band. `WatchComposePolicy` holds `ceiling = .gentle` *and*
+`dailyBand = .steady` in one place, so the link is provably load-bearing:
+`theDailyIsAboveTheCeilingSoTheLinkIsLoadBearing` fails the day those two agree.
+
+Measured anyway, because a rule is worth more next to a number.
+**Mac Release compose p95 is gentle 0.02 s / steady 0.05 s** (`PROGRAM-2.0.md:29`),
+and the encoded daily is **6,386 bytes** — well inside an application context,
+asserted at 32 KB because `updateApplicationContext` rejects an oversized
+payload on a real watch and nowhere else. So steady would very likely have been
+*fast enough*; it is excluded because the rule is a ceiling, not a benchmark,
+and because the same ceiling is what keeps Nocturne off the wrist without a
+second conversation.
+
+**Free play on the watch is gentle-only, and there is no difficulty picker.**
+Follows from the ceiling: offering Sharp would be offering something the watch
+cannot make.
+
+**No phone, no daily — and the app says so.** "Today · On your iPhone", with the
+iPhone glyph and a VoiceOver hint naming the fix. Not a spinner, and never
+yesterday's board.
+
+**`AppModel` is not compiled into the watch.** It builds a `LibraryCloudStore`,
+whose `CKContainer(identifier:)` traps on a binary holding the iCloud *account*
+but not the CloudKit *entitlement* — the live defect recorded above, the one
+that means a locally-built Nine cannot launch on macOS at all. The watch carries
+KVS and no CloudKit container, so importing the model would have shipped that
+trap to the wrist. A purpose-built `WatchModel` replaces it, and three value
+types moved out of `AppModel.swift` into `Theme.swift` so `BoardView` could come
+along without it.
+
+**The board is reused, not reimplemented.** The lens is `BoardView` scaled 3×
+and offset inside a clip — PRD-6 §4 Step 2's "one drawing surface, two camera
+positions", literally. The three `.layerEffect` shaders are gated off watchOS,
+which has none; `waveOrigin: nil` routes the celebration down the Canvas-drawn
+diagonal luminance wave, which PRD-6 §2.4 already names as the watch's hero
+moment for exactly that reason.
+
+**Theme and accent arrive over a new cloud-synced `nine.appearance` key.** A
+sibling top-level key, never a field on `nine.prefs`, which ships in every
+released build and whose next write from an older version would erase a field it
+has no property for. The alternative was a settings screen on a watch.
+
+**Game Center on the watch is deferred** (PRD-6 §4 Step 3). It is
+fire-and-forget reporting that the phone performs anyway when it ingests the
+solve, so the entitlement would buy a capability with no caller.
+
+**6b — complications and Smart Stack — is deferred.** PRD-6 scopes it as a
+separate PR. It needs a second new bundle id and a watch-side app group, which
+doubles the provisioning blast radius on a change that already cannot be
+verified end to end without a paired device.
+
+### Four things that were only found by running it
+
+**A watch app embedded in an iOS app still needs `WKCompanionAppBundleIdentifier`.**
+The plan said it did not — a modern single-target watch app is associated by
+being embedded. That is wrong: a watch app must declare itself either watch-only
+or paired by bundle id, and omitting both is malformed rather than modern.
+Nothing catches it at build time. `xcodebuild` succeeded, `NineWatch.app`
+appeared in `Debug-watchsimulator`, and `simctl install` was the first thing in
+the chain that refused.
+
+**The board drew underneath the clock.** `.ignoresSafeArea()` looked right for a
+full-bleed board and put rows 1 and 2 behind the status bar and the title. On a
+grid where every cell carries information that is not a cosmetic defect.
+
+**`scaleEffect` on a toolbar `Gauge` shrinks the drawing and not the slot**, so
+the progress arc floated inside a circle twice its size.
+
+**A root `.tint` makes watchOS 26 draw the back chevron as a filled accent
+disc** that out-shouts the board — an idle-pixel-test failure on the one screen
+the player is thinking on. The accent now applies only where it carries meaning.
+
+The peer rails took three measured passes: centred strips run off the sides,
+edge-flush strips lose their ends to the rounded corner, and two strips both
+starting at the origin print the row on top of the column. The 16 pt inset is
+one constant for both so they cannot be tuned apart.
+
+### The seals, and the one that fired
+
+`WatchSealTests` greps `Sources/Watch` for a `Difficulty` named outside
+`WatchComposePolicy`, for more than one call into the generator, for a clock,
+and for its own tree still existing (so it cannot pass vacuously — PRD-20's
+plural gate failed exactly that way).
+
+**It fired on its first run, on something it was not written for.** The home
+screen's compose button read `Strings.string("difficulty.gentle.title")` while
+the ceiling was a constant three files away: move `ceiling` to `.steady` and the
+button would still have said "Gentle". A grep for `.gentle` cannot tell a
+difficulty literal from a catalog key, and that imprecision is what found a real
+coupling. It reads `Strings.difficulty(WatchComposePolicy.ceiling)` now.
+
+`VariantChannelSealTests`, `StringSealTests`, `scripts/strings.py` and
+`CatalogTests` were all taught about `Sources/Watch`; `CatalogTests` counted
+bundles rather than targets and had to learn there are three.
+
+Two link rules were falsified before being believed: `revision >= known` and a
+provenance stamp with the seed check removed each make a test fail.
+
+`matchesTheDayItClaims` is a **stamp check, not a proof**, deliberately.
+Re-deriving the board would mean composing steady on the watch — the very thing
+the ceiling forbids — so it compares the seed and band `GeneratedPuzzle` already
+carries, and then checks the givens against the solution to catch a payload that
+was garbled rather than forged.
+
+### Not done, each with its reason
+
+- **No real hardware.** Everything below was measured on 45 mm and 41 mm
+  simulators. **Double Tap (`handGestureShortcut(.primaryAction)`) has therefore
+  never been fired** — it needs S9-class hardware. It is wired as an
+  accelerator, never a sole path: tapping the selected cell always commits, per
+  PRD-6 §5's own instruction.
+- **PRD-6 §5's tuning gate is unmet.** "Ten consecutive comfortable solves by a
+  fresh wrist" cannot be answered by a crown driven with a scroll wheel. The
+  dial's detent sensitivity is `.medium` on the strength of the API's default,
+  not a measurement.
+- **KVS does not work in the simulator** — `Unable to find entitlement for KVS
+  store`, because a `CODE_SIGNING_ALLOWED=NO` build has no entitlements. So the
+  one-streak story, which the whole pinned `ubiquity-kvstore-identifier` exists
+  for, is **argued and not observed**. PRD-6 §5 calls this out as load-bearing
+  and asks for cross-device verification in week one; it is still owed.
+- **The link itself has never carried a byte.** A simulator watch is not paired
+  to a simulator phone, so `WCSession` never activates. Both halves are covered
+  by unit tests on the pure adoption rule and the wire, which is what the design
+  was shaped to allow — but no handoff has crossed a real radio.
+- **No watch accessibility lane.** `describe-ui` is iOS-only, the same wall
+  PRD-19, PRD-20 and PRD-22 hit. The board keeps its 81 synthetic children on
+  the wrist because `BoardAccessibility.swift` compiles in, and the rails and
+  dial stops carry labels — but nothing diffs any of it.
+- **No watch contrast lane**, for the same reason, and the wrist is the one
+  screen PRD-6 §5 says to test outdoors.
+- **The nine new locales are machine-drafted and unreviewed**, consistent with
+  PRD-20's standing headline deferral. They were translated against the terms
+  already in the catalog — Erase, Row, Column, Home all reuse the board's and
+  the legend's existing wording — rather than invented.
+- **A board digit shows behind the dial arc** at the very edge of the lens on
+  45 mm. Cosmetic, visible in the shipped screenshots, not fixed.
+- **The watch has no first run.** It inherits the phone's welcome ledger
+  through nothing at all; PRD-6 §3 rules out a tutorial in 6a and the grammar is
+  two sentences, but a wrist-first player meets the crown with no introduction.
+
+### Two lanes that had never run, found while getting this PR green
+
+Neither is PRD-6's work. Both are here because they are what made the PR red,
+and because a gate that cannot fire is not a gate.
+
+**The contrast lane has never once completed.** `contrast-harness.py`'s verify
+path ended `handle.write(text)` with `text` assigned only on the `--record`
+path. So the lane booted a simulator, relaunched and sampled 26 cells over 22
+minutes, measured every one correctly, and then died on `NameError` before
+`gate()` was ever called. `gh run list --workflow=nine-accessibility.yml` is
+unambiguous: green through PRD-16, red on **every** PR from PRD-22 — the one
+that added the harness — onward, five in a row, three of which merged anyway.
+The floors PRD-22 shipped have been enforced by nothing since the day they were
+written. Fixed by rendering the measured rows in the same shape `--record`
+writes the baseline in, which is what the workflow comment always said the
+failure artifact was for. Verified locally: 26 cells, every one clears its floor.
+
+**The pseudo-loc/RTL lane has never run in CI at all**, because it is the step
+*after* contrast and the crash took the job down first. Run locally here for the
+first time, it failed five ways — all one cause: the baselines bake the literal
+date into the home shelf's Today card, so they rot at every midnight.
+`ax-snapshot.py` has masked exactly this since PRD-19 (`mask()`, `TODAY`), and
+this lane is the drifted copy — the third-copy drift `ninestate.py`'s own header
+warns about. It now masks the date in all four renderings the launch locales
+produce (`Jul 27, 2026`, `27. Juli 2026`, `2026年7月27日`, and the doubled
+pseudo-locale). Baselines re-recorded: the diff is five lines, one per locale,
+all of them the date.
+
+**Residual, stated rather than hidden:** masking the *label* does not fix the
+*frame*. Japanese measured 99×129 with `27日` and 100×129 with `28日`, so the ja
+home baseline still rots whenever the rendered date changes width — a
+one-or-two-digit day boundary, or a longer month name. Daily rot is fixed;
+monthly rot is not. Doing it properly means pinning the clock in the seeded
+state, which is `simrig.py`'s territory and a change every lane would inherit.
