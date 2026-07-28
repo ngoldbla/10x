@@ -33,8 +33,14 @@
 // build that has never heard of `swordfish` carries the row instead of dropping
 // it — the same reason `nine.history` writes a `band` sibling. Pure Foundation,
 // so it tests on Linux beside `CoachLedger`, which it is modelled on.
+// `canImport`, like every other Shared file that names an Engine type: SwiftPM
+// builds Engine and Shared as two modules, and the generated Xcode project
+// compiles both trees into one target where `NineEngine` does not exist as a
+// module at all.
 import Foundation
+#if canImport(NineEngine)
 import NineEngine
+#endif
 
 public struct CoachProgress: Codable, Equatable, Sendable {
 

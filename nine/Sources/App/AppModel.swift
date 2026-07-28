@@ -182,6 +182,13 @@ final class AppModel {
     private(set) var coach: CoachLedger {
         didSet { coachStore.wrappedValue = coach }
     }
+    /// Which techniques this player has met (PRD-25). The other axis from
+    /// `coach`: that one is per board and local, this one is per *person* and
+    /// follows them to the iPad. Never gates anything, and is never shown as a
+    /// score — see `CoachProgress`'s header for the three readers it has.
+    private(set) var coachProgress: CoachProgress {
+        didSet { coachProgressStore.wrappedValue = coachProgress }
+    }
     /// Which dailies are solved (PRD-14) — the archive grid's checkmarks.
     /// Written only by `finishSolve` and the launch backfill; the library
     /// cannot hold this, because `prune()` caps solved boards at 20.
@@ -278,6 +285,15 @@ final class AppModel {
     /// does (PRD-8 §2).
     @ObservationIgnored private let coachStore =
         CouchStored(wrappedValue: CoachLedger(), "nine.coach")
+    /// PRD-25's progress blob. Cloud-synced, unlike `nine.coach`: which
+    /// techniques you have met is a property of *you*, and meeting the X-wing
+    /// on the phone should not leave the iPad thinking you never have.
+    /// Its own key rather than a field on `nine.coach`, because that ledger is
+    /// pruned to the live library on every write — a technique learned six
+    /// months ago must not be forgotten when the board it was learned on is
+    /// deleted (EXECUTING-A-PRD §2's placement rule, one layer up).
+    @ObservationIgnored private let coachProgressStore =
+        CouchStored(wrappedValue: CoachProgress(), "nine.coachProgress", cloudSynced: true)
     @ObservationIgnored private let sessionCountStore =
         CouchStored(wrappedValue: 0, "nine.sessionCount")
     @ObservationIgnored private let drawerFoundStore =
@@ -456,6 +472,7 @@ final class AppModel {
         welcomeSeen = welcomeSeenStore.wrappedValue
         tips = tipsStore.wrappedValue
         coach = coachStore.wrappedValue
+        coachProgress = coachProgressStore.wrappedValue
         archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
@@ -902,6 +919,56 @@ final class AppModel {
         guard changed else { return }
         game = g
         persistProgress()
+    }
+
+    // MARK: - Why must this be a seven? (PRD-25)
+
+    /// The chain that forces one cell, or why the board declines to say.
+    ///
+    /// Same two rules as `requestCoachAdvice`, for the same reasons: capped at
+    /// the board's own difficulty ceiling so a Gentle board is never lectured
+    /// about swordfish, and fed the **player's** grid rather than the puzzle's,
+    /// so it reasons about the position actually on screen — including the
+    /// digits they have placed, right or wrong.
+    ///
+    /// Not counted as a hint. `CoachLedger.hints` feeds one line of the stats
+    /// drawer, and a derivation is a different act from being handed the next
+    /// move — folding the two together would make that line mean two things.
+    /// What it *does* record is that the technique has been met.
+    func requestDerivation(forCell cell: Int) -> Result<Derivation, DerivationRefusal>? {
+        guard let game, solvedAt == nil else { return nil }
+        let grid = SudokuGrid(cells: (0..<81).map { game.entry(at: $0) })
+        let outcome = LogicSolver.derivation(
+            forCell: cell, in: grid,
+            allowed: game.puzzle.difficulty.allowedTechniques)
+        if case .success(let derivation) = outcome {
+            noteTechniquesExplained(derivation.narrated.map(\.coach.step.technique))
+        }
+        return outcome
+    }
+
+    /// Remember that these techniques have been narrated. Quiet by
+    /// construction: nothing reads the count as a threshold, and the only
+    /// effects are which lesson School floats to the top and one sentence in
+    /// the stats drawer.
+    func noteTechniquesExplained(_ techniques: [Technique]) {
+        guard !techniques.isEmpty else { return }
+        var progress = coachProgress
+        for technique in techniques { progress.recordExplanation(of: technique) }
+        coachProgress = progress
+    }
+
+    func noteLessonFinished(_ technique: Technique) {
+        var progress = coachProgress
+        progress.recordLessonFinished(technique)
+        coachProgress = progress
+    }
+
+    /// How many of the techniques Nine can teach this player has met, and how
+    /// many there are. The stats drawer's one sentence; nothing else reads it.
+    var techniquesMet: (met: Int, total: Int) {
+        let taught = TechniqueSchool.lessons.map(\.technique)
+        return (coachProgress.metCount(of: taught), taught.count)
     }
 
     // MARK: - Archive (PRD-14)

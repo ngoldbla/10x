@@ -1146,6 +1146,43 @@ COMMENTS = {
     "difficulty.abyss.blurb": "One-line blurb under the Abyss difficulty card. Refers to colouring one digit's candidates in two alternating colours — match technique.simpleColoring.name. Very short.",
     "difficulty.tempest.explainer": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
     "difficulty.abyss.explainer": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
+    # PRD-25 — Technique School. A list of lessons, never a task list: no
+    # counts, no percentages, nothing that reads as a score.
+    "school.title": "Title of the Technique School screen — a list of lessons, one per sudoku technique. Two words if the language has them.",
+    "school.subtitle": "One line under the School title. \"A way a board can be read\" means a solving technique. Calm, not instructional.",
+    "school.close": "Button that leaves the School or a lesson. One word.",
+    "school.action.showMe": "Button that reveals the pattern on the lesson's board, after the player has had a chance to find it themselves. Two words.",
+    "school.action.gotIt": "Button acknowledging that the player has understood the revealed pattern. Casual and short — the register of \"got it\", not \"confirm\".",
+    "school.lesson.look": "Instruction at the start of a lesson, before the pattern is revealed. \"Settled\" means the square's digit is now forced. Encourages looking before being told.",
+    "school.lesson.done": "Closing line of a lesson. %1$@ is the technique's name — it comes from technique.*.name, already translated, so it may need an article or a case ending here. \"You will meet it again\" is reassurance, not a promise of difficulty.",
+    "school.row.met": "VoiceOver label for a School list row the player has already met. %1$@ is the technique name.",
+    "school.row.new": "VoiceOver label for a School list row the player has not met yet. %1$@ is the technique name. Never scolding — it is a statement, not a task.",
+    "stats.techniquesMet": "One line in the stats drawer: how many of Nine's teachable techniques the player has met, out of how many exist. The ONLY place this number is ever shown. Both values are numbers.",
+
+    # PRD-25 — the deep end's four coach sentences, and the why-chain's copy.
+    # Same rule as the sentences above them: one whole entry per rendering, no
+    # noun handed into a hole whose grammar is English's.
+    "coach.swordfish.sentence.rowBase": "Coach sentence for a row-based Swordfish. %1$lld is the digit, and it appears TWICE — a translation that moves one occurrence must move both. \"These three rows\" refers to rows the board is already highlighting, so it need not name them.",
+    "coach.swordfish.sentence.colBase": "Coach sentence for a column-based Swordfish. The mirror of coach.swordfish.sentence.rowBase, with rows and columns swapped. %1$lld appears twice.",
+    "coach.skyscraper.sentence": "Coach sentence for a Skyscraper. Two lines each have only two places for the digit and share one of them, so one of the two FAR ends must hold it. \"Seeing\" is sudoku's word for sharing a row, column or box. %1$lld appears twice.",
+    "coach.xyWing.sentence": "Coach sentence for an XY-Wing. \"The ringed square\" is the pivot, drawn with a ring on the board — refer to it however this language would refer to a highlighted square. %1$lld and %2$lld are the pivot's two candidates; %3$lld is the digit being eliminated and appears twice.",
+    "coach.simpleColoring.sentence.wrap": "Coach sentence for simple colouring's wrap rule: two squares of the SAME colour can see each other, so that colour is impossible. \"Shaded group\" is the colour class as drawn on the board. %1$lld appears once.",
+    "coach.simpleColoring.sentence.trap": "Coach sentence for simple colouring's trap rule: exactly one of the two colours is the true one, so a square seeing both cannot hold the digit. %1$lld appears twice.",
+
+    # The why-chain (PRD-25). Short lines in a small card — the whole feature is
+    # "narrate on the board, never a text wall", so length is a requirement.
+    "why.heading": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one.",
+    "why.position": "Which beat of the explanation is on screen, e.g. \"2 of 4\". Both numbers; no words needed if this language would use none.",
+    "why.action.next": "Button that advances to the next beat of the explanation. One word.",
+    "why.effect.leaves": "Final line of a why-chain beat: every other candidate is gone and %1$lld is what remains. One short sentence.",
+    "why.effect.rulesOutOne": "Line under a why-chain beat when the step removed exactly one possibility, %1$lld, from the square the player asked about.",
+    "why.effect.rulesOutTwo": "The same for exactly two possibilities, %1$lld and %2$lld. A separate entry rather than a list, so this language writes its own conjunction.",
+    "why.effect.rulesOutMore": "The same for three or more. Deliberately carries no number — past two the count stops being the point.",
+    "why.elsewhere": "Shown when the explanation skipped steps that were about other squares. Reassurance that the chain is a summary, not the whole proof. No number.",
+    "why.untold": "Shown when the chain is longer than the six beats the card will narrate. The beats nearest the answer are the ones kept.",
+    "why.beyond.title": "Heading when the coach cannot explain this square inside the board's difficulty. Two or three words.",
+    "why.beyond.sentence": "The sentence under why.beyond.title. \"This board's level\" is its difficulty band. Declining, never apologising.",
+
     "technique.swordfish.name": "Sudoku technique name, coach card heading. The three-line member of the X-Wing family. A term of art like X-Wing — usually kept, occasionally calqued (German \"Schwertfisch\"); do not describe it.",
     "technique.skyscraper.name": "Sudoku technique name, coach card heading: two lines sharing one column, with two ends of unequal height. A term of art; calque it (\"Wolkenkratzer\") only if that is the established local term.",
     "technique.xyWing.name": "Sudoku technique name, coach card heading. Almost always left as \"XY-Wing\" — a term of art, and the letters are the digit names in the pattern, not English words.",

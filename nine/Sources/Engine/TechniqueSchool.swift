@@ -39,6 +39,10 @@ public struct TechniqueExemplar: Sendable, Equatable, Hashable {
 /// A resolved lesson: the position, and the deduction waiting in it.
 public struct TechniqueLesson: Sendable, Equatable {
     public let exemplar: TechniqueExemplar
+    /// The board the lesson was cut from. Carried so the UI can build a real
+    /// `NineGame` — the lesson is played on the same `BoardView` as everything
+    /// else, and that needs a puzzle to know its givens and its solution.
+    public let puzzle: GeneratedPuzzle
     /// Cell values at the lesson's position — the givens plus everything the
     /// replayed steps placed.
     public let values: [Int]
@@ -52,10 +56,11 @@ public struct TechniqueLesson: Sendable, Equatable {
     public let coach: CoachStep
 
     public init(
-        exemplar: TechniqueExemplar, values: [Int], candidates: [UInt16],
-        givens: [Bool], coach: CoachStep
+        exemplar: TechniqueExemplar, puzzle: GeneratedPuzzle,
+        values: [Int], candidates: [UInt16], givens: [Bool], coach: CoachStep
     ) {
         self.exemplar = exemplar
+        self.puzzle = puzzle
         self.values = values
         self.candidates = candidates
         self.givens = givens
@@ -131,6 +136,7 @@ public enum TechniqueSchool {
 
         return TechniqueLesson(
             exemplar: exemplar,
+            puzzle: puzzle,
             values: state.values,
             candidates: state.candidates,
             givens: (0..<81).map { puzzle.puzzle[$0] != 0 },

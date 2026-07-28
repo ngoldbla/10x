@@ -800,9 +800,16 @@ final class CatalogTests: XCTestCase {
         XCTAssertGreaterThan(keysCarryingArguments, 0,
                              "no key in the catalog takes an argument — either the "
                              + "catalog changed shape or `renderings` stopped reading it")
-        XCTAssertEqual(keysCarryingTwoOrMore, 32, """
+        // 32 → 36 for PRD-25, and the four are named rather than counted so the
+        // next person can check the move instead of trusting it:
+        // `coach.xyWing.sentence` (three indices), `why.position`,
+        // `why.effect.rulesOutTwo` and `stats.techniquesMet` (two each).
+        // Every other key this PRD added carries one index or none — the
+        // swordfish and skyscraper sentences repeat `%1$lld`, which is one
+        // argument used twice, not two arguments.
+        XCTAssertEqual(keysCarryingTwoOrMore, 36, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 32 this test was calibrated against. That is fine and the \
+            not the 36 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

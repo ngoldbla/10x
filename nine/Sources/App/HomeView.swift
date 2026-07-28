@@ -273,6 +273,12 @@ extension Difficulty {
         // Nocturne board: it is dug to 26 clues or fewer, and its proof needs at
         // least three deductions at box-line or above.
         case .nocturne: return Strings.string("difficulty.nocturne.blurb")
+        // PRD-25's two. Both name the pattern the band is *defined* by, which
+        // is the rule Nocturne's blurb had to break — Nocturne has no technique
+        // Sharp lacks, so it advertises its clue floor instead. These two do,
+        // so they can say it.
+        case .tempest: return Strings.string("difficulty.tempest.blurb")
+        case .abyss: return Strings.string("difficulty.abyss.blurb")
         }
     }
 
@@ -287,18 +293,49 @@ extension Difficulty {
         // carrying a three-line explainer is what would push it off the screen.
         // The length budget is in the translator comment for the same reason.
         case .nocturne: return Strings.string("difficulty.nocturne.explainer")
+        case .tempest: return Strings.string("difficulty.tempest.explainer")
+        case .abyss: return Strings.string("difficulty.abyss.explainer")
         }
     }
 
-    /// The bands that share the free-play row on touch. Nocturne sits below
-    /// them as its own full-width card (PRD-17 §3) — a peer presented apart,
-    /// not a fourth column squeezed into an iPhone's width.
-    static var rowBands: [Difficulty] { allCases.filter { $0 != .nocturne } }
+    /// True for the bands presented apart from the three-across row.
+    ///
+    /// PRD-17 §3 put Nocturne on its own full-width line rather than making it a
+    /// fourth column, because a fourth column on a 393 pt iPhone leaves each
+    /// card ~90 pt and truncates all four rather than just the new one. PRD-25
+    /// added two more bands and that arithmetic did not change, so they join it
+    /// — three stacked full-width cards, each a peer of the row above.
+    ///
+    /// An explicit switch, not a rank comparison: which side a band sits on is
+    /// a layout decision, and appending a case must stop compiling until
+    /// someone makes it.
+    var isDeepEnd: Bool {
+        switch self {
+        case .gentle, .steady, .sharp: return false
+        case .nocturne, .tempest, .abyss: return true
+        }
+    }
 
-    /// The SF Symbol that stands for the band, where one is wanted. Only the
-    /// deep end has one: the moon is Nocturne's identity, and handing the other
-    /// three a glyph each would turn a calm row into a badge collection.
-    var glyph: String? { self == .nocturne ? "moon.stars" : nil }
+    /// The bands that share the free-play row on touch.
+    static var rowBands: [Difficulty] { allCases.filter { !$0.isDeepEnd } }
+    /// The bands below it, each on its own full-width line, in ladder order.
+    static var deepBands: [Difficulty] { allCases.filter(\.isDeepEnd) }
+
+    /// The SF Symbol that stands for the band, where one is wanted.
+    ///
+    /// **Only the deep end has one, and now all three of it do.** Handing the
+    /// three-across row a glyph each would turn a calm row into a badge
+    /// collection; handing *one* of three stacked cards a glyph would make the
+    /// other two look unfinished. The rule that survives both is: the row has
+    /// none, the deep end has one apiece.
+    var glyph: String? {
+        switch self {
+        case .gentle, .steady, .sharp: return nil
+        case .nocturne: return "moon.stars"
+        case .tempest: return "wind"
+        case .abyss: return "water.waves"
+        }
+    }
 
     /// Composing honesty (PRD-17 §3). A band whose compose is measured in
     /// seconds rather than milliseconds says so *while* the player waits.
@@ -436,14 +473,31 @@ struct MiniBoard: View {
         // Above Sharp, but not saturated: at 1.0 the field stops reading as a
         // board and starts reading as a solid square, which loses the one thing
         // the preview is for. 0.84 is the last step that still shows holes.
-        case .nocturne: return 0.84
+        // Above Sharp the scale stops carrying information: 0.84 is the last
+        // step that still shows holes, so Tempest and Abyss share it rather
+        // than climbing into a solid square. What separates the three previews
+        // is the *pattern*, below — which is honest, because their clue counts
+        // genuinely are alike (median 28 givens for both new bands).
+        case .nocturne, .tempest, .abyss: return 0.84
+        }
+    }
+
+    /// The noise seed. Constant at 0x91 for the four bands that shipped before
+    /// PRD-25, so their previews are the pixels they have always been; the two
+    /// new ones are offset so three equally-dense deep-end cards are not three
+    /// copies of one picture.
+    private var seed: UInt64 {
+        switch difficulty {
+        case .gentle, .steady, .sharp, .nocturne: return 0x91
+        case .tempest: return 0x92
+        case .abyss: return 0x93
         }
     }
 
     var body: some View {
         Canvas { context, size in
             let cell = size.width / 9
-            let seed: UInt64 = 0x91
+            let seed = self.seed
             for y in 0..<9 {
                 for x in 0..<9 {
                     guard CouchHash.noise(x, y, seed: seed) < density else { continue }

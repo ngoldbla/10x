@@ -9723,6 +9723,204 @@
         }
       }
     },
+    "coach.simpleColoring.sentence.trap": {
+      "comment": "Coach sentence for simple colouring's trap rule: exactly one of the two colours is the true one, so a square seeing both cannot hold the digit. %1$lld appears twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eine der beiden gefärbten Gruppen enthält jede %1$lld, also kann kein Feld, das beide Gruppen sieht, eine %1$lld sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One of the two shaded groups holds every %1$lld, so no square that can see both groups can be a %1$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uno de los dos grupos sombreados contiene todos los %1$lld, así que ninguna casilla que vea ambos grupos puede ser un %1$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "L’un des deux groupes colorés contient tous les %1$lld, donc aucune case qui voit les deux groupes ne peut être un %1$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uno dei due gruppi colorati contiene tutti i %1$lld, quindi nessuna casella che vede entrambi i gruppi può essere un %1$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "色分けした2つのグループのどちらかに %1$lld がすべて入るので、両方のグループを見るマスに %1$lld は入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "색칠한 두 그룹 중 한쪽에 %1$lld 후보가 모두 들어 있어요. 그래서 두 그룹을 함께 보는 칸에서는 %1$lld 후보를 지울 수 있어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Een van de twee gekleurde groepen bevat elke %1$lld, dus geen vakje dat beide groepen ziet kan een %1$lld zijn."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Um dos dois grupos sombreados contém todo %1$lld, então nenhuma célula que vê os dois grupos pode ser %1$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "两个着色组中必有一组包含所有的 %1$lld，所以同时能看到这两组的格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.simpleColoring.sentence.wrap": {
+      "comment": "Coach sentence for simple colouring's wrap rule: two squares of the SAME colour can see each other, so that colour is impossible. \"Shaded group\" is the colour class as drawn on the board. %1$lld appears once.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zwei Felder in einer gefärbten Gruppe sehen einander, also fällt diese ganze Gruppe für die %1$lld weg."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two squares in one shaded group can see each other, so that whole group is ruled out for %1$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dos casillas del mismo grupo sombreado se ven entre sí, así que ese grupo entero queda descartado para el %1$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deux cases d’un même groupe coloré se voient, donc ce groupe entier est écarté pour le %1$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Due caselle dello stesso gruppo colorato si vedono, quindi l’intero gruppo è escluso per il %1$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "同じ色のグループにある2つのマスが互いを見ているので、そのグループ全体が %1$lld の候補から外れます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "같은 색 그룹의 두 칸이 서로를 보고 있어요. 그래서 그 그룹 전체가 %1$lld 후보에서 빠져요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Twee vakjes in dezelfde gekleurde groep zien elkaar, dus die hele groep valt af voor %1$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Duas células do mesmo grupo sombreado se veem, então esse grupo inteiro fica descartado para %1$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "同一着色组里有两个格子彼此可见，所以整组都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.skyscraper.sentence": {
+      "comment": "Coach sentence for a Skyscraper. Two lines each have only two places for the digit and share one of them, so one of the two FAR ends must hold it. \"Seeing\" is sudoku's word for sharing a row, column or box. %1$lld appears twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Diese beiden Linien haben je nur zwei Felder für die %1$lld und teilen sich eines davon. Also steht die %1$lld an einem der beiden fernen Enden, und kein Feld, das beide Enden sieht, kommt dafür infrage."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These two lines each hold %1$lld in only two squares, and they share one. So one of the far ends is a %1$lld, and nothing seeing both can be."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Estas dos líneas admiten el %1$lld en solo dos casillas cada una, y comparten una. Así que uno de los dos extremos lejanos es un %1$lld, y ninguna casilla que vea los dos puede serlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ces deux alignements n’ont chacun que deux cases pour %1$lld, et ils en partagent une. Donc l’un des deux bouts opposés est un %1$lld, et aucune case voyant les deux ne peut l’être."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Queste due linee hanno solo due caselle ciascuna per %1$lld, e ne condividono una. Quindi uno dei due estremi lontani è un %1$lld, e nessuna casella che li vede entrambi può esserlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この2つのラインでは %1$lld が2マスずつにしか入らず、そのうち1マスを共有しています。だから遠い端のどちらかが %1$lld で、その両方を見るマスには入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 두 줄에서 %1$lld 후보는 각각 두 칸뿐이고, 그중 한 칸을 공유해요. 그래서 먼 쪽 두 끝 가운데 하나가 %1$lld 자리예요. 두 끝을 함께 보는 칸에서는 지울 수 있어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deze twee lijnen hebben elk maar twee vakjes voor %1$lld, en ze delen er één. Dus een van de verre uiteinden is een %1$lld, en niets dat beide ziet kan dat zijn."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Estas duas unidades têm só duas células cada uma para %1$lld, e compartilham uma delas. Então uma das duas pontas distantes é %1$lld, e nada que veja as duas pode ser."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这两条线上 %1$lld 都只剩两个格子，而且共用其中一个。所以远端两格里必有一个是 %1$lld，同时能看到这两端的格子都不能是。"
+          }
+        }
+      }
+    },
     "coach.slip.sentence": {
       "comment": "Coach card body when two squares contradict each other. Says that nothing can follow, without saying which square is wrong.",
       "extractionState": "manual",
@@ -9921,6 +10119,138 @@
         }
       }
     },
+    "coach.swordfish.sentence.colBase": {
+      "comment": "Coach sentence for a column-based Swordfish. The mirror of coach.swordfish.sentence.rowBase, with rows and columns swapped. %1$lld appears twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In diesen drei Spalten kann die %1$lld nur in drei Zeilen stehen, also kann kein anderes Feld in diesen Zeilen eine %1$lld sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In these three columns, %1$lld can only sit in three rows, so no other square in those rows can be a %1$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "En estas tres columnas, el %1$lld solo cabe en tres filas, así que ninguna otra casilla de esas filas puede ser un %1$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dans ces trois colonnes, %1$lld ne peut se placer que sur trois lignes, donc aucune autre case de ces lignes ne peut être un %1$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In queste tre colonne, %1$lld può stare solo in tre righe, quindi nessun’altra casella di quelle righe può essere un %1$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この3つの列では %1$lld は3つの行にしか入らないので、その行の他のマスに %1$lld は入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 세 열에서 %1$lld 후보는 같은 세 행에만 있어요. 그래서 그 세 행의 나머지 칸에서는 %1$lld 후보를 지울 수 있어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In deze drie kolommen kan %1$lld alleen in drie rijen staan, dus geen ander vakje in die rijen kan een %1$lld zijn."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nestas três colunas, %1$lld só pode ficar em três linhas, então nenhuma outra célula dessas linhas pode ser %1$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "在这三列里，%1$lld 只能落在三行上，所以这三行的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.swordfish.sentence.rowBase": {
+      "comment": "Coach sentence for a row-based Swordfish. %1$lld is the digit, and it appears TWICE — a translation that moves one occurrence must move both. \"These three rows\" refers to rows the board is already highlighting, so it need not name them.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In diesen drei Zeilen kann die %1$lld nur in drei Spalten stehen, also kann kein anderes Feld in diesen Spalten eine %1$lld sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In these three rows, %1$lld can only sit in three columns, so no other square in those columns can be a %1$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "En estas tres filas, el %1$lld solo cabe en tres columnas, así que ninguna otra casilla de esas columnas puede ser un %1$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dans ces trois lignes, %1$lld ne peut se placer que dans trois colonnes, donc aucune autre case de ces colonnes ne peut être un %1$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In queste tre righe, %1$lld può stare solo in tre colonne, quindi nessun’altra casella di quelle colonne può essere un %1$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この3つの行では %1$lld は3つの列にしか入らないので、その列の他のマスに %1$lld は入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 세 행에서 %1$lld 후보는 같은 세 열에만 있어요. 그래서 그 세 열의 나머지 칸에서는 %1$lld 후보를 지울 수 있어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "In deze drie rijen kan %1$lld alleen in drie kolommen staan, dus geen ander vakje in die kolommen kan een %1$lld zijn."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nestas três linhas, %1$lld só pode ficar em três colunas, então nenhuma outra célula dessas colunas pode ser %1$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "在这三行里，%1$lld 只能落在三列上，所以这三列的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
     "coach.xWing.sentence.colBase": {
       "comment": "Coach explanation, X-wing based on two COLUMNS: in two columns the digit can only sit in the same two rows, so it is cleared from the rest of those rows. %1$lld is the digit and appears twice.",
       "extractionState": "manual",
@@ -10049,6 +10379,72 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "在这两行里，%1$lld 只能落在两列上，所以这两列的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.xyWing.sentence": {
+      "comment": "Coach sentence for an XY-Wing. \"The ringed square\" is the pivot, drawn with a ring on the board — refer to it however this language would refer to a highlighted square. %1$lld and %2$lld are the pivot's two candidates; %3$lld is the digit being eliminated and appears twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Das eingekreiste Feld ist eine %1$lld oder eine %2$lld, und so oder so wird eines seiner beiden Partnerfelder eine %3$lld. Also kann kein Feld, das beide Partner sieht, eine %3$lld sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ringed square is %1$lld or %2$lld, and either way one of its two partners becomes a %3$lld. So nothing seeing both partners can be a %3$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La casilla marcada es un %1$lld o un %2$lld, y en cualquier caso una de sus dos compañeras será un %3$lld. Así que ninguna casilla que vea a las dos compañeras puede ser un %3$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La case entourée est un %1$lld ou un %2$lld, et dans les deux cas l’une de ses deux partenaires devient un %3$lld. Donc aucune case voyant les deux partenaires ne peut être un %3$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La casella cerchiata è un %1$lld o un %2$lld, e in entrambi i casi una delle sue due compagne diventa un %3$lld. Quindi nessuna casella che vede entrambe le compagne può essere un %3$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "丸で囲んだマスは %1$lld か %2$lld で、どちらの場合も相方の2マスのどちらかが %3$lld になります。だから両方の相方を見るマスに %3$lld は入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "동그라미 친 칸에 남은 후보는 %1$lld, %2$lld 두 개예요. 어느 쪽이든 두 짝 칸 가운데 한 곳이 %3$lld 자리가 돼요. 그래서 두 짝 칸을 함께 보는 칸에서는 %3$lld 후보를 지울 수 있어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Het omcirkelde vakje is een %1$lld of een %2$lld, en hoe dan ook wordt een van zijn twee partners een %3$lld. Dus geen vakje dat beide partners ziet kan een %3$lld zijn."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A célula circulada é %1$lld ou %2$lld, e de um jeito ou de outro uma das duas parceiras vira %3$lld. Então nenhuma célula que vê as duas parceiras pode ser %3$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "圈出的格子是 %1$lld 或 %2$lld，无论哪种情况，它的两个同伴格里都会有一个是 %3$lld。所以同时能看到这两个同伴的格子都不能是 %3$lld。"
           }
         }
       }
@@ -23937,6 +24333,600 @@
         }
       }
     },
+    "school.action.gotIt": {
+      "comment": "Button acknowledging that the player has understood the revealed pattern. Casual and short — the register of \"got it\", not \"confirm\".",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Verstanden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Entendido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Compris"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Capito"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "わかった"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "알겠어요"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Begrepen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Entendi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "明白了"
+          }
+        }
+      }
+    },
+    "school.action.showMe": {
+      "comment": "Button that reveals the pattern on the lesson's board, after the player has had a chance to find it themselves. Two words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zeig es mir"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show me"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Muéstramelo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Montre-moi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mostrami"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "見せて"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "보여 주기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laat het zien"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Me mostre"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "给我看看"
+          }
+        }
+      }
+    },
+    "school.close": {
+      "comment": "Button that leaves the School or a lesson. One word.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Schließen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cerrar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Fermer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chiudi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "閉じる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "닫기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sluiten"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Fechar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "school.lesson.done": {
+      "comment": "Closing line of a lesson. %1$@ is the technique's name — it comes from technique.*.name, already translated, so it may need an article or a case ending here. \"You will meet it again\" is reassurance, not a promise of difficulty.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Das ist ein %1$@. Du wirst ihm wieder begegnen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That is a %1$@. You will meet it again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eso es un %1$@. Volverás a encontrártelo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "C'est un %1$@. Tu le reverras."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Questo è un %1$@. Lo incontrerai di nuovo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "これが %1$@ です。またきっと出会います。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이것이 %1$@입니다. 다시 만나게 될 거예요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dat is een %1$@. Je komt hem opnieuw tegen."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Isso é um %1$@. Você vai encontrá-lo de novo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这就是%1$@。你还会再遇到它。"
+          }
+        }
+      }
+    },
+    "school.lesson.look": {
+      "comment": "Instruction at the start of a lesson, before the pattern is revealed. \"Settled\" means the square's digit is now forced. Encourages looking before being told.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Irgendwo auf diesem Brett ist ein Feld bereits festgelegt. Sieh erst selbst nach."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Somewhere on this board, one square is settled. Look first."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "En algún lugar de este tablero hay una casilla ya determinada. Búscala primero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Quelque part sur cette grille, une case est déjà déterminée. Cherche d'abord."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Da qualche parte in questa griglia una casella è già determinata. Prima cercala."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この盤のどこかに、もう決まっているマスがあります。まず探してみて。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 판 어딘가에 이미 정해진 칸이 있습니다. 먼저 찾아보세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ergens op dit bord ligt één vakje al vast. Kijk eerst zelf."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Em algum lugar deste tabuleiro há uma célula já determinada. Procure primeiro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这盘棋里有一个格子已经定下来了。先自己找找看。"
+          }
+        }
+      }
+    },
+    "school.row.met": {
+      "comment": "VoiceOver label for a School list row the player has already met. %1$@ is the technique name.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, schon begegnet"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, met"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, ya visto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, déjà rencontré"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, già incontrato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、出会い済み"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, 만나 봤음"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, al tegengekomen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, já visto"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，已遇到"
+          }
+        }
+      }
+    },
+    "school.row.new": {
+      "comment": "VoiceOver label for a School list row the player has not met yet. %1$@ is the technique name. Never scolding — it is a statement, not a task.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, noch nicht begegnet"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, not yet met"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, aún no visto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, pas encore rencontré"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, non ancora incontrato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、まだ出会っていない"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, 아직 만나지 않음"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, nog niet tegengekomen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, ainda não visto"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，尚未遇到"
+          }
+        }
+      }
+    },
+    "school.subtitle": {
+      "comment": "One line under the School title. \"A way a board can be read\" means a solving technique. Calm, not instructional.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eine Lektion für jede Art, ein Brett zu lesen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One lesson for each way a board can be read."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Una lección por cada forma de leer un tablero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Une leçon pour chaque façon de lire une grille."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Una lezione per ogni modo di leggere una griglia."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "盤面の読み方ひとつにつき、ひとつのレッスン。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "판을 읽는 방법마다 하나씩의 수업."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eén les voor elke manier om een bord te lezen."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uma lição para cada jeito de ler um tabuleiro."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "每一种读盘的方式，都有一课。"
+          }
+        }
+      }
+    },
+    "school.title": {
+      "comment": "Title of the Technique School screen — a list of lessons, one per sudoku technique. Two words if the language has them.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Technikschule"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technique School"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Escuela de técnicas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "École des techniques"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Scuola delle tecniche"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "テクニック教室"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "기법 교실"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Techniekschool"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Escola de técnicas"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "技巧学堂"
+          }
+        }
+      }
+    },
     "share.button": {
       "comment": "The chip that hands the finished board's picture to the system share sheet. A verb in the imperative, one word.",
       "extractionState": "manual",
@@ -26159,6 +27149,72 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "杀手 · 温度计"
+          }
+        }
+      }
+    },
+    "stats.techniquesMet": {
+      "comment": "One line in the stats drawer: how many of Nine's teachable techniques the player has met, out of how many exist. The ONLY place this number is ever shown. Both values are numbers.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld von %2$lld Techniken begegnet"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld techniques met"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld de %2$lld técnicas vistas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld techniques sur %2$lld rencontrées"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld tecniche su %2$lld incontrate"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%2$lld 個中 %1$lld 個のテクニックに出会いました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%2$lld개 중 %1$lld개 기법을 만났습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld van %2$lld technieken tegengekomen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld de %2$lld técnicas vistas"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "已遇到 %2$lld 种技巧中的 %1$lld 种"
           }
         }
       }
@@ -30053,6 +31109,732 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "在 iPhone 上打开 Nine，即可发送今天的棋盘。"
+          }
+        }
+      }
+    },
+    "why.action.next": {
+      "comment": "Button that advances to the next beat of the explanation. One word.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Weiter"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Siguiente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suivant"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Avanti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "次へ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "다음"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Volgende"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Avançar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "下一步"
+          }
+        }
+      }
+    },
+    "why.beyond.sentence": {
+      "comment": "The sentence under why.beyond.title. \"This board's level\" is its difficulty band. Declining, never apologising.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Auf der Stufe dieses Spielfelds ist dieses Feld noch nicht zu klären."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing at this board's level settles this square yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Al nivel de este tablero, esta casilla aún no queda resuelta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Au niveau de cette grille, cette case ne se résout pas encore."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Al livello di questa griglia, questa casella non si risolve ancora."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この盤面の難度では、このマスはまだ決まりません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 보드의 난이도로는 이 칸이 아직 정해지지 않아요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Op het niveau van dit bord is dit vakje nog niet te bepalen."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "No nível deste tabuleiro, esta célula ainda não se resolve."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "在这个棋盘的难度里，这个格子还定不下来。"
+          }
+        }
+      }
+    },
+    "why.beyond.title": {
+      "comment": "Heading when the coach cannot explain this square inside the board's difficulty. Two or three words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Von hier nicht"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not from here"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Desde aquí no"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pas d’ici"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Non da qui"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "ここからは導けない"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "여기서는 알 수 없음"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Niet vanaf hier"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Daqui não"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "从这里推不出"
+          }
+        }
+      }
+    },
+    "why.effect.leaves": {
+      "comment": "Final line of a why-chain beat: every other candidate is gone and %1$lld is what remains. One short sentence.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Damit bleibt nur die %1$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That leaves only the %1$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Con eso solo queda el %1$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Il ne reste que le %1$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Così resta solo il %1$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "残るのは %1$lld だけです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "그래서 %1$lld 하나만 남아요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Daarmee blijft alleen de %1$lld over."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Assim sobra só o %1$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这样就只剩下 %1$lld 了。"
+          }
+        }
+      }
+    },
+    "why.effect.rulesOutMore": {
+      "comment": "The same for three or more. Deliberately carries no number — past two the count stops being the point.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Damit fallen mehrere weitere Möglichkeiten für dieses Feld weg."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That clears several more possibilities from this square."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Con eso desaparecen varias posibilidades más de esta casilla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cela écarte plusieurs autres possibilités de cette case."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Così spariscono altre possibilità da questa casella."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "このマスから、さらにいくつかの候補が消えます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이 칸에서 몇 가지 후보가 더 사라져요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Daarmee vallen nog meer mogelijkheden voor dit vakje weg."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Isso tira várias outras possibilidades desta célula."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这样这个格子又少了几个可能。"
+          }
+        }
+      }
+    },
+    "why.effect.rulesOutOne": {
+      "comment": "Line under a why-chain beat when the step removed exactly one possibility, %1$lld, from the square the player asked about.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Damit fällt die %1$lld für dieses Feld weg."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That rules the %1$lld out of this square."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Con eso se descarta el %1$lld en esta casilla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cela écarte le %1$lld de cette case."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Così il %1$lld è escluso da questa casella."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "これでこのマスから %1$lld が消えます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "그래서 이 칸에서 %1$lld 후보가 사라져요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Daarmee valt de %1$lld voor dit vakje weg."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Isso descarta o %1$lld nesta célula."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这样这个格子就不能是 %1$lld 了。"
+          }
+        }
+      }
+    },
+    "why.effect.rulesOutTwo": {
+      "comment": "The same for exactly two possibilities, %1$lld and %2$lld. A separate entry rather than a list, so this language writes its own conjunction.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Damit fallen die %1$lld und die %2$lld für dieses Feld weg."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That rules the %1$lld and the %2$lld out of this square."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Con eso se descartan el %1$lld y el %2$lld en esta casilla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cela écarte le %1$lld et le %2$lld de cette case."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Così il %1$lld e il %2$lld sono esclusi da questa casella."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "これでこのマスから %1$lld と %2$lld が消えます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "그래서 이 칸에서 %1$lld, %2$lld 후보가 사라져요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Daarmee vallen de %1$lld en de %2$lld voor dit vakje weg."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Isso descarta o %1$lld e o %2$lld nesta célula."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这样这个格子就不能是 %1$lld 或 %2$lld 了。"
+          }
+        }
+      }
+    },
+    "why.elsewhere": {
+      "comment": "Shown when the explanation skipped steps that were about other squares. Reassurance that the chain is a summary, not the whole proof. No number.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Andere Felder mussten zuerst geklärt werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other squares had to be settled first."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Antes había que resolver otras casillas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "D’autres cases devaient être résolues d’abord."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Prima andavano risolte altre caselle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "先に他のマスを決める必要がありました。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "먼저 다른 칸들이 정해져야 했어요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eerst moesten andere vakjes worden opgelost."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Outras células precisavam ser resolvidas antes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "得先定下其他格子。"
+          }
+        }
+      }
+    },
+    "why.heading": {
+      "comment": "Heading of the why-chain card, shown while the coach explains one square. %1$lld is the digit the square must hold. A question, because the player asked one.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Warum eine %1$lld?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Why a %1$lld?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "¿Por qué un %1$lld?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pourquoi un %1$lld ?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Perché un %1$lld?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "なぜ %1$lld なのか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "왜 %1$lld 일까요?"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Waarom een %1$lld?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Por que %1$lld?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "为什么是 %1$lld？"
+          }
+        }
+      }
+    },
+    "why.position": {
+      "comment": "Which beat of the explanation is on screen, e.g. \"2 of 4\". Both numbers; no words needed if this language would use none.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld von %2$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld de %2$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld sur %2$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld di %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld / %2$lld"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld / %2$lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld van %2$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld de %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "why.untold": {
+      "comment": "Shown when the chain is longer than the six beats the card will narrate. The beats nearest the answer are the ones kept.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Frühere Schritte werden nicht gezeigt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Earlier steps are not shown."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "No se muestran los pasos anteriores."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Les étapes précédentes ne sont pas affichées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "I passaggi precedenti non sono mostrati."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "前の手順は表示していません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "앞선 단계는 보여 주지 않아요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eerdere stappen worden niet getoond."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Os passos anteriores não são mostrados."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "更早的步骤不再显示。"
           }
         }
       }
