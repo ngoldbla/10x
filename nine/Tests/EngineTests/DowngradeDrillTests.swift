@@ -189,6 +189,16 @@ struct DowngradeDrillTests {
 
     // MARK: - nine.history: the *next* case after Nocturne
 
+    /// The stand-in id for "a band from a release that has not happened yet".
+    ///
+    /// **It used to be `"tempest"`, and PRD-25 shipped a band called Tempest.**
+    /// Both drills below turned red on the commit that added it, correctly and
+    /// uselessly: the scenario they exist to test is an id this build genuinely
+    /// cannot resolve, and a plausible name is one that eventually resolves.
+    /// So the stand-in is now deliberately unshippable. A band called
+    /// `bandFromARelease…` is not a product decision anyone will make.
+    private static let unshippableBand = "bandFromAReleaseThatHasNotHappened"
+
     /// Nocturne is not the last band Nine will ever add, and this build is a
     /// future release's "old build". An unrecognised band must not throw here
     /// either — and must not be quietly rewritten into a lie, so the id is
@@ -196,7 +206,7 @@ struct DowngradeDrillTests {
     @Test func anUnknownFutureBandDecodesAsSharpAndSurvivesARewrite() throws {
         var blob = try object(CouchJSON.encode(mixedHistory()))
         var records = blob["records"] as! [[String: Any]]
-        records[0]["band"] = "tempest"
+        records[0]["band"] = Self.unshippableBand
         blob["records"] = records
         let data = try JSONSerialization.data(withJSONObject: blob)
 
@@ -205,7 +215,7 @@ struct DowngradeDrillTests {
         #expect(history.records[0].difficulty == .sharp)
 
         let back = try object(CouchJSON.encode(history))["records"] as! [[String: Any]]
-        #expect(back[0]["band"] as? String == "tempest")
+        #expect(back[0]["band"] as? String == Self.unshippableBand)
         #expect(back[0]["difficulty"] as? String == "sharp")
     }
 
@@ -214,7 +224,7 @@ struct DowngradeDrillTests {
     @Test func anUnknownRawDifficultyDecodesAsSharpAndSurvivesARewrite() throws {
         var blob = try object(CouchJSON.encode(mixedHistory()))
         var records = blob["records"] as! [[String: Any]]
-        records[3]["difficulty"] = "abyss"
+        records[3]["difficulty"] = Self.unshippableBand
         blob["records"] = records
         let data = try JSONSerialization.data(withJSONObject: blob)
 
@@ -223,7 +233,30 @@ struct DowngradeDrillTests {
         #expect(history.records[3].difficulty == .sharp)
 
         let back = try object(CouchJSON.encode(history))["records"] as! [[String: Any]]
-        #expect(back[3]["band"] as? String == "abyss")
+        #expect(back[3]["band"] as? String == Self.unshippableBand)
+    }
+
+    /// The drill, now run against the two bands that are actually real.
+    ///
+    /// Every band added after 1.5 must write `difficulty` as something every
+    /// shipped decoder can read and carry its true identity in the `band`
+    /// sibling. Tempest and Abyss both degrade to Sharp — not to Nocturne,
+    /// which would be truer and would take the history down on any build from
+    /// before PRD-17, which is most of the ones in the wild.
+    @Test func theDeepEndBandsWriteASharpStandInAndTheirOwnSibling() throws {
+        for band in [Difficulty.tempest, .abyss] {
+            var history = SolveHistory()
+            history.record(SolveRecord(date: Date(timeIntervalSince1970: 1_780_000_000),
+                                       difficulty: band, isDaily: false,
+                                       seconds: 600, points: 1200))
+            let written = try object(CouchJSON.encode(history))["records"] as! [[String: Any]]
+            #expect(written[0]["difficulty"] as? String == "sharp", "\(band)")
+            #expect(written[0]["band"] as? String == band.rawValue, "\(band)")
+
+            // And this build reads its own writing back as the real band.
+            let home = try CouchJSON.decode(SolveHistory.self, from: try CouchJSON.encode(history))
+            #expect(home.records[0].difficulty == band)
+        }
     }
 
     /// A record this build cannot decode at all — a future release that changed

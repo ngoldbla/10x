@@ -130,15 +130,34 @@ public static func derivation(
 ) -> Derivation?
 ```
 
-1. Solve from the *player's* grid until a step places `cell`.
-2. Reduce: drop each earlier step, last-to-first, keeping only those whose
-   removal breaks the chain. The result is **locally minimal** — no single step
-   in it can be removed — which is what "minimal" can honestly mean at this
-   cost. Stated, not implied.
-3. Every retained step is re-checked by `LogicSolver.validate(_:in:)`, a
-   per-technique re-derivation. The invariant a test pins: *every step the
-   solver emits validates in the state it was emitted from*, and *every step of
-   a returned derivation validates in sequence*.
+**"Minimal" here means *about this cell*, not "the shortest possible chain".**
+The distinction was the design decision, so it is written down rather than
+implied. A greedy full-board solve reaching the target in 30 steps spends 26 of
+them on the other side of the grid, and neither a dependency slice nor a
+drop-one-and-retry reduction makes those go away — sudoku deductions read whole
+units, so almost everything transitively supports almost everything.
+
+What the player is owed is narrower and completely answerable: *"why must this
+be a 7"* is *"here is what killed the 3, here is what killed the 5, and that
+leaves the 7."* So:
+
+1. Solve forward from the **player's** grid.
+2. Record only the steps that change the target cell's own candidates — an
+   elimination landing on it, or the placement that resolves it. Everything
+   else is skipped.
+3. Stop at the step that places the cell.
+4. Report the count of skipped steps as `elsewhere`, so the UI can say "and
+   nine steps elsewhere on the board" instead of pretending they did not
+   happen.
+
+The chain is bounded by construction — a cell has at most nine candidates, so
+at most nine steps can bear on it — and is usually two or three. The last **6**
+are narrated (§2.2).
+
+The invariant a test pins: **replaying a derivation's steps in order, from the
+grid it was derived for, ends with the target cell holding the digit the
+derivation names**, and every recorded step genuinely touches the target's
+candidates.
 
 **Nothing here takes a `NineGame`.** That is Coach.swift's structural rule
 against leaking `puzzle.solution`, and it holds unchanged: a derivation is a

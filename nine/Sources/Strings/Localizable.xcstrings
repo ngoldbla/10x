@@ -10053,6 +10053,204 @@
         }
       }
     },
+    "difficulty.abyss.blurb": {
+      "comment": "One-line blurb under the Abyss difficulty card. Refers to colouring one digit's candidates in two alternating colours — match technique.simpleColoring.name. Very short.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eine Ziffer, zwei Farben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One digit, two colours"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Un dígito, dos colores"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Un chiffre, deux couleurs"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Una cifra, due colori"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "1 つの数字、2 色"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "숫자 하나, 두 가지 색"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eén cijfer, twee kleuren"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Um dígito, duas cores"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "一个数字，两种颜色"
+          }
+        }
+      }
+    },
+    "difficulty.abyss.explainer": {
+      "comment": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Färbe die erzwungenen Paare einer Ziffer in zwei Farben, bis eine Farbe bricht. Das tiefste Brett, das Nine baut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colour one digit's forced pairs two ways until a colour breaks. The deepest board Nine will make."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Colorea de dos maneras las parejas forzadas de un dígito hasta que un color se rompa. El tablero más profundo que hace Nine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Colorie de deux façons les paires forcées d'un chiffre jusqu'à ce qu'une couleur cède. La grille la plus profonde que Nine compose."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Colora in due modi le coppie forzate di una cifra finché un colore non cede. La griglia più profonda che Nine costruisce."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "1 つの数字の確定ペアを 2 色で塗り分け、どちらかの色が破綻するまで追います。Nine がつくる最も深い盤面。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "한 숫자의 확정 쌍을 두 가지 색으로 칠해 한쪽 색이 무너질 때까지 따라갑니다. Nine이 만드는 가장 깊은 판입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kleur de gedwongen paren van één cijfer op twee manieren tot een kleur breekt. Het diepste bord dat Nine maakt."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Colora de duas formas os pares forçados de um dígito até uma cor quebrar. O tabuleiro mais profundo que o Nine cria."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "把一个数字的强制配对染成两种颜色，直到其中一种颜色说不通。Nine 能做出的最深的一盘。"
+          }
+        }
+      }
+    },
+    "difficulty.abyss.title": {
+      "comment": "Difficulty band, hardest of six. DO NOT TRANSLATE: like Nocturne and Tempest, Abyss is a coined name and stays \"Abyss\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abyss"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abyss"
+          }
+        }
+      }
+    },
     "difficulty.composeCaption": {
       "comment": "Shown in place of a difficulty card's blurb while that band's board is being generated, which can take seconds. %1$@ is the band's name. An honest apology for a wait, not a progress report.",
       "extractionState": "manual",
@@ -10450,7 +10648,7 @@
       }
     },
     "difficulty.nocturne.title": {
-      "comment": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testNocturneIsIdenticalInEveryLocale. The other three bands (gentle/steady/sharp) are descriptions and do translate.",
+      "comment": "Difficulty band, fourth of six. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and do translate.",
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -10907,6 +11105,204 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "平稳"
+          }
+        }
+      }
+    },
+    "difficulty.tempest.blurb": {
+      "comment": "One-line blurb under the Tempest difficulty card. \"Wings\" and \"swordfish\" are the sudoku patterns the band is defined by — match technique.xyWing.name and technique.swordfish.name. Very short.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings & Swordfish"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wings & swordfish"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings y Swordfish"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings et Swordfish"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings e Swordfish"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "ウィングとソードフィッシュ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "윙과 소드피시"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings & Swordfish"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wings e Swordfish"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "鱼与链"
+          }
+        }
+      }
+    },
+    "difficulty.tempest.explainer": {
+      "comment": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Verlangt ein Muster über drei Linien: einen Swordfish, einen Wolkenkratzer, ein XY-Wing. Die X-Wing-Familie, erwachsen geworden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs a pattern spread across three lines: a swordfish, a skyscraper, an XY-wing. The X-wing family, grown up."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Exige un patrón repartido en tres líneas: un Swordfish, un Rascacielos, un XY-Wing. La familia del X-Wing, ya crecida."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Exige un motif réparti sur trois lignes : un Swordfish, un Gratte-ciel, un XY-Wing. La famille du X-Wing, en plus grand."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Richiede uno schema esteso su tre linee: un Swordfish, un Grattacielo, un XY-Wing. La famiglia dell'X-Wing, cresciuta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "3 本のラインにまたがるパターンが必要です。ソードフィッシュ、スカイスクレイパー、XY ウィング。X-Wing 一族の、成長した姿。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "세 줄에 걸친 패턴이 필요합니다. 소드피시, 스카이스크래퍼, XY 윙. 자라난 X-Wing 가족입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vraagt een patroon over drie lijnen: een Swordfish, een Wolkenkrabber, een XY-Wing. De X-Wing-familie, volwassen geworden."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Exige um padrão espalhado por três linhas: um Swordfish, um Arranha-céu, um XY-Wing. A família do X-Wing, já crescida."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "需要横跨三条线的图案：剑鱼、摩天楼、XY-Wing。这是长大后的 X-Wing 家族。"
+          }
+        }
+      }
+    },
+    "difficulty.tempest.title": {
+      "comment": "Difficulty band, fifth of six. A storm — the one where the patterns spread across the whole board. DO NOT TRANSLATE: like Nocturne, Tempest is a coined name and stays \"Tempest\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and translate.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempest"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tempest"
           }
         }
       }

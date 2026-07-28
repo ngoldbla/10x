@@ -1125,7 +1125,7 @@ COMMENTS = {
     # generator, so the next `--build-catalog` would have deleted the only
     # do-not-translate instruction in the catalog and told nobody. `--audit` now
     # runs the generator dry to make that class of drift a failure.
-    "difficulty.nocturne.title": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testNocturneIsIdenticalInEveryLocale. The other three bands (gentle/steady/sharp) are descriptions and do translate.",
+    "difficulty.nocturne.title": "Difficulty band, fourth of six. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and do translate.",
 
     # Technique names. Sudoku terms of art, shown as the coach card's heading.
     # Every language's puzzle community has settled names for these; use them
@@ -1140,6 +1140,12 @@ COMMENTS = {
     "technique.thermoBound.name": "Thermometer-sudoku technique name, coach card heading: digits must increase along a thermometer, which bounds each bulb.",
     "technique.innieOutie.name": "Killer-sudoku technique name, coach card heading. Known in English as the rule of 45, because a row, column or box always sums to 45. Use this language's established term.",
     "technique.cageCombination.name": "Killer-sudoku technique name, coach card heading: only some digit combinations reach a cage's sum.",
+    "difficulty.tempest.title": "Difficulty band, fifth of six. A storm — the one where the patterns spread across the whole board. DO NOT TRANSLATE: like Nocturne, Tempest is a coined name and stays \"Tempest\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale. Only gentle/steady/sharp are descriptions and translate.",
+    "difficulty.abyss.title": "Difficulty band, hardest of six. DO NOT TRANSLATE: like Nocturne and Tempest, Abyss is a coined name and stays \"Abyss\" in every locale, pinned by CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale.",
+    "difficulty.tempest.blurb": "One-line blurb under the Tempest difficulty card. \"Wings\" and \"swordfish\" are the sudoku patterns the band is defined by — match technique.xyWing.name and technique.swordfish.name. Very short.",
+    "difficulty.abyss.blurb": "One-line blurb under the Abyss difficulty card. Refers to colouring one digit's candidates in two alternating colours — match technique.simpleColoring.name. Very short.",
+    "difficulty.tempest.explainer": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
+    "difficulty.abyss.explainer": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
     "technique.swordfish.name": "Sudoku technique name, coach card heading. The three-line member of the X-Wing family. A term of art like X-Wing — usually kept, occasionally calqued (German \"Schwertfisch\"); do not describe it.",
     "technique.skyscraper.name": "Sudoku technique name, coach card heading: two lines sharing one column, with two ends of unequal height. A term of art; calque it (\"Wolkenkratzer\") only if that is the established local term.",
     "technique.xyWing.name": "Sudoku technique name, coach card heading. Almost always left as \"XY-Wing\" — a term of art, and the letters are the digit names in the pattern, not English words.",
