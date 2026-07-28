@@ -293,6 +293,20 @@ public struct ReplayVault: Codable, Equatable, Sendable {
         trim()
     }
 
+    /// Drop one replay because its board was deliberately deleted.
+    ///
+    /// Separate from `prune` on purpose. `prune` refuses an empty live set —
+    /// a library that has not loaded yet looks exactly like a library with
+    /// nothing in it, and pruning against the second would delete everything.
+    /// That guard is right for a sweep and wrong for "delete this board", which
+    /// is precisely the call that can empty the library. Deleting the last
+    /// board must mean the memory is gone *now*, so it gets its own door.
+    public mutating func remove(_ boardID: UUID) {
+        let key = boardID.uuidString
+        guard replays.removeValue(forKey: key) != nil else { return }
+        order.removeAll { $0 == key }
+    }
+
     /// Drop every replay whose board has left the library.
     public mutating func prune(to liveIDs: Set<String>) {
         guard !liveIDs.isEmpty else { return }
