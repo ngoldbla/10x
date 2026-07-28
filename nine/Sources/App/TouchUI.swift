@@ -1173,14 +1173,25 @@ struct TouchGameScreen: View {
         return min(1, max(0, ((debriefOpen ? debriefHeight : 0) - debriefDrag) / debriefHeight))
     }
 
-    /// How far up from the bottom edge a closed pull-up will accept a stroke.
-    private static let debriefRevealBand: CGFloat = 120
+    /// How much of the bottom edge the control bar owns when it is down there.
+    ///
+    /// **The first version of this was a bottom-120 pt reveal band, and driving
+    /// it is the only way that shows what is wrong with it: that band *is* the
+    /// control bar.** The one place the gesture listened was a row of six 44 pt
+    /// buttons, so every pull-up either did nothing or fought Undo.
+    private static let controlBarReserve: CGFloat = 96
 
     private func acceptsDebriefDrag(_ value: DragGesture.Value, in height: CGFloat) -> Bool {
         guard debrief != nil, rose == nil, !showPrefs, !drawerOpen else { return false }
-        // Open, the whole screen steers it (so a downward drag anywhere
-        // dismisses); closed, the stroke has to begin in the bottom band.
-        return debriefOpen || value.startLocation.y >= height - Self.debriefRevealBand
+        // Open, the whole screen steers it — that is the drag-down dismiss.
+        if debriefOpen { return true }
+        // Closed: anywhere that is not somebody else's. The board is the drag
+        // surface, and it can be, because a solved board takes no input —
+        // `AppModel.place` guards `solvedAt == nil`, so there is nothing here
+        // for an upward stroke to steal.
+        guard value.startLocation.y > Self.drawerRevealBand else { return false }
+        return value.startLocation.y <= height
+            - (model.prefs.controlsAtBottom ? Self.controlBarReserve : 0)
     }
 
     private func debriefRevealGesture(height: CGFloat) -> some Gesture {
@@ -1216,7 +1227,12 @@ struct TouchGameScreen: View {
                 .fill(.secondary)
                 .frame(width: 36, height: 3)
                 .opacity(0.35 * (1 - debriefProgress))
-                .padding(.bottom, 6)
+                // Under the completion chip, not on the screen's bottom edge:
+                // that edge belongs to the control bar and to the home
+                // indicator, and a hairline drawn there is invisible against
+                // one and confusable with the other. Measured on an
+                // iPhone 17 Pro, where the first version landed on both.
+                .padding(.bottom, model.prefs.controlsAtBottom ? 108 : 44)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
