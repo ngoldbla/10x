@@ -30,8 +30,15 @@ APPS = {
   # profile fetched and its own entry in gym's provisioningProfiles.
   # `mac: true` apps also ship a native macOS build (PRD-4) from the same
   # universal target; the widget extension stays iOS-only.
+  #
+  # The watch app (PRD-6) is not an extension, but it is embedded on the same
+  # terms — one more bundle id needing one more profile fetched and one more
+  # entry in the export map — so it rides this list rather than earning a
+  # mechanism of its own. It needs no `platform:` leg either: a watch app ships
+  # *inside* the iOS ipa, so `beta app:nine platform:ios` already carries it.
   "nine"        => { scheme: "Nine",       bundle: "com.couchsuite.nine", ios: true, mac: true,
-                     extensions: ["com.couchsuite.nine.widgets"] },
+                     extensions: ["com.couchsuite.nine.widgets",
+                                  "com.couchsuite.nine.watchkitapp"] },
   "blockhead"   => { scheme: "Blockhead",  bundle: "com.couchsuite.blockhead" },
   "cartridge"   => { scheme: "Cartridge",  bundle: "com.couchsuite.cartridge" }
 }.freeze

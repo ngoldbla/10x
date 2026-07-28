@@ -22,6 +22,7 @@ build/
 *.xcodeproj/
 */Info.plist
 */WidgetsInfo.plist
+*/WatchInfo.plist
 */*.entitlements
 # …except Nine's iOS entitlements: xcodegen emits one entitlements file per
 # target, and the iOS app needs a second (app group) applied per-SDK, so this
@@ -34,6 +35,10 @@ build/
 # file replacing the generated default so tvOS carries the CloudKit container
 # (PRD-8).
 !nine/Nine-tvOS.entitlements
+# …and the watch app's, which is checked in for a different reason: its KVS
+# identifier is a literal pinned to the *app's* bundle id, not its own, so it
+# cannot be a generated `$(CFBundleIdentifier)` expansion (PRD-6).
+!nine/NineWatch.entitlements
 
 # Swift Package Manager
 .build/

@@ -43,6 +43,13 @@ targets:
       - target: NineWidgets
         embed: true
         destinationFilters: [iOS]
+      # The watch app (PRD-6) rides inside the iOS app, exactly as the widget
+      # does and for the same signing reason: it must never enter the tvOS or
+      # macOS dependency graph. `xcodebuild -destination generic/platform=tvOS`
+      # is the check that this filter is doing its job.
+      - target: NineWatch
+        embed: true
+        destinationFilters: [iOS]
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -237,3 +244,68 @@ targets:
         CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  # Nine on the wrist (PRD-6). A modern single-target watchOS app: no companion
+  # WatchKit extension, no `WKCompanionAppBundleIdentifier` — embedding it in
+  # the iOS app is the whole association. iOS-only in the graph, like the
+  # widget, and for the same reason.
+  NineWatch:
+    type: application
+    # `platform:` rather than `supportedDestinations:` — xcodegen refuses a
+    # multiplatform app that names watchOS ("Create a separate target using
+    # 'platform' for watchOS apps"), which is also what PRD-6 §4 Step 1 wrote.
+    platform: watchOS
+    deploymentTarget: "11.0"
+    sources:
+      - Sources/Watch
+      - Sources/Engine
+      - Sources/Shared
+      # A third bundle is a third `Bundle.main`, so the catalog is compiled in
+      # a third time — the same argument the widget's copy carries, and the
+      # same one `CatalogTests.testEveryTargetListsTheStringsTree` enforces.
+      - Sources/Strings
+      # Named files rather than `Sources/App`: the board is reused (PRD-6 §4
+      # Step 2 — "one drawing surface, two camera positions"), the phone UI is
+      # not. `Theme.swift` exists so this list can stop before `AppModel.swift`;
+      # `Afterglow.metal` is deliberately absent, because watchOS has no
+      # SwiftUI shaders and `BoardView` gates them out here.
+      - Sources/App/BoardView.swift
+      - Sources/App/BoardAccessibility.swift
+      - Sources/App/Theme.swift
+      - Assets.xcassets
+    dependencies:
+      - package: CouchKit
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.couchsuite.nine.watchkitapp
+        # ASC requires an embedded watch app's CFBundleShortVersionString to
+        # equal its host's; CURRENT_PROJECT_VERSION rides the project-wide
+        # xcargs the Fastfile passes, so the build number follows the iOS train.
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: 1
+        SKIP_INSTALL: true
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon-watchOS
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        DEVELOPMENT_TEAM: ${COUCH_TEAM_ID}
+        # A watchOS App Store profile is minted under the iOS platform in the
+        # portal, so match names it without a suffix — the widget's convention.
+        "PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]": "match AppStore com.couchsuite.nine.watchkitapp"
+        "CODE_SIGN_ENTITLEMENTS[sdk=watchos*]": NineWatch.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=watchsimulator*]": NineWatch.entitlements
+    info:
+      path: WatchInfo.plist
+      properties:
+        CFBundleDisplayName: Nine
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ja, de, fr, es, it, pt-BR, ko, zh-Hans, nl]
+        # The modern single-target marker. Without it the bundle is treated as
+        # a legacy WatchKit app and refuses to launch.
+        WKApplication: true
+        # The watch app runs with the phone out of range — the whole point of
+        # the Gentle fallback (PRD-6 §2.4, and D6 of the plan).
+        WKRunsIndependentlyOfCompanionApp: true
+        ITSAppUsesNonExemptEncryption: false

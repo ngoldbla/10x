@@ -50,6 +50,12 @@ struct AppSpec {
     // carry its own HIG margin + rounded shape (transparency is fine here,
     // unlike iOS).
     var macIcon: Bool = false
+    // Apps that also ship a watchOS build get AppIcon-watchOS.appiconset
+    // (PRD-6). Same single-1024 shape as iOS and opaque for the same reason,
+    // but a distinct set because the `watchos` platform key is what makes
+    // actool derive the round complication/Home-Screen sizes; an iOS set
+    // handed to a watch target validates against the wrong idiom.
+    var watchIcon: Bool = false
     // Alternate iOS icons (PRD-16). iOS only: a tvOS icon is a layered image
     // stack and macOS has no `setAlternateIconName` outside Catalyst.
     var altIcons: [IconVariant] = []
@@ -100,6 +106,7 @@ let specs: [AppSpec] = [
         accent: RGB(r: 0.76, g: 0.70, b: 0.94), secondary: RGB(r: 1.0, g: 0.45, b: 0.38),
         iosIcon: true,
         macIcon: true,
+        watchIcon: true,
         // PRD-16. Grounds lifted from the three new themes and brightened: an
         // icon is seen at 60 pt against an arbitrary wallpaper, not full-screen
         // behind glass, so the board's backgrounds read as black squares at
@@ -388,6 +395,18 @@ func emitIOSAppIcon(_ s: AppSpec, catalog: URL) {
         dir.appendingPathComponent("Contents.json"))
 }
 
+/// The watch icon set (PRD-6). watchOS takes the flat square art, same as iOS
+/// — the system applies the circular mask itself — so this reuses
+/// `renderIOSIcon` verbatim rather than inventing a wrist-specific mark.
+func emitWatchAppIcon(_ s: AppSpec, catalog: URL) {
+    let dir = catalog.appendingPathComponent("AppIcon-watchOS.appiconset")
+    writePNG(renderIOSIcon(s, size: 1024), to: dir.appendingPathComponent("AppIcon-1024.png"))
+    write(
+        "{ \"images\" : [ { \"filename\" : \"AppIcon-1024.png\", \"idiom\" : \"universal\", "
+            + "\"platform\" : \"watchos\", \"size\" : \"1024x1024\" } ], \(info) }",
+        dir.appendingPathComponent("Contents.json"))
+}
+
 /// Alternate iOS icons (PRD-16). Each is the *primary* renderer run against a
 /// recolored copy of the spec, so the mark, the grid pitch and the glyph
 /// coverage stay bit-identical to the primary icon — only the palette moves.
@@ -500,5 +519,6 @@ for s in selected {
     if s.iosIcon { emitIOSAppIcon(s, catalog: catalog) }
     if !s.altIcons.isEmpty { emitIOSAltIcons(s, catalog: catalog) }
     if s.macIcon { emitMacAppIcon(s, catalog: catalog) }
+    if s.watchIcon { emitWatchAppIcon(s, catalog: catalog) }
     print("✓ \(s.folder)/Assets.xcassets")
 }
