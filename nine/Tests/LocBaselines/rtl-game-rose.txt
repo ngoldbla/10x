@@ -1,0 +1,11 @@
+# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button       87,220  46x46  "Place 1"
+Button       87,320  46x46  "Place 7"
+Button       88,270  46x46  "Place 4"
+Button      138,220  46x46  "Place 2"
+Button      138,270  46x46  "Place 5"
+Button      138,320  46x46  "Place 8"
+Button      188,220  46x46  "Place 3"
+Button      188,270  46x46  "Place 6"
+Button      188,321  46x46  "Place 9"

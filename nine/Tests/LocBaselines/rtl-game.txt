@@ -1,0 +1,8 @@
+# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button       14,788  44x44  "Settings"
+Button       64,788  44x44  "Undo"
+Button      114,788  44x44  "Auto notes"
+Button      164,788  44x44  "Pencil marks"
+Button      214,788  44x44  "Hint"
+Button      344,788  44x44  "Home"

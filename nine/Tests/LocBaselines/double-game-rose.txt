@@ -1,0 +1,11 @@
+# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button      168,220  46x46  "Place 1$lld Place 1"
+Button      168,270  46x46  "Place 1$lld Place 4"
+Button      168,321  46x46  "Place 1$lld Place 7"
+Button      218,220  46x46  "Place 1$lld Place 2"
+Button      218,270  46x46  "Place 1$lld Place 5"
+Button      218,320  46x46  "Place 1$lld Place 8"
+Button      268,220  46x46  "Place 1$lld Place 3"
+Button      268,320  46x46  "Place 1$lld Place 9"
+Button      269,270  46x46  "Place 1$lld Place 6"

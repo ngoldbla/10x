@@ -43,6 +43,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ninestate
 import simrig
 from simrig import describe, run, tap, wait_for
 
@@ -56,12 +57,9 @@ BUNDLE_ID = "com.couchsuite.nine"
 DEVICE_TYPE = "iPhone 17 Pro"
 SIM_NAME = "Nine-AX"
 
-# Only the keys that would otherwise vary. `NinePrefs` decodes tolerantly
-# (`decodeIfPresent … ?? default`), so a partial object is legal and every
-# unlisted preference keeps its shipping default — which is the point: the
-# baselines should photograph defaults, not a bespoke configuration.
-PREFS_ERRORS_ON = {"errorHighlight": True, "resumeOnLaunch": True}
-PREFS_ERRORS_OFF = {"errorHighlight": False, "resumeOnLaunch": True}
+# Shared with the localization lane, so the two cannot drift — see `ninestate`.
+PREFS_ERRORS_ON = ninestate.PREFS_ERRORS_ON
+PREFS_ERRORS_OFF = ninestate.PREFS_ERRORS_OFF
 
 
 # ------------------------------------------------------------------ driving
@@ -69,28 +67,7 @@ PREFS_ERRORS_OFF = {"errorHighlight": False, "resumeOnLaunch": True}
 
 def seed(udid, prefs):
     """Write the frozen library and the fixed chrome state into the container."""
-    with open(FIXTURE) as handle:
-        library = handle.read()
-    simrig.seed(udid, BUNDLE_ID, {
-        "default.nine.library.json": library,
-        "default.nine.prefs.json": json.dumps(prefs, sort_keys=True),
-        # The first run is a first-launch screen; the baselines are of the app.
-        # Both flags, because they are independent: `help.seen` alone would
-        # still raise the welcome ledger over the shelf (PRD-18).
-        "default.help.seen.json": "true",
-        "default.welcome.seen.json": "true",
-        # Past the drawer grabber's three-session budget, and found anyway —
-        # the one piece of chrome designed to vanish is already gone.
-        "default.nine.sessionCount.json": "9",
-        "default.nine.drawerFound.json": "true",
-        # The three lifetime tips, all spent. A tip is triggered by ordinary
-        # play (placements, a wrong digit standing), and the game baselines are
-        # captured on a mid-game board — so an unspent budget would put a glass
-        # slab in the tree on whichever screen happened to cross a threshold.
-        "default.nine.tips.json": json.dumps(
-            {"shown": ["undo", "pencil", "highlight"]}, sort_keys=True
-        ),
-    })
+    simrig.seed(udid, BUNDLE_ID, ninestate.quiet_blobs(prefs))
 
 
 def settled(udid, anchor, screen, attempts=6):
@@ -126,10 +103,14 @@ def element_lines_only(data):
 
 
 def relaunch(udid, prefs):
-    run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False)
-    simrig.wait_until_dead(udid, BUNDLE_ID)
-    seed(udid, prefs)
-    run(["xcrun", "simctl", "launch", udid, BUNDLE_ID])
+    """Delegates, and must keep delegating.
+
+    This inlined `simrig.relaunch`'s four steps for as long as there was only
+    one caller, which stayed invisible until `simrig.relaunch` grew a
+    launch-argument path for the localization lane and this copy did not. A
+    harness reusing `capture()` would then have dropped every mode flag in
+    silence and recorded baselines of an ordinary English build."""
+    simrig.relaunch(udid, BUNDLE_ID, ninestate.quiet_blobs(prefs))
 
 
 # ------------------------------------------------------------- normalization

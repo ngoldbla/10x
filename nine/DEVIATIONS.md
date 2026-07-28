@@ -2643,3 +2643,246 @@ re-mint is implied.
   decision, not Nine's.
 - **No `AppShortcutsProvider` to localize** (PRD-33) and **no store-page
   localization** (PRD-35).
+
+---
+
+## PRD-20 (continued) — the lane that could not fail, and the two bugs it found once it could (2026-07-27)
+
+Tasks 10 and 12: the pseudo-localization and RTL lane, and driving the nine
+languages. Task 11 stayed retired.
+
+The headline is that **the lane as specified was incapable of failing, and the
+two real bugs in this PRD's subject matter were both sitting in the one place
+the plan told us to look and had been checked with the wrong instrument.**
+
+### The truncation rule can never fire in this app
+
+Task 10 Step 4 specified: *any element whose frame width is at its container's
+width **and** whose label ends in `…` is a clipped string.* The follow-up prompt
+parked the `and`-vs-`or` choice as the lane's precision dial and said to settle
+the ellipsis half empirically first.
+
+Settled, across five modes and five screens, twenty-five accessibility trees:
+**zero labels contain an ellipsis.** Not one. SwiftUI reports the full logical
+string to accessibility, and long text in Nine *wraps* rather than truncating.
+The frame height is where it shows:
+
+| | English | German |
+|---|---|---|
+| "Light up all of its kind" | `w=132 h=16` | `w=128 h=31` — `'Alle gleichen Ziffern aufleuchten lassen'` |
+
+`h=16` is one line, `h=31` two, and the German string is complete. So the
+conjunction was never the question: the ellipsis half is dead in both
+directions, which leaves the frame test carrying a rule it was written to share.
+A gate whose only clause cannot match is the Dynamic Type sweep this PRD already
+retired for measuring its own absence — the same failure, one task later.
+
+**What the lane asserts instead.** Four things, each of which has been watched to
+fail (`scripts/loc-harness.py --selftest`, 15 cases, no simulator):
+
+1. **No label or value renders `(null)`.** A plural missing its `other` compiles
+   at exit 0 and renders exactly that. Every other gate reads the catalog; this
+   reads the screen, which is the only place the two can be caught disagreeing.
+2. **No unsubstituted format specifier reaches the user.** Exempt under
+   `double`, where the pseudolocalizer prints the raw format beside the
+   substituted one — with the percent eaten, `Row 1$lld, column 2$lld Row 1,
+   column 1`, so the percent is precisely what separates a real failure from the
+   mode working.
+3. **Nothing runs off the side of the screen.** Horizontal only, and that
+   narrowing is the design. The first version measured all four edges and its
+   first run reported ten failures, every one of them wrong: two Japanese
+   preference rows and eight theme swatches below the fold of a sheet that
+   scrolls. Content past the bottom edge is what a scroll view *is*. Nothing in
+   Nine scrolls sideways, so horizontal overflow has no innocent reading.
+4. **Under RTL the board and the rose hold still, and the control bar mirrors.**
+
+Vertical growth is not asserted, it is **recorded**: `Tests/LocBaselines/`
+carries every frame on every screen in every mode, so the Japanese sheet growing
+by 40pt is a diff to read rather than an error to dismiss. German wraps
+constantly and is not a bug; a tripwire that cries wolf is deleted six weeks
+later, which `simrig.py:1-14` is a monument to.
+
+**The limit, stated rather than papered over:** a string clipped by a
+`lineLimit` or shrunk by a `minimumScaleFactor` changes no frame and still
+reports in full, so this lane cannot see it. The fixed-height boxes where that
+happens are named in `PRD-36.md`, they are widget surfaces, and `describe-ui`
+cannot reach a widget at all.
+
+### Two RTL bugs, and both were checked with the wrong instrument first
+
+The execution ledger records a hand-verification: *"`-AppleTextDirection YES`
+fires, and the app ALREADY behaves per decision 3 with no code change needed:
+the board did NOT mirror… Task 10's job is to ASSERT this, not to implement
+it."* That was read off a **screenshot**, and the prompt built on it said in the
+same breath to assert from AX frames, not pixels, because a screenshot diff
+cannot tell a mirrored rose from a moved one. Both halves turned out to matter.
+
+**The board.** The pixels were right and the accessibility tree was not.
+Measured: `Row 1, column 1` reported value `4` at x=342 while the digit 4 was
+drawn at x=20; the whole top row read back in reverse. The board is drawn by a
+`Canvas`, which draws in raw coordinates and does not mirror, and its 81
+synthetic children are placed with `.position(x:y:)`, which does. So every cell
+but column 5 had its accessibility frame somewhere other than it looked — for
+VoiceOver touch exploration, for Switch Control, and for Voice Control's
+cell names alike. Invisible to a screenshot diff by construction: the board
+looks perfect. `BoardAccessibility.swift` now pins
+`.environment(\.layoutDirection, .leftToRight)` on the grid, and the RTL frames
+match the LTR frames exactly.
+
+**The rose.** This one was visible all along and nobody had opened the rose in
+RTL. The petals laid out `3 2 1 / 6 5 4 / 9 8 7` — mirrored on screen, which is
+the precise harm decision 3 was written to forbid ("mirroring it would move the
+7 under the thumb that expects the 3"). `FlickRoseView` offsets its petals from
+`RoseGeometry` with `.offset(x:)`, which is direction-aware. The flick path is
+the second half of the argument: `flickDirection` reads `DragGesture`'s raw
+translation, which is *not* mirrored, so a rightward flick would have placed the
+digit drawn on the left. Both the drawn ring and `TouchRose`'s tap targets are
+now pinned — separately, because pinning one and not the other would have taken
+the targets off the petals, which looks correct and is worse.
+
+**And the rose is not laid out the way two documents said it was.** Both the
+plan and the prompt describe the invariant as "petal 1 bottom-left and petal 9
+top-right". Measured: it is telephone-keypad order — 1 2 3 across the top at
+y=220, 4 5 6 at 270, 7 8 9 at 320 — so petal 1 is top-*left*. The assertion
+does not pin a corner, because which corner holds the 1 is not the claim and
+pinning it would fail the day the ring is redesigned for reasons unrelated to
+language. It compares the two directions' arrangements to each other.
+
+### An English anchor cannot survive a localized build
+
+Every screen the AX lane reaches, it reaches by waiting on an English label.
+None of them work here: under `double` the cell "Row 1, column 1" is reported as
+`Row 1$lld, column 2$lld Row 1, column 1`, and the first harness timed out on
+the first screen of the second mode.
+
+`describe-ui` reports each chrome button's SF Symbol as `uniqueId`, and **that
+does not localize** — `gearshape` is `gearshape` in all five modes, verified
+across ten trees. Every tap in the loc lane is by symbol, or by a frame taken
+from the English reference pass. The one screen with no symbol of its own, the
+rose, is opened on the first empty cell's *frame* rather than its label.
+
+Related, and the reason `simrig.relaunch` grew an `args` parameter rather than
+the loc lane growing its own launch path: **`ax-snapshot.py` had a private
+`relaunch` that inlined the same four steps** and never called `simrig`'s. It
+was harmless while it had one caller. A loc harness reusing `capture()` would
+have dropped every mode flag in silence and recorded five plausible-looking
+English baselines. It delegates now, and the AX baselines were re-run and are
+byte-identical. The seeded quiet state both lanes depend on moved to
+`scripts/ninestate.py` for the same reason — a lane that forgets one tip flag
+does not fail, it intermittently photographs a glass slab.
+
+### The whole-branch review, finally run
+
+Never run for #42 or #43; run here over `71a52d6^..2a17ce7` end to end. Four
+findings were fixed in this PR and each was reproduced before it was believed.
+
+**A locale that loses its plural entirely is invisible to every gate.**
+`testEveryPluralHasTheCategoriesItsLanguageRequires` builds its work list from
+the plurals it *finds* in each locale body, so a body with no plural block
+contributes no assertions; the `checked > 0` floor stands at 180 axes and cannot
+notice one going missing. Measured on clean `2a17ce7`: replacing French's
+three-category `board.streak.plain` with a flat unit passed `strings.py
+--audit`, passed `xcstringstool compile` at exit 0 with no warning, and passed
+every test in `CatalogTests`. French would read "série de 1 jours" at every
+count on the streak chip, the widget and the share card — French `one` covers 0
+and 1 — silently and forever. This is the same defect #43 closed one level down:
+that drill removed a *category* from a plural and was caught; removing the
+*plural* was not. `testEveryLocaleCarriesTheSameShapeAsItsEnglish` derives the
+required shape from English and compares, rather than reading it out of the data
+being judged.
+
+**The catalog had already drifted from its generator.**
+`difficulty.nocturne.title`'s DO-NOT-TRANSLATE comment was hand-edited into the
+artifact during Task 9 and not back into `COMMENTS`, so `--build-catalog
+--dry-run` reported `1 changed` and the next real run would have deleted the
+only do-not-translate instruction in the catalog without a word. Nothing ran the
+generator to find out: `--audit` reads the artifact and `--build-catalog` is only
+run deliberately, so the drift had no observer. `--audit` now runs the generator
+dry and fails on any difference — a generated artifact that disagrees with its
+generator is the "two lists that agree only by inspection" failure this file was
+written against.
+
+**A third sentence join, in the same file as the other two.**
+`BoardSpeech.progressSummary` was `sentence += " " + Phrase.wrongCount(wrong)`.
+It outlived both rounds that produced `board.announce.pair` and
+`board.cell.hintPair` because it carries no interpolations — the seal looks for
+two `\(` on a line — and is not a `.text(…)` argument, so the other seal never
+saw it. Japanese shipped `"51 マス中 18 マス 記入済み。 誤り 3 マス。"`: an ASCII space
+after a `。` that already separates. Same in zh-Hans. It is a VoiceOver surface,
+spoken from the progress control and a rotor action. The seal now also flags a
+whitespace-or-punctuation-only literal being concatenated onto a phrase, and was
+calibrated by putting the old line back and watching it fire.
+
+**The kebab rule asserted a false universal and was dropping real English.** The
+comment claimed "hyphenated English never has an uppercase letter inside a
+word"; the rule implemented it as *any* uppercase after position 0, which is not
+CamelCase but merely capitalisation. `Face-ID`, `non-ASCII`, `PDF-only`,
+`AI-powered` and `TV-connected` all took the machine-name exit and would have
+shipped English behind a green gate. CamelCase now means a lowercase letter
+followed by an uppercase one. The cost is `UTF-8`, which is prose now — the
+right direction to be wrong in, because a false positive is a literal somebody
+exempts and a false negative is nine locales of untranslated English.
+`iOS-only` survives even the tightened rule (`i`→`O` is a genuine boundary,
+indistinguishable in shape from `AppIcon`) and is pinned as a fixture alongside
+`hold-click`, so the residue is a test rather than a sentence.
+
+Two more parked minors closed: `--selftest-catalog`'s dead-key case asserted by a
+substring that stopped before the key, and passed while the check reported an
+entirely different key (measured); and `testBothTargetsListTheStringsTree`
+counted `- Sources/Strings` file-wide, so moving it from `NineWidgets` to a
+second copy under `Nine` kept the count at 2, the test green, all three builds
+green, and the widget permanently English. Both now name what they check.
+
+### Not done, each with its reason
+
+- **No human has read any of the nine languages.** This is the headline
+  deferral, unchanged from #43 and stated plainly: every unit is
+  `needs_review`, nine locales' worth, and the only mitigation applied was blind
+  back-translation.
+- **Only iOS is driven.** `describe-ui` is iOS-only — the same wall PRD-19 and
+  PRD-22 hit — so there is no tvOS or macOS localization lane.
+
+- **`MacUI.swift` was still not driven, and there is now a reason rather than an
+  omission.** A locally-built Nine **cannot launch on macOS at all** on a host
+  signed into iCloud. Measured: `Nine.app/Contents/MacOS/Nine` exits 133,
+  `EXC_BREAKPOINT` in `CKContainer.__allocating_init(identifier:)` ←
+  `LibraryCloudStore.init()` ← `AppModel.setUpCloudSyncIfAvailable()` ←
+  `NineApp.init()`. The guard at `AppModel.swift:797` is
+  `FileManager.default.ubiquityIdentityToken != nil` — it asks whether an iCloud
+  *account* is signed in, not whether this binary carries the CloudKit
+  *entitlement* that makes `CKContainer(identifier:)` legal. A build made with
+  `CODE_SIGNING_ALLOWED=NO`, which is what every gate in this repo and every
+  local `xcodebuild` produces, has the account and not the entitlement, and
+  traps on the first line of `App.init()`.
+
+  This is not a localization bug and it is not new — but it is almost certainly
+  *why* this surface has gone five PRDs without being run, and it means the
+  macOS build being green has never implied the macOS app opens. Whoever picks
+  it up should widen that guard to survive a missing entitlement before trying
+  to review the German window; it is out of PRD-20's scope to change how Nine
+  starts up. `swift test`, all three platform builds and the whole iOS lane are
+  unaffected.
+- **The widgets are not in any lane.** `describe-ui` cannot reach a widget, so
+  the German gallery check remains the only evidence, and the fixed-height
+  clipping `PRD-36.md` names is unmeasured.
+- **`UndoPhrase.forMove`'s behaviour change is disclosed but untested.** The
+  `isBulkNotes` branch now applies on macOS and tvOS, where an auto-notes bulk
+  undo previously said "Undid note 0" — reachable by wand-filling on iPhone and
+  resuming the board on either. The new sentence is right and the old one was
+  nonsense; what is missing is a test on `UndoPhrase.forMove`, which has none.
+  Recorded here because #43's report claimed the Mac Continue caption was the
+  only English change, and this is a second one.
+- **The two seal implementations still share five verbatim tables with nothing
+  asserting they agree**, and they already differ on `"""` handling. The
+  cross-runner battery that closed that minor was run by hand, once, out of
+  tree.
+- **The offence detector's `/` and `_` branch has no case discrimination** —
+  `Play/Pause` and `On/Off` slip — and `preceding_label` cannot tell an argument
+  colon from a ternary's, so a false branch after `board.id ? :` is suppressed.
+  Both are real, neither is currently firing on a live string.
+- **`EXEMPT` is honoured by the offence scanner but not by the key reader**, so
+  a key named only from the debug-only `PadProbeHUD` reads as live.
+- **`build_catalog` preserves a translation across an English rewording without
+  downgrading its state.** Harmless while everything is `needs_review`; it
+  becomes a live hazard the first time a human reviews a locale and flips it to
+  `translated`.

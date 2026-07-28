@@ -1,0 +1,8 @@
+# mode: de   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button       14,788  44x44  "Start"
+Button      144,788  44x44  "Hinweis"
+Button      194,788  44x44  "Bleistiftnotizen"
+Button      244,788  44x44  "Auto-Notizen"
+Button      294,788  44x44  "Widerrufen"
+Button      344,788  44x44  "Einstellungen"
