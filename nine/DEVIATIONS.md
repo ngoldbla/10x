@@ -3057,3 +3057,38 @@ was garbled rather than forged.
 - **The watch has no first run.** It inherits the phone's welcome ledger
   through nothing at all; PRD-6 §3 rules out a tutorial in 6a and the grammar is
   two sentences, but a wrist-first player meets the crown with no introduction.
+
+### Two lanes that had never run, found while getting this PR green
+
+Neither is PRD-6's work. Both are here because they are what made the PR red,
+and because a gate that cannot fire is not a gate.
+
+**The contrast lane has never once completed.** `contrast-harness.py`'s verify
+path ended `handle.write(text)` with `text` assigned only on the `--record`
+path. So the lane booted a simulator, relaunched and sampled 26 cells over 22
+minutes, measured every one correctly, and then died on `NameError` before
+`gate()` was ever called. `gh run list --workflow=nine-accessibility.yml` is
+unambiguous: green through PRD-16, red on **every** PR from PRD-22 — the one
+that added the harness — onward, five in a row, three of which merged anyway.
+The floors PRD-22 shipped have been enforced by nothing since the day they were
+written. Fixed by rendering the measured rows in the same shape `--record`
+writes the baseline in, which is what the workflow comment always said the
+failure artifact was for. Verified locally: 26 cells, every one clears its floor.
+
+**The pseudo-loc/RTL lane has never run in CI at all**, because it is the step
+*after* contrast and the crash took the job down first. Run locally here for the
+first time, it failed five ways — all one cause: the baselines bake the literal
+date into the home shelf's Today card, so they rot at every midnight.
+`ax-snapshot.py` has masked exactly this since PRD-19 (`mask()`, `TODAY`), and
+this lane is the drifted copy — the third-copy drift `ninestate.py`'s own header
+warns about. It now masks the date in all four renderings the launch locales
+produce (`Jul 27, 2026`, `27. Juli 2026`, `2026年7月27日`, and the doubled
+pseudo-locale). Baselines re-recorded: the diff is five lines, one per locale,
+all of them the date.
+
+**Residual, stated rather than hidden:** masking the *label* does not fix the
+*frame*. Japanese measured 99×129 with `27日` and 100×129 with `28日`, so the ja
+home baseline still rots whenever the rendered date changes width — a
+one-or-two-digit day boundary, or a longer month name. Daily rot is fixed;
+monthly rot is not. Doing it properly means pinning the clock in the seeded
+state, which is `simrig.py`'s territory and a change every lane would inherit.

@@ -1,6 +1,6 @@
 # mode: de   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
 # role        x,y     w x h   label
-Button       38,164 102x129 "Heute, 27. Juli 2026, Eins pro Tag"
+Button       38,164 102x129 "Heute, <today>, Eins pro Tag"
 Button       38,637 246x64  "Nocturne, Weniger Vorgaben, tiefere Logik"
 Button       43,355 321x44  "4 von 53 gef\u00fcllt., Fortsetzen, Stetig \u00b7 7\u00a0%"
 Button       44,461  64x126 "Sanft, Singles & Scannen"

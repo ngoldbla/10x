@@ -252,11 +252,36 @@ def comparable(data):
     return [element_line(e) for e in data["entries"] if not is_status_bar(e)]
 
 
+# Today's date is as non-deterministic as the clock, and the home shelf's daily
+# card is labelled with it — "Today, Jul 27, 2026, One a day". `ax-snapshot.py`
+# has masked this since PRD-19; this lane did not, so its five baselines rotted
+# every midnight and nobody saw it, because the contrast step ahead of it
+# crashed before this one ever ran in CI.
+#
+# One pattern per rendering the launch locales actually produce, because the
+# AX label is comma-joined and the English date contains a comma of its own —
+# splitting on commas would cut "Jul 27" from "2026". Verified against the
+# captures this lane writes:
+#     en / double   Jul 27, 2026
+#     de            27. Juli 2026
+#     ja            2026年7月27日
+TODAY = re.compile(
+    r"\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b"          # Jul 27, 2026
+    r"|\b\d{1,2}\. [^\s,]+ \d{4}\b"                # 27. Juli 2026
+    r"|\d{4}\u5e74\d{1,2}\u6708\d{1,2}\u65e5"                # 2026年7月27日
+)
+
+
+def mask(text):
+    """Replace today's date, in whichever locale rendered it, with `<today>`."""
+    return TODAY.sub("<today>", text or "")
+
+
 def element_line(entry):
     frame = entry["frame"]
     return "%-11s %3d,%-3d %3dx%-3d %s" % (
         entry.get("role", "?"), frame["x"], frame["y"],
-        frame["width"], frame["height"], json.dumps(entry.get("label") or ""),
+        frame["width"], frame["height"], json.dumps(mask(entry.get("label") or "")),
     )
 
 
