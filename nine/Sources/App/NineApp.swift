@@ -197,19 +197,6 @@ struct RootView: View {
     }
 }
 
-/// The player's theme, planted once at the root so leaf views (board,
-/// backgrounds) pick it up without prop-threading.
-private struct NineThemeKey: EnvironmentKey {
-    static let defaultValue: ThemeChoice = .auto
-}
-
-extension EnvironmentValues {
-    var nineTheme: ThemeChoice {
-        get { self[NineThemeKey.self] }
-        set { self[NineThemeKey.self] = newValue }
-    }
-}
-
 /// The resting background: each theme's flat backdrop. Void (true black)
 /// remains the dark default; Paper, Camel, Blueprint and Forest tint the
 /// whole plane so glass and shadows still have something to catch.

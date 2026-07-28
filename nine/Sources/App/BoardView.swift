@@ -6,6 +6,49 @@
 import SwiftUI
 import CouchKit
 
+// `CoachFocus` lives here rather than in `CoachCard.swift` because it is
+// board-render input, and PRD-6 puts this file on the watch target's source
+// list while the card — an iOS panel — stays off it.
+/// The cells a hint lights, by the part each plays in it.
+///
+/// Arrays rather than a `[Int: Role]` dictionary: where two roles land on one
+/// cell the draw order decides what the player sees, and dictionary iteration
+/// order is not defined.
+struct CoachFocus: Equatable, Sendable {
+    /// The cells forming the pattern — an accent wash.
+    let pattern: [Int]
+    /// The cell the step resolves, if any — a stronger ring.
+    let target: Int?
+    /// Cells losing a candidate — a dashed, dimmer border.
+    let victims: [Int]
+    /// The digit under discussion, when the step is about exactly one.
+    let digit: Int?
+
+    /// Nil for a solved board: the Afterglow owns that moment and nothing
+    /// should wash over it.
+    init?(_ advice: CoachAdvice) {
+        switch advice {
+        case .solved:
+            return nil
+        case .exhausted:
+            pattern = []
+            target = nil
+            victims = []
+            digit = nil
+        case .contradiction(let cells):
+            pattern = cells
+            target = nil
+            victims = []
+            digit = nil
+        case .step(let coach):
+            pattern = coach.step.cells
+            target = coach.step.placement?.cell
+            victims = Set(coach.step.eliminations.map(\.cell)).sorted()
+            digit = coach.step.digits.count == 1 ? coach.step.digits.first : nil
+        }
+    }
+}
+
 /// Shared geometry so the game screens can position the flick rose over a
 /// cell. The TV board is a fixed 900pt plane; the touch board passes its own
 /// side length, so every drawing constant scales off `side / 900`.
@@ -247,11 +290,24 @@ struct BoardView: View {
     /// to the Canvas only — inside `couchGlass`, above `plane` — so digits and
     /// grid refract while the glass material, the theme wash and the void
     /// behind them stay optically still.
+    ///
+    /// **watchOS has no SwiftUI shaders**, so on the wrist this is the Canvas
+    /// and nothing else. That costs the watch none of the board and one of the
+    /// three celebrations: `waveOrigin` is nil there, which routes step 4 of
+    /// `draw` down the Reduce-Motion diagonal luminance wave — already shipped,
+    /// already Canvas-drawn, and PRD-6 §2.4 names it the watch's hero moment
+    /// for exactly this reason. The rose never opens on a watch (the Crown is
+    /// the rose there), so the petal lens has nothing to bend either.
+    @ViewBuilder
     private func refracted(now: Date) -> some View {
         let phase = afterglowPhase(now: now)
-        return Canvas { context, size in
+        let canvas = Canvas { context, size in
             draw(in: &context, size: size, now: now)
         }
+        #if os(watchOS)
+        canvas
+        #else
+        canvas
         .layerEffect(
             ShaderLibrary.afterglowWave(
                 .float2(originPoint),
@@ -288,6 +344,7 @@ struct BoardView: View {
             maxSampleOffset: CGSize(width: lensReach, height: lensReach),
             isEnabled: lensActive
         )
+        #endif
     }
 
     // MARK: - The petal lens (PRD-22)

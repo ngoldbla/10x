@@ -184,13 +184,20 @@ final class PrefsDowngradeTests: XCTestCase {
         let source = try String(
             contentsOf: nine.appendingPathComponent("Sources/App/AppModel.swift"),
             encoding: .utf8)
+        // The two enums live in `Theme.swift` since PRD-6 — the board had to be
+        // compilable without the model to reach the watch. `NinePrefs` and its
+        // decode did not move, so this test now reads two files rather than
+        // one, and each assertion still names the file that owns its fact.
+        let themeSource = try String(
+            contentsOf: nine.appendingPathComponent("Sources/App/Theme.swift"),
+            encoding: .utf8)
 
         // The current mirror's case lists must be the shipping ones.
         XCTAssertTrue(
-            source.contains("case auto, dark, light, camel, blueprint, forest, ember, tide, mono"),
+            themeSource.contains("case auto, dark, light, camel, blueprint, forest, ember, tide, mono"),
             "ThemeChoice's cases have moved — update CurrentTheme")
         XCTAssertTrue(
-            source.contains(
+            themeSource.contains(
                 "case glacier, ember, meadow, lilac, crimson, gold, teal, magenta, moss, orchid"),
             "AccentChoice's cases have moved — update CurrentAccent")
 
