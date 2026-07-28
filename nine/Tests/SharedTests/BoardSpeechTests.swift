@@ -321,21 +321,57 @@ final class BoardSpeechTests: XCTestCase {
             )
         )
 
-        // …and the shape that would put the space back. Two runtime values
+        // …and the shapes that would put the space back. Two runtime values
         // interpolated into one Swift literal IS a sentence assembled in code;
         // there is no other reason to write one in this file.
+        //
+        // **Concatenation is the second shape, and it is the one that got
+        // through.** `progressSummary` joined two finished sentences with
+        // `sentence += " " + Phrase.wrongCount(wrong)` and outlived both of the
+        // rounds that produced `board.announce.pair` and `board.cell.hintPair`:
+        // it carries no interpolations, so the loop below stepped over it, and
+        // it is not a `.text(…)` argument, so the other seal never saw it.
+        // Japanese shipped "…記入済み。 誤り 3 マス。" — an ASCII space after a 。
+        // that already separates. Same in zh-Hans.
         let source = try String(contentsOf: Self.boardSpeechSource(), encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.components(separatedBy: "//").first ?? "" }
-        for (offset, line) in source.enumerated()
-        where line.components(separatedBy: #"\("#).count - 1 >= 2 {
-            XCTFail("""
-                BoardSpeech.swift:\(offset + 1) builds a string out of two \
-                interpolated values: \(line.trimmingCharacters(in: .whitespaces)). \
-                Whatever separates them is punctuation this language chose for \
-                every other language. Give it a catalog key.
-                """)
+        for (offset, line) in source.enumerated() {
+            if line.components(separatedBy: #"\("#).count - 1 >= 2 {
+                XCTFail("""
+                    BoardSpeech.swift:\(offset + 1) builds a string out of two \
+                    interpolated values: \(line.trimmingCharacters(in: .whitespaces)). \
+                    Whatever separates them is punctuation this language chose for \
+                    every other language. Give it a catalog key.
+                    """)
+            }
+            if let glue = Self.concatenatedGlue(in: line) {
+                XCTFail("""
+                    BoardSpeech.swift:\(offset + 1) concatenates the literal \
+                    \(glue) onto a phrase: \
+                    \(line.trimmingCharacters(in: .whitespaces)). \
+                    A separator between two translated strings is punctuation, \
+                    and punctuation belongs to the language — Japanese puts no \
+                    space after 。, and every locale gets whatever is hard-coded \
+                    here. Give it a catalog key, as board.announce.pair and \
+                    board.cell.hintPair already have.
+                    """)
+            }
         }
+    }
+
+    /// A string literal made only of whitespace and punctuation, being `+`'d or
+    /// `+=`'d — the glue that should have been a catalog key.
+    ///
+    /// Letters and digits are excluded from the literal on purpose, so that
+    /// appending a real word (a number word, a digit) is not mistaken for a
+    /// separator; and the empty literal is excluded because `"" + x` separates
+    /// nothing.
+    static func concatenatedGlue(in line: String) -> String? {
+        let pattern = #"(?:\+=?\s*"[^"\p{L}\p{N}]+"|"[^"\p{L}\p{N}]+"\s*\+)"#
+        guard let range = line.range(of: pattern, options: .regularExpression)
+        else { return nil }
+        return String(line[range]).trimmingCharacters(in: .whitespaces)
     }
 
     func testSolvedAnnouncementAndEraseAndNotes() {

@@ -250,7 +250,14 @@ final class StringSealTests: XCTestCase {
                     Text("nine.history")
                     Text("AppIcon-Ember")
                     Text("pad-probe")
-                    Text("UTF-8")
+                    // The two residual false negatives, pinned so the limit is
+                    // a test rather than a sentence in a comment. `iOS-only`
+                    // has a real CamelCase boundary (`i`→`O`) and `hold-click`
+                    // is uniformly lowercase, so both take the machine-name
+                    // exit. If either ever starts flagging, the rule got
+                    // sharper and this fixture is where you find out.
+                    Text("iOS-only")
+                    Text("hold-click")
                     // ...and the boundary the shape rule used to overrun.
                     // Prose that ends in punctuation is prose.
                     Text("Time:")                                   // 8
@@ -262,6 +269,14 @@ final class StringSealTests: XCTestCase {
                     Text("Auto-save")                               // 11
                     Text("Auto-Save")                               // 12
                     Text("Best-of-3")                               // 13
+                    // An all-caps acronym in a kebab is not CamelCase. These
+                    // four were dropped as machine names until the rule
+                    // learned the difference, and `UTF-8` is the price: it is
+                    // prose now, which is the safe direction to be wrong.
+                    Text("Face-ID")                                 // 14
+                    Text("non-ASCII")                               // 15
+                    Text("TV-connected")                            // 16
+                    Text("UTF-8")                                   // 17
                 }
                 .accessibilityLabel("Board")                        // 10
                 .accessibilityAction(named: "Show board stats") { } // 11
@@ -285,6 +300,10 @@ final class StringSealTests: XCTestCase {
             "Auto-save",
             "Auto-Save",
             "Best-of-3",
+            "Face-ID",
+            "non-ASCII",
+            "TV-connected",
+            "UTF-8",
             "Board",
             "Show board stats",
             "Discard this board?",
@@ -583,12 +602,11 @@ final class StringSealTests: XCTestCase {
         // capitalised but *how*. Every hyphenated machine name in this repo is
         // either uniformly lowercase or contains a CamelCase segment:
         //
-        //   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide  UTF-8   <- CamelCase
+        //   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide          <- CamelCase
         //   pad-probe  cloud-sync  widget-bridge  d-pad        <- all lower
         //
-        // while hyphenated English never has an uppercase letter *inside* a
-        // word and is not uniformly lowercase, because at least one segment
-        // starts a phrase:
+        // while hyphenated English is not uniformly lowercase, because at least
+        // one segment starts a phrase:
         //
         //   Sign-in  Re-solve  Auto-save  Multi-line  Best-of-3  Auto-Save
         //
@@ -597,20 +615,36 @@ final class StringSealTests: XCTestCase {
         // exactly what the Mac menu bar uses ("New Game", "Float Desk on
         // Top"), so that is a shape this app will really produce.
         //
-        // Residual false negative, and it is a real string in this tree rather
-        // than a hypothetical: `TutorialGrammar.pencilVerb` is `"hold-click"`
-        // on one platform and `"Shift-type"` on another. `Shift-type` flags,
-        // `hold-click` does not — nothing distinguishes it from `pad-probe`.
-        // Neither reaches the rule today (they are struct fields, not sink
-        // arguments), but whoever does Tasks 5-8 should extract that pair by
-        // hand.
+        // **CamelCase means a lowercase letter followed by an uppercase one**,
+        // not merely an uppercase letter somewhere after the first character.
+        // This comment used to claim that "hyphenated English never has an
+        // uppercase letter inside a word", which is false: it was silently
+        // dropping `Face-ID`, `non-ASCII`, `PDF-only`, `AI-powered`,
+        // `TV-connected` and `iOS-only`. An all-caps acronym is not CamelCase,
+        // and `dropFirst()` could not tell the difference. The cost is `UTF-8`,
+        // now prose — the right direction to be wrong in, because a false
+        // positive is a literal somebody exempts and a false negative is
+        // English shipped to nine locales behind a green gate.
+        //
+        // Two residual false negatives, both real strings in this tree and both
+        // pinned as fixtures below so they are a test rather than a sentence:
+        // `iOS-only` (`i`→`O` is a genuine CamelCase boundary, indistinguishable
+        // by shape from `AppIcon`) and `hold-click` (`TutorialGrammar.pencilVerb`
+        // is `"hold-click"` on one platform and `"Shift-type"` on another;
+        // `Shift-type` flags and `hold-click` does not). Neither reaches the
+        // rule today — they are struct fields, not sink arguments.
+        //
+        // Python's `is_translatable` carries the identical rule and nothing in
+        // CI diffs the two runners. Any change here lands in both files.
         let segments = trimmed.split(separator: "-", omittingEmptySubsequences: false)
         let alphanumericSegments = segments.count >= 2 && segments.allSatisfy { segment in
             !segment.isEmpty && segment.allSatisfy { $0.isLetter || $0.isNumber }
         }
         if alphanumericSegments {
             let uniformlyLower = segments.allSatisfy { !$0.contains(where: \.isUppercase) }
-            let hasCamelSegment = segments.contains { $0.dropFirst().contains(where: \.isUppercase) }
+            let hasCamelSegment = segments.contains { segment in
+                zip(segment, segment.dropFirst()).contains { $0.isLowercase && $1.isUppercase }
+            }
             if uniformlyLower || hasCamelSegment { return false }
         }
         return true

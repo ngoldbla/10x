@@ -1,0 +1,8 @@
+# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button       14,788  44x44  "Home Home"
+Button      144,788  44x44  "Hint Hint"
+Button      194,788  44x44  "Pencil marks Pencil marks"
+Button      244,788  44x44  "Auto notes Auto notes"
+Button      294,788  44x44  "Undo Undo"
+Button      344,788  44x44  "Settings Settings"

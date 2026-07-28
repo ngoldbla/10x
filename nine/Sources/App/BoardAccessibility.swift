@@ -84,6 +84,17 @@ struct BoardAXGrid: View {
             }
         }
         .frame(width: side + 2 * inset, height: side + 2 * inset, alignment: .topLeading)
+        // The board is drawn by a `Canvas`, and a Canvas draws in raw
+        // coordinates — it does not mirror under a right-to-left layout, which
+        // is what PRD-20 decision 3 wants: the grid is spatial and numeric, not
+        // text, so column 1 stays on the left in every language. But
+        // `.position(x:y:)` *is* direction-aware, so every one of these 81
+        // synthetic frames mirrored while the pixels stayed put, and in Arabic
+        // the element under the left-hand cell announced `column 9`. Measured,
+        // not reasoned: `Row 1, column 1` sat at x=342 with the digit 4 drawn
+        // at x=20. Pinning the layout direction makes `.position` mean what the
+        // Canvas means.
+        .environment(\.layoutDirection, .leftToRight)
         .accessibilityRotor(Text(BoardActionPhrase.emptyRotor)) {
             ForEach(emptyCells, id: \.self) { cell in
                 AccessibilityRotorEntry(Text(BoardSpeech.cellLabel(cell)), id: cell, in: rotorSpace)

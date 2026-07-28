@@ -254,12 +254,18 @@ public enum BoardSpeech {
     public static func progressSummary(_ game: NineGame, showErrors: Bool = true) -> String {
         let holes = game.puzzle.puzzle.emptyCount
         let filled = (0..<81).count(where: { game.entry(at: $0) != 0 && !game.isGiven($0) })
-        var sentence = Phrase.filled(filled, of: holes)
+        let sentence = Phrase.filled(filled, of: holes)
         let wrong = game.errorCells.count
-        if showErrors, wrong > 0 {
-            sentence += " " + Phrase.wrongCount(wrong)
-        }
-        return sentence
+        guard showErrors, wrong > 0 else { return sentence }
+        // The third instance of the defect `board.announce.pair` was created
+        // for, and it outlived both rounds that found the other two — because a
+        // `+ " " +` carries no interpolations and both seals look for
+        // interpolations. Measured on the shipped catalog: Japanese rendered
+        // "51 マス中 18 マス 記入済み。 誤り 3 マス。" — an ASCII space after a 。 that
+        // already carries the separation. Same shape in zh-Hans. This is a
+        // VoiceOver surface: the progress control and a rotor action.
+        return Phrase.pair(firstSentence: sentence,
+                           secondSentence: Phrase.wrongCount(wrong))
     }
 
     // MARK: - Number words

@@ -32,21 +32,34 @@ final class CatalogTests: XCTestCase {
     func testBothTargetsListTheStringsTree() throws {
         let yml = try String(contentsOf: Self.nineRoot.appendingPathComponent("project.yml"),
                             encoding: .utf8)
-        XCTAssertEqual(Self.occurrences(of: "- Sources/Strings", in: yml), 2, """
-            Sources/Strings must be listed by BOTH the Nine and NineWidgets \
-            targets. NineWidgets compiles Sources/Shared and Sources/Engine in, \
-            so it asks for the same keys — but against its OWN bundle, because \
-            in an app extension `Bundle.main` is the extension. A widget \
-            without the catalog renders English on a localized phone, and every \
-            platform build stays green.
-            """)
+        // Per target, not file-wide. Counting `- Sources/Strings` across the
+        // whole file said 2 whether or not the two lived in the two targets
+        // that need them: drop it from NineWidgets, add a second copy anywhere
+        // under Nine, and the count, the test and all three platform builds
+        // stay green while the widget ships permanently English.
+        for target in ["Nine", "NineWidgets"] {
+            let block = try XCTUnwrap(Self.targetBlock(target, in: yml),
+                                      "project.yml has no target named \(target) at "
+                                      + "two-space indent — this test is reading the "
+                                      + "wrong shape of file, not measuring anything.")
+            XCTAssertTrue(block.contains("- Sources/Strings"), """
+                \(target) does not list Sources/Strings. It must be listed by BOTH \
+                the Nine and NineWidgets targets: NineWidgets compiles \
+                Sources/Shared and Sources/Engine in, so it asks for the same keys \
+                — but against its OWN bundle, because in an app extension \
+                `Bundle.main` is the extension. A widget without the catalog \
+                renders English on a localized phone, and every platform build \
+                stays green.
+                """)
 
-        // Sources/Shared is the tree whose presence in both targets is the
-        // whole reason the catalog has to be in both. If that ever stops being
-        // true, the assertion above is measuring nothing.
-        XCTAssertEqual(Self.occurrences(of: "- Sources/Shared", in: yml), 2,
-                       "Sources/Shared is no longer in two targets — re-derive why "
-                       + "the catalog needs to be, before trusting the test above.")
+            // Sources/Shared is the tree whose presence in both targets is the
+            // whole reason the catalog has to be in both. If that ever stops
+            // being true, the assertion above is measuring nothing.
+            XCTAssertTrue(block.contains("- Sources/Shared"),
+                          "\(target) no longer lists Sources/Shared — re-derive why "
+                          + "the catalog needs to be in two bundles, before trusting "
+                          + "the assertion above.")
+        }
     }
 
     /// **The declaration is derived, not remembered** (controller ruling,
@@ -332,6 +345,85 @@ final class CatalogTests: XCTestCase {
         "ko": ["other"],
         "zh-Hans": ["other"],
     ]
+
+    /// Every locale carries the same *shape* English does.
+    ///
+    /// `testEveryPluralHasTheCategoriesItsLanguageRequires` builds its work
+    /// list out of the plurals it finds in each locale body, so a locale that
+    /// carries **no** plural block contributes no assertions and is waved
+    /// through in silence. The global `checked > 0` floor cannot see it either:
+    /// it stands at 180 axes across 17 keys, so losing one leaves it far from
+    /// zero. Every other catalog gate has the same blind spot from a different
+    /// angle — presence checks see a body, and the argument-index check sees a
+    /// flattened body as one string using `{1}`, which is what English's frame
+    /// uses too.
+    ///
+    /// Measured on a clean `2a17ce7`: replacing French's three-category
+    /// `board.streak.plain` with a flat unit passed `strings.py --audit`,
+    /// passed `xcstringstool compile` at exit 0 with no warning, and passed
+    /// every test in this file. French would then read "série de 1 jours" at
+    /// every count on the streak chip, the widget and the share card — French
+    /// `one` covers 0 and 1 — silently and forever.
+    ///
+    /// This is the same defect PR #43 closed one level down: it drilled
+    /// *removing a category from* a plural, and could not see *removing the
+    /// plural*. So the shape is derived from English and compared, rather than
+    /// read out of the data being judged.
+    func testEveryLocaleCarriesTheSameShapeAsItsEnglish() throws {
+        let url = Self.nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                 as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        var pluralised = 0
+        var substituted = 0
+        for (key, value) in strings.sorted(by: { $0.key < $1.key }) {
+            let localizations = (value as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            guard let english = localizations["en"] as? [String: Any] else { continue }
+            let englishShape = Self.shape(of: english)
+            if englishShape.isPlural { pluralised += 1 }
+            if !englishShape.substitutions.isEmpty { substituted += 1 }
+
+            for (locale, body) in localizations.sorted(by: { $0.key < $1.key }) where locale != "en" {
+                let shape = Self.shape(of: body as? [String: Any] ?? [:])
+                XCTAssertEqual(shape.isPlural, englishShape.isPlural, """
+                    \(key) [\(locale)] is \(shape.isPlural ? "a plural" : "a flat string") \
+                    where English is \(englishShape.isPlural ? "a plural" : "a flat string"). \
+                    A flattened plural compiles at exit 0 and renders one \
+                    grammatical form for every count — "1 days" or "série de 1 \
+                    jours" — and no other gate in this repo can see it.
+                    """)
+                XCTAssertEqual(shape.substitutions, englishShape.substitutions, """
+                    \(key) [\(locale)] declares substitutions \
+                    \(shape.substitutions.sorted()) where English declares \
+                    \(englishShape.substitutions.sorted()). The frame still \
+                    names `%N$#@axis@`, so a missing axis is an unresolved \
+                    token on screen and a spare one is dead weight a translator \
+                    was paid for.
+                    """)
+            }
+        }
+
+        // Floors on what was compared, not on what was found. Each names its
+        // own number so that "the reader stopped seeing them" and "the
+        // generator stopped writing them" cannot both read as green.
+        XCTAssertEqual(pluralised, 14,
+                       "English carries a different number of whole-string plurals than "
+                       + "the 14 this catalog was built with — if that is deliberate, "
+                       + "move the number; if it is not, a plural has been flattened at "
+                       + "the source and every locale followed it")
+        XCTAssertEqual(substituted, 3,
+                       "English carries a different number of substituted keys than the "
+                       + "3 this catalog was built with")
+    }
+
+    /// The structural shape of one locale body: is it a plural, and which
+    /// substitution axes does it declare. Deliberately not the *contents* —
+    /// those are `testEveryPluralHasTheCategoriesItsLanguageRequires`'s job.
+    static func shape(of body: [String: Any]) -> (isPlural: Bool, substitutions: Set<String>) {
+        (pluralCategories(in: body) != nil,
+         Set((body["substitutions"] as? [String: Any] ?? [:]).keys))
+    }
 
     func testEveryPluralHasTheCategoriesItsLanguageRequires() throws {
         let url = Self.nineRoot.appendingPathComponent("Sources/Strings/Localizable.xcstrings")
@@ -991,6 +1083,26 @@ final class CatalogTests: XCTestCase {
 
     static func occurrences(of needle: String, in haystack: String) -> Int {
         haystack.components(separatedBy: needle).count - 1
+    }
+
+    /// The lines of one `targets:` entry in `project.yml`, or nil if there is
+    /// no such target.
+    ///
+    /// Targets sit at two-space indent (`  Nine:`), so the block runs from that
+    /// line to the next line at two-space indent or less. Crude, and
+    /// deliberately so: the alternative is a YAML parser in a test whose whole
+    /// job is to notice that a one-line list entry moved between two targets.
+    static func targetBlock(_ target: String, in yml: String) -> String? {
+        let lines = yml.components(separatedBy: "\n")
+        guard let start = lines.firstIndex(of: "  \(target):") else { return nil }
+        let rest = lines[(start + 1)...]
+        let end = rest.firstIndex { line in
+            guard let first = line.first(where: { !$0.isWhitespace }) else { return false }
+            let indent = line.distance(from: line.startIndex,
+                                       to: line.firstIndex(of: first) ?? line.startIndex)
+            return indent <= 2
+        } ?? lines.endIndex
+        return lines[start..<end].joined(separator: "\n")
     }
 
     /// How many `#if` blocks enclose the first occurrence of `needle`, or -1 if

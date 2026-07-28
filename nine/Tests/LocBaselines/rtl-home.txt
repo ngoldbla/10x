@@ -1,0 +1,11 @@
+# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# role        x,y     w x h   label
+Button       28,154  44x44  "Archive"
+Button       38,355 321x44  "4 of 53 filled., Continue, Steady \u00b7 7%"
+Button       44,461  64x126 "Sharp, X-wings & deep logic"
+Button       84,768  45x54  "History"
+Button      152,637 212x64  "Nocturne, Fewer clues, deeper logic"
+Button      169,461  64x126 "Steady, Pairs & box lines"
+Button      259,769  73x52  "How to play"
+Button      275,164  89x129 "Today, Jul 27, 2026, One a day"
+Button      294,461  64x126 "Gentle, Singles & scans"

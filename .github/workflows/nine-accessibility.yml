@@ -129,6 +129,27 @@ jobs:
             --out-dir "$RUNNER_TEMP/contrast" \
             ${{ github.event_name == 'pull_request' && '--quick' || '--contrast' }}
 
+      # German, Japanese, doubled-length and right-to-left, on the app that is
+      # already built and the simulator that is already warm — modes are launch
+      # arguments, not build settings, so one binary answers for all four.
+      #
+      # The assertions are on `describe-ui` frames, and that is the point rather
+      # than a detail: the board's pixels obeyed the no-mirroring rule under RTL
+      # while its 81 accessibility frames did the opposite, which a screenshot
+      # diff cannot see at all. `--selftest` first because it needs no simulator
+      # and takes no time, and because three of the four assertions cannot be
+      # calibrated against the real app — nothing in Nine renders `(null)`,
+      # leaves a specifier unsubstituted or overruns the window today, so the
+      # self-test is the only evidence they can fail.
+      - name: Pseudo-loc and RTL
+        working-directory: nine
+        run: |
+          set -euo pipefail
+          python3 scripts/loc-harness.py --selftest
+          python3 scripts/loc-harness.py \
+            --app build/Build/Products/Debug-iphonesimulator/Nine.app \
+            --out-dir "$RUNNER_TEMP/loc"
+
       - name: Upload what was captured
         if: failure()
         uses: actions/upload-artifact@v4
@@ -137,4 +158,5 @@ jobs:
           path: |
             ${{ runner.temp }}/ax-captured
             ${{ runner.temp }}/contrast
+            ${{ runner.temp }}/loc
           if-no-files-found: warn

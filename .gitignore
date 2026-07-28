@@ -80,3 +80,8 @@ nine/Tests/AXBaselines/.captured/
 # so leaving them untracked is not a preference. `matrix.txt` beside them is
 # the contract and is committed.
 nine/Tests/ContrastBaselines/.captured/
+
+# PRD-20 localization lane, same shape again: 25 dumps and 25 screenshots per
+# run (five screens x en/de/ja/double/rtl). The `.txt` baselines beside them are
+# the contract and are committed.
+nine/Tests/LocBaselines/.captured/

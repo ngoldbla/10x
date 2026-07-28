@@ -126,6 +126,17 @@ struct FlickRoseView: View {
         // same frame, and any asymmetry (e.g. `.top`) desyncs touch from paint.
         .frame(width: spacing * 2 + petalSize,
                height: spacing * 2 + petalSize + eraseAllowance * 2)
+        // The ring is spatial, not textual, and must not follow the writing
+        // direction (PRD-20 decision 3). `.offset(x:)` *is* direction-aware, so
+        // under `-NSForceRightToLeftWritingDirection` the petals laid out
+        // 3 2 1 / 6 5 4 / 9 8 7 — measured, on screen, not inferred. An Arabic
+        // player reaching for the 3 would have found the 1.
+        //
+        // The flick path is the second half of the argument: `flickDirection`
+        // reads `DragGesture`'s raw translation, which is *not* mirrored. Pin
+        // the petals and the two agree again; leave them mirrored and a
+        // rightward flick places the digit drawn on the left.
+        .environment(\.layoutDirection, .leftToRight)
         .scaleEffect(bloomed ? 1.0 : 0.35)
         .opacity(bloomed ? 1.0 : 0.0)
         .onAppear {
@@ -296,6 +307,12 @@ struct TouchRose: View {
             .accessibilityLabel(state.pencil ? Strings.string("board.rose.note")
                                              : Strings.string("board.rose.digit"))
             .accessibilityAddTraits(isModal ? [.isModal] : [])
+            // Pinned for the same reason the drawn ring is, and separately:
+            // these targets are `.offset` from the same `RoseGeometry`, and if
+            // only one of the two were pinned the tap targets would come apart
+            // from the petals under them — which is worse than both mirroring,
+            // because it looks correct.
+            .environment(\.layoutDirection, .leftToRight)
         }
         .highPriorityGesture(
             DragGesture(minimumDistance: 24)

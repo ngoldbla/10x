@@ -519,11 +519,11 @@ def is_translatable(body):
     # capitalised but *how*. Every hyphenated machine name in this repo is
     # either uniformly lowercase or contains a CamelCase segment:
     #
-    #   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide  UTF-8        <- CamelCase segment
+    #   AppIcon-Ember  AppIcon-Mono  AppIcon-Tide               <- CamelCase segment
     #   pad-probe  cloud-sync  widget-bridge  d-pad  hold-click <- all lowercase
     #
-    # while hyphenated English never has an uppercase letter *inside* a word and
-    # is not uniformly lowercase, because at least one segment starts a phrase:
+    # while hyphenated English is not uniformly lowercase, because at least one
+    # segment starts a phrase:
     #
     #   Sign-in  Re-solve  Auto-save  Multi-line  Best-of-3  Auto-Save  X-Ray
     #
@@ -532,16 +532,36 @@ def is_translatable(body):
     # what the Mac menu bar uses ("New Game", "Float Desk on Top"), so that is a
     # shape this app will really produce.
     #
-    # Residual false negative, and it is a real string in this tree rather than
-    # a hypothetical: `TutorialGrammar.pencilVerb` is `"hold-click"` on one
-    # platform and `"Shift-type"` on another. `Shift-type` flags, `hold-click`
-    # does not — nothing distinguishes it from `pad-probe`. Neither reaches the
-    # rule today (they are struct fields, not sink arguments), but whoever does
-    # Tasks 5-8 should extract that pair by hand.
+    # **CamelCase means a lowercase letter followed by an uppercase one**, and
+    # not merely an uppercase letter somewhere after the first character. This
+    # comment used to claim that "hyphenated English never has an uppercase
+    # letter inside a word", which is false and was silently dropping six real
+    # forms: `Face-ID`, `non-ASCII`, `PDF-only`, `AI-powered`, `TV-connected`
+    # and `iOS-only` all took the machine-name exit and never reached a catalog
+    # key. An all-caps acronym is not CamelCase, and the `s[1:]` test could not
+    # tell the difference.
+    #
+    # The cost is `UTF-8`, which is now prose. That is the right direction to
+    # be wrong in: a false positive is a literal somebody has to exempt, and a
+    # false negative is English shipped to nine locales behind a green gate.
+    #
+    # Two residual false negatives, both real strings in this tree rather than
+    # hypotheticals, and both pinned as fixtures so they are a test rather than
+    # a sentence:
+    #
+    #   `iOS-only` — `i`→`O` is a genuine CamelCase boundary, indistinguishable
+    #   by shape from `AppIcon`. Nothing short of a word list separates them.
+    #
+    #   `hold-click` — `TutorialGrammar.pencilVerb` is `"hold-click"` on one
+    #   platform and `"Shift-type"` on another. `Shift-type` flags, `hold-click`
+    #   does not; nothing distinguishes it from `pad-probe`. Neither reaches the
+    #   rule today (they are struct fields, not sink arguments).
     segments = trimmed.split("-")
     if len(segments) >= 2 and all(s.isalnum() for s in segments):
         uniformly_lower = all(not any(c.isupper() for c in s) for s in segments)
-        has_camel_segment = any(any(c.isupper() for c in s[1:]) for s in segments)
+        has_camel_segment = any(
+            any(s[i].isupper() and s[i - 1].islower() for i in range(1, len(s)))
+            for s in segments)
         if uniformly_lower or has_camel_segment:
             return False
     return True
@@ -1091,7 +1111,11 @@ COMMENTS = {
     "difficulty.gentle.title": "Difficulty band, easiest of four. Shown on buttons and menus and on the share card. An adjective in the app's calm register — not \"Easy\", which sounds like a judgement of the player. One or two words.",
     "difficulty.steady.title": "Difficulty band, second of four: unhurried, dependable. Shown on buttons and menus. One or two words.",
     "difficulty.sharp.title": "Difficulty band, third of four: keen-witted, demanding. NOT the knife and NOT the musical accidental. One or two words.",
-    "difficulty.nocturne.title": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. Borrowing the musical term untranslated is fine where that word exists. One or two words.",
+    # Hand-edited into the artifact during Task 9 and not back into the
+    # generator, so the next `--build-catalog` would have deleted the only
+    # do-not-translate instruction in the catalog and told nobody. `--audit` now
+    # runs the generator dry to make that class of drift a failure.
+    "difficulty.nocturne.title": "Difficulty band, hardest of four. A night piece — the late, quiet, difficult one. DO NOT TRANSLATE: Nocturne is a coined name and stays \"Nocturne\" in every locale, pinned by CatalogTests.testNocturneIsIdenticalInEveryLocale. The other three bands (gentle/steady/sharp) are descriptions and do translate.",
 
     # Technique names. Sudoku terms of art, shown as the coach card's heading.
     # Every language's puzzle community has settled names for these; use them
@@ -1828,6 +1852,28 @@ def command_audit(args):
         print("catalog: %s" % failure)
         failed = True
 
+    # The catalog is a generated artifact, and a generated artifact that
+    # disagrees with its generator is the "two lists that agree only by
+    # inspection" failure this whole file was written against. It had already
+    # happened: `difficulty.nocturne.title`'s DO-NOT-TRANSLATE comment was
+    # hand-edited into the catalog and not into `COMMENTS`, so the next
+    # `--build-catalog` would have silently deleted it. Nothing ran the
+    # generator to find out — `--audit` reads the artifact and `--build-catalog`
+    # is only run deliberately, so the drift had no observer.
+    added, changed, removed = build_catalog(dry_run=True)
+    drift = [("+", k) for k in added] + [("~", k) for k in changed] \
+        + [("-", k) for k in removed]
+    if drift:
+        print("catalog: %d key(s) would change if the generator ran — the "
+              "artifact and `EnglishPhrases`/`COMMENTS` have drifted apart:"
+              % len(drift))
+        for mark, key in drift:
+            print("  %s %s" % (mark, key))
+        print("Fix: correct the generator, then "
+              "`python3 scripts/strings.py --build-catalog`. Do not hand-edit "
+              "the catalog — it is regenerated.")
+        failed = True
+
     return 1 if failed else 0
 
 
@@ -1870,9 +1916,14 @@ def command_selftest_catalog(_args):
         ("a key used in Swift but absent from the catalog", ["home.title"],
          {"home.title", "home.missing"}, False,
          ["used in Swift, absent from the catalog: home.missing"]),
+        # The expected fragment names the key on purpose. Stopping at "no Swift
+        # file names" passed while the check reported an entirely different
+        # key — measured: made to report `home.WRONGKEY` and this case still
+        # printed `ok` and exited 0. A shape is not a result.
         ("a key in the catalog that no Swift file names",
          ["home.title", "home.dead"], {"home.title"}, False,
-         ["in the catalog, referenced by no Swift file"]),
+         ["in the catalog, referenced by no Swift file"
+          " (dead strings, which translators are paid for): home.dead"]),
         ("a catalog that does not parse", ["home.title"], {"home.title"},
          True, ["the catalog does not compile"]),
     ]

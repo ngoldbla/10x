@@ -235,11 +235,23 @@ def tap(udid, data, label):
     ])
 
 
-def relaunch(udid, bundle_id, blobs):
+def relaunch(udid, bundle_id, blobs, args=()):
+    """Terminate, reseed, launch — optionally with launch arguments.
+
+    `args` is how the localization lane selects a language, a pseudolanguage or
+    a right-to-left layout: those are launch arguments, not build settings, so
+    the same installed binary answers for every mode. It is the last parameter
+    and defaults to empty because the two older lanes pass none.
+
+    There must be exactly one launch path. `ax-snapshot.py` used to inline these
+    four steps itself, and a copy that cannot pass arguments is not a harmless
+    duplicate: a loc harness built on it would drop every mode flag silently and
+    record five baselines of an ordinary English build that look entirely
+    plausible. No error, no symptom, no way to tell from the output."""
     run(["xcrun", "simctl", "terminate", udid, bundle_id], check=False)
     wait_until_dead(udid, bundle_id)
     seed(udid, bundle_id, blobs)
-    run(["xcrun", "simctl", "launch", udid, bundle_id])
+    run(["xcrun", "simctl", "launch", udid, bundle_id, *args])
 
 
 def wait_until_dead(udid, bundle_id, timeout=20.0):
