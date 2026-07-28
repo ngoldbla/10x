@@ -50,6 +50,14 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
     case thermoBound
     case innieOutie
     case cageCombination
+    // PRD-25 — the deep end. Classic techniques, appended *after* PRD-23's
+    // variant block because rank is append-only, which is why the ranks below
+    // no longer sort classic-before-variant. `isClassic` is a switch now, for
+    // exactly that reason.
+    case swordfish
+    case skyscraper
+    case xyWing
+    case simpleColoring
 
     public var rank: Int {
         switch self {
@@ -63,13 +71,32 @@ public enum Technique: String, CaseIterable, Sendable, Codable, Hashable, Compar
         case .thermoBound: return 7
         case .innieOutie: return 8
         case .cageCombination: return 9
+        case .swordfish: return 10
+        case .skyscraper: return 11
+        case .xyWing: return 12
+        case .simpleColoring: return 13
         }
     }
 
-    /// True for the six techniques classic sudoku is defined by. The variant
-    /// ones are inert on a classic board, but the distinction is worth being
-    /// able to state rather than infer from a rank comparison.
-    public var isClassic: Bool { rank <= Technique.xWing.rank }
+    /// True for the techniques classic sudoku is defined by.
+    ///
+    /// This used to be `rank <= Technique.xWing.rank`, and PRD-25 is what made
+    /// that wrong: rank is **append-only** (it is inside 56 golden hashes), so
+    /// four classic techniques added after PRD-23's variant block sort *above*
+    /// it. An exhaustive switch with no `default` is the version that cannot
+    /// drift — appending a case stops compiling until someone says which side
+    /// it is on, which is the question a `default` answers silently and often
+    /// wrongly.
+    public var isClassic: Bool {
+        switch self {
+        case .nakedSingle, .hiddenSingle, .nakedPair, .hiddenPair,
+             .boxLineReduction, .xWing,
+             .swordfish, .skyscraper, .xyWing, .simpleColoring:
+            return true
+        case .cageSingle, .thermoBound, .innieOutie, .cageCombination:
+            return false
+        }
+    }
 
     public static func < (lhs: Technique, rhs: Technique) -> Bool {
         lhs.rank < rhs.rank
@@ -96,9 +123,57 @@ public struct Elimination: Sendable, Codable, Equatable, Hashable {
     }
 }
 
+/// What one pattern cell *does* in its deduction (trace schema v2).
+///
+/// The vocabulary is fixed by PROGRAM-2.0 and is deliberately about rendering,
+/// not about solving: the coach draws a base differently from a pivot. A
+/// technique that has nothing to say here says nothing — `SolveStep.roles` is
+/// nil, which is the case for all six frozen classic techniques.
+public enum StepRole: String, Sendable, Codable, Equatable, CaseIterable {
+    /// A cell of the defining set — a fish corner, a coloring-chain member.
+    case base
+    /// A cell of the covering set — a skyscraper roof, an XY-wing pincer.
+    case cover
+    /// The single cell the deduction turns on.
+    case pivot
+    /// A pattern cell that is also losing a candidate. Only coloring's wrap
+    /// rule produces one: there the chain cells *are* the victims.
+    case victim
+}
+
+/// One link of a single-digit inference chain (trace schema v2).
+///
+/// Emitted only by `simpleColoring`, whose whole animation is the chain being
+/// walked. `isStrong` is the difference between "exactly one of these two" and
+/// "not both", and the coach draws them differently because they mean
+/// different things.
+public struct StepLink: Sendable, Codable, Equatable {
+    public let from: Int
+    public let to: Int
+    public let isStrong: Bool
+
+    public init(from: Int, to: Int, isStrong: Bool) {
+        self.from = from
+        self.to = to
+        self.isStrong = isStrong
+    }
+}
+
 /// One explained solver step: the technique, the cells that define the
 /// pattern, the digits involved, and its effect (a placement and/or a set of
 /// candidate eliminations). Codable — round-trips through `CouchJSON`.
+///
+/// **Schema v2 is additive and provably free** (Phase 0 §4). `roles` and
+/// `chain` are `Optional` and are nil for every step the six frozen classic
+/// techniques emit, so Swift's synthesized encoder — which spells an optional
+/// property `encodeIfPresent` — omits both keys and the encoded bytes of a
+/// classic trace do not move. That is not an argument, it is what
+/// `GoldenCorpusTests` re-checks on every commit; the third of PROGRAM-2.0's
+/// three v2 fields, `techniqueID`, was already shipped as a *deletion* when
+/// PRD-20 found the raw values were the frozen identity.
+///
+/// Decode is `decodeIfPresent`, so an older build reading a newer trace drops
+/// both and loses nothing that matters: they are derivable from the step.
 public struct SolveStep: Sendable, Codable, Equatable {
     public let technique: Technique
     /// Cells that form the pattern (the single cell, the pair, the X-wing
@@ -108,19 +183,54 @@ public struct SolveStep: Sendable, Codable, Equatable {
     public let digits: [Int]
     public let placement: Placement?
     public let eliminations: [Elimination]
+    /// Parallel to `cells` when present, and only present when the technique
+    /// has more than one kind of cell to show. Nil is "every cell is pattern".
+    public let roles: [StepRole]?
+    /// The inference chain the deduction walked, when it walked one.
+    public let chain: [StepLink]?
 
     public init(
         technique: Technique,
         cells: [Int],
         digits: [Int],
         placement: Placement? = nil,
-        eliminations: [Elimination] = []
+        eliminations: [Elimination] = [],
+        roles: [StepRole]? = nil,
+        chain: [StepLink]? = nil
     ) {
         self.technique = technique
         self.cells = cells
         self.digits = digits
         self.placement = placement
         self.eliminations = eliminations
+        // A roles array that does not line up with `cells` is worse than none:
+        // the coach indexes them together. Refuse it here rather than let a
+        // caller ship a mislabelled board.
+        self.roles = (roles?.count == cells.count) ? roles : nil
+        self.chain = chain
+    }
+
+    /// The role of the cell at `index` in `cells`. `.base` when the step names
+    /// no roles, which is what "every cell is pattern" means.
+    public func role(at index: Int) -> StepRole {
+        guard let roles, roles.indices.contains(index) else { return .base }
+        return roles[index]
+    }
+
+    /// Tolerant by construction: the two v2 keys are optional on the wire, so a
+    /// trace written by a build that never heard of them decodes unchanged.
+    /// Everything else still throws, because a step whose *shape* is wrong is
+    /// junk and `BoardLibrary` quarantines the entry that holds it.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        technique = try c.decode(Technique.self, forKey: .technique)
+        cells = try c.decode([Int].self, forKey: .cells)
+        digits = try c.decode([Int].self, forKey: .digits)
+        placement = try c.decodeIfPresent(Placement.self, forKey: .placement)
+        eliminations = try c.decode([Elimination].self, forKey: .eliminations)
+        let decodedRoles = (try? c.decodeIfPresent([StepRole].self, forKey: .roles)) ?? nil
+        roles = (decodedRoles?.count == cells.count) ? decodedRoles : nil
+        chain = (try? c.decodeIfPresent([StepLink].self, forKey: .chain)) ?? nil
     }
 }
 
@@ -257,6 +367,10 @@ public enum LogicSolver {
             case .thermoBound: step = thermoBound(state)
             case .innieOutie: step = innieOutie(state)
             case .cageCombination: step = cageCombination(state)
+            case .swordfish: step = swordfish(state)
+            case .skyscraper: step = skyscraper(state)
+            case .xyWing: step = xyWing(state)
+            case .simpleColoring: step = simpleColoring(state)
             }
             if let step { return step }
         }
@@ -446,7 +560,43 @@ public enum LogicSolver {
     }
 
     private static func xWing(_ state: CandidateState) -> SolveStep? {
-        // Row-based, then column-based.
+        fish(state, size: 2, technique: .xWing)
+    }
+
+    private static func swordfish(_ state: CandidateState) -> SolveStep? {
+        fish(state, size: 3, technique: .swordfish)
+    }
+
+    /// The fish family, one loop: **X-wing is `fish(size: 2)` and swordfish is
+    /// `fish(size: 3)`.**
+    ///
+    /// The argument is the same at every size. Pick `size` base lines in which a
+    /// digit's candidates occupy only `size` cross positions between them. The
+    /// digit needs one home per base line and has only `size` columns to put
+    /// them in, so those columns are used up — and every *other* cell in them
+    /// loses the digit.
+    ///
+    /// **`fish(2)` must emit the bytes the frozen `xWing` emitted**, because a
+    /// classic trace is inside 56 golden hashes and inside every stored
+    /// `NineGame`. Three things make that true rather than hoped for, and each
+    /// is a property of this code rather than of a test:
+    ///
+    ///  • base lines are enumerated lexicographically, so `(b1, b2)` arrives in
+    ///    the order the nested loops produced;
+    ///  • at size 2 the membership filter below is a no-op — a base line whose
+    ///    two candidates lie inside a two-position union *is* that union — so
+    ///    the corner list is the same list, in the same order;
+    ///  • eliminations are still swept base-major then cross.
+    ///
+    /// `FishDelegationTests` re-checks it against a verbatim copy of the
+    /// pre-PRD-25 implementation, on states the golden corpus never reaches.
+    /// The corpus says *that* generation moved; that test says *where*.
+    ///
+    /// Rows first, then columns, at every size — again because that is the
+    /// order the frozen version searched.
+    private static func fish(
+        _ state: CandidateState, size: Int, technique: Technique
+    ) -> SolveStep? {
         for baseIsRow in [true, false] {
             for digit in 1...9 {
                 let bit = Sudoku.bit(digit)
@@ -460,34 +610,66 @@ public enum LogicSolver {
                         }
                     }
                 }
-                for b1 in 0..<8 where crossSets[b1].nonzeroBitCount == 2 {
-                    for b2 in (b1 + 1)..<9 where crossSets[b2] == crossSets[b1] {
-                        let crosses = Sudoku.digits(in: crossSets[b1]) // set-bit positions
-                        var corners: [Int] = []
-                        for base in [b1, b2] {
-                            for cross in crosses {
-                                corners.append(baseIsRow ? base * 9 + cross : cross * 9 + base)
-                            }
-                        }
-                        var eliminations: [Elimination] = []
-                        for base in 0..<9 where base != b1 && base != b2 {
-                            for cross in crosses {
-                                let cell = baseIsRow ? base * 9 + cross : cross * 9 + base
-                                if state.candidates[cell] & bit != 0 {
-                                    eliminations.append(Elimination(cell: cell, digit: digit))
-                                }
-                            }
-                        }
-                        if !eliminations.isEmpty {
-                            return SolveStep(
-                                technique: .xWing, cells: corners,
-                                digits: [digit], eliminations: eliminations
-                            )
+                // A base line with fewer than two homes for the digit is a
+                // single dressed as a fish; one with more than `size` cannot
+                // fit inside any union of that width. Neither can contribute.
+                let usable = (0..<9).filter {
+                    (2...size).contains(crossSets[$0].nonzeroBitCount)
+                }
+                guard usable.count >= size else { continue }
+
+                var found: SolveStep?
+                combinations(of: usable, choose: size) { bases in
+                    var union: UInt16 = 0
+                    for base in bases { union |= crossSets[base] }
+                    guard union.nonzeroBitCount == size else { return false }
+
+                    let crosses = Sudoku.digits(in: union) // set-bit positions
+                    var corners: [Int] = []
+                    for base in bases {
+                        for cross in crosses where crossSets[base] & (UInt16(1) << UInt16(cross)) != 0 {
+                            corners.append(baseIsRow ? base * 9 + cross : cross * 9 + base)
                         }
                     }
+                    var eliminations: [Elimination] = []
+                    for base in 0..<9 where !bases.contains(base) {
+                        for cross in crosses {
+                            let cell = baseIsRow ? base * 9 + cross : cross * 9 + base
+                            if state.candidates[cell] & bit != 0 {
+                                eliminations.append(Elimination(cell: cell, digit: digit))
+                            }
+                        }
+                    }
+                    guard !eliminations.isEmpty else { return false }
+                    found = SolveStep(
+                        technique: technique, cells: corners,
+                        digits: [digit], eliminations: eliminations
+                    )
+                    return true
                 }
+                if let found { return found }
             }
         }
         return nil
+    }
+
+    /// Every `choose`-sized combination of `items`, in lexicographic order,
+    /// stopping the moment `body` returns true. Iterative and allocation-light
+    /// because it runs inside the solver's hot loop.
+    private static func combinations(
+        of items: [Int], choose: Int, _ body: ([Int]) -> Bool
+    ) {
+        guard choose > 0, items.count >= choose else { return }
+        var index = Array(0..<choose)
+        var picked = [Int](repeating: 0, count: choose)
+        while true {
+            for slot in 0..<choose { picked[slot] = items[index[slot]] }
+            if body(picked) { return }
+            var slot = choose - 1
+            while slot >= 0 && index[slot] == items.count - choose + slot { slot -= 1 }
+            if slot < 0 { return }
+            index[slot] += 1
+            for next in (slot + 1)..<choose { index[next] = index[next - 1] + 1 }
+        }
     }
 }

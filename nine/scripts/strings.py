@@ -1140,6 +1140,10 @@ COMMENTS = {
     "technique.thermoBound.name": "Thermometer-sudoku technique name, coach card heading: digits must increase along a thermometer, which bounds each bulb.",
     "technique.innieOutie.name": "Killer-sudoku technique name, coach card heading. Known in English as the rule of 45, because a row, column or box always sums to 45. Use this language's established term.",
     "technique.cageCombination.name": "Killer-sudoku technique name, coach card heading: only some digit combinations reach a cage's sum.",
+    "technique.swordfish.name": "Sudoku technique name, coach card heading. The three-line member of the X-Wing family. A term of art like X-Wing — usually kept, occasionally calqued (German \"Schwertfisch\"); do not describe it.",
+    "technique.skyscraper.name": "Sudoku technique name, coach card heading: two lines sharing one column, with two ends of unequal height. A term of art; calque it (\"Wolkenkratzer\") only if that is the established local term.",
+    "technique.xyWing.name": "Sudoku technique name, coach card heading. Almost always left as \"XY-Wing\" — a term of art, and the letters are the digit names in the pattern, not English words.",
+    "technique.simpleColoring.name": "Sudoku technique name, coach card heading: colour one digit's forced pairs in two alternating colours. Use this language's established term; \"colouring\" is the English one.",
 
     # First-week tips (PRD-34). Three for the lifetime of the install, so each
     # one is a player's only instruction on that feature. One sentence, calm,
@@ -1704,6 +1708,24 @@ def english_localization(key, english, plurals, substitutions):
     return {"stringUnit": {"state": "translated", "value": english}}
 
 
+def _uses_xcode_spacing(catalog):
+    """True when the catalog on disk separates keys from values Xcode's way.
+
+    Read from the first line that can show it rather than parsed, because the
+    whole question is about bytes that JSON throws away.
+    """
+    try:
+        with open(catalog, encoding="utf-8") as handle:
+            for line in handle:
+                if '" : ' in line:
+                    return True
+                if '": ' in line:
+                    return False
+    except OSError:
+        pass
+    return True
+
+
 def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
     """Regenerate the catalog's `en` locale from `EnglishPhrases.table`.
 
@@ -1785,14 +1807,27 @@ def build_catalog(catalog=CATALOG, phrases=ENGLISH_PHRASES, dry_run=False):
 
     removed = sorted(set(previous) - set(strings))
     document = {"sourceLanguage": "en", "strings": strings, "version": "1.0"}
+
     if not dry_run:
         os.makedirs(os.path.dirname(catalog), exist_ok=True)
+        # Sniffed BEFORE the file is opened for writing: `open(…, "w")`
+        # truncates, so reading it inside the block reads an empty file and
+        # silently takes the default.
+        separator = " : " if _uses_xcode_spacing(catalog) else ": "
         with open(catalog, "w", encoding="utf-8") as handle:
-            # Xcode's own formatting: 2-space indent, `" : "` between key and
-            # value, keys sorted, no ASCII escaping. Matching it means Xcode
-            # opening the catalog does not rewrite the whole file.
+            # 2-space indent, keys sorted, no ASCII escaping — and whichever
+            # key/value separator the file on disk already uses.
+            #
+            # Xcode writes `"key" : value` and everything else on earth writes
+            # `"key": value`, and PRD-20's translation passes left the committed
+            # catalog in the second form. Hard-coding either one means the next
+            # `--build-catalog` emits a **41,000-line whitespace diff** with the
+            # four real new rows buried inside it, which is a review that does
+            # not happen. Preserving what is there makes a regeneration diff as
+            # its content in both directions; a brand-new catalog still gets
+            # Xcode's form, because that is what Xcode would do to it anyway.
             json.dump(document, handle, indent=2, sort_keys=True,
-                      separators=(",", " : "), ensure_ascii=False)
+                      separators=(",", separator), ensure_ascii=False)
             handle.write("\n")
     return added, changed, removed
 
