@@ -8,7 +8,7 @@
 // mirroring — on macOS the Application Support path resolves inside the App
 // Sandbox container), which is what lets a universal app share one save
 // format across every platform.
-#if os(tvOS) || os(iOS) || os(macOS)
+#if os(tvOS) || os(iOS) || os(macOS) || os(watchOS)
 import SwiftUI
 import CouchCore
 

@@ -6,12 +6,19 @@
 //
 //   ⚠️ If Liquid Glass API names differ in your SDK, fix them HERE only.
 //
-// On tvOS/iOS/macOS 26+ we use `.glassEffect(.regular, in:)` and
-// `GlassEffectContainer`. Below 26 (deployment targets tvOS 18 / macOS 15)
-// we fall back to `.ultraThinMaterial` plus a subtle stroke — same
+// On tvOS/iOS/macOS/watchOS 26+ we use `.glassEffect(.regular, in:)` and
+// `GlassEffectContainer`. Below 26 (deployment targets tvOS 18 / macOS 15 /
+// watchOS 11) we fall back to `.ultraThinMaterial` plus a subtle stroke — same
 // silhouette, no lensing. The material path carries the macOS build until
 // Liquid Glass ships there.
-#if os(tvOS) || os(iOS) || os(macOS)
+//
+// **Every `#available` here must name every platform this file compiles for.**
+// The trailing `*` means "at the deployment target on anything not listed", so
+// omitting watchOS did not read as "fall back on the watch" — it read as
+// "available on watchOS 11", and the fallback branch became unreachable. The
+// compiler caught it on `GlassEffectContainer` (PRD-6 Task 1); it would not
+// have caught a modifier that merely does nothing.
+#if os(tvOS) || os(iOS) || os(macOS) || os(watchOS)
 import SwiftUI
 
 extension View {
@@ -19,7 +26,7 @@ extension View {
     /// Use instead of any direct material/glass call.
     @ViewBuilder
     public func couchGlass(in shape: some Shape) -> some View {
-        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, watchOS 26.0, *) {
             self.glassEffect(.regular, in: shape)
         } else {
             self
@@ -37,7 +44,7 @@ extension View {
     /// tvOS 26 the glass responds to focus with specular movement.
     @ViewBuilder
     public func couchGlassInteractive(in shape: some Shape) -> some View {
-        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, watchOS 26.0, *) {
             self.glassEffect(.regular.interactive(), in: shape)
         } else {
             self
@@ -60,7 +67,7 @@ public struct CouchGlassContainer<Content: View>: View {
     }
 
     public var body: some View {
-        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, *) {
+        if #available(tvOS 26.0, iOS 26.0, macOS 26.0, watchOS 26.0, *) {
             GlassEffectContainer(spacing: spacing) {
                 content
             }
