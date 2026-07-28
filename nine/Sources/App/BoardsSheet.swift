@@ -15,6 +15,8 @@ struct BoardsSheetContent: View {
     var onClose: (@MainActor () -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    /// PRD-26: which past solve's debrief is open over this sheet, if any.
+    @State private var debriefBoard: UUID?
 
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
@@ -58,6 +60,7 @@ struct BoardsSheetContent: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .overlay { debriefOverlay }
     }
 
     private var header: some View {
@@ -202,11 +205,47 @@ struct BoardsSheetContent: View {
                     .monospacedDigit()
             }
             Spacer(minLength: 8)
+            // PRD-26. Only on a board that actually left a replay, so the
+            // control is never a promise the record cannot keep — and the
+            // debrief stops being a thing you can see for thirty seconds after
+            // a solve and never again.
+            if model.replays.replay(for: entry.id) != nil {
+                iconButton("sparkles", label: DebriefPhrase.replay) {
+                    debriefBoard = entry.id
+                }
+            }
             iconButton("xmark.circle.fill", label: Strings.string("boards.row.delete")) {
                 model.deleteEntry(id: entry.id)
             }
         }
         .padding(.vertical, 4 * s)
+    }
+
+    /// The debrief for a past solve, over the sheet that opened it.
+    ///
+    /// An overlay rather than a nested sheet: a sheet inside a `GlassSheet` is
+    /// two scrims and two dismiss gestures for one card, and on tvOS the focus
+    /// engine has to be handed between them.
+    @ViewBuilder
+    private var debriefOverlay: some View {
+        if let id = debriefBoard,
+           let debrief = model.debrief(for: id),
+           let replay = model.replays.replay(for: id) {
+            ZStack {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { debriefBoard = nil }
+                DebriefCardContent(
+                    debrief: debrief,
+                    replay: replay,
+                    tones: model.prefs.theme.tones(for: colorScheme),
+                    accent: accent,
+                    onClose: { debriefBoard = nil }
+                )
+            }
+            .transition(.opacity)
+        }
     }
 
     // MARK: - Bits

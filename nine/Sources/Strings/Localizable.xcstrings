@@ -10450,13 +10450,67 @@
       }
     },
     "debrief.close": {
-      "comment": "VoiceOver label for the control that dismisses the debrief card. The exact opposite of debrief.open, using the same noun.",
+      "comment": "VoiceOver label for the control that dismisses the debrief card. The exact opposite verb of debrief.open, with the same noun phrase from debrief.title.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deine Lösung ausblenden"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hide debrief"
+            "value": "Hide your solve"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ocultar tu resolución"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Masquer ta résolution"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nascondi la tua soluzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなたの解答を隠す"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나의 풀이 숨기기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jouw oplossing verbergen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ocultar sua resolução"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "隐藏你的解法"
           }
         }
       }
@@ -10465,6 +10519,24 @@
       "comment": "One of three counts on the debrief card: erasures and undos. Deliberately neutral — a solve with many corrections is a longer look, not a worse solve, so avoid any word implying error or mistake. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Korrektur"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Korrekturen"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -10482,6 +10554,156 @@
               }
             }
           }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correcciones"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld corrección"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correcciones"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld corrections"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correction"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld corrections"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correzioni"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correzione"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correzioni"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld 回の修正"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "수정 %1$lld회"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correctie"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correcties"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correções"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correção"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld correções"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "修改 %1$lld 次"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -10489,22 +10711,130 @@
       "comment": "Shown in place of the comet when this solve has no recorded move log to replay (an older board, or one solved on another device). A plain statement, not an apology or an error.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nichts zum Wiedergeben"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Nothing to replay"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nada que repetir"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rien à rejouer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Niente da rivedere"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "再生できる記録はありません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "다시 볼 기록이 없습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Niets om te herhalen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nada para repetir"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "没有可回放的记录"
+          }
         }
       }
     },
     "debrief.fastest": {
-      "comment": "Debrief line naming the 3x3 box the player filled with the least hesitation. %1$@ is already-translated text like \"Box 4\" (board.unit.box). The separator is a middle dot. \"Region\" means one of the nine 3x3 boxes.",
+      "comment": "Debrief line naming the 3x3 box the player filled with the least hesitation. %1$@ is already-translated text like \"Box 4\" (board.unit.box). The separator is a middle dot. English says \"region\" because it is a different word from \"Box\"; if your language would repeat board.unit.box's noun here, drop the noun instead (\"Fastest - Block 4\") rather than saying it twice.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Am schnellsten · %1$@"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Fastest region · %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lo más rápido · %1$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le plus rapide · %1$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Il più veloce · %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "最速 · %1$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "가장 빠른 곳 · %1$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Het snelst · %1$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mais rápido · %1$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "最快 · %1$@"
           }
         }
       }
@@ -10513,10 +10843,64 @@
       "comment": "The one congratulatory sentence in the whole app, shown only when the player resolved a cell with a technique harder than a single. %1$@ is a technique name (already translated, e.g. technique.xWing.name); %2$lld is which placement it was, counting only committed digits. Warm but quiet — this is not a trophy.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Du hast %1$@ bei Zug %2$lld gefunden"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "You found the %1$@ at move %2$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Encontraste %1$@ en la jugada %2$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tu as trouvé %1$@ au coup %2$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hai trovato %1$@ alla mossa %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%2$lld手目で%1$@を見つけました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%2$lld번째 수에서 %1$@을(를) 찾았습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Je vond %1$@ bij zet %2$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Você encontrou %1$@ na jogada %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你在第 %2$lld 步找到了%1$@"
           }
         }
       }
@@ -10525,10 +10909,64 @@
       "comment": "Debrief line naming the cell the player kept coming back to before finally filling it. %1$@ is already-translated text like \"Row 3, column 5\" (board.cell.label). \"Circled\" is figurative — the player circled around it, returning again and again. The separator is a middle dot.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Am längsten umkreist · %1$@"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Longest circled · %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Más rondado · %1$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le plus tourné autour · %1$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Più a lungo rimuginato · %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "最も長く迷った場所 · %1$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "가장 오래 맴돈 칸 · %1$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Langst omcirkeld · %1$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mais rondado · %1$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "最久徘徊 · %1$@"
           }
         }
       }
@@ -10537,6 +10975,24 @@
       "comment": "One of three counts on the debrief card: pencil marks written. \"Notes\" are the small candidate digits in a cell's corner — match game.autoNotes.chip. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Notiz"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Notizen"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -10554,17 +11010,221 @@
               }
             }
           }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notas"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld nota"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notas"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notes"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld note"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notes"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld note"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld nota"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld note"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld 件のメモ"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "메모 %1$lld개"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notitie"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld notities"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld anotações"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld anotação"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld anotações"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld 条笔记"
+                }
+              }
+            }
+          }
         }
       }
     },
     "debrief.open": {
-      "comment": "VoiceOver label for the control that pulls the debrief card up. Imperative verb plus the card's name; match debrief.title's noun.",
+      "comment": "VoiceOver label for the control that pulls the debrief card up. Imperative verb plus the card's own heading — use exactly the words of debrief.title, so the control and the card it opens name the same thing.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deine Lösung zeigen"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show debrief"
+            "value": "Show your solve"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mostrar tu resolución"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Afficher ta résolution"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mostra la tua soluzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなたの解答を表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나의 풀이 보기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jouw oplossing tonen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mostrar sua resolução"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "显示你的解法"
           }
         }
       }
@@ -10573,6 +11233,24 @@
       "comment": "One of three counts on the debrief card, joined by middle dots: how many digits the player committed over the whole solve, corrections included. Neutral — this is not a score and nothing is being judged. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Ziffer gesetzt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Ziffern gesetzt"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -10590,6 +11268,156 @@
               }
             }
           }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígitos colocados"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígito colocado"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígitos colocados"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld chiffres placés"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld chiffre placé"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld chiffres placés"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld cifre inserite"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld cifra inserita"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld cifre inserite"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld 個の数字を記入"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "숫자 %1$lld개 놓음"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld cijfer geplaatst"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld cijfers geplaatst"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígitos colocados"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígito colocado"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld dígitos colocados"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "填入 %1$lld 个数字"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -10597,10 +11425,64 @@
       "comment": "Button that plays the comet — an animated retrace of the player's own solve — on the debrief card. A noun or a short imperative verb.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Wiedergabe"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Replay"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Repetición"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rejouer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Replay"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "リプレイ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "다시 보기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Herhaling"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Replay"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "回放"
           }
         }
       }
@@ -10609,10 +11491,64 @@
       "comment": "Heading of the post-solve debrief card. Possessive: the solve belongs to the player. Two or three words.",
       "extractionState": "manual",
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deine Lösung"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Your solve"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tu resolución"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ta résolution"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La tua soluzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなたの解答"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나의 풀이"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jouw oplossing"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sua resolução"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你的解法"
           }
         }
       }
@@ -26921,6 +27857,72 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "shelf.replays.subtitle": {
+      "comment": "Subtitle of the Apple TV shelf's Replays tile, which opens an ambient screen replaying the player's own finished boards. \"Retraced\" means drawn again, following the same path. A fragment, not a sentence.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deine Lösungen, nachgezeichnet"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your solves, retraced"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tus resoluciones, retrazadas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tes résolutions, retracées"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le tue soluzioni, ripercorse"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなたの解答をなぞる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나의 풀이를 되짚어 보기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jouw oplossingen, nagetekend"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suas resoluções, retraçadas"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你的解法，重新描摹"
           }
         }
       }
