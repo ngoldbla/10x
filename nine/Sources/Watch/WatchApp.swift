@@ -63,7 +63,12 @@ struct WatchRootView: View {
         // `NineApp`, so a tinted theme pins its leaning here too.
         .environment(\.nineTheme, model.theme)
         .preferredColorScheme(model.theme.colorScheme)
-        .tint(model.accentChoice.color)
+        // Deliberately no app-wide `.tint`. watchOS 26 draws a toolbar button
+        // as a filled glass disc, so tinting the root made the back chevron a
+        // vivid accent-coloured circle that out-shouted the board — an
+        // idle-pixel-test failure on the one screen the player is thinking on.
+        // The accent is applied where it carries meaning: the progress arc,
+        // the cursor, the entries the player placed.
         .task(id: model.solvedAt) {
             guard model.solvedAt != nil else { return }
             await WatchCelebration.play()
@@ -92,6 +97,7 @@ struct WatchRootView: View {
                 model.screen = .board
             }) {
                 Image(systemName: "chevron.left")
+                    .foregroundStyle(.secondary)
             }
             .accessibilityLabel(Text(Strings.string("watch.nav.map")))
         }

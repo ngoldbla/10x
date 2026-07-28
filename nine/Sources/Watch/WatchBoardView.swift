@@ -35,9 +35,11 @@ struct WatchBoardView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .ignoresSafeArea()
-        .navigationTitle(Text(Strings.string("watch.app.name")))
-        .navigationBarTitleDisplayMode(.inline)
+        // NOT `ignoresSafeArea`. The first build did, and the board drew
+        // underneath the clock and the title — rows 1 and 2 sat behind them,
+        // which on a board where every cell matters is not a cosmetic problem.
+        // The watch's safe area is the readable area; the board takes exactly
+        // it (PRD-6 Task 7).
         .toolbar { fillArc }
     }
 
@@ -126,10 +128,11 @@ struct WatchBoardView: View {
     private var fillArc: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             if let game = model.game {
+                // System-sized. A `scaleEffect` here shrank the drawing but not
+                // the slot, so the arc floated in a circle twice its size.
                 Gauge(value: game.fillFraction) { EmptyView() }
                     .gaugeStyle(.accessoryCircularCapacity)
                     .tint(model.accentChoice.color)
-                    .scaleEffect(0.5)
                     .accessibilityLabel(Text(BoardSpeech.progressSummary(game)))
             }
         }

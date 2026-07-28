@@ -219,3 +219,27 @@ fails signing (PRD-3 §3a):
    entries; the tvOS leg is unchanged.
 
 Verify with `fastlane beta app:nine platform:ios upload:false`.
+
+## The watch app (Nine iOS, one-time — REQUIRED BEFORE MERGING PRD-6)
+
+Nine iOS now embeds `NineWatch` (`com.couchsuite.nine.watchkitapp`), whose only
+entitlement is iCloud key-value storage pinned to the *app's* identifier. Same
+hazard as the widget, and the same order — **embedding a new bundle changes the
+iOS archive's profile set, so the existing `com.couchsuite.nine` profile must be
+re-minted before the next CI run or the nine/iOS leg fails signing, which takes
+`beta_all` and the other four apps with it.**
+
+1. **Portal (manual):** register App ID `com.couchsuite.nine.watchkitapp` and
+   enable **iCloud** on it (key-value store). No app group, no CloudKit, no
+   push — the watch declares none of them.
+2. **Re-mint writable match (local, one-time):** `source signing.env &&
+   fastlane match appstore`. The Matchfile already lists the watch bundle id.
+   CI stays `readonly: true` and can mint nothing.
+3. Verify: `fastlane beta app:nine platform:ios upload:false` must resolve
+   three profiles — app, widget, watch — and export.
+4. Merge.
+
+No new lane and no new platform value: a watch app ships *inside* the iOS ipa,
+so `beta app:nine platform:ios` already carries it, and `CURRENT_PROJECT_VERSION`
+rides the same project-wide xcargs, which is what keeps the embedded watch app's
+version in lockstep with its host (ASC rejects them otherwise).

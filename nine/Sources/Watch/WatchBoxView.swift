@@ -39,13 +39,40 @@ struct WatchBoxView: View {
         )
     }
 
+    /// How far each strip starts past the other's corner. One number, so the
+    /// two cannot be tuned apart.
+    private let railInset: CGFloat = 16
+
+    /// The cell the rails describe: the selection, or — before anything is
+    /// selected — the box's own top-left, so the strips are never blank and
+    /// never lie about which cell they belong to.
+    private var railCell: Int { model.selection ?? (box / 3) * 27 + (box % 3) * 3 }
+
     @ViewBuilder
     private var furniture: some View {
         if let game {
+            // Pinned to the real edges rather than centred, and each inset past
+            // the other's corner. Three things were measured on a 45mm screen
+            // before these numbers existed (PRD-6 Task 7): centred strips run
+            // off the sides, edge-flush strips lose their ends to the rounded
+            // corner, and two strips both starting at (0, 0) print the row on
+            // top of the column.
+            VStack(spacing: 0) {
+                rail(PeerRails.row(of: railCell, in: game),
+                     axis: .horizontal,
+                     label: Strings.string("watch.rail.row"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, railInset)
+                Spacer(minLength: 0)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+
             HStack(spacing: 0) {
-                rail(PeerRails.column(of: model.selection ?? box * 3, in: game),
+                rail(PeerRails.column(of: railCell, in: game),
                      axis: .vertical,
                      label: Strings.string("watch.rail.column"))
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, railInset)
                 Spacer(minLength: 0)
                 CrownRose(
                     game: game,
@@ -57,14 +84,9 @@ struct WatchBoxView: View {
                         model.commitDial()
                     }
                 )
-                .frame(width: 22 * CouchScale.chrome / 0.42)
+                .frame(width: 18)
             }
-            VStack(spacing: 0) {
-                rail(PeerRails.row(of: model.selection ?? box * 3, in: game),
-                     axis: .horizontal,
-                     label: Strings.string("watch.rail.row"))
-                Spacer(minLength: 0)
-            }
+            .padding(.horizontal, 1)
         }
     }
 
@@ -83,7 +105,11 @@ struct WatchBoxView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(2)
+        // A readable ground, so a strip laid over the board's own digits stays
+        // a strip rather than becoming more digits.
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .background(.black.opacity(0.55), in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(label))
         .accessibilityValue(Text(railValue(digits)))

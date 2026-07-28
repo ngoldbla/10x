@@ -305,6 +305,14 @@ targets:
         # The modern single-target marker. Without it the bundle is treated as
         # a legacy WatchKit app and refuses to launch.
         WKApplication: true
+        # **Required, despite the "embedding is the whole association" story.**
+        # A watch app must declare itself either watch-only (`WKWatchOnly`) or
+        # paired to a companion by bundle id; there is no third state, and
+        # omitting both is not "modern", it is malformed. Nothing catches it at
+        # build time — `xcodebuild` succeeds, the .app appears in
+        # Debug-watchsimulator, and `simctl install` is the first thing in the
+        # chain that refuses. Found by installing it (PRD-6 Task 7).
+        WKCompanionAppBundleIdentifier: com.couchsuite.nine
         # The watch app runs with the phone out of range — the whole point of
         # the Gentle fallback (PRD-6 §2.4, and D6 of the plan).
         WKRunsIndependentlyOfCompanionApp: true
