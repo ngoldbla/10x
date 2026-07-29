@@ -272,7 +272,20 @@ public struct BoardLibrary: Codable, Sendable, Equatable {
         // rather than an array: no element list, so there is nothing to preserve.
         guard let raw = try? container.decode([RawLibraryEntry].self, forKey: .entries) else { return }
         for element in raw {
-            if let entry = element.entry {
+            if var entry = element.entry {
+                // A running timer surviving into a decode means whatever wrote
+                // this blob never got to pause it honestly — a killed process,
+                // or someone else's write arriving here first. `updatedAt` is
+                // stamped by `persistProgress()` on every move, so it is the
+                // last instant this entry's play is provably real; capping the
+                // open run there (rather than trusting it open) credits that
+                // play and drops everything since as away-time. This seam is
+                // below every reader — `startEntry`, BoardsSheet tiles, the
+                // widget bridge, cloud-arrived entries — so closing a foreign
+                // stale run here is correct under last-writer-wins.
+                if entry.game.timer.isRunning {
+                    entry.game.timer.closeOpenRun(notLaterThan: entry.updatedAt)
+                }
                 entries.append(entry)
             } else {
                 quarantined.append(QuarantinedEntry(element.raw ?? .null))

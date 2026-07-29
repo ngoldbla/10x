@@ -120,9 +120,12 @@ public struct SolveReplay: Sendable, Equatable, Codable {
     /// decision worth defending. An absolute UInt16 of deciseconds tops out at
     /// 6553 s — 109 minutes — which a leisurely Abyss can genuinely exceed, and
     /// the failure mode is every move after the ceiling collapsing onto the
-    /// same instant. A *delta* of 109 minutes is a gap no session contains,
-    /// because `ElapsedTimer` pauses when the app leaves the foreground, so the
-    /// saturation below is unreachable in practice rather than merely unlikely.
+    /// same instant. A *delta* of 109 minutes needs a session that idles that
+    /// long between two played moves — the reload path already caps a timer
+    /// left running at its last provable instant (`ElapsedTimer.closeOpenRun`),
+    /// and pausing a live, merely-backgrounded clock is a separate, later fix
+    /// — so the saturation below is unreachable in practice rather than
+    /// merely unlikely.
     /// Total elapsed time is unbounded either way: it is the prefix sum.
     static let magic: [UInt8] = [0x4E, 0x39, 0x52] // "N9R"
     static let version: UInt8 = 1

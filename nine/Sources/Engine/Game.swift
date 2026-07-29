@@ -377,6 +377,18 @@ public struct ElapsedTimer: Sendable, Codable, Equatable {
         runningSince = nil
     }
 
+    /// Close a run that was left open by something other than an honest
+    /// `pause` — a process that died, or a load that finds `runningSince`
+    /// still set. `pause` trusts its instant because the caller was watching
+    /// the whole interval; here nobody was, so the gap since `since` is not
+    /// provable play and is capped at `cap` — the last instant this entry's
+    /// state is actually known to be current — rather than credited in full.
+    public mutating func closeOpenRun(notLaterThan cap: Date) {
+        guard let since = runningSince else { return }
+        accumulated += max(0, cap.timeIntervalSince(since))
+        runningSince = nil
+    }
+
     public func elapsed(at now: Date) -> TimeInterval {
         guard let since = runningSince else { return accumulated }
         return accumulated + max(0, now.timeIntervalSince(since))

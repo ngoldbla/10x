@@ -808,6 +808,11 @@ final class AppModel {
         guard let entry = library.entry(id: id) else { return }
         currentEntryID = id
         var g = entry.game
+        // Belt-and-braces: the library decode seam already closes a stale
+        // open run, but an entry can also go stale purely in memory (loaded
+        // once, left alone while another entry played) without ever passing
+        // back through decode. Cap it here too before trusting `start`.
+        g.timer.closeOpenRun(notLaterThan: entry.updatedAt)
         g.timer.start(at: Date())
         self.game = g
         self.kind = entry.kind

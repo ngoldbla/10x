@@ -161,4 +161,24 @@ struct BoardLibraryTests {
         let daily = try dec.decode(GameKind.self, from: Data(#"{"daily":{"day":9}}"#.utf8))
         #expect(daily == .daily(day: 9))
     }
+
+    // MARK: stale open runs
+
+    @Test func decodeClosesAStaleRunningTimerCappedAtUpdatedAt() throws {
+        // Simulate a process that died mid-run: the timer is still open when
+        // the entry is persisted, `updatedAt` (stamped by `persistProgress()`
+        // on the move that started the run) is the last provable instant.
+        var g = game()
+        g.timer.start(at: t(0))
+        var lib = BoardLibrary()
+        let id = lib.create(kind: .free(.gentle), game: g, now: t(100))
+
+        let data = try JSONEncoder().encode(lib)
+        let decoded = try JSONDecoder().decode(BoardLibrary.self, from: data)
+
+        let entry = try #require(decoded.entry(id: id))
+        #expect(!entry.game.timer.isRunning, "the decode seam closes the open run")
+        // Capped at updatedAt (t(100)), not at whatever moment the test reads it.
+        #expect(abs(entry.game.timer.elapsed(at: t(1_000_000)) - 100) < 0.0001)
+    }
 }
