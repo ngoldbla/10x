@@ -823,13 +823,16 @@ final class AppModel {
         // once, left alone while another entry played) without ever passing
         // back through decode. Cap it here too before trusting `start`.
         g.timer.closeOpenRun(notLaterThan: entry.updatedAt)
-        // Every reachable caller (`openToday`, `openArchiveDay`, `continueSaved`,
-        // `resumeEntry`, launch's resume-on-launch) fires from the Home screen
-        // or app start, where `goHome`/init leave `clockHolds` empty — so this
-        // is never actually held in practice. Routed through the shared gate
-        // anyway rather than calling `start` directly: the invariant "every
-        // resume path is hold-aware" then holds by construction, not because
-        // every future call site remembers to prove it by hand.
+        // The gate is load-bearing here, not decorative. The synchronous
+        // callers (`continueSaved`, `resumeEntry`, launch's resume-on-launch)
+        // do all run with `clockHolds` empty — but `compose()` reaches this
+        // from a `Task.detached` → `MainActor.run` continuation (:903) that
+        // lands seconds after the tap, and `startFree`, `openToday`'s compose
+        // branch and `openArchiveDay`'s compose branch all route through it.
+        // Background the app while a board is composing and `clockHolds` is
+        // `[.scene]` by the time this line runs: the new board must land
+        // paused, and `.active`'s `releaseClock` is what starts it. Without
+        // this gate a board would begin timing itself unwatched.
         startClockIfUnheld(&g)
         self.game = g
         self.kind = entry.kind
@@ -1130,17 +1133,25 @@ final class AppModel {
     /// one already held changes nothing observable, which is the whole reason
     /// this is a set and not a bool.
     ///
-    /// Persisted and flushed immediately rather than left for the next move:
-    /// `.scene` holds fire on `.background`/`.inactive`, and a backgrounded
-    /// process can be killed by the OS with no further chance to write —
-    /// leaving it to the ordinary per-move `persistProgress()` would lose
-    /// exactly the pause this method exists to record.
+    /// The pause is always persisted, but only a `.scene` hold is *flushed*.
+    /// The flush exists for one reason — a backgrounded process can be killed
+    /// by the OS with no further chance to write, so leaving the pause to the
+    /// ordinary per-move `persistProgress()` would lose exactly what this
+    /// method records. A `.sheet` hold has no such deadline: the app is
+    /// foreground and alive, and the next move (or the eventual background,
+    /// which flushes) writes it through. Flushing there would put a full
+    /// `BoardLibrary` encode + write, a KVS flush, a CloudKit push and
+    /// `WidgetCenter.reloadAllTimelines()` on the main actor *inside* the
+    /// drawer's opening animation — a dropped frame on a user-visible
+    /// animation, paid on every prefs open and every drawer pull.
     ///
     /// Gated on `screen == .game` (mirroring `refreshOnScreenBoardAfterMerge`'s
     /// guard): the app can background while sitting on Home with the last
     /// board already paused and non-nil, and re-pausing/re-persisting THAT
     /// board on every background would bump its `updatedAt` — and so its
-    /// tracker position — for a board nobody is playing.
+    /// tracker position — for a board nobody is playing. The insert happens
+    /// before the guard, so set membership stays symmetric with `releaseClock`
+    /// whether or not the guard lets the timer work through.
     func holdClock(_ reason: ClockHold) {
         let firstHold = clockHolds.isEmpty
         clockHolds.insert(reason)
@@ -1148,8 +1159,10 @@ final class AppModel {
         g.timer.pause(at: Date())
         game = g
         persistProgress()
-        try? libraryStore.flushNow()
-        try? streakStore.flushNow()
+        if reason == .scene {
+            try? libraryStore.flushNow()
+            try? streakStore.flushNow()
+        }
     }
 
     /// Release `reason`. The clock resumes only once every hold has cleared —
@@ -1580,6 +1593,27 @@ final class AppModel {
             if screen == .game, solvedAt == nil,
                case .daily(let day)? = kind, day == shared.dayOrdinal {
                 var g = shared.game
+                // Cap the shared board's run before anything trusts it, exactly
+                // as `startEntry` and `LibrarySync.apply` do with their own
+                // `updatedAt`. This is load-bearing, not belt-and-braces: the
+                // shared file normally carries `runningSince != nil` mid-play
+                // (`WidgetBridge.publishDailyBoard` writes `model.game`
+                // unmodified, and `persistProgress()` publishes on every move),
+                // and `BoardIntents` only ever reads that timer, never closes
+                // it. So a jetsam mid-daily — killed with no `.background`
+                // transition, hence no `holdClock` pause — leaves the run open,
+                // and adopting it verbatim would credit the entire absence the
+                // next time the board is ingested. `startClockIfUnheld` cannot
+                // save us there either: `ElapsedTimer.start` is a no-op on an
+                // already-running timer, so without this line a hold would be
+                // bypassed rather than enforced.
+                //
+                // `shared.updatedAt` is the right cap: both writers
+                // (`WidgetBridge.swift:83`, `BoardIntents.swift:65`) set it to
+                // `now` at write time, so it is precisely the last instant this
+                // board's state is known to be current — the same reading
+                // `LibraryEntry.updatedAt` gets at the other two seams.
+                g.timer.closeOpenRun(notLaterThan: shared.updatedAt)
                 // Same reasoning as `refreshOnScreenBoardAfterMerge`: `openToday`
                 // and the URL-open route can call this while the game screen's
                 // own `.sheet` hold is up (a widget board can arrive at any
