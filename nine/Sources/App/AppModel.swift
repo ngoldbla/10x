@@ -255,6 +255,16 @@ final class AppModel {
     }
     /// The library entry the on-screen game reads from and persists back into.
     private(set) var currentEntryID: UUID?
+
+    /// Independent reasons the clock is not allowed to run right now (Task 4).
+    /// `.scene` is the app not being looked at at all (backgrounded/inactive);
+    /// `.sheet` is a board-covering overlay up while the app IS foreground
+    /// (prefs, the stats drawer, a coach hint, a why-chain). A `Set` rather
+    /// than a bool because the two are independent and can overlap — the app
+    /// can be backgrounded while the prefs sheet is showing underneath, and
+    /// the clock must stay held until BOTH clear, not whichever cleared last.
+    enum ClockHold { case scene, sheet }
+    private var clockHolds: Set<ClockHold> = []
     /// Every finished board: date, difficulty, time, points (capped log).
     private(set) var history: SolveHistory {
         didSet { historyStore.wrappedValue = history }
@@ -813,7 +823,14 @@ final class AppModel {
         // once, left alone while another entry played) without ever passing
         // back through decode. Cap it here too before trusting `start`.
         g.timer.closeOpenRun(notLaterThan: entry.updatedAt)
-        g.timer.start(at: Date())
+        // Every reachable caller (`openToday`, `openArchiveDay`, `continueSaved`,
+        // `resumeEntry`, launch's resume-on-launch) fires from the Home screen
+        // or app start, where `goHome`/init leave `clockHolds` empty — so this
+        // is never actually held in practice. Routed through the shared gate
+        // anyway rather than calling `start` directly: the invariant "every
+        // resume path is hold-aware" then holds by construction, not because
+        // every future call site remembers to prove it by hand.
+        startClockIfUnheld(&g)
         self.game = g
         self.kind = entry.kind
         self.solvedAt = nil
@@ -1106,12 +1123,72 @@ final class AppModel {
         return move
     }
 
+    // MARK: - Clock holds (Task 4)
+
+    /// Pause the clock for `reason`. Only the FIRST hold to land actually does
+    /// anything to the timer — a second, independent reason piling on top of
+    /// one already held changes nothing observable, which is the whole reason
+    /// this is a set and not a bool.
+    ///
+    /// Persisted and flushed immediately rather than left for the next move:
+    /// `.scene` holds fire on `.background`/`.inactive`, and a backgrounded
+    /// process can be killed by the OS with no further chance to write —
+    /// leaving it to the ordinary per-move `persistProgress()` would lose
+    /// exactly the pause this method exists to record.
+    ///
+    /// Gated on `screen == .game` (mirroring `refreshOnScreenBoardAfterMerge`'s
+    /// guard): the app can background while sitting on Home with the last
+    /// board already paused and non-nil, and re-pausing/re-persisting THAT
+    /// board on every background would bump its `updatedAt` — and so its
+    /// tracker position — for a board nobody is playing.
+    func holdClock(_ reason: ClockHold) {
+        let firstHold = clockHolds.isEmpty
+        clockHolds.insert(reason)
+        guard firstHold, screen == .game, solvedAt == nil, var g = game else { return }
+        g.timer.pause(at: Date())
+        game = g
+        persistProgress()
+        try? libraryStore.flushNow()
+        try? streakStore.flushNow()
+    }
+
+    /// Release `reason`. The clock resumes only once every hold has cleared —
+    /// releasing one of two simultaneous holds must not restart it out from
+    /// under the other — and only onto a board actually on screen mid-play;
+    /// a hold outliving the board it was raised for (a solve landing while
+    /// backgrounded, say) must not resurrect a finished or departed game.
+    func releaseClock(_ reason: ClockHold) {
+        clockHolds.remove(reason)
+        guard clockHolds.isEmpty, screen == .game, solvedAt == nil, var g = game else { return }
+        g.timer.start(at: Date())
+        game = g
+    }
+
+    /// The one gate every resume path funnels through instead of calling
+    /// `ElapsedTimer.start` directly. `startEntry`, `refreshOnScreenBoardAfterMerge`
+    /// and `ingestSharedDailyBoard` all land a board on screen and want its
+    /// clock ticking — but if a hold is currently up (app backgrounded, a
+    /// board-covering overlay showing) starting it here would silently
+    /// override that hold; only the matching `releaseClock` may resume play
+    /// once the surface is actually being looked at again. Leaving the timer
+    /// paused (rather than not swapping the board in at all) is correct: the
+    /// player still sees the right board the instant the hold lifts.
+    private func startClockIfUnheld(_ g: inout NineGame) {
+        guard clockHolds.isEmpty else { return }
+        g.timer.start(at: Date())
+    }
+
     func goHome() {
         if solvedAt == nil, var g = game {
             g.timer.pause(at: Date())
             game = g
             persistProgress()
         }
+        // A hold is scoped to the board it was raised over — a stale one
+        // (say, the prefs sheet's `.sheet` hold, if some future overlay path
+        // ever left it set) must never survive the trip to Home and wedge the
+        // NEXT board's clock off before it has even started.
+        clockHolds.removeAll()
         try? libraryStore.flushNow()
         try? streakStore.flushNow()
         // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
@@ -1138,6 +1215,12 @@ final class AppModel {
         g.timer.pause(at: now)
         game = g
         solvedAt = now
+        // Same reasoning as `goHome`: a hold is scoped to one board's clock,
+        // and this board's clock is now stopped for good (solved). Clearing
+        // here rather than trusting every hold's own release path means a
+        // solve landing mid-hold (backgrounded, or under an overlay) can never
+        // leave a stale hold to wedge the NEXT board started after this one.
+        clockHolds.removeAll()
         var isDaily = false
         if case .daily(let day)? = kind {
             isDaily = true
@@ -1349,6 +1432,14 @@ final class AppModel {
     /// timer running, never yank progress out from under an active hand — only
     /// adopt a board that is further along). Re-points the persist target if a
     /// daily merge re-homed the entry's id.
+    ///
+    /// This fires from `syncOnForeground`/CloudKit delivery, which can land
+    /// while a hold is up — the merge itself may be exactly what's happening
+    /// WHILE the app is backgrounded. Swapping the board data in is still
+    /// correct (the player should see the further-along board the instant
+    /// they look), but starting its clock is not: `startClockIfUnheld` leaves
+    /// it paused under a hold, and the matching `releaseClock` resumes it once
+    /// the surface is actually being looked at again.
     private func refreshOnScreenBoardAfterMerge() {
         guard screen == .game, solvedAt == nil else { return }
         if let id = currentEntryID, library.entry(id: id) == nil,
@@ -1358,7 +1449,7 @@ final class AppModel {
         guard let id = currentEntryID, let entry = library.entry(id: id) else { return }
         if let shown = game, entry.game.fillFraction > shown.fillFraction {
             var g = entry.game
-            g.timer.start(at: Date())
+            startClockIfUnheld(&g)
             game = g
         }
     }
@@ -1489,7 +1580,13 @@ final class AppModel {
             if screen == .game, solvedAt == nil,
                case .daily(let day)? = kind, day == shared.dayOrdinal {
                 var g = shared.game
-                g.timer.start(at: Date())
+                // Same reasoning as `refreshOnScreenBoardAfterMerge`: `openToday`
+                // and the URL-open route can call this while the game screen's
+                // own `.sheet` hold is up (a widget board can arrive at any
+                // time, independent of scene activation). Adopt the board, but
+                // only start its clock if nothing is holding it; `releaseClock`
+                // resumes it once the hold actually lifts.
+                startClockIfUnheld(&g)
                 game = g
                 currentEntryID = id // keep the persist target on the day entry
             }
