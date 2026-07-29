@@ -33,6 +33,10 @@ import NineEngine
         #expect(result.placements == 2)
         #expect(result.corrections == 2)
         #expect(result.notes == 1)
+        // No analysis was supplied, so there is nothing to be wrong about —
+        // this is the "the bug was that wrongness had no number" case, not
+        // "there were no wrong digits to report".
+        #expect(result.errors == 0)
     }
 
     /// PRD-20's plural lesson: English's `one` and `other` differ here, so a
@@ -47,6 +51,54 @@ import NineEngine
             LoggedMove(kind: .place, cell: 2, digit: 2, at: 2)
         ])
         #expect(two.countsLine.contains("2 digits placed"))
+    }
+
+    // MARK: - The wrongness count (Task 3): a number where there used to be none
+
+    /// `errors` reads `ReplayAnalysis`'s `.slip` classification rather than
+    /// recomputing anything from `moves` — a wrong digit is a fact about the
+    /// solved grid, which only the analysis has. Two slips among otherwise
+    /// clean placements is 2, not the move count or the correction count.
+    @Test func errorsCountsSlipsFromTheAnalysisNotFromMoves() {
+        let moves = [
+            LoggedMove(kind: .place, cell: 0, digit: 1, at: 1),
+            LoggedMove(kind: .place, cell: 1, digit: 2, at: 2),
+            LoggedMove(kind: .place, cell: 2, digit: 3, at: 3)
+        ]
+        let analysis = ReplayAnalysis(placements: [
+            ClassifiedPlacement(moveIndex: 0, cell: 0, digit: 1, kind: .forced, technique: nil),
+            ClassifiedPlacement(moveIndex: 1, cell: 1, digit: 2, kind: .slip, technique: nil),
+            ClassifiedPlacement(moveIndex: 2, cell: 2, digit: 3, kind: .slip, technique: nil)
+        ])
+        let result = debrief(moves, analysis: analysis)
+        #expect(result.errors == 2)
+        #expect(result.countsLine.contains("2 errors"))
+    }
+
+    /// PRD-20's plural lesson again, for the new count: one slip reads
+    /// "1 error", not "1 errors".
+    @Test func theErrorsCountInflects() {
+        let moves = [LoggedMove(kind: .place, cell: 0, digit: 1, at: 1)]
+        let analysis = ReplayAnalysis(placements: [
+            ClassifiedPlacement(moveIndex: 0, cell: 0, digit: 1, kind: .slip, technique: nil)
+        ])
+        let result = debrief(moves, analysis: analysis)
+        #expect(result.errors == 1)
+        #expect(result.countsLine.contains("1 error"))
+        #expect(!result.countsLine.contains("1 errors"))
+    }
+
+    /// The honesty rule `StatsDrawer`'s hints tile already set: a solve with
+    /// no slips gets no errors segment on the card at all — not a "0 errors"
+    /// that reads as a reproach. `placements`/`corrections`/`notes` still
+    /// print, unconditionally, either side of the gap it leaves.
+    @Test func errorsIsOmittedFromTheCountsLineAtZero() {
+        let result = debrief([LoggedMove(kind: .place, cell: 0, digit: 1, at: 1)])
+        #expect(result.errors == 0)
+        #expect(!result.countsLine.contains("error"))
+        #expect(result.countsLine.contains("digit placed"))
+        #expect(result.countsLine.contains("correction"))
+        #expect(result.countsLine.contains("note"))
     }
 
     // MARK: - The honesty rule
