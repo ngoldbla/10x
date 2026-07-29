@@ -59,6 +59,27 @@ final class RoseLensTests: XCTestCase {
                              BoardGeometry.centre(of: 0, side: side).x + inset)
     }
 
+    /// The other end of the same clamp, and the reason it is a separate test:
+    /// `testCornerCursorIsPulledInside` starts at cell 0 and so only ever
+    /// exercises the `max(…, radius - 6)` lower bound. Without a bottom-row
+    /// cursor the `min(…, frameSide - radius + 6)` upper bound has no coverage
+    /// at all — and that is the exact expression removing the erase petal
+    /// rewrote, when the `bottomExtra` term that used to hold room below the
+    /// ring for the eraser came out of it.
+    func testBottomRowCursorIsPulledUp() {
+        let side = 360.0, inset = 12.0
+        let scale = RoseLens.scale(forSide: side)
+        // Cell 80 is row 9, column 9 — the far corner, so both axes clamp.
+        let lens = RoseLens(cursor: 80, side: side, inset: inset,
+                            pencil: false, scale: scale)
+        let clampRadius = 184 * scale
+        let frameSide = side + 2 * inset
+        XCTAssertEqual(lens.viewCentre.y, frameSide - clampRadius + 6, accuracy: 0.0001)
+        // …and that really is *upward*, not a no-op: the raw centre is lower.
+        XCTAssertLessThan(lens.viewCentre.y,
+                          BoardGeometry.centre(of: 80, side: side).y + inset)
+    }
+
     /// A cursor in the middle of a touch board is not clamped at all — the
     /// clamp must not quietly recentre every rose.
     func testMiddleCursorIsUntouched() {

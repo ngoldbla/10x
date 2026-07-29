@@ -183,6 +183,11 @@ struct FlickRoseView: View {
 private struct EraseIndicator: ViewModifier {
     static let dash: [CGFloat] = [3, 5]
     static let lineWidth: CGFloat = 2.5
+    /// Floored for the same reason the focus ring is `max(2, 4 * scale)` and
+    /// `PetalSurface`'s rim is `max(1, 1.6 * scale)`: the touch rose runs near
+    /// 0.4, where the unfloored weight computes to about a point and the rim
+    /// reads as a hairline rather than as a mark.
+    static let minimumLineWidth: CGFloat = 1.5
 
     let active: Bool
     let accent: Color
@@ -192,7 +197,9 @@ private struct EraseIndicator: ViewModifier {
         content.overlay {
             Circle().strokeBorder(
                 accent.opacity(active ? 0.9 : 0),
-                style: StrokeStyle(lineWidth: Self.lineWidth * scale, dash: Self.dash.map { $0 * scale })
+                style: StrokeStyle(
+                    lineWidth: max(Self.minimumLineWidth, Self.lineWidth * scale),
+                    dash: Self.dash.map { $0 * scale })
             )
         }
     }
@@ -308,9 +315,12 @@ struct TouchRose: View {
                         .onTapGesture { onDigit(digit) }
                         .offset(x: offset.x * spacing, y: offset.y * spacing)
                         .accessibilityElement()
-                        // The same keys the actions rotor uses
-                        // (`BoardActionPhrase`): the petals and the rotor are
-                        // two doors onto one grammar, so they say one thing.
+                        // Place/Note are the same two keys the actions rotor
+                        // uses (`BoardActionPhrase`): the petals and the rotor
+                        // are two doors onto one grammar, so they say one
+                        // thing. `eraseDigit` is the petals' alone — the rotor
+                        // reaches erase through its own `board.action.erase`
+                        // button on the cell, which needs no digit in it.
                         .accessibilityLabel(erasable ? BoardActionPhrase.eraseDigit(digit)
                                             : state.pencil ? BoardActionPhrase.note(digit)
                                                            : BoardActionPhrase.place(digit))

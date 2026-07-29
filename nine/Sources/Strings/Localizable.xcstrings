@@ -4836,7 +4836,7 @@
       }
     },
     "board.rose.eraseDigit": {
-      "comment": "A VoiceOver custom action, and the label of a rose petal whose digit is already placed in this square (or already pencilled in, in pencil mode). %1$lld is the digit 1-9. A verb in the imperative, matching board.action.place/board.action.note — tapping the petal clears the digit rather than re-placing it. Says only that the digit is here, never that it is wrong: do not translate this as if it were a warning.",
+      "comment": "VoiceOver label of one petal of the digit ring — the petal whose digit is already placed in this square, or already pencilled in when the ring is writing pencil marks. %1$lld is the digit 1-9. A verb in the imperative, so it reads as a set with board.action.place and board.action.note, which label the other petals: activating this one clears the digit instead of writing it again. It says only that the digit is already there, never that it is wrong — do not translate it as a warning or an error.",
       "extractionState": "manual",
       "localizations": {
         "de": {
