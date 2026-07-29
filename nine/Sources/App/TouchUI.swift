@@ -610,6 +610,13 @@ struct TouchGameScreen: View {
     /// Placeholder until the panel reports its real height. Only read while
     /// the drawer is visible, and by then the measurement has landed.
     @State private var drawerHeight: CGFloat = 220
+    /// PRD-26's debrief. The exact mirror of the drawer above — snapped state,
+    /// live finger offset, measured height — pulled from the **opposite** edge
+    /// on purpose: the drawer comes down from the top, so an upward drag from
+    /// the bottom cannot be confused with it and cannot fire it by accident.
+    @State private var debriefOpen = false
+    @GestureState private var debriefDrag: CGFloat = 0
+    @State private var debriefHeight: CGFloat = 420
     /// Afterglow: the haptic score and the gravity-tilt source live in the
     /// view layer — AppModel is platform-shared logic; this is presentation.
     /// The rendered share card (PRD-12), written once per solve.
@@ -665,9 +672,13 @@ struct TouchGameScreen: View {
             // The grabber sits *under* the drawer it advertises, so the panel
             // slides over it rather than the hairline floating on the glass.
             .overlay(alignment: .top) { drawerGrabber }
+            // The debrief's twin at the other edge, in the same order and for
+            // the same reason: the hint under the panel it advertises.
+            .overlay(alignment: .bottom) { debriefGrabber }
             // Above the board and its chips, below the prefs sheet — Settings
             // must always stack over the drawer, never under it.
             .overlay(alignment: .top) { statsDrawer }
+            .overlay(alignment: .bottom) { debriefPanel }
             // Attached *above* the drawer overlay, so the drawer's own scrim
             // is a child of the gesture rather than a lid over it — one
             // gesture drives both the pull-down and the drag-up dismiss.
@@ -681,6 +692,13 @@ struct TouchGameScreen: View {
             // overlay there would swallow control-bar taps whenever the bar is
             // the top row (`controlsAtBottom == false`).
             .simultaneousGesture(drawerRevealGesture)
+            // The pull-up needs the screen height to know where its bottom
+            // band is, which is why it takes `geo` and the drawer does not.
+            // Simultaneous with the drawer's rather than exclusive: the two
+            // guard each other (`acceptsDebriefDrag` refuses while the drawer
+            // is open, and a debrief only exists on a solved board, where the
+            // drawer's own guards have already stood down).
+            .simultaneousGesture(debriefRevealGesture(height: geo.size.height))
             // The drawer is otherwise reachable only by an unhinted pull-down,
             // so VoiceOver gets a named action. It must honour the same guards
             // as the drag: opening it under the prefs sheet would scrim the
@@ -691,6 +709,26 @@ struct TouchGameScreen: View {
                 guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
                 if !drawerOpen { model.noteDrawerFound() }
                 withAnimation(.couchFast) { drawerOpen.toggle() }
+            }
+            // The debrief's own named action, for the same reason: a 3 pt
+            // hairline is not an accessibility affordance, and a pull-up with
+            // no keyboard or VoiceOver route would be a feature only sighted
+            // touch users have.
+            //
+            // **`accessibilityActions` (plural), and that is not a style
+            // choice.** `accessibilityAction(named:)` registers the action
+            // whatever the view's state, so a guard inside the closure is a
+            // guard on the *effect* and not on the action's existence — which
+            // put "Show your solve" in the rotor of all 81 cells of every
+            // unsolved board, doing nothing. Invisible to every screenshot and
+            // every unit test; `ax-snapshot.py` is what found it. The plural
+            // form takes a `ViewBuilder`, so the `if` is real.
+            .accessibilityActions {
+                if debrief != nil {
+                    Button(debriefOpen ? DebriefPhrase.close : DebriefPhrase.open) {
+                        withAnimation(.couchFast) { debriefOpen.toggle() }
+                    }
+                }
             }
             .overlay {
                 // PRD-34: no `onNewGame` — the next board lives on the shelf,
@@ -1055,11 +1093,20 @@ struct TouchGameScreen: View {
             shareCard = nil
             return
         }
-        shareCard = ShareCardRenderer.export(
-            facts: facts,
-            tones: model.prefs.theme.tones(for: colorScheme),
-            accent: accent
-        )
+        let tones = model.prefs.theme.tones(for: colorScheme)
+        // **One chip, two payloads** (PRD-26 §2.4). The loop when this solve
+        // left a replay, the still when it did not — a widget solve, a watch
+        // solve, or a board that arrived over CloudKit with its log stripped.
+        // The player never sees two buttons and PRD-12's behaviour never
+        // disappears.
+        if let replay = model.currentReplay,
+           let loop = ShareCardRenderer.exportLoop(
+               facts: facts, replay: replay, tones: tones, accent: accent
+           ) {
+            shareCard = loop
+            return
+        }
+        shareCard = ShareCardRenderer.export(facts: facts, tones: tones, accent: accent)
     }
 
     // MARK: Stats drawer
@@ -1084,8 +1131,12 @@ struct TouchGameScreen: View {
     /// the end — which is why the gesture needs no "already claimed" flag.
     private func acceptsDrawerDrag(_ value: DragGesture.Value) -> Bool {
         // The coach card parks in the same band the drawer slides over, so the
-        // two must never be on screen together.
-        guard rose == nil, !showPrefs, coachAdvice == nil, model.game != nil else { return false }
+        // two must never be on screen together. The debrief scrims the whole
+        // screen from the other edge, so it is the same rule again — a
+        // pull-down landing on an open debrief would put two panels and two
+        // scrims on one board.
+        guard rose == nil, !showPrefs, coachAdvice == nil, !debriefOpen,
+              model.game != nil else { return false }
         // Once open, the whole screen steers it (that is the drag-up
         // dismiss); closed, the stroke has to begin in the top band.
         return drawerOpen || value.startLocation.y <= Self.drawerRevealBand
@@ -1112,6 +1163,114 @@ struct TouchGameScreen: View {
 
     private func closeDrawer() {
         withAnimation(.couchFast) { drawerOpen = false }
+    }
+
+    // MARK: The debrief (PRD-26)
+
+    /// A debrief exists only for a board that was solved *and* left a replay.
+    /// Nil for every widget solve, every watch solve, and every board that
+    /// arrived over CloudKit with its log stripped — and nil is silent: no
+    /// grabber, no gesture, nothing on screen that could be pulled at and not
+    /// answer.
+    private var debrief: SolveDebrief? {
+        guard model.solvedAt != nil, let id = model.currentEntryID else { return nil }
+        return model.debrief(for: id)
+    }
+
+    private var debriefProgress: CGFloat {
+        guard debriefHeight > 0 else { return 0 }
+        // Upward drags are negative, so the sign flips against the drawer's.
+        return min(1, max(0, ((debriefOpen ? debriefHeight : 0) - debriefDrag) / debriefHeight))
+    }
+
+    /// How much of the bottom edge the control bar owns when it is down there.
+    ///
+    /// **The first version of this was a bottom-120 pt reveal band, and driving
+    /// it is the only way that shows what is wrong with it: that band *is* the
+    /// control bar.** The one place the gesture listened was a row of six 44 pt
+    /// buttons, so every pull-up either did nothing or fought Undo.
+    private static let controlBarReserve: CGFloat = 96
+
+    private func acceptsDebriefDrag(_ value: DragGesture.Value, in height: CGFloat) -> Bool {
+        guard debrief != nil, rose == nil, !showPrefs, !drawerOpen else { return false }
+        // Open, the whole screen steers it — that is the drag-down dismiss.
+        if debriefOpen { return true }
+        // Closed: anywhere that is not somebody else's. The board is the drag
+        // surface, and it can be, because a solved board takes no input —
+        // `AppModel.place` guards `solvedAt == nil`, so there is nothing here
+        // for an upward stroke to steal.
+        guard value.startLocation.y > Self.drawerRevealBand else { return false }
+        return value.startLocation.y <= height
+            - (model.prefs.controlsAtBottom ? Self.controlBarReserve : 0)
+    }
+
+    private func debriefRevealGesture(height: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .updating($debriefDrag) { value, offset, _ in
+                guard acceptsDebriefDrag(value, in: height) else { return }
+                offset = value.translation.height
+            }
+            .onEnded { value in
+                guard acceptsDebriefDrag(value, in: height) else { return }
+                let projected = ((debriefOpen ? debriefHeight : 0)
+                                 - value.predictedEndTranslation.height) / debriefHeight
+                withAnimation(.couchFast) { debriefOpen = projected > Self.drawerSnapThreshold }
+            }
+    }
+
+    private func closeDebrief() {
+        withAnimation(.couchFast) { debriefOpen = false }
+    }
+
+    /// The pull-up's only hint, and it is the drawer grabber's twin at the
+    /// other edge — 3 pt, decoration, hidden from VoiceOver, which gets a named
+    /// action instead.
+    ///
+    /// Unlike the drawer's, this one does **not** retire after three sessions.
+    /// The drawer is a permanent fixture the player learns once; a debrief
+    /// appears only in the seconds after a solve, so a mark that faded forever
+    /// would leave the affordance genuinely undiscoverable on the tenth board.
+    @ViewBuilder
+    private var debriefGrabber: some View {
+        if debrief != nil, rose == nil, !showPrefs, !drawerOpen {
+            Capsule()
+                .fill(.secondary)
+                .frame(width: 36, height: 3)
+                .opacity(0.35 * (1 - debriefProgress))
+                // Under the completion chip, not on the screen's bottom edge:
+                // that edge belongs to the control bar and to the home
+                // indicator, and a hairline drawn there is invisible against
+                // one and confusable with the other. Measured on an
+                // iPhone 17 Pro, where the first version landed on both.
+                .padding(.bottom, model.prefs.controlsAtBottom ? 108 : 44)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var debriefPanel: some View {
+        let progress = debriefProgress
+        if progress > 0, let debrief, let replay = model.currentReplay {
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.45 * progress)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeDebrief() }
+                DebriefCardContent(
+                    debrief: debrief,
+                    replay: replay,
+                    tones: model.prefs.theme.tones(for: colorScheme),
+                    accent: accent,
+                    onClose: { closeDebrief() }
+                )
+                .padding(.horizontal, 10)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    debriefHeight = max(1, height)
+                }
+                .offset(y: debriefHeight * (1 - progress))
+            }
+        }
     }
 
     /// PRD-34. The drawer was shipped deliberately unhinted, and the live sim

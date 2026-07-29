@@ -521,11 +521,20 @@ struct MacGameScreen: View {
             shareCard = nil
             return
         }
-        shareCard = ShareCardRenderer.export(
-            facts: facts,
-            tones: model.prefs.theme.tones(for: colorScheme),
-            accent: accent
-        )
+        let tones = model.prefs.theme.tones(for: colorScheme)
+        // The same one-chip-two-payloads rule as the phone (PRD-26 §2.4). The
+        // Mac has no debrief — a pull-up is a touch gesture and the Mac's
+        // answer is a window, which is PRD-33's — but the *card* is the same
+        // artifact leaving the same app, and a Mac share that stayed a still
+        // while the phone's moved would be two products.
+        if let replay = model.currentReplay,
+           let loop = ShareCardRenderer.exportLoop(
+               facts: facts, replay: replay, tones: tones, accent: accent
+           ) {
+            shareCard = loop
+            return
+        }
+        shareCard = ShareCardRenderer.export(facts: facts, tones: tones, accent: accent)
     }
 
     /// A small restore glyph that fades in when the pointer is over the desk

@@ -44,19 +44,37 @@ public struct NineMove: Sendable, Codable, Equatable {
 }
 
 /// One entry in the append-only move log: what the player did, in order.
-/// Undo is logged as an *event* (never popped), so a future solve replay can
-/// retrace the true path including corrections. No timestamps — order
-/// suffices, and the engine keeps its "no hidden clocks" rule.
+/// Undo is logged as an *event* (never popped), so a solve replay can retrace
+/// the true path including corrections — a log that pops its undos records a
+/// tidied path nobody walked. PRD-26 is what finally spends that decision.
 public struct LoggedMove: Sendable, Codable, Equatable {
     public enum Kind: String, Sendable, Codable { case place, erase, pencil, undo }
     public let kind: Kind
     public let cell: Int
     public let digit: Int
 
-    public init(kind: Kind, cell: Int, digit: Int) {
+    /// Seconds since this board's timer started, or nil when the caller did not
+    /// say (PRD-26 §3.1).
+    ///
+    /// **The engine still reads no clock.** This is passed *in* from the same
+    /// `Date` the app layer already holds, exactly as `ElapsedTimer` has taken
+    /// its `now` since 1.0. Nothing in this module calls `Date()`.
+    ///
+    /// Optional is what makes it free rather than a migration. Swift's
+    /// synthesized encoder spells an optional property `encodeIfPresent`, so a
+    /// log written without timing encodes byte-identically to 1.1's spelling
+    /// and an older build decodes it unchanged — the same mechanism that kept
+    /// `SolveStep.roles` and `.chain` out of the golden hash. Every board that
+    /// predates this field, and every board that arrives over CloudKit with its
+    /// log stripped by `SyncedEntry`, is therefore an untimed log rather than a
+    /// broken one, and PRD-26 §2.3 is what the UI does about that.
+    public let at: TimeInterval?
+
+    public init(kind: Kind, cell: Int, digit: Int, at: TimeInterval? = nil) {
         self.kind = kind
         self.cell = cell
         self.digit = digit
+        self.at = at
     }
 }
 
@@ -196,8 +214,15 @@ public struct NineGame: Sendable, Codable, Equatable {
     /// the placement and the marks it implies undo together. Defaulted off, so
     /// every call site that existed before PRD-11 is unchanged in meaning as
     /// well as in text.
+    ///
+    /// `elapsed` is PRD-26's replay timing — seconds since this board's timer
+    /// started, passed in by the caller. It cannot be spelled `at:`, which this
+    /// method spent on the cell in 1.0; `LoggedMove.at` is the field it lands
+    /// in. Defaulted to nil for the same reason `autoNotes` is defaulted off.
     @discardableResult
-    public mutating func place(_ digit: Int, at cell: Int, autoNotes: Bool = false) -> Bool {
+    public mutating func place(
+        _ digit: Int, at cell: Int, autoNotes: Bool = false, elapsed: TimeInterval? = nil
+    ) -> Bool {
         guard (1...9).contains(digit), !isGiven(cell), entries[cell] != digit else { return false }
         var snapshots: [NineMove.PencilSnapshot] = []
         if pencil[cell] != 0 {
@@ -214,14 +239,16 @@ public struct NineGame: Sendable, Codable, Equatable {
             previousEntry: entries[cell], previousPencil: snapshots
         ))
         entries[cell] = digit
-        moveLog.append(LoggedMove(kind: .place, cell: cell, digit: digit))
+        moveLog.append(LoggedMove(kind: .place, cell: cell, digit: digit, at: elapsed))
         if autoNotes { foldAutoNotesIntoLastMove() }
         return true
     }
 
     /// Toggle a corner note. No-op on givens and filled cells.
     @discardableResult
-    public mutating func togglePencil(_ digit: Int, at cell: Int) -> Bool {
+    public mutating func togglePencil(
+        _ digit: Int, at cell: Int, elapsed: TimeInterval? = nil
+    ) -> Bool {
         guard (1...9).contains(digit), !isGiven(cell), entries[cell] == 0 else { return false }
         undoStack.append(NineMove(
             kind: .pencil, cell: cell, digit: digit,
@@ -229,7 +256,7 @@ public struct NineGame: Sendable, Codable, Equatable {
             previousPencil: [.init(cell: cell, mask: pencil[cell])]
         ))
         pencil[cell] ^= Sudoku.bit(digit)
-        moveLog.append(LoggedMove(kind: .pencil, cell: cell, digit: digit))
+        moveLog.append(LoggedMove(kind: .pencil, cell: cell, digit: digit, at: elapsed))
         return true
     }
 
@@ -240,7 +267,9 @@ public struct NineGame: Sendable, Codable, Equatable {
     /// comes back off the board. With `autoNotes` on, erasing hands those
     /// candidates back — folded into this same move, so it all undoes together.
     @discardableResult
-    public mutating func erase(at cell: Int, autoNotes: Bool = false) -> Bool {
+    public mutating func erase(
+        at cell: Int, autoNotes: Bool = false, elapsed: TimeInterval? = nil
+    ) -> Bool {
         guard !isGiven(cell), entries[cell] != 0 else { return false }
         let digit = entries[cell]
         undoStack.append(NineMove(
@@ -248,7 +277,7 @@ public struct NineGame: Sendable, Codable, Equatable {
             previousEntry: digit, previousPencil: []
         ))
         entries[cell] = 0
-        moveLog.append(LoggedMove(kind: .erase, cell: cell, digit: digit))
+        moveLog.append(LoggedMove(kind: .erase, cell: cell, digit: digit, at: elapsed))
         if autoNotes { foldAutoNotesIntoLastMove() }
         return true
     }
@@ -299,7 +328,7 @@ public struct NineGame: Sendable, Codable, Equatable {
     /// Revert the latest move (entry and any auto-erased pencil marks).
     /// Returns the reverted move for the undo toast, or nil when empty.
     @discardableResult
-    public mutating func undo() -> NineMove? {
+    public mutating func undo(elapsed: TimeInterval? = nil) -> NineMove? {
         guard let move = undoStack.popLast() else { return nil }
         switch move.kind {
         case .place, .erase:
@@ -310,7 +339,7 @@ public struct NineGame: Sendable, Codable, Equatable {
         for snapshot in move.previousPencil {
             pencil[snapshot.cell] = snapshot.mask
         }
-        moveLog.append(LoggedMove(kind: .undo, cell: move.cell, digit: move.digit))
+        moveLog.append(LoggedMove(kind: .undo, cell: move.cell, digit: move.digit, at: elapsed))
         return move
     }
 

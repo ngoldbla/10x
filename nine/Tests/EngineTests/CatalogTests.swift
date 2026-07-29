@@ -408,9 +408,14 @@ final class CatalogTests: XCTestCase {
         // Floors on what was compared, not on what was found. Each names its
         // own number so that "the reader stopped seeing them" and "the
         // generator stopped writing them" cannot both read as green.
-        XCTAssertEqual(pluralised, 14,
+        //
+        // 14 → 17 for PRD-26: the debrief's three counts (`placements`,
+        // `corrections`, `notes`) all inflect on a number, and English's `one`
+        // and `other` genuinely differ for each — "1 digit placed" against "2
+        // digits placed" — which is not true of most rows in this table.
+        XCTAssertEqual(pluralised, 17,
                        "English carries a different number of whole-string plurals than "
-                       + "the 14 this catalog was built with — if that is deliberate, "
+                       + "the 17 this catalog was built with — if that is deliberate, "
                        + "move the number; if it is not, a plural has been flattened at "
                        + "the source and every locale followed it")
         XCTAssertEqual(substituted, 3,
@@ -807,9 +812,13 @@ final class CatalogTests: XCTestCase {
         // Every other key this PRD added carries one index or none — the
         // swordfish and skyscraper sentences repeat `%1$lld`, which is one
         // argument used twice, not two arguments.
-        XCTAssertEqual(keysCarryingTwoOrMore, 36, """
+        //
+        // 36 → 37 for PRD-26, and it is one key: `debrief.headline` ("You
+        // found the %1$@ at move %2$lld"). Its ten siblings carry one index or
+        // none.
+        XCTAssertEqual(keysCarryingTwoOrMore, 37, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 36 this test was calibrated against. That is fine and the \
+            not the 37 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

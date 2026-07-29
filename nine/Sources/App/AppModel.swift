@@ -189,6 +189,14 @@ final class AppModel {
     private(set) var coachProgress: CoachProgress {
         didSet { coachProgressStore.wrappedValue = coachProgress }
     }
+    /// PRD-26's replays, keyed by board id. Written only by `mintReplay` and
+    /// pruned with the library — a replay is about a board, so when the board
+    /// goes it has nothing left to be about. (The opposite call from
+    /// `coachProgress`, which is about the *person* and must outlive every
+    /// board they played.)
+    private(set) var replays: ReplayVault {
+        didSet { replaysStore.wrappedValue = replays }
+    }
     /// Which dailies are solved (PRD-14) — the archive grid's checkmarks.
     /// Written only by `finishSolve` and the launch backfill; the library
     /// cannot hold this, because `prune()` caps solved boards at 20.
@@ -294,6 +302,17 @@ final class AppModel {
     /// deleted (EXECUTING-A-PRD §2's placement rule, one layer up).
     @ObservationIgnored private let coachProgressStore =
         CouchStored(wrappedValue: CoachProgress(), "nine.coachProgress", cloudSynced: true)
+    /// PRD-26's replays. Its own blob, **local-only**, and both halves are
+    /// decisions.
+    ///
+    /// Its own blob rather than a field on `LibraryEntry`, for the measurement
+    /// that killed field-level preservation (1515 ms against a 49 ms baseline).
+    /// Local-only rather than KVS-synced because a full vault is ~60 × 1.5 KB
+    /// and iCloud key-value storage is 1 MB *total* — the same arithmetic that
+    /// keeps `nine.library` off it. The cloud copy is a CloudKit record in the
+    /// `NineLibrary` zone, beside the board it belongs to.
+    @ObservationIgnored private let replaysStore =
+        CouchStored(wrappedValue: ReplayVault(), "nine.replays")
     @ObservationIgnored private let sessionCountStore =
         CouchStored(wrappedValue: 0, "nine.sessionCount")
     @ObservationIgnored private let drawerFoundStore =
@@ -473,6 +492,7 @@ final class AppModel {
         tips = tipsStore.wrappedValue
         coach = coachStore.wrappedValue
         coachProgress = coachProgressStore.wrappedValue
+        replays = replaysStore.wrappedValue
         archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
@@ -556,6 +576,7 @@ final class AppModel {
         guard cloudStore == nil, FileManager.default.ubiquityIdentityToken != nil else { return }
         let store = LibraryCloudStore()
         store.onRemoteEntry = { [weak self] synced in self?.applyRemoteEntry(synced) }
+        store.onRemoteReplay = { [weak self] replay in self?.applyRemoteReplay(replay) }
         store.onRemoteDeletion = { [weak self] id in self?.applyRemoteDeletion(id) }
         store.onAccountReset = { [weak self] in self?.repushEntireLibrary() }
         cloudStore = store
@@ -757,6 +778,17 @@ final class AppModel {
         cloudStore?.delete(id)
         if currentEntryID == id { currentEntryID = nil }
         try? libraryStore.flushNow()
+        // A deleted board takes its replay with it, here rather than at the
+        // next mint: "delete this board" has to mean the memory is gone now,
+        // not eventually. `remove` and not `prune` — see `ReplayVault.remove`;
+        // this is the one call that can empty the library, which is exactly the
+        // input `prune` refuses.
+        var vault = replays
+        vault.remove(id)
+        if vault != replays {
+            replays = vault
+            try? replaysStore.flushNow()
+        }
         #if os(iOS)
         if wasTodayDaily { WidgetBridge.clearDailyBoard(today: todayOrdinal) }
         WidgetBridge.publish(from: self)
@@ -1013,9 +1045,21 @@ final class AppModel {
 
     // MARK: - Play actions (GameScreen calls these)
 
+    /// Seconds this board's timer has run, which is what `LoggedMove.at`
+    /// means (PRD-26 §3.1).
+    ///
+    /// **The app layer reads the clock and the engine does not**, which is the
+    /// same division `ElapsedTimer` has had since 1.0 — every `Date` in the
+    /// Engine arrives as an argument. Elapsed rather than wall-clock, so a
+    /// replay is a timeline and not a diary: nothing in a `SolveReplay` says
+    /// what hour of the night anybody was playing.
+    private func moveStamp(_ game: NineGame) -> TimeInterval {
+        game.timer.elapsed(at: Date())
+    }
+
     func place(_ digit: Int, at cell: Int) {
         guard solvedAt == nil, var g = game else { return }
-        guard g.place(digit, at: cell, autoNotes: autoNotes) else { return }
+        guard g.place(digit, at: cell, autoNotes: autoNotes, elapsed: moveStamp(g)) else { return }
         game = g
         lastPlacedCell = cell
         if g.isSolved {
@@ -1027,7 +1071,7 @@ final class AppModel {
 
     func togglePencil(_ digit: Int, at cell: Int) {
         guard solvedAt == nil, var g = game else { return }
-        guard g.togglePencil(digit, at: cell) else { return }
+        guard g.togglePencil(digit, at: cell, elapsed: moveStamp(g)) else { return }
         game = g
         persistProgress()
     }
@@ -1037,7 +1081,7 @@ final class AppModel {
     @discardableResult
     func erase(at cell: Int) -> Bool {
         guard solvedAt == nil, var g = game else { return false }
-        guard g.erase(at: cell, autoNotes: autoNotes) else { return false }
+        guard g.erase(at: cell, autoNotes: autoNotes, elapsed: moveStamp(g)) else { return false }
         game = g
         persistProgress()
         return true
@@ -1046,7 +1090,7 @@ final class AppModel {
     @discardableResult
     func undoMove() -> NineMove? {
         guard solvedAt == nil, var g = game else { return nil }
-        guard let move = g.undo() else { return nil }
+        guard let move = g.undo(elapsed: moveStamp(g)) else { return nil }
         game = g
         // Undoing the bulk fill without clearing the flag would let the very
         // next placement refill exactly what the player just took back.
@@ -1133,6 +1177,12 @@ final class AppModel {
         if let id = currentEntryID {
             library.markSolved(id: id, at: now)
             if let solvedEntry = library.entry(id: id) { cloudStore?.push(solvedEntry) }
+            // After `markSolved`, so the prune inside sees the library the
+            // solve leaves behind rather than the one it arrived in.
+            mintReplay(
+                boardID: id, game: g, difficulty: difficulty, isDaily: isDaily,
+                solvedAt: now, seconds: record.seconds
+            )
         }
         try? libraryStore.flushNow()
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
@@ -1143,6 +1193,71 @@ final class AppModel {
         #if os(iOS)
         WidgetBridge.publish(from: self)
         #endif
+    }
+
+    // MARK: - Replays (PRD-26)
+
+    /// Mint the immutable record of a solve, and let the analysis quietly
+    /// update what the coach knows.
+    ///
+    /// Everything here is best-effort by construction. A board with no move
+    /// log — every widget solve, every watch solve, every board that arrived
+    /// over CloudKit with its log stripped by `SyncedEntry` — mints nothing,
+    /// and the share chip falls back to PRD-12's still card rather than
+    /// vanishing (PRD-26 §2.4). Nothing on the solve path may fail because a
+    /// replay could not be made.
+    private func mintReplay(
+        boardID: UUID, game: NineGame, difficulty: Difficulty,
+        isDaily: Bool, solvedAt: Date, seconds: TimeInterval
+    ) {
+        guard let replay = SolveReplay(
+            boardID: boardID, game: game, band: difficulty.rawValue,
+            isDaily: isDaily, solvedAt: solvedAt, seconds: seconds
+        ) else { return }
+
+        var vault = replays
+        vault.store(replay)
+        vault.prune(to: Set(library.entries.map { $0.id.uuidString }))
+        replays = vault
+        try? replaysStore.flushNow()
+        cloudStore?.push(replay)
+
+        // **A technique you found on your own board is a technique you have
+        // met** (PRD-26 §3.4). This is the only writer, it sets a bool, and it
+        // feeds `hasMet` — so PRD-25's one line in the stats drawer got truer
+        // and no new pixel appeared anywhere.
+        let analysis = ReplayAnalysis.analyze(
+            puzzle: game.puzzle.puzzle.cells,
+            solution: game.puzzle.solution.cells,
+            moves: game.moveLog
+        )
+        let used = analysis.techniquesUsed
+        guard !used.isEmpty else { return }
+        var progress = coachProgress
+        for technique in used { progress.recordUse(of: technique) }
+        coachProgress = progress
+    }
+
+    /// The debrief for a solved board, or nil when it has no replay. The one
+    /// door every surface goes through — the game screen's pull-up, the
+    /// archive, and the Mac all ask this and none of them holds the rule.
+    func debrief(for boardID: UUID) -> SolveDebrief? {
+        guard let replay = replays.replay(for: boardID),
+              let puzzle = replay.puzzle,
+              let entry = library.entry(id: boardID) else { return nil }
+        return SolveDebrief(
+            replay: replay,
+            analysis: ReplayAnalysis.analyze(
+                puzzle: puzzle,
+                solution: entry.game.puzzle.solution.cells,
+                moves: replay.moves
+            )
+        )
+    }
+
+    /// The replay for the board on screen, if it has one.
+    var currentReplay: SolveReplay? {
+        currentEntryID.flatMap { replays.replay(for: $0) }
     }
 
     private func persistProgress() {
@@ -1190,9 +1305,34 @@ final class AppModel {
         #endif
     }
 
+    /// A solve that happened on another device (PRD-26 §4).
+    ///
+    /// **`ReplayVault.store` is the whole merge rule**, and that is what
+    /// immutability buys: two devices cannot disagree about a record neither of
+    /// them may edit, so the newer `solvedAt` wins and there is nothing to
+    /// reconcile. Contrast `LibrarySync.apply`, which needs real merge rules
+    /// because a board is mutable and both sides may have moved it.
+    ///
+    /// Not pruned here. A replay can legitimately arrive *before* the board it
+    /// belongs to — CloudKit does not order two record types against each
+    /// other — and pruning on arrival would delete it for being early.
+    private func applyRemoteReplay(_ replay: SolveReplay) {
+        var vault = replays
+        vault.store(replay)
+        guard vault != replays else { return }
+        replays = vault
+        try? replaysStore.flushNow()
+    }
+
     private func applyRemoteDeletion(_ id: UUID) {
         LibrarySync.applyDeletion(id: id, into: &library)
         if currentEntryID == id { currentEntryID = nil }
+        var vault = replays
+        vault.remove(id)
+        if vault != replays {
+            replays = vault
+            try? replaysStore.flushNow()
+        }
         try? libraryStore.flushNow()
         #if os(iOS)
         WidgetBridge.publish(from: self)

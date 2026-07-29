@@ -11,6 +11,13 @@ struct HomeView: View {
 
     @State private var showHistory = false
     @State private var showBoards = false
+    /// PRD-26's ambient surface, reached two ways: a card, and the shelf
+    /// sitting untouched. Both routes set this one flag.
+    @State private var showAmbient = false
+    /// The last time the remote said anything. Reset by every move command and
+    /// every card tap, so "idle" means the room is idle rather than that the
+    /// player is reading slowly.
+    @State private var lastActivity = Date.now
     @Environment(\.colorScheme) private var colorScheme
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
@@ -33,6 +40,16 @@ struct HomeView: View {
             // couchRemote surface), so the overlay simply sits on top and
             // owns the remote while shown; on dismiss the cards regain
             // focus naturally.
+            // Above the sheets and below the first-run manual: an ambient
+            // surface must never cover a thing the player asked for, and must
+            // never cover the one screen that explains the remote.
+            if showAmbient {
+                AmbientReplaysView(model: model) {
+                    showAmbient = false
+                    lastActivity = .now
+                }
+                .transition(.opacity)
+            }
             if !model.helpSeen {
                 HelpOverlay(
                     // The wordmark, not a word: `ShareCardMetrics.wordmark` is
@@ -46,6 +63,34 @@ struct HomeView: View {
                 }
             }
         }
+        // Every remote gesture on the shelf is activity. `onMoveCommand` fires
+        // on focus movement, which is the only thing a player does here that
+        // is not a tap — and the taps reset it themselves, because they all
+        // open something.
+        .onMoveCommand { _ in lastActivity = .now }
+        // One wake-up a second rather than a `TimelineView`, which would
+        // re-evaluate the whole shelf at display rate to read a clock. The
+        // shelf is the idle-pixel test's own screen.
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            // Only from a shelf with nothing on top of it: an ambient takeover
+            // over an open sheet or the first-run manual would be the app
+            // interrupting the player rather than filling a silence.
+            guard hasReplays, !showAmbient, !showHistory, !showBoards, model.helpSeen else {
+                lastActivity = now
+                return
+            }
+            if now.timeIntervalSince(lastActivity) >= AmbientIdle.seconds {
+                withAnimation(.couchFast) { showAmbient = true }
+            }
+        }
+    }
+
+    /// Whether there is anything to be ambient *about*. A television that
+    /// blanks to an empty board after ninety seconds is worse than one that
+    /// does nothing, so a player with no solves never meets this at all —
+    /// which is also every player's first evening.
+    private var hasReplays: Bool {
+        model.library.played.contains { model.replays.replay(for: $0.id) != nil }
     }
 
     private var shelf: some View {
@@ -175,6 +220,19 @@ struct HomeView: View {
                 extraTile(symbol: "trophy",
                           title: Strings.string("history.title"),
                           subtitle: Strings.string("shelf.history.subtitle"))
+            }
+            // PRD-26. Shown only when there is something to replay — a card
+            // that opens an empty screen is worse than no card, and the shelf
+            // already refuses to render a 0% ring for the same reason.
+            if hasReplays {
+                ShelfCard(width: 440, height: 150, action: {
+                    lastActivity = .now
+                    withAnimation(.couchFast) { showAmbient = true }
+                }) {
+                    extraTile(symbol: "sparkles",
+                              title: DebriefPhrase.replay,
+                              subtitle: Strings.string("shelf.replays.subtitle"))
+                }
             }
         }
     }

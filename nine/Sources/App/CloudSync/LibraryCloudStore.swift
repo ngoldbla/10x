@@ -14,9 +14,23 @@ import CouchKit
 final class LibraryCloudStore {
     nonisolated static let zoneName = "NineLibrary"
     nonisolated static let recordType = "LibraryEntry"
+    /// PRD-26's immutable solve records, in the **same** zone.
+    ///
+    /// A new record type in an existing container needs **no entitlement change
+    /// and no `match` re-mint** — EXECUTING-A-PRD §6's trap fires on
+    /// capabilities, and a record type is schema. It does need the schema
+    /// deployed to the CloudKit *production* environment before release, which
+    /// is human-owned, like PRD-7 §5's container gate.
+    nonisolated static let replayRecordType = "SolveReplay"
     nonisolated static let containerID = "iCloud.com.couchsuite.nine"
 
+    /// A replay's record name is its board's uuid behind this prefix, so the
+    /// two record types can share the zone without colliding on a name — and so
+    /// a replay is findable from a board id without an index.
+    nonisolated static let replayRecordPrefix = "replay-"
+
     var onRemoteEntry: (@MainActor (SyncedEntry) -> Void)?
+    var onRemoteReplay: (@MainActor (SolveReplay) -> Void)?
     var onRemoteDeletion: (@MainActor (UUID) -> Void)?
     var onAccountReset: (@MainActor () -> Void)?
 
@@ -31,6 +45,10 @@ final class LibraryCloudStore {
     /// Snapshots the caller has handed us, so we can build records on demand
     /// when the engine asks for the next batch.
     private var pendingProjections: [CKRecord.ID: SyncedEntry] = [:]
+    /// The same queue for replays. A second dictionary rather than an enum over
+    /// both, because the two never key the same record name and every site that
+    /// reads one is a site that would have had to switch on the other.
+    private var pendingReplays: [CKRecord.ID: SolveReplay] = [:]
 
     init() {
         let container = CKContainer(identifier: Self.containerID)
@@ -62,10 +80,30 @@ final class LibraryCloudStore {
         engine?.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
     }
 
+    /// Send an immutable solve record (PRD-26 §4). Idempotent by construction:
+    /// the record name is derived from the board id, so re-sending a replay
+    /// overwrites the same record rather than accumulating one per attempt.
+    func push(_ replay: SolveReplay) {
+        let recordID = replayRecordID(replay.boardID)
+        pendingReplays[recordID] = replay
+        engine?.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
+    }
+
+    /// Deleting a board takes its replay with it — the same rule
+    /// `ReplayVault.prune` holds locally, so the two cannot disagree about
+    /// whether a deleted board still has a memory.
     func delete(_ id: UUID) {
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
+        let replayID = replayRecordID(id)
         pendingProjections.removeValue(forKey: recordID)
-        engine?.state.add(pendingRecordZoneChanges: [.deleteRecord(recordID)])
+        pendingReplays.removeValue(forKey: replayID)
+        engine?.state.add(pendingRecordZoneChanges: [
+            .deleteRecord(recordID), .deleteRecord(replayID)
+        ])
+    }
+
+    private func replayRecordID(_ boardID: UUID) -> CKRecord.ID {
+        CKRecord.ID(recordName: Self.replayRecordPrefix + boardID.uuidString, zoneID: zoneID)
     }
 
     /// Ask CloudKit to fetch now (called on foreground). Ambient: no engine /
@@ -93,9 +131,26 @@ final class LibraryCloudStore {
         return record
     }
 
+    /// The replay's twin. One blob field for the same reason: a record type
+    /// this build has never seen a new field on still round-trips.
+    nonisolated static func makeReplayRecord(recordID: CKRecord.ID, replay: SolveReplay) -> CKRecord {
+        let record = CKRecord(recordType: replayRecordType, recordID: recordID)
+        if let payload = try? CouchJSON.encode(replay) {
+            record["payload"] = payload as CKRecordValue
+        }
+        record["solvedAt"] = replay.solvedAt as CKRecordValue
+        record["band"] = replay.band as CKRecordValue
+        return record
+    }
+
     private func projection(from record: CKRecord) -> SyncedEntry? {
         guard let data = record["payload"] as? Data else { return nil }
         return try? JSONDecoder().decode(SyncedEntry.self, from: data)
+    }
+
+    private func replay(from record: CKRecord) -> SolveReplay? {
+        guard let data = record["payload"] as? Data else { return nil }
+        return try? CouchJSON.decode(SolveReplay.self, from: data)
     }
 }
 
@@ -122,11 +177,27 @@ extension LibraryCloudStore: CKSyncEngineDelegate {
 
         case .fetchedRecordZoneChanges(let changes):
             for modification in changes.modifications {
-                if let projection = projection(from: modification.record) {
-                    onRemoteEntry?(projection)
+                // Discriminated on `recordType`, not on the name prefix: the
+                // name is how the record is *addressed* and the type is what it
+                // *is*, and a build that meets a third type must skip it rather
+                // than mis-decode it as one of these two.
+                switch modification.record.recordType {
+                case Self.recordType:
+                    if let projection = projection(from: modification.record) {
+                        onRemoteEntry?(projection)
+                    }
+                case Self.replayRecordType:
+                    if let replay = replay(from: modification.record) {
+                        onRemoteReplay?(replay)
+                    }
+                default:
+                    break
                 }
             }
             for deletion in changes.deletions {
+                // A replay deletion arrives alongside its board's; the board's
+                // is the one that carries the id, and prefixed names are
+                // deliberately not parsed back into one.
                 if let id = UUID(uuidString: deletion.recordID.recordName) {
                     onRemoteDeletion?(id)
                 }
@@ -135,6 +206,7 @@ extension LibraryCloudStore: CKSyncEngineDelegate {
         case .sentRecordZoneChanges(let sent):
             for saved in sent.savedRecords {
                 pendingProjections.removeValue(forKey: saved.recordID)
+                pendingReplays.removeValue(forKey: saved.recordID)
             }
             for failed in sent.failedRecordSaves {
                 log.error("record save failed: \(failed.error, privacy: .public)")
@@ -161,9 +233,18 @@ extension LibraryCloudStore: CKSyncEngineDelegate {
             pendingProjections.map { ($0.key.recordName, $0.value) },
             uniquingKeysWith: { _, latest in latest }
         )
+        let replaysByName = Dictionary(
+            pendingReplays.map { ($0.key.recordName, $0.value) },
+            uniquingKeysWith: { _, latest in latest }
+        )
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { recordID in
-            guard let projection = projectionsByName[recordID.recordName] else { return nil }
-            return LibraryCloudStore.makeRecord(recordID: recordID, projection: projection)
+            if let projection = projectionsByName[recordID.recordName] {
+                return LibraryCloudStore.makeRecord(recordID: recordID, projection: projection)
+            }
+            if let replay = replaysByName[recordID.recordName] {
+                return LibraryCloudStore.makeReplayRecord(recordID: recordID, replay: replay)
+            }
+            return nil
         }
     }
 }

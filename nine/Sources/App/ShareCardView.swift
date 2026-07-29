@@ -26,6 +26,8 @@
 // fenced to their platforms.
 import SwiftUI
 import CouchKit
+import AVFoundation
+import CoreVideo
 
 /// The share button's words, in the feature's own file rather than in each
 /// platform's UI file — `TouchUI` and `MacUI` are fenced to opposite platforms
@@ -155,6 +157,30 @@ struct SolvedGridThumb: View {
     }
 }
 
+/// The comet in the card's body slot (PRD-26 §2.4).
+///
+/// The chrome, the margins and every caption are untouched — `ShareCard` is
+/// generic over its body at `ShareCardMetrics.bodySide` and this takes that
+/// 888 pt square unchanged, which is exactly what that seam was cut for.
+struct CometCardBody: View {
+    let replay: SolveReplay
+    let tones: ThemeTones
+    let accent: Color
+    /// Where in the loop this frame sits. The exporter walks it; nothing here
+    /// reads a clock, so a frame is a pure function of its number.
+    let phase: Double
+
+    var body: some View {
+        CometView(
+            puzzle: replay.puzzle ?? [Int](repeating: 0, count: 81),
+            moves: replay.moves,
+            tones: tones,
+            accent: accent,
+            frozenPhase: phase
+        )
+    }
+}
+
 /// A rendered card, ready to hand to `ShareLink`.
 ///
 /// Both halves are needed and neither substitutes for the other: the **URL** is
@@ -211,5 +237,128 @@ enum ShareCardRenderer {
             .appendingPathComponent("Nine-\(UUID().uuidString.prefix(8)).png")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
         return ShareCardExport(url: url, preview: preview)
+    }
+
+    // MARK: - The 5 s loop (PRD-26 §2.4)
+
+    /// 30 fps × 5 s = 150 frames. Thirty rather than sixty because the comet is
+    /// one slow object on a flat ground: the extra frames cost a doubled export
+    /// on the path right after a solve and buy nothing the eye can find.
+    static let loopFPS: Int32 = 30
+    static var loopFrameCount: Int { Int(loopFPS) * Int(CometTimeline.loopSeconds) }
+
+    /// Render the card with the comet as its body, as an H.264 `.mp4`.
+    ///
+    /// **One chip, two payloads** (PRD-26 §2.4). The caller falls back to
+    /// `export` whenever this returns nil, which is not defensive coding: three
+    /// real paths mint no replay at all — a widget solve, a watch solve, and
+    /// any board that reached this device over CloudKit, whose log
+    /// `SyncedEntry` strips by design. An unconditional loop would have deleted
+    /// PRD-12's shipped behaviour on all three.
+    ///
+    /// MP4 rather than GIF or APNG, and the reason is arithmetic: this card is
+    /// 1080×1350, and five seconds of it as a palettised GIF is tens of
+    /// megabytes. APNG is small but silently dropped by several of the places
+    /// a card actually goes.
+    static func exportLoop(
+        facts: SolveCardFacts, replay: SolveReplay, tones: ThemeTones, accent: Color
+    ) -> ShareCardExport? {
+        guard !replay.moves.isEmpty, replay.puzzle != nil else { return nil }
+        let size = ShareCardMetrics.size
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Nine-\(UUID().uuidString.prefix(8)).mp4")
+        try? FileManager.default.removeItem(at: url)
+
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return nil }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(size.width),
+            AVVideoHeightKey: Int(size.height)
+        ])
+        input.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                kCVPixelBufferWidthKey as String: Int(size.width),
+                kCVPixelBufferHeightKey as String: Int(size.height)
+            ]
+        )
+        guard writer.canAdd(input) else { return nil }
+        writer.add(input)
+        guard writer.startWriting() else { return nil }
+        writer.startSession(atSourceTime: .zero)
+
+        var preview: Image?
+        for index in 0..<loopFrameCount {
+            let phase = Double(index) / Double(loopFrameCount)
+            let renderer = ImageRenderer(
+                content: ShareCard(facts: facts, tones: tones, accent: accent) {
+                    CometCardBody(replay: replay, tones: tones, accent: accent, phase: phase)
+                }
+            )
+            renderer.scale = 1
+            renderer.isOpaque = true
+            guard let cg = renderer.cgImage,
+                  let buffer = pixelBuffer(from: cg, pool: adaptor.pixelBufferPool, size: size)
+            else {
+                writer.cancelWriting()
+                return nil
+            }
+            // The share sheet's thumbnail is the *last* frame, not the first:
+            // frame 0 is a nearly empty board, and a preview of an empty board
+            // is a preview of nothing having happened.
+            if index == loopFrameCount - 1 {
+                #if os(macOS)
+                preview = Image(nsImage: NSImage(cgImage: cg, size: size))
+                #else
+                preview = Image(uiImage: UIImage(cgImage: cg))
+                #endif
+            }
+            // Spin rather than await: `ImageRenderer` is main-actor-bound, so
+            // this whole function is, and the writer drains a non-real-time
+            // input promptly. 150 frames of a flat card is well under a second.
+            while !input.isReadyForMoreMediaData { usleep(200) }
+            adaptor.append(
+                buffer, withPresentationTime: CMTime(value: CMTimeValue(index), timescale: loopFPS)
+            )
+        }
+        input.markAsFinished()
+
+        // `finishWriting(completionHandler:)` is the only supported spelling,
+        // and every caller of this is synchronous, so the semaphore is the
+        // bridge. Safe because the completion runs on the writer's own queue
+        // and never hops back to the main actor.
+        let done = DispatchSemaphore(value: 0)
+        writer.finishWriting { done.signal() }
+        done.wait()
+        guard writer.status == .completed, let preview else { return nil }
+        return ShareCardExport(url: url, preview: preview)
+    }
+
+    private static func pixelBuffer(
+        from image: CGImage, pool: CVPixelBufferPool?, size: CGSize
+    ) -> CVPixelBuffer? {
+        var buffer: CVPixelBuffer?
+        if let pool {
+            CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
+        } else {
+            CVPixelBufferCreate(
+                nil, Int(size.width), Int(size.height), kCVPixelFormatType_32ARGB,
+                [kCVPixelBufferCGImageCompatibilityKey: true] as CFDictionary, &buffer
+            )
+        }
+        guard let buffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer),
+            width: Int(size.width), height: Int(size.height),
+            bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(origin: .zero, size: size))
+        return buffer
     }
 }

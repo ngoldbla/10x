@@ -29,6 +29,12 @@
 //
 // A player who never opens School is never told they have not.
 //
+// PRD-26 added a **writer** and no fourth reader: `usedInSolve` is set from
+// `ReplayAnalysis`, which reads a solve that already happened, and it feeds
+// `hasMet` and nothing else. So reader 3's sentence became truer without any
+// new pixel appearing anywhere, which is the only kind of growth this file is
+// allowed.
+//
 // Keyed by `Technique` **raw value strings** rather than by the enum, so a
 // build that has never heard of `swordfish` carries the row instead of dropping
 // it — the same reason `nine.history` writes a `band` sibling. Pure Foundation,
@@ -63,10 +69,29 @@ public struct CoachProgress: Codable, Equatable, Sendable {
         public var explained: Int
         /// Whether its School lesson has been played to the end.
         public var lessonDone: Bool
+        /// Whether the player has ever resolved a cell with it on a board of
+        /// their own (PRD-26 §3.4).
+        ///
+        /// The third way to meet a technique, and the only one that does not
+        /// involve being told. It is written from `ReplayAnalysis`, which reads
+        /// it off the solve that already happened — so nothing new is measured,
+        /// asked for, or shown. It feeds `hasMet` and stops there: no fourth
+        /// reader, no sentence of its own, and deliberately no way to tell from
+        /// the outside which of the three routes met a technique.
+        public var usedInSolve: Bool
 
-        public init(explained: Int = 0, lessonDone: Bool = false) {
+        public init(explained: Int = 0, lessonDone: Bool = false, usedInSolve: Bool = false) {
             self.explained = explained
             self.lessonDone = lessonDone
+            self.usedInSolve = usedInSolve
+        }
+
+        /// Spelled out because both halves of `Codable` are hand-written here,
+        /// so nothing is synthesized — including this. The names are the wire
+        /// format and match the property names exactly, which is what makes a
+        /// blob written by any build readable by any other.
+        private enum CodingKeys: String, CodingKey {
+            case explained, lessonDone, usedInSolve
         }
 
         /// Tolerant per field, for `CouchStored`'s reason: a decode that throws
@@ -76,10 +101,32 @@ public struct CoachProgress: Codable, Equatable, Sendable {
             guard let c = try? decoder.container(keyedBy: CodingKeys.self) else {
                 explained = 0
                 lessonDone = false
+                usedInSolve = false
                 return
             }
             explained = (try? c.decode(Int.self, forKey: .explained)) ?? 0
             lessonDone = (try? c.decode(Bool.self, forKey: .lessonDone)) ?? false
+            usedInSolve = (try? c.decode(Bool.self, forKey: .usedInSolve)) ?? false
+        }
+
+        /// **Defaults are not written**, and that is arithmetic rather than
+        /// tidiness. The synthesized encoder spells every field, so a third
+        /// `Bool` costs ~20 bytes on every one of the 32 rows and pushes a full
+        /// blob past PRD-25 §2.5's 2 KB budget — which
+        /// `theBlobIsBoundedNoMatterWhatItIsFed` measures rather than trusts.
+        /// Raising the cap would have been the easy answer and the wrong one:
+        /// the budget is what keeps this in KVS beside the streak.
+        ///
+        /// Omission is also the more tolerant wire. Every field here already
+        /// decodes to its default when absent, so a row this build writes is
+        /// readable by one that has never heard of `usedInSolve`, and a row
+        /// that build writes back loses only a bool derivable from the next
+        /// solve.
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            if explained != 0 { try c.encode(explained, forKey: .explained) }
+            if lessonDone { try c.encode(lessonDone, forKey: .lessonDone) }
+            if usedInSolve { try c.encode(usedInSolve, forKey: .usedInSolve) }
         }
     }
 
@@ -108,7 +155,8 @@ public struct CoachProgress: Codable, Equatable, Sendable {
     }
 
     public func hasMet(_ technique: Technique) -> Bool {
-        record(for: technique).explained > 0 || record(for: technique).lessonDone
+        let record = self.record(for: technique)
+        return record.explained > 0 || record.lessonDone || record.usedInSolve
     }
 
     /// How many of `techniques` the player has met. The stats drawer's one
@@ -120,6 +168,16 @@ public struct CoachProgress: Codable, Equatable, Sendable {
     public mutating func recordExplanation(of technique: Technique) {
         var record = self.record(for: technique)
         record.explained += 1
+        write(record, for: technique.rawValue)
+    }
+
+    /// The player resolved a cell with this technique on their own board
+    /// (PRD-26 §3.4). Idempotent: a bool, not a count, because a count would be
+    /// a score and this file is the one most likely to grow one by accident.
+    public mutating func recordUse(of technique: Technique) {
+        var record = self.record(for: technique)
+        guard !record.usedInSolve else { return }
+        record.usedInSolve = true
         write(record, for: technique.rawValue)
     }
 
