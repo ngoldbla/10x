@@ -273,19 +273,18 @@ public struct BoardLibrary: Codable, Sendable, Equatable {
         guard let raw = try? container.decode([RawLibraryEntry].self, forKey: .entries) else { return }
         for element in raw {
             if var entry = element.entry {
-                // A running timer surviving into a decode means whatever wrote
-                // this blob never got to pause it honestly — a killed process,
-                // or someone else's write arriving here first. `updatedAt` is
-                // stamped by `persistProgress()` on every move, so it is the
-                // last instant this entry's play is provably real; capping the
-                // open run there (rather than trusting it open) credits that
-                // play and drops everything since as away-time. This seam is
-                // below every reader — `startEntry`, BoardsSheet tiles, the
-                // widget bridge, cloud-arrived entries — so closing a foreign
-                // stale run here is correct under last-writer-wins.
-                if entry.game.timer.isRunning {
-                    entry.game.timer.closeOpenRun(notLaterThan: entry.updatedAt)
-                }
+                // A running timer surviving into a decode means the process
+                // that wrote this blob never got to pause it honestly — it was
+                // killed mid-game. `updatedAt` is stamped by `persistProgress()`
+                // on every move, so it is the last instant this entry's play is
+                // provably real; capping the open run there (rather than
+                // trusting it open) credits that play and drops the rest as
+                // away-time. `nine.library` is local-only and read at launch,
+                // so this sits below every local reader — `startEntry`, tracker
+                // tiles, the widget bridge. Cloud-arrived entries never pass
+                // through here: they are capped on their own adoption path, in
+                // `LibrarySync.apply`.
+                entry.game.timer.closeOpenRun(notLaterThan: entry.updatedAt)
                 entries.append(entry)
             } else {
                 quarantined.append(QuarantinedEntry(element.raw ?? .null))

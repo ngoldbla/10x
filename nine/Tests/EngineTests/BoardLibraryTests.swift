@@ -181,4 +181,24 @@ struct BoardLibraryTests {
         // Capped at updatedAt (t(100)), not at whatever moment the test reads it.
         #expect(abs(entry.game.timer.elapsed(at: t(1_000_000)) - 100) < 0.0001)
     }
+
+    @Test func upsertNeverClosesARunningTimer() throws {
+        // `persistProgress()` saves every move through `upsert`, so the board
+        // being played right now passes through here with its clock
+        // legitimately running. Sanitising in this funnel — rather than at the
+        // decode and cloud-adoption seams — would stop the timer under the
+        // player's hands on their very next digit.
+        var g = game()
+        g.timer.start(at: t(0))
+        var lib = BoardLibrary()
+        let id = lib.create(kind: .free(.gentle), game: g, now: t(50))
+        #expect(try #require(lib.entry(id: id)).game.timer.isRunning)
+
+        // A later save of the same entry, exactly as a move would write it.
+        var entry = try #require(lib.entry(id: id))
+        entry.updatedAt = t(80)
+        lib.upsert(entry)
+        #expect(try #require(lib.entry(id: id)).game.timer.isRunning,
+                "the live board's clock survives its own save path")
+    }
 }
