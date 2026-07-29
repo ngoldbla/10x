@@ -205,6 +205,40 @@ private struct EraseIndicator: ViewModifier {
     }
 }
 
+#if DEBUG
+/// Task 6's rose-legibility comparison rig: pass `--rose-style A|B|C|D` at
+/// launch to force `PetalSurface`'s lensed branch into one of four
+/// alternative treatments so they can be screenshotted side by side (see
+/// `task-6-brief.md`). Resolved once into a `static let` rather than read
+/// from `ProcessInfo` inside `body(content:)` — that function runs per
+/// petal, and SwiftUI re-evaluates it across the rose's bloom animation, so
+/// re-parsing launch arguments there would repeat work whose answer cannot
+/// change after `main()` starts.
+///
+/// Task 7 deletes this enum, the switch in `PetalSurface.body(content:)`
+/// that reads it, and B/C/D's helper methods below, keeping only whichever
+/// variant wins (or today's `defaultLens`, if none of them do).
+enum RoseStyleRig {
+    /// Letters match the brief exactly. A missing `--rose-style`, an
+    /// unrecognized value, or its total absence in a Release build (the enum
+    /// doesn't exist there) all fail closed to `nil` — same as `.some` never
+    /// being reached — which is what makes "no argument" and "Release" render
+    /// identically: both call `defaultLens` and nothing else.
+    enum Style: String {
+        case revert = "A"
+        case frosted = "B"
+        case tinted = "C"
+        case glyphPlate = "D"
+    }
+
+    static let style: Style? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "--rose-style"), idx + 1 < args.count else { return nil }
+        return Style(rawValue: args[idx + 1])
+    }()
+}
+#endif
+
 /// A petal's own surface.
 ///
 /// Lensed, it is a rim and a breath of body and nothing else: the board's
@@ -232,22 +266,123 @@ private struct PetalSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         if lensed {
-            content
-                // Just enough body to lift a glyph off a busy board cell
-                // without becoming the disc this PRD removes.
-                .background(Circle().fill(edge.opacity(0.10)))
-                .overlay {
-                    Circle().strokeBorder(
-                        LinearGradient(
-                            colors: [edge.opacity(0.60), edge.opacity(0.14)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: max(1, 1.6 * scale))
-                }
-                .clipShape(Circle())
+            #if DEBUG
+            // Task 6's --rose-style rig (RoseStyleRig, above). `.revert`
+            // through `.glyphPlate` are comparison variants that exist in
+            // DEBUG only; `nil` — no argument, which is every launch that
+            // isn't this rig — falls through to `defaultLens`, the same
+            // single call the `#else` arm below makes unconditionally. That
+            // shared call, not merely matching code, is what makes "no
+            // argument" and "Release" render byte-for-byte the same.
+            switch RoseStyleRig.style {
+            case .revert:
+                content.couchGlassInteractive(in: Circle())
+            case .frosted:
+                frostedLens(content)
+            case .tinted:
+                tintedLens(content)
+            case .glyphPlate:
+                glyphPlateLens(content)
+            case nil:
+                defaultLens(content)
+            }
+            #else
+            defaultLens(content)
+            #endif
         } else {
             content.couchGlassInteractive(in: Circle())
         }
     }
+
+    /// Today's PRD-22 lens — a rim and a breath of body, nothing else (see
+    /// the type doc above for why). Factored out of `body(content:)` so the
+    /// rig's `nil` case (no `--rose-style` argument) and every Release build
+    /// invoke this one function, rather than two separately-typed copies of
+    /// the same view construction that could quietly drift apart.
+    @ViewBuilder
+    private func defaultLens(_ content: Content) -> some View {
+        content
+            // Just enough body to lift a glyph off a busy board cell
+            // without becoming the disc this PRD removes.
+            .background(Circle().fill(edge.opacity(0.10)))
+            .overlay { rim }
+            .clipShape(Circle())
+    }
+
+    /// The gradient rim, shared by `defaultLens` and every Task 6 variant —
+    /// B/C/D vary only the fill underneath it, never the rim itself. This is
+    /// what reads as "there is glass here" against a bright board; see
+    /// `edge`, above, for why it has to be direction-of-luminance aware.
+    private var rim: some View {
+        Circle().strokeBorder(
+            LinearGradient(
+                colors: [edge.opacity(0.60), edge.opacity(0.14)],
+                startPoint: .topLeading, endPoint: .bottomTrailing),
+            lineWidth: max(1, 1.6 * scale))
+    }
+
+    #if DEBUG
+    // MARK: - Task 6 rig: B/C/D variants. Task 7 deletes this whole block
+    // along with the switch in `body(content:)` above, keeping only whichever
+    // variant wins (or `defaultLens`, if none of them do).
+
+    /// B — frosted lens: same rim, `.ultraThinMaterial` fill instead of a
+    /// flat tint. The Metal shader (`rosePetalLens` in Afterglow.metal) still
+    /// bends the board at the rim; the material just fuzzes what shows
+    /// through the body instead of tinting it flat.
+    @ViewBuilder
+    private func frostedLens(_ content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial, in: Circle())
+            .overlay { rim }
+            .clipShape(Circle())
+    }
+
+    /// C — stronger tint: `defaultLens` with the body opacity tripled
+    /// (0.10 → 0.30). Deliberately the same silhouette as today, only turned
+    /// up, so the grid shows it as a dial move on the current approach and
+    /// not a new idea competing with B/D.
+    @ViewBuilder
+    private func tintedLens(_ content: Content) -> some View {
+        content
+            .background(Circle().fill(edge.opacity(0.30)))
+            .overlay { rim }
+            .clipShape(Circle())
+    }
+
+    /// D — glyph plate: today's 0.10 wash and rim stay untouched — the rim
+    /// still reads and the board still refracts at the edge — plus a small
+    /// `.thinMaterial` disc directly behind the glyph, layered between it and
+    /// the wash (the plate `.background` is applied first, so it sits nearer
+    /// `content` than the wash added after it).
+    ///
+    /// `scaleEffect` rather than a hard-coded diameter: by the time this
+    /// modifier runs, `content` already carries its own `.frame(petalSize)`
+    /// (88pt/116pt × `scale` — pencil vs. placement, see
+    /// `FlickRoseView.petalSize`), and a bare `Circle()` placed in a
+    /// `.background` fills whatever size it is proposed. Scaling that circle
+    /// down by `glyphPlateFraction` derives the plate from *that* size
+    /// automatically, so this one method already scales correctly for both
+    /// the 38pt pencil-mode glyph and the 52pt placement glyph without
+    /// needing to know which one it's dressing.
+    @ViewBuilder
+    private func glyphPlateLens(_ content: Content) -> some View {
+        content
+            .background {
+                Circle()
+                    .fill(.thinMaterial)
+                    .scaleEffect(Self.glyphPlateFraction)
+            }
+            .background(Circle().fill(edge.opacity(0.10)))
+            .overlay { rim }
+            .clipShape(Circle())
+    }
+
+    /// ~0.62×`petalSize`, per the brief — big enough to sit under both glyph
+    /// sizes without the plate itself reaching the rim, which would make D
+    /// read as a re-skinned A rather than a distinct, smaller plate.
+    private static let glyphPlateFraction: CGFloat = 0.62
+    #endif
 }
 
 // MARK: - Pointer / touch rose
