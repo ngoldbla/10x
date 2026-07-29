@@ -282,8 +282,7 @@ private struct FirstFlickBeat: View {
                         onDigit: { commit(digit: $0) },
                         // Not modal here: Skip and the lesson share this card
                         // with the ring, and they have to stay reachable.
-                        isModal: false,
-                        lensed: !reduceMotion
+                        isModal: false
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }

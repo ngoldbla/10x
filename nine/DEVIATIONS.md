@@ -3463,17 +3463,48 @@ debrief and every stat that reads the field was reporting a constant. `NineGame`
 counts them now and the debrief, the drawer and the share surfaces say the number
 out loud, in nine languages.
 
+**The rose's petals are opaque glass again, which walks back PRD-22 on the rose**
+(supersedes the lens half of PRD-22 for this surface only). Petal glyphs collided with
+the board's own digits under the transparent lens, worst in pencil mode where a ghost
+`4` sat under petal 1 and a ghost `5` under petal 2. Four treatments were built and
+photographed (`.context/rose-variants/`, five-panel contact sheets); the owner picked
+**A**, the revert to `.couchGlassInteractive`. This is a taste call taken with its
+costs on the table, so the costs are recorded rather than implied:
+
+- It **reopens the 1.1 audit finding PRD-22 was written to close** — "rose petals are
+  opaque `.glassEffect` discs, not the PRD's true glass petals lensing the board
+  beneath." That sentence is true again.
+- `rosePetalLens` in `Afterglow.metal` **still runs**, and `BoardView` still bends the
+  board under the ring. Nothing can see it: the petals cover the area that refracts,
+  and Liquid Glass merges adjacent discs into one blob that closes the gaps between
+  them. The shader was left in place deliberately — deleting it is the one move that
+  would make this pick expensive to reverse — so the cost of A today is GPU work whose
+  output is fully occluded.
+- Because A is byte-identical to what the unlensed branch already did, `PetalSurface`
+  had two identical arms and **collapsed to a single `.couchGlassInteractive` call**.
+  `lensed` lost its only consumer and is gone from `FlickRoseView`, `TouchRose` and
+  all seven mount sites; the board's own `roseLens:` is untouched, since that is the
+  refraction and a different parameter.
+
 ### Not done, each with its reason
 
-- **The rose's petal legibility is unresolved, and a DEBUG rig is still in the tree.**
-  Petal glyphs collide with the board's own digits under the PRD-22 lens, worst in
-  pencil mode. Four treatments were built and photographed (`.context/rose-variants/`)
-  and `.ultraThinMaterial` is the only one that suppresses the board's digits while
-  the shader still bends light at the rim — the opaque-glass revert also swallows the
-  new dashed erase rims entirely. Nothing is wired: `defaultLens` is unchanged and the
-  B/C/D variants sit behind `#if DEBUG` in `FlickRoseView`, to be resolved or deleted.
-  `PetalSurface`'s doc comment still argues *for* today's transparent style and will
-  be wrong the moment a winner lands.
+- **The dashed erase rim has never been seen on the surface that now ships.** In
+  `A-pencil-paper.png` — the same opaque glass, captured for the grid — the ring is
+  absent on all three pencilled petals while the digit still reads accent-coloured,
+  leaving colour as the only cue for erase. `EraseIndicator` is inset 8% off the
+  petal's edge to clear what is presumed to be Liquid Glass's rim highlight, but
+  **that inset is unverified**: it builds, and no one has looked at it. The presumed
+  cause is inferred from the screenshot, not proven.
+- **The simulator lane would not drive this session, and the reason is unknown.** A
+  seeded container (`ninestate.quiet_blobs` + the AX fixture) that resumed straight
+  onto a board at 12:03 today lands on Home at 19:18: the app honours neither the
+  seeded `appearance` nor the seeded library, `resumeOnLaunch` does not fire against a
+  fixture holding exactly one `inProgress` entry, and `sim-use tap` does not register
+  at coordinates that match the render. It is **not** this change — the pre-change
+  build was rebuilt and reproduces it exactly — and it is not decode, which
+  `AXFixtureTests` still passes. Ruled out: stale process, stale container (cold
+  uninstall/reinstall), and a wedged device (reboot). Unexamined: why a container the
+  app demonstrably writes to is not read back.
 - **tvOS overlays still leave the clock running.** The hold set is generic, but tvOS
   has no `.sheet` analogue to attach it to and its overlays were not audited; macOS is
   covered incidentally, through `scenePhase`.

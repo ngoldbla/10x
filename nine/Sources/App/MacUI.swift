@@ -633,8 +633,7 @@ struct MacGameScreen: View {
                         // no indication which ones were on.
                         currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
                             ? nil : game.entry(at: cursor),
-                        notedDigits: Set(game.pencilDigits(at: cursor)),
-                        lensed: !reduceMotion
+                        notedDigits: Set(game.pencilDigits(at: cursor))
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }

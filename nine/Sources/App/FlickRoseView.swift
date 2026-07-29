@@ -102,11 +102,6 @@ struct FlickRoseView: View {
     /// rim, one petal per noted digit — `togglePencil`'s own XOR already
     /// erases a note on a second tap; this only makes that visible.
     var notedDigits: Set<Int> = []
-    /// The board underneath is refracting through these petals (PRD-22), so
-    /// they draw as a rim and a glyph rather than as a material. False keeps
-    /// today's `.couchGlassInteractive` disc, which is what Reduce Motion and
-    /// every surface without a lens get.
-    var lensed: Bool = false
 
     @State private var bloomed = false
 
@@ -156,12 +151,12 @@ struct FlickRoseView: View {
             .font(.system(size: (state.pencil ? 38 : 52) * scale, weight: .semibold, design: .rounded))
             .foregroundStyle(complete ? Color.primary.opacity(0.30) : erasable ? accent : Color.primary)
             .frame(width: petalSize, height: petalSize)
-            .modifier(PetalSurface(lensed: lensed, scale: scale))
+            .couchGlassInteractive(in: Circle())
             .overlay {
                 Circle()
                     .strokeBorder(accent.opacity(focused ? 0.95 : 0), lineWidth: max(2, 4 * scale))
             }
-            .modifier(EraseIndicator(active: erasable, accent: accent, scale: scale))
+            .modifier(EraseIndicator(active: erasable, accent: accent, scale: scale, petalSize: petalSize))
             .scaleEffect(focused ? 1.1 : 1.0)
             .modifier(ShimmerPulse(active: shimmering, accent: accent))
             .offset(x: offset.x * spacing, y: offset.y * spacing)
@@ -169,220 +164,59 @@ struct FlickRoseView: View {
     }
 }
 
-/// The erase indicator: a dashed rim over the petal's own disc, composed as
+/// The erase indicator: a dashed ring inside the petal's own disc, composed as
 /// an `.overlay` the same way the focus ring and `ShimmerPulse` are, so it
 /// never fights either. It says "this digit is here" — not "this is wrong" —
 /// which is why it never reads as a warning color: a wrongness signal would
 /// leak the solution, and this petal is the correct one exactly as often as
 /// any other.
 ///
-/// Dash pattern and line weight are Task 6's to retune against a real petal
-/// surface style in a simulator session, so they are named constants here
-/// rather than folded into the `StrokeStyle` call — easy to change, without
-/// being parameters nobody else needs yet.
+/// Dash pattern and line weight are named constants rather than folded into
+/// the `StrokeStyle` call — easy to retune, without being parameters nobody
+/// else needs yet.
 private struct EraseIndicator: ViewModifier {
     static let dash: [CGFloat] = [3, 5]
     static let lineWidth: CGFloat = 2.5
-    /// Floored for the same reason the focus ring is `max(2, 4 * scale)` and
-    /// `PetalSurface`'s rim is `max(1, 1.6 * scale)`: the touch rose runs near
-    /// 0.4, where the unfloored weight computes to about a point and the rim
-    /// reads as a hairline rather than as a mark.
+    /// Floored for the same reason the focus ring is `max(2, 4 * scale)`: the
+    /// touch rose runs near 0.4, where the unfloored weight computes to about
+    /// a point and the ring reads as a hairline rather than as a mark.
     static let minimumLineWidth: CGFloat = 1.5
+    /// Pulled in off the petal's edge. What is *measured* is the symptom: in
+    /// `A-pencil-paper.png` from the Task 6 grid, captured against this same
+    /// opaque-glass surface, the ring is simply absent on all three pencilled
+    /// petals while the erasable digit still reads accent-coloured — so colour
+    /// is left as the only cue, which Differentiate Without Colour does not
+    /// accept. The presumed cause is that `couchGlassInteractive` is
+    /// `.glassEffect` on iOS 26 and Liquid Glass draws its own specular
+    /// highlight at the rim of the shape, where this ring used to sit.
+    ///
+    /// That cause is inferred, not proven, and **this inset has not been seen
+    /// on a device or simulator** — the lane that would have photographed it
+    /// would not drive (see DEVIATIONS). Treat the 8% as a first guess to be
+    /// confirmed or retuned against a real rose, not as a measured number.
+    ///
+    /// Expressed against `petalSize` rather than `scale` because the petal is
+    /// 88pt in pencil mode and 116pt in placement (`FlickRoseView.petalSize`),
+    /// and an inset that reads on one is a different number on the other.
+    static let insetFraction: CGFloat = 0.08
 
     let active: Bool
     let accent: Color
     let scale: CGFloat
+    let petalSize: CGFloat
 
     func body(content: Content) -> some View {
         content.overlay {
-            Circle().strokeBorder(
-                accent.opacity(active ? 0.9 : 0),
-                style: StrokeStyle(
-                    lineWidth: max(Self.minimumLineWidth, Self.lineWidth * scale),
-                    dash: Self.dash.map { $0 * scale })
-            )
+            Circle()
+                .inset(by: petalSize * Self.insetFraction)
+                .strokeBorder(
+                    accent.opacity(active ? 0.9 : 0),
+                    style: StrokeStyle(
+                        lineWidth: max(Self.minimumLineWidth, Self.lineWidth * scale),
+                        dash: Self.dash.map { $0 * scale })
+                )
         }
     }
-}
-
-#if DEBUG
-/// Task 6's rose-legibility comparison rig: pass `--rose-style A|B|C|D` at
-/// launch to force `PetalSurface`'s lensed branch into one of four
-/// alternative treatments so they can be screenshotted side by side (see
-/// `task-6-brief.md`). Resolved once into a `static let` rather than read
-/// from `ProcessInfo` inside `body(content:)` — that function runs per
-/// petal, and SwiftUI re-evaluates it across the rose's bloom animation, so
-/// re-parsing launch arguments there would repeat work whose answer cannot
-/// change after `main()` starts.
-///
-/// Task 7 deletes this enum, the switch in `PetalSurface.body(content:)`
-/// that reads it, and B/C/D's helper methods below, keeping only whichever
-/// variant wins (or today's `defaultLens`, if none of them do).
-enum RoseStyleRig {
-    /// Letters match the brief exactly. A missing `--rose-style`, an
-    /// unrecognized value, or its total absence in a Release build (the enum
-    /// doesn't exist there) all fail closed to `nil` — same as `.some` never
-    /// being reached — which is what makes "no argument" and "Release" render
-    /// identically: both call `defaultLens` and nothing else.
-    enum Style: String {
-        case revert = "A"
-        case frosted = "B"
-        case tinted = "C"
-        case glyphPlate = "D"
-    }
-
-    static let style: Style? = {
-        let args = ProcessInfo.processInfo.arguments
-        guard let idx = args.firstIndex(of: "--rose-style"), idx + 1 < args.count else { return nil }
-        return Style(rawValue: args[idx + 1])
-    }()
-}
-#endif
-
-/// A petal's own surface.
-///
-/// Lensed, it is a rim and a breath of body and nothing else: the board's
-/// Canvas is already bending and magnifying underneath (`rosePetalLens` in
-/// Afterglow.metal), and a material on top of that would be exactly the opaque
-/// disc PRD-22 exists to remove — the live audit's finding was "rose petals are
-/// opaque `.glassEffect` discs, not the PRD's true glass petals lensing the
-/// board beneath."
-///
-/// Unlensed it is byte-for-byte today's interactive glass, which is what Reduce
-/// Motion gets and what every surface that does not pass a lens keeps.
-private struct PetalSurface: ViewModifier {
-    let lensed: Bool
-    let scale: CGFloat
-
-    /// The rim has to be drawn *against* the board, and the board is bright on
-    /// Paper and Camel. A white rim there is a rim nobody can see: the contrast
-    /// harness would still report the petal's glyph at 18:1 and be right, and
-    /// the player would still be looking at nine floating digits with no ring
-    /// around them. Glyph legibility and *shape* legibility are two claims, and
-    /// only one of them is a contrast ratio.
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var edge: Color { colorScheme == .light ? .black : .white }
-
-    func body(content: Content) -> some View {
-        if lensed {
-            #if DEBUG
-            // Task 6's --rose-style rig (RoseStyleRig, above). `.revert`
-            // through `.glyphPlate` are comparison variants that exist in
-            // DEBUG only; `nil` — no argument, which is every launch that
-            // isn't this rig — falls through to `defaultLens`, the same
-            // single call the `#else` arm below makes unconditionally. That
-            // shared call, not merely matching code, is what makes "no
-            // argument" and "Release" render byte-for-byte the same.
-            switch RoseStyleRig.style {
-            case .revert:
-                content.couchGlassInteractive(in: Circle())
-            case .frosted:
-                frostedLens(content)
-            case .tinted:
-                tintedLens(content)
-            case .glyphPlate:
-                glyphPlateLens(content)
-            case nil:
-                defaultLens(content)
-            }
-            #else
-            defaultLens(content)
-            #endif
-        } else {
-            content.couchGlassInteractive(in: Circle())
-        }
-    }
-
-    /// Today's PRD-22 lens — a rim and a breath of body, nothing else (see
-    /// the type doc above for why). Factored out of `body(content:)` so the
-    /// rig's `nil` case (no `--rose-style` argument) and every Release build
-    /// invoke this one function, rather than two separately-typed copies of
-    /// the same view construction that could quietly drift apart.
-    @ViewBuilder
-    private func defaultLens(_ content: Content) -> some View {
-        content
-            // Just enough body to lift a glyph off a busy board cell
-            // without becoming the disc this PRD removes.
-            .background(Circle().fill(edge.opacity(0.10)))
-            .overlay { rim }
-            .clipShape(Circle())
-    }
-
-    /// The gradient rim, shared by `defaultLens` and every Task 6 variant —
-    /// B/C/D vary only the fill underneath it, never the rim itself. This is
-    /// what reads as "there is glass here" against a bright board; see
-    /// `edge`, above, for why it has to be direction-of-luminance aware.
-    private var rim: some View {
-        Circle().strokeBorder(
-            LinearGradient(
-                colors: [edge.opacity(0.60), edge.opacity(0.14)],
-                startPoint: .topLeading, endPoint: .bottomTrailing),
-            lineWidth: max(1, 1.6 * scale))
-    }
-
-    #if DEBUG
-    // MARK: - Task 6 rig: B/C/D variants. Task 7 deletes this whole block
-    // along with the switch in `body(content:)` above, keeping only whichever
-    // variant wins (or `defaultLens`, if none of them do).
-
-    /// B — frosted lens: same rim, `.ultraThinMaterial` fill instead of a
-    /// flat tint. The Metal shader (`rosePetalLens` in Afterglow.metal) still
-    /// bends the board at the rim; the material just fuzzes what shows
-    /// through the body instead of tinting it flat.
-    @ViewBuilder
-    private func frostedLens(_ content: Content) -> some View {
-        content
-            .background(.ultraThinMaterial, in: Circle())
-            .overlay { rim }
-            .clipShape(Circle())
-    }
-
-    /// C — stronger tint: `defaultLens` with the body opacity tripled
-    /// (0.10 → 0.30). Deliberately the same silhouette as today, only turned
-    /// up, so the grid shows it as a dial move on the current approach and
-    /// not a new idea competing with B/D.
-    @ViewBuilder
-    private func tintedLens(_ content: Content) -> some View {
-        content
-            .background(Circle().fill(edge.opacity(0.30)))
-            .overlay { rim }
-            .clipShape(Circle())
-    }
-
-    /// D — glyph plate: today's 0.10 wash and rim stay untouched — the rim
-    /// still reads and the board still refracts at the edge — plus a small
-    /// `.thinMaterial` disc directly behind the glyph, layered between it and
-    /// the wash (the plate `.background` is applied first, so it sits nearer
-    /// `content` than the wash added after it).
-    ///
-    /// `scaleEffect` rather than a hard-coded diameter: by the time this
-    /// modifier runs, `content` already carries its own `.frame(petalSize)`
-    /// (88pt/116pt × `scale` — pencil vs. placement, see
-    /// `FlickRoseView.petalSize`), and a bare `Circle()` placed in a
-    /// `.background` fills whatever size it is proposed. Scaling that circle
-    /// down by `glyphPlateFraction` derives the plate from *that* size
-    /// automatically, so this one method already scales correctly for both
-    /// the 38pt pencil-mode glyph and the 52pt placement glyph without
-    /// needing to know which one it's dressing.
-    @ViewBuilder
-    private func glyphPlateLens(_ content: Content) -> some View {
-        content
-            .background {
-                Circle()
-                    .fill(.thinMaterial)
-                    .scaleEffect(Self.glyphPlateFraction)
-            }
-            .background(Circle().fill(edge.opacity(0.10)))
-            .overlay { rim }
-            .clipShape(Circle())
-    }
-
-    /// ~0.62×`petalSize`, per the brief — big enough to sit under both glyph
-    /// sizes without the plate itself reaching the rim, which would make D
-    /// read as a re-skinned A rather than a distinct, smaller plate.
-    private static let glyphPlateFraction: CGFloat = 0.62
-    #endif
 }
 
 // MARK: - Pointer / touch rose
@@ -412,8 +246,6 @@ struct TouchRose: View {
     /// Full Keyboard Access (measured: `describe-ui` listed nine petals and
     /// nothing else at all).
     var isModal: Bool = true
-    /// See `FlickRoseView.lensed`.
-    var lensed: Bool = false
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
@@ -426,8 +258,7 @@ struct TouchRose: View {
             showsFocusRing: false,
             scale: scale,
             currentDigit: currentDigit,
-            notedDigits: notedDigits,
-            lensed: lensed
+            notedDigits: notedDigits
         )
         .accessibilityHidden(true) // the drawn petals; the targets below speak
         .overlay {

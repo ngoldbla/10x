@@ -235,8 +235,7 @@ struct TutorialView: View {
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
-                        onDigit: { commit(digit: $0) },
-                        lensed: !reduceMotion
+                        onDigit: { commit(digit: $0) }
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -718,8 +717,7 @@ struct PadTutorialView: View {
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         showsFocusRing: true,
-                        scale: lens.scale,
-                        lensed: !reduceMotion
+                        scale: lens.scale
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
