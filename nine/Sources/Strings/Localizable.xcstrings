@@ -1652,7 +1652,7 @@
       }
     },
     "board.action.erase": {
-      "comment": "A VoiceOver custom action, and the label of the ring's tenth petal: clear the digit in this square. A verb in the imperative.",
+      "comment": "A VoiceOver custom action on a square: clear the digit in this square. A verb in the imperative. The rose itself has no erase petal of its own — see board.rose.eraseDigit for how a filled cell's own digit petal offers the same action.",
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -4831,6 +4831,72 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "数字花环"
+          }
+        }
+      }
+    },
+    "board.rose.eraseDigit": {
+      "comment": "A VoiceOver custom action, and the label of a rose petal whose digit is already placed in this square (or already pencilled in, in pencil mode). %1$lld is the digit 1-9. A verb in the imperative, matching board.action.place/board.action.note — tapping the petal clears the digit rather than re-placing it. Says only that the digit is here, never that it is wrong: do not translate this as if it were a warning.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase %1$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Borrar %1$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Effacer %1$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cancella %1$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld を消す"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld 지우기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld wissen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Apagar %1$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "擦除 %1$lld"
           }
         }
       }

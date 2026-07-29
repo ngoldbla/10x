@@ -265,7 +265,6 @@ struct TutorialView: View {
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }
@@ -696,8 +695,7 @@ struct PadTutorialView: View {
             // rendering change, and moving where the ring blooms is not.
             let lens = model.learningRose.map {
                 RoseLens(cursor: model.cursor, side: Double(side), inset: 20,
-                         pencil: $0.pencil, showsErase: false,
-                         scale: 0.6, clamped: false)
+                         pencil: $0.pencil, scale: 0.6, clamped: false)
             }
             BoardView(
                 game: game,

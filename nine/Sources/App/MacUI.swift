@@ -619,6 +619,11 @@ struct MacGameScreen: View {
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
                         onDigit: { commit(digit: $0) },
+                        // Always nil today (see `roseLens` above) — passed
+                        // anyway so the Mac rose is not a silent exception to
+                        // the shared grammar the moment that changes.
+                        currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
+                            ? nil : game.entry(at: cursor),
                         lensed: !reduceMotion
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
@@ -631,16 +636,17 @@ struct MacGameScreen: View {
     }
 
     /// Where the petals are drawn, and — through `BoardView.roseLens` — where
-    /// the board bends under them (PRD-22). The Mac rose has no eraser petal:
-    /// ⌫ erases, and a tenth petal would be a fifth control the keyboard
-    /// already covers.
+    /// the board bends under them (PRD-22). The Mac rose never opens on a
+    /// filled cell at all (`handleClick` below returns on one instead) — ⌫
+    /// erases — so `currentDigit` at the `TouchRose` mount is always nil in
+    /// practice; the erase-your-own-petal grammar is threaded through anyway,
+    /// for parity, rather than only on the surfaces where it fires today.
     private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
         RoseLens(
             cursor: cursor,
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }

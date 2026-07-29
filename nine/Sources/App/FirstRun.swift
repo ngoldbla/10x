@@ -314,7 +314,6 @@ private struct FirstFlickBeat: View {
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }

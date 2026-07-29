@@ -263,4 +263,12 @@ enum BoardActionPhrase {
     static func note(_ digit: Int) -> String {
         Strings.string("board.action.note", .int(digit))
     }
+    /// A rose petal whose digit is already in the cell (placement mode) or
+    /// already pencilled in (pencil mode) — the petal that used to sit beside
+    /// a tenth "erase" petal now carries this label itself and erases when
+    /// tapped, rather than re-placing. Says only that the digit is here,
+    /// never that it is wrong.
+    static func eraseDigit(_ digit: Int) -> String {
+        Strings.string("board.rose.eraseDigit", .int(digit))
+    }
 }

@@ -70,7 +70,6 @@ struct GameScreen: View {
             side: Double(BoardMetrics.side),
             inset: 28,
             pencil: pencil,
-            showsErase: false,
             scale: 1.0,
             clamped: false
         )

@@ -125,6 +125,7 @@ public enum EnglishPhrases {
         "board.progress.untouched": "Untouched",
         "board.progress.wrong": "%1$lld wrong.",
         "board.rose.digit": "Digit rose",
+        "board.rose.eraseDigit": "Erase %1$lld",
         "board.rose.note": "Note rose",
         "board.rotor.empty": "Empty cells",
         "board.rotor.errors": "Wrong digits",

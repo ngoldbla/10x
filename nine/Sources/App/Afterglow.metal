@@ -53,8 +53,7 @@ using namespace metal;
 /// pitch `RoseLens` hands the petals — nine uniforms would be nine chances for
 /// the bend to drift from the paint, and the ring is a rigid 3x3 grid by
 /// construction. `bloom` is the petals' own spring (0 closed, 1 open) so the
-/// lens grows with them; `eraseDrop` adds the tenth lens below the ring, or is
-/// 0 when there is no eraser.
+/// lens grows with them.
 [[stitchable]] half4 rosePetalLens(
     float2 position,
     SwiftUI::Layer layer,
@@ -62,8 +61,7 @@ using namespace metal;
     float spacing,
     float radius,
     float magnification,
-    float bloom,
-    float eraseDrop
+    float bloom
 ) {
     if (bloom <= 0.001 || radius <= 0.001) { return layer.sample(position); }
 
@@ -86,12 +84,6 @@ using namespace metal;
     float2 snapped = clamp(round((position - centre) / pitch), float2(-1.0), float2(1.0));
     float2 petal = centre + snapped * pitch;
     float dist = distance(position, petal);
-
-    if (eraseDrop > 0.0) {
-        float2 eraser = centre + float2(0.0, eraseDrop * geometry);
-        float toEraser = distance(position, eraser);
-        if (toEraser < dist) { petal = eraser; dist = toEraser; }
-    }
 
     if (dist >= r) { return layer.sample(position); }
 

@@ -1407,8 +1407,11 @@ struct TouchGameScreen: View {
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
                         onDigit: { commit(digit: $0) },
-                        showsErase: lens.eraseDrop != nil,
-                        onErase: { eraseCurrentCell() },
+                        // Never a given — `openRose` refuses to bloom the rose
+                        // on one — so "filled" is the only guard this needs.
+                        currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
+                            ? nil : game.entry(at: cursor),
+                        notedDigits: Set(game.pencilDigits(at: cursor)),
                         lensed: !reduceMotion
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
@@ -1433,9 +1436,6 @@ struct TouchGameScreen: View {
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: model.game.map {
-                !$0.isGiven(cursor) && $0.entry(at: cursor) != 0
-            } ?? false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }
@@ -1565,6 +1565,12 @@ struct TouchGameScreen: View {
         guard let state = rose else { return }
         if state.pencil {
             model.togglePencil(digit, at: cursor)
+        } else if model.game?.entry(at: cursor) == digit {
+            // The rose opened on a cell that already holds this digit — its
+            // own petal carries the dashed erase rim (`FlickRoseView.petal`),
+            // and tapping (or flicking to) it erases rather than re-placing
+            // the same digit.
+            _ = model.erase(at: cursor)
         } else {
             model.place(digit, at: cursor)
             hapticsAfterPlacing(at: cursor)
@@ -1816,11 +1822,6 @@ struct TouchGameScreen: View {
         } else {
             haptics.playPlacement()
         }
-    }
-
-    private func eraseCurrentCell() {
-        _ = model.erase(at: cursor)
-        closeRose()
     }
 
     private func performUndo() {
