@@ -1133,17 +1133,20 @@ final class AppModel {
     /// one already held changes nothing observable, which is the whole reason
     /// this is a set and not a bool.
     ///
-    /// The pause is always persisted, but only a `.scene` hold is *flushed*.
-    /// The flush exists for one reason — a backgrounded process can be killed
-    /// by the OS with no further chance to write, so leaving the pause to the
+    /// The pause is always persisted, but only a `.scene` hold *flushes*. The
+    /// flush exists for one reason — a backgrounded process can be killed by
+    /// the OS with no further chance to write, so leaving the pause to the
     /// ordinary per-move `persistProgress()` would lose exactly what this
     /// method records. A `.sheet` hold has no such deadline: the app is
     /// foreground and alive, and the next move (or the eventual background,
-    /// which flushes) writes it through. Flushing there would put a full
+    /// which does flush) writes it through. Flushing there would put a full
     /// `BoardLibrary` encode + write, a KVS flush, a CloudKit push and
     /// `WidgetCenter.reloadAllTimelines()` on the main actor *inside* the
     /// drawer's opening animation — a dropped frame on a user-visible
-    /// animation, paid on every prefs open and every drawer pull.
+    /// animation, paid on every prefs open and every drawer pull. Note the
+    /// flush is keyed on the REASON, not on whether this call did the pausing:
+    /// see the comment in the body for the sheet-then-background pair that
+    /// would otherwise never reach disk.
     ///
     /// Gated on `screen == .game` (mirroring `refreshOnScreenBoardAfterMerge`'s
     /// guard): the app can background while sitting on Home with the last
@@ -1155,10 +1158,21 @@ final class AppModel {
     func holdClock(_ reason: ClockHold) {
         let firstHold = clockHolds.isEmpty
         clockHolds.insert(reason)
-        guard firstHold, screen == .game, solvedAt == nil, var g = game else { return }
-        g.timer.pause(at: Date())
-        game = g
-        persistProgress()
+        if firstHold, screen == .game, solvedAt == nil, var g = game {
+            g.timer.pause(at: Date())
+            game = g
+            persistProgress()
+        }
+        // Deliberately outside the `firstHold` block, and after it rather than
+        // hoisted above: every `.scene` hold must flush whether or not THIS
+        // call is the one that paused, but a flush that ran first would write
+        // the pre-pause state and miss exactly what it is here to save.
+        //
+        // The case that needs it: a sheet is already up (`.sheet` paused and
+        // persisted, correctly not flushing inside an animation), then the app
+        // backgrounds. That `holdClock(.scene)` is not the first hold, so the
+        // block above no-ops — and gating the flush on `firstHold` too would
+        // mean the pause never reached disk before the OS could kill us.
         if reason == .scene {
             try? libraryStore.flushNow()
             try? streakStore.flushNow()
@@ -1607,42 +1621,62 @@ final class AppModel {
             WidgetBridge.knownBoardRevision = cleared.revision
             try? SharedDailyBoardStore.save(cleared)
             // Mid-play on the same daily? Show the finished board calmly.
-            // `solvedGame`, not `shared.game`: this is the copy the share card
-            // (`SolveCardFacts` reads `game.timer` for its "Solved in" line)
-            // and the stats drawer's elapsed tile render from, and neither is
-            // gated on `solvedAt` the way the three timer chips are.
+            //
+            // `solvedGame`, not `shared.game`. The beneficiary is the stats
+            // drawer's elapsed tile (`StatsDrawer.swift:119`), which is NOT
+            // gated on `solvedAt` the way the three timer chips are and reads
+            // `elapsed(at: timeline.date)` — so an open run there ticks upward
+            // on a finished board. The share card is explicitly *not* a victim:
+            // `shareFacts` builds `SolveCardFacts` `at: model.solvedAt`
+            // (TouchUI.swift:1099, MacUI.swift:513), and `solvedAt` is
+            // `pending.solvedAt` here, so `elapsed(at:)` returned
+            // `pending.seconds` exactly even before this cap. Same for the
+            // library copy above, whose victim is `BoardsSheet.swift:159`/`:287`
+            // (`elapsed(at: Date())`).
             if screen == .game, case .daily(let day)? = kind, day == shared.dayOrdinal {
                 game = solvedGame
                 solvedAt = pending.solvedAt
             }
         } else if !shared.game.isSolved {
+            // Cap the shared board's run BEFORE it reaches the library, not
+            // just before it reaches the screen. This is load-bearing, not
+            // belt-and-braces: the shared file normally carries
+            // `runningSince != nil` mid-play (`WidgetBridge.publishDailyBoard`
+            // writes `model.game` unmodified, and `persistProgress()` publishes
+            // on every move), and `BoardIntents` only ever reads that timer,
+            // never closes it. So a jetsam mid-daily — killed with no
+            // `.background` transition, hence no `holdClock` pause — leaves the
+            // run open, and adopting it verbatim credits the entire dead-app
+            // absence. `startClockIfUnheld` cannot save us either:
+            // `ElapsedTimer.start` is a no-op on an already-running timer, so
+            // without this the hold is bypassed rather than enforced.
+            //
+            // **Above `adoptDaily`, and that placement is the whole fix.**
+            // Capping only inside the `screen == .game` block below covers just
+            // the case where the app is already foreground on this daily.
+            // Launch is the common one and it is not that case: `init` calls
+            // `ingestSharedDailyBoard()` while `screen` is still `.home`, so
+            // the on-screen branch is skipped entirely — then `adoptDaily`
+            // stamps `updatedAt = now` (the INGEST instant), that entry becomes
+            // `mostRecentInProgress` (newest-first), resume-on-launch runs
+            // `startEntry`, and its own cap closes the run against the ingest
+            // instant — crediting the absence it was meant to refuse. With
+            // resume-on-launch off it is merely deferred: `BoardsSheet` renders
+            // `elapsed(at: Date())` on a still-open run as a growing tile.
+            //
+            // `shared.updatedAt` is the right cap: both writers
+            // (`WidgetBridge.swift:83`, `BoardIntents.swift:65`) set it to
+            // `now` at write time, so it is precisely the last instant this
+            // board's state is known to be current — the same reading
+            // `LibraryEntry.updatedAt` gets at the other two seams.
+            var capped = shared.game
+            capped.timer.closeOpenRun(notLaterThan: shared.updatedAt)
             // Widget moves flow into the day entry only — free-play untouched.
-            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            let id = library.adoptDaily(game: capped, day: shared.dayOrdinal, now: Date())
             try? libraryStore.flushNow()
             if screen == .game, solvedAt == nil,
                case .daily(let day)? = kind, day == shared.dayOrdinal {
-                var g = shared.game
-                // Cap the shared board's run before anything trusts it, exactly
-                // as `startEntry` and `LibrarySync.apply` do with their own
-                // `updatedAt`. This is load-bearing, not belt-and-braces: the
-                // shared file normally carries `runningSince != nil` mid-play
-                // (`WidgetBridge.publishDailyBoard` writes `model.game`
-                // unmodified, and `persistProgress()` publishes on every move),
-                // and `BoardIntents` only ever reads that timer, never closes
-                // it. So a jetsam mid-daily — killed with no `.background`
-                // transition, hence no `holdClock` pause — leaves the run open,
-                // and adopting it verbatim would credit the entire absence the
-                // next time the board is ingested. `startClockIfUnheld` cannot
-                // save us there either: `ElapsedTimer.start` is a no-op on an
-                // already-running timer, so without this line a hold would be
-                // bypassed rather than enforced.
-                //
-                // `shared.updatedAt` is the right cap: both writers
-                // (`WidgetBridge.swift:83`, `BoardIntents.swift:65`) set it to
-                // `now` at write time, so it is precisely the last instant this
-                // board's state is known to be current — the same reading
-                // `LibraryEntry.updatedAt` gets at the other two seams.
-                g.timer.closeOpenRun(notLaterThan: shared.updatedAt)
+                var g = capped
                 // Same reasoning as `refreshOnScreenBoardAfterMerge`: `openToday`
                 // and the URL-open route can call this while the game screen's
                 // own `.sheet` hold is up (a widget board can arrive at any
@@ -1656,7 +1690,17 @@ final class AppModel {
         } else if library.dailyEntry(day: shared.dayOrdinal)?.status != .solved {
             // Solved with no pendingSolve → already recorded elsewhere; make
             // sure the day entry reflects solved (repair; keeps solvedAt if set).
-            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            //
+            // Capped for the same reason as the two branches above, and it is
+            // not academic here: this entry is `markSolved`, so nothing will
+            // ever resume it and close its run in passing. An open run left
+            // here is permanent — `BoardsSheet.swift:159`/`:287` render
+            // `elapsed(at: Date())` for "previously played", so the board would
+            // show a time that grows forever. `shared.updatedAt` again: there
+            // is no `PendingSolve` on this path to take a solve instant from.
+            var capped = shared.game
+            capped.timer.closeOpenRun(notLaterThan: shared.updatedAt)
+            let id = library.adoptDaily(game: capped, day: shared.dayOrdinal, now: Date())
             library.markSolved(id: id, at: Date())
             try? libraryStore.flushNow()
         }
