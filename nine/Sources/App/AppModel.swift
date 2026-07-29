@@ -1570,20 +1570,49 @@ final class AppModel {
             // per day, and pendingSolve is cleared below, so a same-day
             // re-ingest no-ops.
             recordSolveMadeElsewhere(day: shared.dayOrdinal, solve: pending)
+            // Close the widget's run at the instant it solved, before ANY of
+            // the three consumers below see this board.
+            //
+            // `BoardIntents` sets `pendingSolve` and saves without ever pausing
+            // the timer, so a widget-solved board reaches us with
+            // `runningSince` still set and keeps accruing wall-clock forever.
+            // `markSolved`/`adoptDaily` don't touch timers (they only move
+            // status/dates), so nothing downstream would have closed it either.
+            //
+            // `pending.solvedAt` is the honest cap and not a write- or
+            // ingest-time stamp: `BoardIntents.swift:53` takes `let now =
+            // Date()` at the top of `perform()`, places the winning digit at
+            // :62, then stamps BOTH `PendingSolve.solvedAt` and its `seconds`
+            // from that same `now` (:74-75). Capping here therefore lands the
+            // timer on exactly `pending.seconds` — the very number
+            // `recordSolveMadeElsewhere` just wrote into history and points —
+            // so the share card, the drawer and the tracker now agree with the
+            // record instead of drifting past it. (Deliberately NOT
+            // `cleared.updatedAt`, which is stamped at ingest time below and
+            // would credit the gap between the widget solve and this launch.)
+            var solvedGame = shared.game
+            solvedGame.timer.closeOpenRun(notLaterThan: pending.solvedAt)
             // Adopt the finished board into the one day entry and mark it solved
             // (free-play entries structurally untouched — the clobber fix).
-            let id = library.adoptDaily(game: shared.game, day: shared.dayOrdinal, now: Date())
+            let id = library.adoptDaily(game: solvedGame, day: shared.dayOrdinal, now: Date())
             library.markSolved(id: id, at: pending.solvedAt)
             try? libraryStore.flushNow()
             var cleared = shared
+            // The capped board goes back to the shared file too, so the widget
+            // and a later re-ingest read a closed run rather than this one.
+            cleared.game = solvedGame
             cleared.pendingSolve = nil
             cleared.revision += 1
             cleared.updatedAt = Date()
             WidgetBridge.knownBoardRevision = cleared.revision
             try? SharedDailyBoardStore.save(cleared)
             // Mid-play on the same daily? Show the finished board calmly.
+            // `solvedGame`, not `shared.game`: this is the copy the share card
+            // (`SolveCardFacts` reads `game.timer` for its "Solved in" line)
+            // and the stats drawer's elapsed tile render from, and neither is
+            // gated on `solvedAt` the way the three timer chips are.
             if screen == .game, case .daily(let day)? = kind, day == shared.dayOrdinal {
-                game = shared.game
+                game = solvedGame
                 solvedAt = pending.solvedAt
             }
         } else if !shared.game.isSolved {
