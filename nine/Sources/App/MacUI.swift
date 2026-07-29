@@ -619,7 +619,21 @@ struct MacGameScreen: View {
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
                         onDigit: { commit(digit: $0) },
-                        lensed: !reduceMotion
+                        // `currentDigit` is nil in practice — `handleClick`
+                        // returns on a filled cell, so the Mac rose only ever
+                        // opens over an empty one — and `commit` carries the
+                        // matching erase branch anyway, so the rim and the tap
+                        // cannot come apart if that ever changes.
+                        //
+                        // `notedDigits` is the half that really fires here:
+                        // the rose opens in pencil mode on an empty cell
+                        // (`handleClick`), that cell can already carry marks,
+                        // and `commit`'s `togglePencil` erases one on a second
+                        // tap. Without this the Mac would toggle notes off with
+                        // no indication which ones were on.
+                        currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
+                            ? nil : game.entry(at: cursor),
+                        notedDigits: Set(game.pencilDigits(at: cursor))
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -631,16 +645,18 @@ struct MacGameScreen: View {
     }
 
     /// Where the petals are drawn, and — through `BoardView.roseLens` — where
-    /// the board bends under them (PRD-22). The Mac rose has no eraser petal:
-    /// ⌫ erases, and a tenth petal would be a fifth control the keyboard
-    /// already covers.
+    /// the board bends under them (PRD-22). The Mac rose never opens on a
+    /// filled cell at all (`handleClick` below returns on one instead), so ⌫
+    /// stays the way a placed digit is cleared here; the erase-your-own-petal
+    /// grammar reaches this surface through *pencil* mode, where the rose does
+    /// open and a noted digit's petal toggles itself off. See the `TouchRose`
+    /// mount above for which half of it is live.
     private func roseLens(side: CGFloat, inset: CGFloat, rose: RoseState) -> RoseLens {
         RoseLens(
             cursor: cursor,
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }
@@ -729,6 +745,14 @@ struct MacGameScreen: View {
         guard let state = rose else { return }
         if state.pencil {
             model.togglePencil(digit, at: cursor)
+        } else if model.game?.entry(at: cursor) == digit {
+            // Same branch `TouchGameScreen.commit` carries: a petal whose digit
+            // is already in the cell draws the dashed rim and says "Erase 5",
+            // so it has to erase. Unreachable today — `handleClick` returns on
+            // a filled cell, so the Mac rose never opens over one — but the
+            // petal's label and the petal's effect must not be able to
+            // disagree, and leaving this out is what would let them.
+            _ = model.erase(at: cursor)
         } else {
             model.place(digit, at: cursor)
         }

@@ -31,8 +31,9 @@ public enum PlacementClass: String, Sendable, Codable, Equatable, CaseIterable {
     /// count is never shown either way.
     case leap
     /// The digit contradicts the proven solution. Recorded because a replay
-    /// that hid corrections would be a tidied path nobody walked; never counted
-    /// and never displayed.
+    /// that hid corrections would be a tidied path nobody walked; never scored
+    /// and never in the technique headline — but `NineGame.errorCount` and
+    /// `SolveRecord.errors` do count it, and the debrief reports that count.
     case slip
 }
 

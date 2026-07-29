@@ -37,8 +37,6 @@ public struct RoseLens: Equatable, Sendable {
     /// `126 * scale` (96). These four numbers are `FlickRoseView`'s, unchanged.
     private static let petalSide = 116.0, pencilPetalSide = 88.0
     private static let ringPitch = 126.0, pencilRingPitch = 96.0
-    /// Centre-to-centre drop from the bottom petal row to the erase glyph.
-    private static let eraseDropFactor = 0.92
     /// Half the ring's full span, used to keep every petal on the plane:
     /// `126 + 116/2`. The non-pencil constants deliberately, so the clamp does
     /// not shift under the player when a rose is toggled into pencil mode.
@@ -53,25 +51,18 @@ public struct RoseLens: Equatable, Sendable {
     /// drives the lens bloom off `onChange(of: roseLens)`.
     public let centreX: Double
     public let centreY: Double
-    /// Distance from the ring's centre down to the eraser's, or nil when the
-    /// eraser is absent (givens, empty cells, pencil mode, every non-iOS rose).
-    public let eraseDrop: Double?
 
     public init(
         cursor: Int,
         side: Double,
         inset: Double,
         pencil: Bool,
-        showsErase: Bool,
         scale: Double,
         clamped: Bool = true
     ) {
         self.pencil = pencil
         self.scale = scale
         self.inset = inset
-        let pitch = (pencil ? Self.pencilRingPitch : Self.ringPitch) * scale
-        let erases = showsErase && !pencil
-        self.eraseDrop = erases ? pitch + pitch * Self.eraseDropFactor : nil
 
         let raw = BoardGeometry.centre(of: cursor, side: side)
         guard clamped else {
@@ -84,9 +75,8 @@ public struct RoseLens: Equatable, Sendable {
         // board-local space the shader needs.
         let radius = Self.clampSpan * scale
         let frameSide = side + 2 * inset
-        let bottomExtra = erases ? Self.ringPitch * scale * Self.eraseDropFactor : 0
         let x = min(max(raw.x + inset, radius - 6), frameSide - radius + 6)
-        let y = min(max(raw.y + inset, radius - 6), frameSide - radius - bottomExtra + 6)
+        let y = min(max(raw.y + inset, radius - 6), frameSide - radius + 6)
         (self.centreX, self.centreY) = (x - inset, y - inset)
     }
 

@@ -219,6 +219,33 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(game.placementCount, 2, "only .place events count")
     }
 
+    func testErrorCountReadsWrongPlacementsFromMoveLog() {
+        let right = puzzle.solution[hole]
+        // Two distinct wrong digits, neither equal to `right` nor each other —
+        // `place` rejects re-placing the entry already sitting in the cell, so
+        // the second wrong try needs its own digit.
+        let wrong1 = right == 9 ? 1 : right + 1
+        let wrong2 = right >= 8 ? 2 : right + 2
+        XCTAssertEqual(game.errorCount, 0)
+        game.place(wrong1, at: hole) // wrong  → 1
+        game.place(wrong2, at: hole) // wrong  → 2
+        game.place(right, at: hole)  // correct, does not count
+        game.erase(at: hole)         // erase, does not count
+        game.undo()                  // undo, does not count
+        XCTAssertEqual(game.errorCount, 2, "three tries at the cell, one of them correct")
+        XCTAssertEqual(game.undoCount, 1)
+    }
+
+    func testErrorCountClearedByClearLocalHistory() {
+        let right = puzzle.solution[hole]
+        let wrong = right == 9 ? 1 : right + 1
+        game.place(wrong, at: hole)
+        XCTAssertEqual(game.errorCount, 1)
+        game.clearLocalHistory()
+        XCTAssertEqual(game.errorCount, 0,
+                        "cloud parity: a board synced with no local moveLog reports no errors")
+    }
+
     func testAveragePaceWithInjectedClock() {
         let t0 = Date(timeIntervalSinceReferenceDate: 0)
         XCTAssertNil(game.averageSecondsPerPlacement(at: t0), "no pace before the first placement")
@@ -251,6 +278,40 @@ final class GameTests: XCTestCase {
         timer.start(at: t0.addingTimeInterval(500))
         timer.start(at: t0.addingTimeInterval(600)) // double start is a no-op
         XCTAssertEqual(timer.elapsed(at: t0.addingTimeInterval(510)), 40, accuracy: 0.001)
+    }
+
+    func testCloseOpenRunCapsAtTheGivenDate() {
+        var timer = ElapsedTimer()
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        timer.start(at: t0)
+        // A process death (or a stale decode) means nobody watched the whole
+        // interval, so closing must credit only up to `cap`, not "now".
+        timer.closeOpenRun(notLaterThan: t0.addingTimeInterval(45))
+        XCTAssertFalse(timer.isRunning, "closing a run stops it like pause does")
+        XCTAssertEqual(timer.elapsed(at: t0.addingTimeInterval(1_000)), 45, accuracy: 0.001,
+                       "elapsed is capped at the close date, not the far-future read date")
+    }
+
+    func testCloseOpenRunIsANoOpOnAnAlreadyPausedTimer() {
+        var timer = ElapsedTimer()
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        timer.start(at: t0)
+        timer.pause(at: t0.addingTimeInterval(10))
+        timer.closeOpenRun(notLaterThan: t0.addingTimeInterval(9_999))
+        XCTAssertEqual(timer.elapsed(at: t0.addingTimeInterval(20_000)), 10, accuracy: 0.001,
+                       "nothing was running, so there is nothing to close")
+    }
+
+    func testCloseOpenRunNeverGoesNegative() {
+        var timer = ElapsedTimer()
+        let t0 = Date(timeIntervalSinceReferenceDate: 1_000)
+        timer.start(at: t0)
+        // A cap earlier than `runningSince` (a clock the stored `updatedAt`
+        // somehow predates) must add +0, never claw back accumulated time.
+        timer.closeOpenRun(notLaterThan: t0.addingTimeInterval(-500))
+        XCTAssertFalse(timer.isRunning)
+        XCTAssertEqual(timer.elapsed(at: t0.addingTimeInterval(500)), 0, accuracy: 0.001,
+                       "max(0, …) means an earlier cap adds nothing, not a negative amount")
     }
 
     // MARK: - Streaks

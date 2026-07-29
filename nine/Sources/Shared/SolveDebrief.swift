@@ -27,6 +27,13 @@ public struct SolveDebrief: Equatable, Sendable {
     /// count `NineGame.placementCount` reports, and not the same as filled
     /// cells.
     public let placements: Int
+    /// Wrong digits placed over the whole solve — `NineGame.errorCount`'s
+    /// counterpart for a replay rather than a live board. `corrections` below
+    /// is a property of `LoggedMove.kind` alone (an erase is an erase whether
+    /// or not it fixed anything); whether a placement was *wrong* depends on
+    /// the solved grid, which only `analysis` has, so this reads `.slip` off
+    /// `ReplayAnalysis` instead of recomputing anything from `moves`.
+    public let errors: Int
     /// Erasures and undos. Named for what they are and never scored: a solve
     /// with forty corrections is not a worse solve, it is a longer look.
     public let corrections: Int
@@ -54,10 +61,20 @@ public struct SolveDebrief: Equatable, Sendable {
         [headline, fastestRegion, longestCircled].compactMap { $0 }
     }
 
-    /// The counts, as one line. Always present: they are true for every log.
+    /// The counts, as one line. Placements, corrections and notes are always
+    /// present — they are true for every log. Errors is omitted when the
+    /// solve had none, the same honest-absence rule `StatsDrawer`'s hints
+    /// tile already keeps: a solve nobody slipped on gets no segment rather
+    /// than a "0" that reads as a reproach.
     public var countsLine: String {
-        [Phrase.placements(placements), Phrase.corrections(corrections), Phrase.notes(notes)]
-            .joined(separator: " · ")
+        [
+            Phrase.placements(placements),
+            errors > 0 ? Phrase.errors(errors) : nil,
+            Phrase.corrections(corrections),
+            Phrase.notes(notes)
+        ]
+        .compactMap { $0 }
+        .joined(separator: " · ")
     }
 
     public init(replay: SolveReplay, analysis: ReplayAnalysis) {
@@ -65,6 +82,10 @@ public struct SolveDebrief: Equatable, Sendable {
         let timed = replay.isTimed
         isTimed = timed
         placements = moves.count(where: { $0.kind == .place })
+        // `ReplayAnalysis` exposes no slip count of its own — see its header
+        // on why an accuracy figure is deliberately not something it derives
+        // for you — so this is the one place that asks it the question.
+        errors = analysis.placements.filter { $0.kind == .slip }.count
         corrections = moves.count(where: { $0.kind == .erase || $0.kind == .undo })
         notes = moves.count(where: { $0.kind == .pencil })
 
@@ -149,6 +170,9 @@ public struct SolveDebrief: Equatable, Sendable {
     private enum Phrase {
         static func placements(_ count: Int) -> String {
             Phrasebook.current.string("debrief.placements", .int(count))
+        }
+        static func errors(_ count: Int) -> String {
+            Phrasebook.current.string("debrief.errors", .int(count))
         }
         static func corrections(_ count: Int) -> String {
             Phrasebook.current.string("debrief.corrections", .int(count))

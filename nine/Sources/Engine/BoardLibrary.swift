@@ -272,7 +272,19 @@ public struct BoardLibrary: Codable, Sendable, Equatable {
         // rather than an array: no element list, so there is nothing to preserve.
         guard let raw = try? container.decode([RawLibraryEntry].self, forKey: .entries) else { return }
         for element in raw {
-            if let entry = element.entry {
+            if var entry = element.entry {
+                // A running timer surviving into a decode means the process
+                // that wrote this blob never got to pause it honestly — it was
+                // killed mid-game. `updatedAt` is stamped by `persistProgress()`
+                // on every move, so it is the last instant this entry's play is
+                // provably real; capping the open run there (rather than
+                // trusting it open) credits that play and drops the rest as
+                // away-time. `nine.library` is local-only and read at launch,
+                // so this sits below every local reader — `startEntry`, tracker
+                // tiles, the widget bridge. Cloud-arrived entries never pass
+                // through here: they are capped on their own adoption path, in
+                // `LibrarySync.apply`.
+                entry.game.timer.closeOpenRun(notLaterThan: entry.updatedAt)
                 entries.append(entry)
             } else {
                 quarantined.append(QuarantinedEntry(element.raw ?? .null))

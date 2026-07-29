@@ -16,7 +16,7 @@ final class RoseLensTests: XCTestCase {
     /// The tvOS board: 900pt, 28pt inset, scale 1.0.
     func testPetalCentresAreTheKeypadGrid() {
         let lens = RoseLens(cursor: 40, side: 900, inset: 28,
-                            pencil: false, showsErase: false, scale: 1.0)
+                            pencil: false, scale: 1.0)
         XCTAssertEqual(lens.spacing, 126, accuracy: 0.0001)
         XCTAssertEqual(lens.petalRadius, 58, accuracy: 0.0001)
         // Cell 40 is row 5, column 5 — the board's centre.
@@ -33,20 +33,13 @@ final class RoseLensTests: XCTestCase {
         XCTAssertEqual(lens.petalCentre(digit: 9).y, 450 + 126, accuracy: 0.0001)
     }
 
-    /// Pencil petals shrink, and pencil mode never shows the eraser — the rule
-    /// TouchUI already enforced at its own call site.
-    func testPencilModeShrinksAndDropsErase() {
+    /// Pencil petals shrink — the ring and petal geometry both step down
+    /// together, same as `FlickRoseView`'s own `petalSize`/`spacing`.
+    func testPencilModeShrinks() {
         let lens = RoseLens(cursor: 40, side: 900, inset: 28,
-                            pencil: true, showsErase: true, scale: 1.0)
+                            pencil: true, scale: 1.0)
         XCTAssertEqual(lens.spacing, 96, accuracy: 0.0001)
         XCTAssertEqual(lens.petalRadius, 44, accuracy: 0.0001)
-        XCTAssertNil(lens.eraseDrop, "pencil mode never shows the erase petal")
-    }
-
-    func testErasePetalSitsBelowTheBottomRow() {
-        let lens = RoseLens(cursor: 40, side: 900, inset: 28,
-                            pencil: false, showsErase: true, scale: 1.0)
-        XCTAssertEqual(lens.eraseDrop ?? 0, 126 + 126 * 0.92, accuracy: 0.0001)
     }
 
     /// The clamp keeps every petal on the glass plane. A corner cursor on a
@@ -57,7 +50,7 @@ final class RoseLensTests: XCTestCase {
         let side = 360.0, inset = 12.0
         let scale = RoseLens.scale(forSide: side)
         let lens = RoseLens(cursor: 0, side: side, inset: inset,
-                            pencil: false, showsErase: false, scale: scale)
+                            pencil: false, scale: scale)
         let clampRadius = 184 * scale
         XCTAssertEqual(lens.viewCentre.x, clampRadius - 6, accuracy: 0.0001)
         XCTAssertEqual(lens.viewCentre.y, clampRadius - 6, accuracy: 0.0001)
@@ -66,16 +59,25 @@ final class RoseLensTests: XCTestCase {
                              BoardGeometry.centre(of: 0, side: side).x + inset)
     }
 
-    /// The erase petal hangs below the ring, so the bottom clamp has to make
-    /// room for it or the eraser lands off the plane.
-    func testEraseMakesRoomAtTheBottom() {
+    /// The other end of the same clamp, and the reason it is a separate test:
+    /// `testCornerCursorIsPulledInside` starts at cell 0 and so only ever
+    /// exercises the `max(…, radius - 6)` lower bound. Without a bottom-row
+    /// cursor the `min(…, frameSide - radius + 6)` upper bound has no coverage
+    /// at all — and that is the exact expression removing the erase petal
+    /// rewrote, when the `bottomExtra` term that used to hold room below the
+    /// ring for the eraser came out of it.
+    func testBottomRowCursorIsPulledUp() {
         let side = 360.0, inset = 12.0
         let scale = RoseLens.scale(forSide: side)
-        let plain = RoseLens(cursor: 76, side: side, inset: inset,
-                             pencil: false, showsErase: false, scale: scale)
-        let erasing = RoseLens(cursor: 76, side: side, inset: inset,
-                               pencil: false, showsErase: true, scale: scale)
-        XCTAssertLessThan(erasing.viewCentre.y, plain.viewCentre.y)
+        // Cell 80 is row 9, column 9 — the far corner, so both axes clamp.
+        let lens = RoseLens(cursor: 80, side: side, inset: inset,
+                            pencil: false, scale: scale)
+        let clampRadius = 184 * scale
+        let frameSide = side + 2 * inset
+        XCTAssertEqual(lens.viewCentre.y, frameSide - clampRadius + 6, accuracy: 0.0001)
+        // …and that really is *upward*, not a no-op: the raw centre is lower.
+        XCTAssertLessThan(lens.viewCentre.y,
+                          BoardGeometry.centre(of: 80, side: side).y + inset)
     }
 
     /// A cursor in the middle of a touch board is not clamped at all — the
@@ -83,7 +85,7 @@ final class RoseLensTests: XCTestCase {
     func testMiddleCursorIsUntouched() {
         let side = 360.0, inset = 12.0
         let lens = RoseLens(cursor: 40, side: side, inset: inset,
-                            pencil: false, showsErase: false,
+                            pencil: false,
                             scale: RoseLens.scale(forSide: side))
         XCTAssertEqual(lens.centre.x, 180, accuracy: 0.0001)
         XCTAssertEqual(lens.centre.y, 180, accuracy: 0.0001)
@@ -101,7 +103,7 @@ final class RoseLensTests: XCTestCase {
     /// available so adopting the lens there is a separate, visible decision.
     func testUnclampedKeepsTheRawCentre() {
         let lens = RoseLens(cursor: 0, side: 900, inset: 28,
-                            pencil: false, showsErase: false, scale: 1.0,
+                            pencil: false, scale: 1.0,
                             clamped: false)
         XCTAssertEqual(lens.centre.x, 50, accuracy: 0.0001)
         XCTAssertEqual(lens.centre.y, 50, accuracy: 0.0001)
@@ -124,19 +126,5 @@ final class RoseLensTests: XCTestCase {
             source.contains("return CGPoint(x: (col + 0.5) * unit, y: (row + 0.5) * unit)"),
             "BoardMetrics.center no longer reads as (col + 0.5) * unit — "
                 + "BoardGeometry.centre is a copy of it and has to move too.")
-    }
-
-    /// Every petal the lens claims to bend has to be inside the reach the
-    /// shader is given (`maxSampleOffset`), or the compositor clips the rim
-    /// band into a hard edge. This is the arithmetic that pairing depends on.
-    func testRingSpanMatchesTheReachTheShaderIsGiven() {
-        let lens = RoseLens(cursor: 40, side: 900, inset: 28,
-                            pencil: false, showsErase: true, scale: 1.0)
-        // Furthest thing the shader has to bend: the eraser's far edge.
-        let furthest = (lens.eraseDrop ?? 0) + lens.petalRadius
-        XCTAssertEqual(furthest, 126 + 126 * 0.92 + 58, accuracy: 0.0001)
-        // The corner petals sit a diagonal away, and are nearer than that.
-        let corner = (lens.spacing * lens.spacing * 2).squareRoot() + lens.petalRadius
-        XCTAssertLessThan(corner, furthest)
     }
 }

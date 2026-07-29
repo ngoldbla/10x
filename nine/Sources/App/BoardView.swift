@@ -367,8 +367,7 @@ struct BoardView: View {
                 .float(roseLens?.spacing ?? 0),
                 .float(roseLens?.petalRadius ?? 0),
                 .float(Self.lensMagnification),
-                .float(lensBloom),
-                .float(roseLens?.eraseDrop ?? 0)
+                .float(lensBloom)
             ),
             maxSampleOffset: CGSize(width: lensReach, height: lensReach),
             isEnabled: lensActive

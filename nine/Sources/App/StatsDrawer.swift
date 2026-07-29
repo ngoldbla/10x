@@ -122,6 +122,16 @@ struct StatsDrawerContent: View {
                              Strings.string("board.stats.pace"))
                         tile("\(game.pencilMarkCount)", Strings.string("board.stats.notes"))
                         tile("\(game.undoCount)", Strings.string("board.stats.undos"))
+                        // Wrong digits placed on this board (Task 3, PRD-26 —
+                        // the debrief's `SolveDebrief.errors` has the same
+                        // source-of-truth split from `undoCount`/`corrections`
+                        // that `NineGame.errorCount` documents). Same
+                        // honest-absence idiom as the hints tile below: a
+                        // board nobody has slipped on shows no tile rather
+                        // than one reading "0".
+                        if game.errorCount > 0 {
+                            tile("\(game.errorCount)", Strings.string("board.stats.errors"))
+                        }
                         // Only once a hint has actually been spent (PRD-11 §6).
                         // A player who never opens the coach never sees coach
                         // chrome, and a fifth tile reading "0" would be a

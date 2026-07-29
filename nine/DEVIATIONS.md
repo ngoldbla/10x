@@ -3413,3 +3413,100 @@ cell-shaped wash *behind* the glyph now.
   where that number belongs.
 - **tvOS has no debrief and no share**, only the ambient surface — there is no
   share sheet on tvOS (PRD-12's standing deferral) and a pull-up needs a touch.
+
+## The erase petal, the honest clock, and the count that was never counted (2026-07-29)
+
+**PRD-10 §2's tenth petal is gone** (supersedes `PRD-10.md:21`). The spec's erase
+affordance was an `eraser.fill` glyph hung below the ring on any filled non-given
+cell. In play it read as advice: a cell grows a delete button exactly when it holds
+a digit, so the rose nudged toward changing digits that were already correct. The
+grammar is now an indicator rather than an extra target — the digit already placed
+(or already pencilled) gets a **dashed rim on its own petal** and erases when that
+petal is tapped. It says "this digit is here", never "this is wrong", so it leaks
+nothing about the solution, and it costs the ring no vertical space, which deleted
+`RoseLens.eraseDrop` and the bottom-clamp reservation with it. The other doors onto
+erase — the VoiceOver rotor's custom action and the watch's `CrownDial.erase` stop —
+are untouched, because they were never petals.
+
+Two things fell out of removing it. `RoseLens`'s bottom clamp had been tested only
+*through* the erase-petal cases, so deleting those tests took the coverage of the
+`min(...)` upper bound with it — restored directly. And the Mac mount had been
+threaded with `currentDigit` under a comment promising the Mac rose "is not a silent
+exception the moment that changes"; `MacUI.commit` has no erase branch, so the moment
+it changed the Mac rose would have drawn the rim, spoken "Erase 5" and *placed* a 5.
+Inert only because `handleClick` returns on a filled cell. The half that genuinely
+fires on Mac — `notedDigits`, on a pencil-marked empty cell — was not passed at all.
+The indicator was missing where it would have been right and threaded where it would
+have been wrong; both halves are now real and the comments say which is live.
+
+**The clock counted wall time, not play time.** `TimerState` had one open run and no
+notion of being held, so backgrounding the app, or opening any board-occluding
+overlay, kept the run ticking. It is hold-counted now (a set of hold reasons; the run
+resumes only when the set empties), which is what makes `scenePhase` and the four
+real occluders on `TouchGameScreen` — there is no `.sheet` seam there, only
+hand-rolled overlay flags — able to pause it. The plan named one leak; the branch
+found four, each at a seam that adopts a board the app did not itself start:
+
+| Seam | Leak | Cap |
+|---|---|---|
+| `BoardLibrary` decode | process died mid-run | `entry.updatedAt` |
+| `LibrarySync.apply` | cloud board from a device that died | `remote.updatedAt` |
+| `ingestSharedDailyBoard` | jetsam mid-daily, resumed via widget | `shared.updatedAt` |
+| `pendingSolve` adopt | widget-solved daily | `pending.solvedAt` |
+
+The caps live on the adoption paths deliberately and **not** inside
+`BoardLibrary.upsert`, which the live-play save path writes through — sanitising
+there would pause the clock of the board you are actually playing.
+
+**`SolveRecord.errors` was always zero.** Nothing counted wrong entries, so every
+debrief and every stat that reads the field was reporting a constant. `NineGame`
+counts them now and the debrief, the drawer and the share surfaces say the number
+out loud, in nine languages.
+
+**The rose's petals are opaque glass again, which walks back PRD-22 on the rose**
+(supersedes the lens half of PRD-22 for this surface only). Petal glyphs collided with
+the board's own digits under the transparent lens, worst in pencil mode where a ghost
+`4` sat under petal 1 and a ghost `5` under petal 2. Four treatments were built and
+photographed (`.context/rose-variants/`, five-panel contact sheets); the owner picked
+**A**, the revert to `.couchGlassInteractive`. This is a taste call taken with its
+costs on the table, so the costs are recorded rather than implied:
+
+- It **reopens the 1.1 audit finding PRD-22 was written to close** — "rose petals are
+  opaque `.glassEffect` discs, not the PRD's true glass petals lensing the board
+  beneath." That sentence is true again.
+- `rosePetalLens` in `Afterglow.metal` **still runs**, and `BoardView` still bends the
+  board under the ring. Nothing can see it: the petals cover the area that refracts,
+  and Liquid Glass merges adjacent discs into one blob that closes the gaps between
+  them. The shader was left in place deliberately — deleting it is the one move that
+  would make this pick expensive to reverse — so the cost of A today is GPU work whose
+  output is fully occluded.
+- Because A is byte-identical to what the unlensed branch already did, `PetalSurface`
+  had two identical arms and **collapsed to a single `.couchGlassInteractive` call**.
+  `lensed` lost its only consumer and is gone from `FlickRoseView`, `TouchRose` and
+  all seven mount sites; the board's own `roseLens:` is untouched, since that is the
+  refraction and a different parameter.
+
+### Not done, each with its reason
+
+- **The dashed erase rim has never been seen on the surface that now ships.** In
+  `A-pencil-paper.png` — the same opaque glass, captured for the grid — the ring is
+  absent on all three pencilled petals while the digit still reads accent-coloured,
+  leaving colour as the only cue for erase. `EraseIndicator` is inset 8% off the
+  petal's edge to clear what is presumed to be Liquid Glass's rim highlight, but
+  **that inset is unverified**: it builds, and no one has looked at it. The presumed
+  cause is inferred from the screenshot, not proven.
+- **The simulator lane would not drive this session, and the reason is unknown.** A
+  seeded container (`ninestate.quiet_blobs` + the AX fixture) that resumed straight
+  onto a board at 12:03 today lands on Home at 19:18: the app honours neither the
+  seeded `appearance` nor the seeded library, `resumeOnLaunch` does not fire against a
+  fixture holding exactly one `inProgress` entry, and `sim-use tap` does not register
+  at coordinates that match the render. It is **not** this change — the pre-change
+  build was rebuilt and reproduces it exactly — and it is not decode, which
+  `AXFixtureTests` still passes. Ruled out: stale process, stale container (cold
+  uninstall/reinstall), and a wedged device (reboot). Unexamined: why a container the
+  app demonstrably writes to is not read back.
+- **tvOS overlays still leave the clock running.** The hold set is generic, but tvOS
+  has no `.sheet` analogue to attach it to and its overlays were not audited; macOS is
+  covered incidentally, through `scenePhase`.
+- **The nine languages are machine-drafted and unreviewed**, consistent with PRD-20's
+  standing headline deferral.

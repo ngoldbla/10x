@@ -126,6 +126,22 @@ public enum LibrarySync {
         remote: SyncedEntry, into library: inout BoardLibrary,
         now: Date, makeID: () -> UUID
     ) -> ApplyEffects {
+        // A record can arrive with its run still open — the device that wrote
+        // it died mid-game, or is simply still playing and pushed between two
+        // moves. Nobody on *this* device is watching that clock, so adopting it
+        // open would leave a board nobody is playing ticking in every surface
+        // that reads `elapsed(at: Date())` (tracker tiles, the widget bridge)
+        // until the next relaunch. `updatedAt` is the writing device's last
+        // provable instant of play, so capping there is the same
+        // last-writer-wins reading the merge rules below already take.
+        //
+        // Deliberately the remote only. The local side of a merge may be the
+        // board in the player's hands right now, and `BoardLibrary.upsert` is
+        // also the live-play save path (`persistProgress` writes through it on
+        // every move) — sanitising either of those would stop the clock of the
+        // game actually being played.
+        var remote = remote
+        remote.game.timer.closeOpenRun(notLaterThan: remote.updatedAt)
         if case .daily(let day) = remote.kind {
             return applyDaily(remote: remote, day: day, into: &library, makeID: makeID)
         }

@@ -92,23 +92,21 @@ struct FlickRoseView: View {
     /// Multiplier on every petal metric. 1.0 is the TV rose; the touch rose
     /// passes something near 0.45 so petals sit finger-sized over the board.
     var scale: CGFloat = 1.0
-    /// Adds a tenth "erase" petal below the ring. Off for givens/empty cells
-    /// and every non-iOS surface.
-    var showsErase: Bool = false
-    /// The board underneath is refracting through these petals (PRD-22), so
-    /// they draw as a rim and a glyph rather than as a material. False keeps
-    /// today's `.couchGlassInteractive` disc, which is what Reduce Motion and
-    /// every surface without a lens get.
-    var lensed: Bool = false
+    /// The digit already sitting in this cell, placement mode only — nil for
+    /// an empty cell, and always nil for a given (the rose never opens on
+    /// one). That digit's own petal renders the dashed erase rim instead of
+    /// the tenth petal the rose used to grow: "this digit is here", never
+    /// "this is wrong" (a wrongness signal would leak the solution).
+    var currentDigit: Int? = nil
+    /// The digits already pencilled into this cell, pencil mode only. Same
+    /// rim, one petal per noted digit — `togglePencil`'s own XOR already
+    /// erases a note on a second tap; this only makes that visible.
+    var notedDigits: Set<Int> = []
 
     @State private var bloomed = false
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
-    /// Center-to-center drop from the bottom petal row to the erase glyph.
-    private var eraseDrop: CGFloat { spacing * 0.92 }
-    /// Extra height below the ring when the erase petal is present.
-    private var eraseAllowance: CGFloat { showsErase ? eraseDrop : 0 }
 
     var body: some View {
         CouchGlassContainer(spacing: 12) {
@@ -116,16 +114,10 @@ struct FlickRoseView: View {
                 ForEach(1...9, id: \.self) { digit in
                     petal(for: digit)
                 }
-                if showsErase, !state.pencil {
-                    erasePetal
-                }
             }
         }
-        // Grow the frame *symmetrically* for the erase petal so the drawn
-        // petals stay centered — TouchRose's tap targets are centered on this
-        // same frame, and any asymmetry (e.g. `.top`) desyncs touch from paint.
         .frame(width: spacing * 2 + petalSize,
-               height: spacing * 2 + petalSize + eraseAllowance * 2)
+               height: spacing * 2 + petalSize)
         // The ring is spatial, not textual, and must not follow the writing
         // direction (PRD-20 decision 3). `.offset(x:)` *is* direction-aware, so
         // under `-NSForceRightToLeftWritingDirection` the petals laid out
@@ -149,74 +141,80 @@ struct FlickRoseView: View {
         let complete = completedDigits.contains(digit)
         let focused = showsFocusRing && state.focusedIndex == digit - 1
         let shimmering = state.shimmerDigits.contains(digit)
+        // "This digit is here" — the placed digit in placement mode, or a
+        // noted digit in pencil mode. Never "this is wrong": that would leak
+        // the solution, which is exactly what the removed tenth petal did
+        // not do either.
+        let erasable = state.pencil ? notedDigits.contains(digit) : currentDigit == digit
 
         return Text("\(digit)")
             .font(.system(size: (state.pencil ? 38 : 52) * scale, weight: .semibold, design: .rounded))
-            .foregroundStyle(complete ? Color.primary.opacity(0.30) : Color.primary)
+            .foregroundStyle(complete ? Color.primary.opacity(0.30) : erasable ? accent : Color.primary)
             .frame(width: petalSize, height: petalSize)
-            .modifier(PetalSurface(lensed: lensed, scale: scale))
+            .couchGlassInteractive(in: Circle())
             .overlay {
                 Circle()
                     .strokeBorder(accent.opacity(focused ? 0.95 : 0), lineWidth: max(2, 4 * scale))
             }
+            .modifier(EraseIndicator(active: erasable, accent: accent, scale: scale, petalSize: petalSize))
             .scaleEffect(focused ? 1.1 : 1.0)
             .modifier(ShimmerPulse(active: shimmering, accent: accent))
             .offset(x: offset.x * spacing, y: offset.y * spacing)
             .animation(.couchFast, value: focused)
     }
-
-    /// The tenth petal: an eraser glyph directly below the 7-8-9 row.
-    private var erasePetal: some View {
-        Image(systemName: "eraser.fill")
-            .font(.system(size: (state.pencil ? 26 : 34) * scale, weight: .semibold))
-            .foregroundStyle(accent)
-            .frame(width: petalSize, height: petalSize)
-            .modifier(PetalSurface(lensed: lensed, scale: scale))
-            .offset(y: spacing + eraseDrop)
-    }
 }
 
-/// A petal's own surface.
+/// The erase indicator: a dashed ring inside the petal's own disc, composed as
+/// an `.overlay` the same way the focus ring and `ShimmerPulse` are, so it
+/// never fights either. It says "this digit is here" — not "this is wrong" —
+/// which is why it never reads as a warning color: a wrongness signal would
+/// leak the solution, and this petal is the correct one exactly as often as
+/// any other.
 ///
-/// Lensed, it is a rim and a breath of body and nothing else: the board's
-/// Canvas is already bending and magnifying underneath (`rosePetalLens` in
-/// Afterglow.metal), and a material on top of that would be exactly the opaque
-/// disc PRD-22 exists to remove — the live audit's finding was "rose petals are
-/// opaque `.glassEffect` discs, not the PRD's true glass petals lensing the
-/// board beneath."
-///
-/// Unlensed it is byte-for-byte today's interactive glass, which is what Reduce
-/// Motion gets and what every surface that does not pass a lens keeps.
-private struct PetalSurface: ViewModifier {
-    let lensed: Bool
+/// Dash pattern and line weight are named constants rather than folded into
+/// the `StrokeStyle` call — easy to retune, without being parameters nobody
+/// else needs yet.
+private struct EraseIndicator: ViewModifier {
+    static let dash: [CGFloat] = [3, 5]
+    static let lineWidth: CGFloat = 2.5
+    /// Floored for the same reason the focus ring is `max(2, 4 * scale)`: the
+    /// touch rose runs near 0.4, where the unfloored weight computes to about
+    /// a point and the ring reads as a hairline rather than as a mark.
+    static let minimumLineWidth: CGFloat = 1.5
+    /// Pulled in off the petal's edge. What is *measured* is the symptom: in
+    /// `A-pencil-paper.png` from the Task 6 grid, captured against this same
+    /// opaque-glass surface, the ring is simply absent on all three pencilled
+    /// petals while the erasable digit still reads accent-coloured — so colour
+    /// is left as the only cue, which Differentiate Without Colour does not
+    /// accept. The presumed cause is that `couchGlassInteractive` is
+    /// `.glassEffect` on iOS 26 and Liquid Glass draws its own specular
+    /// highlight at the rim of the shape, where this ring used to sit.
+    ///
+    /// That cause is inferred, not proven, and **this inset has not been seen
+    /// on a device or simulator** — the lane that would have photographed it
+    /// would not drive (see DEVIATIONS). Treat the 8% as a first guess to be
+    /// confirmed or retuned against a real rose, not as a measured number.
+    ///
+    /// Expressed against `petalSize` rather than `scale` because the petal is
+    /// 88pt in pencil mode and 116pt in placement (`FlickRoseView.petalSize`),
+    /// and an inset that reads on one is a different number on the other.
+    static let insetFraction: CGFloat = 0.08
+
+    let active: Bool
+    let accent: Color
     let scale: CGFloat
-
-    /// The rim has to be drawn *against* the board, and the board is bright on
-    /// Paper and Camel. A white rim there is a rim nobody can see: the contrast
-    /// harness would still report the petal's glyph at 18:1 and be right, and
-    /// the player would still be looking at nine floating digits with no ring
-    /// around them. Glyph legibility and *shape* legibility are two claims, and
-    /// only one of them is a contrast ratio.
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var edge: Color { colorScheme == .light ? .black : .white }
+    let petalSize: CGFloat
 
     func body(content: Content) -> some View {
-        if lensed {
-            content
-                // Just enough body to lift a glyph off a busy board cell
-                // without becoming the disc this PRD removes.
-                .background(Circle().fill(edge.opacity(0.10)))
-                .overlay {
-                    Circle().strokeBorder(
-                        LinearGradient(
-                            colors: [edge.opacity(0.60), edge.opacity(0.14)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: max(1, 1.6 * scale))
-                }
-                .clipShape(Circle())
-        } else {
-            content.couchGlassInteractive(in: Circle())
+        content.overlay {
+            Circle()
+                .inset(by: petalSize * Self.insetFraction)
+                .strokeBorder(
+                    accent.opacity(active ? 0.9 : 0),
+                    style: StrokeStyle(
+                        lineWidth: max(Self.minimumLineWidth, Self.lineWidth * scale),
+                        dash: Self.dash.map { $0 * scale })
+                )
         }
     }
 }
@@ -236,8 +234,10 @@ struct TouchRose: View {
     let completedDigits: Set<Int>
     let scale: CGFloat
     let onDigit: @MainActor (Int) -> Void
-    var showsErase: Bool = false
-    var onErase: (@MainActor () -> Void)? = nil
+    /// See `FlickRoseView.currentDigit`.
+    var currentDigit: Int? = nil
+    /// See `FlickRoseView.notedDigits`.
+    var notedDigits: Set<Int> = []
     /// Whether the ring traps assistive focus. True everywhere in the game —
     /// the rose is a keypad over a board and nothing else on screen applies.
     /// The first-run beat passes false: its rose sits inside a card that also
@@ -246,15 +246,9 @@ struct TouchRose: View {
     /// Full Keyboard Access (measured: `describe-ui` listed nine petals and
     /// nothing else at all).
     var isModal: Bool = true
-    /// See `FlickRoseView.lensed`.
-    var lensed: Bool = false
 
     private var petalSize: CGFloat { (state.pencil ? 88 : 116) * scale }
     private var spacing: CGFloat { (state.pencil ? 96 : 126) * scale }
-    /// Minimum downward travel that means "flick past the 7-8-9 row, through
-    /// the erase petal." Anything shorter falls through to the digit keypad,
-    /// so a normal down-flick still places 8.
-    private var eraseFlickThreshold: CGFloat { spacing * 0.92 + petalSize / 2 }
 
     var body: some View {
         FlickRoseView(
@@ -263,8 +257,8 @@ struct TouchRose: View {
             completedDigits: completedDigits,
             showsFocusRing: false,
             scale: scale,
-            showsErase: showsErase,
-            lensed: lensed
+            currentDigit: currentDigit,
+            notedDigits: notedDigits
         )
         .accessibilityHidden(true) // the drawn petals; the targets below speak
         .overlay {
@@ -277,30 +271,27 @@ struct TouchRose: View {
             ZStack {
                 ForEach(1...9, id: \.self) { digit in
                     let offset = RoseGeometry.offset(forDigit: digit)
+                    // Same test `petal(for:)` uses to draw the dashed rim:
+                    // one door, one grammar, so the label the VoiceOver user
+                    // hears has to agree with the ring the sighted one sees.
+                    let erasable = state.pencil ? notedDigits.contains(digit) : currentDigit == digit
                     Color.clear
                         .contentShape(Circle())
                         .frame(width: max(44, petalSize), height: max(44, petalSize))
                         .onTapGesture { onDigit(digit) }
                         .offset(x: offset.x * spacing, y: offset.y * spacing)
                         .accessibilityElement()
-                        // The same two keys the actions rotor uses
-                        // (`BoardActionPhrase`): the petals and the rotor are
-                        // two doors onto one grammar, so they say one thing.
-                        .accessibilityLabel(state.pencil ? BoardActionPhrase.note(digit)
-                                                         : BoardActionPhrase.place(digit))
+                        // Place/Note are the same two keys the actions rotor
+                        // uses (`BoardActionPhrase`): the petals and the rotor
+                        // are two doors onto one grammar, so they say one
+                        // thing. `eraseDigit` is the petals' alone — the rotor
+                        // reaches erase through its own `board.action.erase`
+                        // button on the cell, which needs no digit in it.
+                        .accessibilityLabel(erasable ? BoardActionPhrase.eraseDigit(digit)
+                                            : state.pencil ? BoardActionPhrase.note(digit)
+                                                           : BoardActionPhrase.place(digit))
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { onDigit(digit) }
-                }
-                if showsErase, let onErase {
-                    Color.clear
-                        .contentShape(Circle())
-                        .frame(width: max(44, petalSize), height: max(44, petalSize))
-                        .onTapGesture { onErase() }
-                        .offset(y: spacing + spacing * 0.92)
-                        .accessibilityElement()
-                        .accessibilityLabel(BoardActionPhrase.erase)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { onErase() }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -317,14 +308,6 @@ struct TouchRose: View {
         .highPriorityGesture(
             DragGesture(minimumDistance: 24)
                 .onEnded { value in
-                    // Erase: a long, predominantly-downward flick that reaches
-                    // the erase petal below the ring (iOS filled cells only).
-                    if let onErase, showsErase,
-                       value.translation.height >= eraseFlickThreshold,
-                       value.translation.height >= abs(value.translation.width) {
-                        onErase()
-                        return
-                    }
                     if let direction = RoseGeometry.flickDirection(value.translation) {
                         onDigit(RoseGeometry.digit(for: direction))
                     }

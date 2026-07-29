@@ -1652,7 +1652,7 @@
       }
     },
     "board.action.erase": {
-      "comment": "A VoiceOver custom action, and the label of the ring's tenth petal: clear the digit in this square. A verb in the imperative.",
+      "comment": "A VoiceOver custom action on a square: clear the digit in this square. A verb in the imperative. The rose itself has no erase petal of its own — see board.rose.eraseDigit for how a filled cell's own digit petal offers the same action.",
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -4835,6 +4835,72 @@
         }
       }
     },
+    "board.rose.eraseDigit": {
+      "comment": "VoiceOver label of one petal of the digit ring — the petal whose digit is already placed in this square, or already pencilled in when the ring is writing pencil marks. %1$lld is the digit 1-9. A verb in the imperative, so it reads as a set with board.action.place and board.action.note, which label the other petals: activating this one clears the digit instead of writing it again. It says only that the digit is already there, never that it is wrong — do not translate it as a warning or an error.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase %1$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Borrar %1$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Effacer %1$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cancella %1$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld を消す"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld 지우기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld wissen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Apagar %1$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "擦除 %1$lld"
+          }
+        }
+      }
+    },
     "board.rose.note": {
       "comment": "VoiceOver label of the same ring when it writes pencil marks rather than real digits.",
       "extractionState": "manual",
@@ -5453,6 +5519,72 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "board.stats.errors": {
+      "comment": "Caption under the tile counting wrong digits placed on this board — matches debrief.errors' subject, not board.rotor.errors' wording (that one names a VoiceOver rotor, not a tile). Lowercase, plural. Only shown once at least one digit is wrong, same as board.stats.hints below.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Fehler"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "errors"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "errores"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "erreurs"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "errori"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "エラー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "오류"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "fouten"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "erros"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "错误"
           }
         }
       }
@@ -10516,7 +10648,7 @@
       }
     },
     "debrief.corrections": {
-      "comment": "One of three counts on the debrief card: erasures and undos. Deliberately neutral — a solve with many corrections is a longer look, not a worse solve, so avoid any word implying error or mistake. PLURAL: %1$lld is the count, 0 or more.",
+      "comment": "One of the counts on the debrief card: erasures and undos. Deliberately neutral — a solve with many corrections is a longer look, not a worse solve, so avoid any word implying error or mistake. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -10773,6 +10905,198 @@
         }
       }
     },
+    "debrief.errors": {
+      "comment": "One of the counts on the debrief card: digits placed that contradicted the solution (matches board.rotor.errors' subject, not its wording — this is a count, not a VoiceOver rotor name). Unlike debrief.corrections, this word MAY imply a mistake; the neutrality rule applies to corrections, not to this one. Omitted from the card entirely at 0, so in practice this only ever renders at 1 or more — translate the PLURAL forms anyway. PLURAL: %1$lld is the count.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Fehler"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld Fehler"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld error"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld errors"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld errores"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld error"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld errores"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erreurs"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erreur"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erreurs"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld errori"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld errore"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld errori"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld 件のエラー"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "오류 %1$lld회"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld fout"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld fouten"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erros"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erro"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$lld erros"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "错误 %1$lld 次"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "debrief.fastest": {
       "comment": "Debrief line naming the 3x3 box the player filled with the least hesitation. %1$@ is already-translated text like \"Box 4\" (board.unit.box). The separator is a middle dot. English says \"region\" because it is a different word from \"Box\"; if your language would repeat board.unit.box's noun here, drop the noun instead (\"Fastest - Block 4\") rather than saying it twice.",
       "extractionState": "manual",
@@ -10972,7 +11296,7 @@
       }
     },
     "debrief.notes": {
-      "comment": "One of three counts on the debrief card: pencil marks written. \"Notes\" are the small candidate digits in a cell's corner — match game.autoNotes.chip. PLURAL: %1$lld is the count, 0 or more.",
+      "comment": "One of the counts on the debrief card: pencil marks written. \"Notes\" are the small candidate digits in a cell's corner — match game.autoNotes.chip. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -11230,7 +11554,7 @@
       }
     },
     "debrief.placements": {
-      "comment": "One of three counts on the debrief card, joined by middle dots: how many digits the player committed over the whole solve, corrections included. Neutral — this is not a score and nothing is being judged. PLURAL: %1$lld is the count, 0 or more.",
+      "comment": "One of the counts on the debrief card, joined by middle dots: how many digits the player committed over the whole solve, corrections included. Neutral — this is not a score and nothing is being judged. PLURAL: %1$lld is the count, 0 or more.",
       "extractionState": "manual",
       "localizations": {
         "de": {

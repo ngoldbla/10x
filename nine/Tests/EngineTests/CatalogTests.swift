@@ -413,9 +413,13 @@ final class CatalogTests: XCTestCase {
         // `corrections`, `notes`) all inflect on a number, and English's `one`
         // and `other` genuinely differ for each — "1 digit placed" against "2
         // digits placed" — which is not true of most rows in this table.
-        XCTAssertEqual(pluralised, 17,
+        //
+        // 17 → 18 for Task 3 of the four-fixes program: `debrief.errors`
+        // joins them, the wrongness count the debrief had no number for
+        // before ("1 error" against "2 errors").
+        XCTAssertEqual(pluralised, 18,
                        "English carries a different number of whole-string plurals than "
-                       + "the 17 this catalog was built with — if that is deliberate, "
+                       + "the 18 this catalog was built with — if that is deliberate, "
                        + "move the number; if it is not, a plural has been flattened at "
                        + "the source and every locale followed it")
         XCTAssertEqual(substituted, 3,

@@ -635,6 +635,21 @@ struct TouchGameScreen: View {
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
+    /// Is one of the four surfaces that cover the board up right now (Task 4;
+    /// user-confirmed set)? Drives the `.sheet` clock hold from one place
+    /// instead of eight scattered `holdClock`/`releaseClock` calls at each
+    /// flag's own toggle site.
+    ///
+    /// Deliberately **not** `rose`, `toast`, `tip` or `autoNotesChip`: the rose
+    /// is ordinary digit entry, and pausing there would stop the clock during
+    /// normal play; the other three are transient chrome that never covers
+    /// the board. Also deliberately not `debriefOpen`: the debrief is
+    /// post-solve, where the timer is already stopped by `finishSolve`, so
+    /// holding for it would just be a no-op that has to be reasoned about.
+    private var boardCoveringSurfaceUp: Bool {
+        showPrefs || drawerOpen || coachAdvice != nil || why != nil || whyRefusal != nil
+    }
+
     var body: some View {
         GeometryReader { geo in
             let boardInset: CGFloat = 12
@@ -759,6 +774,18 @@ struct TouchGameScreen: View {
             } else {
                 haptics.stop()
                 motion.stop()
+            }
+        }
+        // Task 4c: the clock must run only while the board is actually
+        // visible. One `onChange` on the folded Bool rather than a
+        // hold/release pair at each of the four flags' own toggle sites —
+        // whichever of them opens or closes, this is the one place that
+        // reacts.
+        .onChange(of: boardCoveringSurfaceUp) { _, covering in
+            if covering {
+                model.holdClock(.sheet)
+            } else {
+                model.releaseClock(.sheet)
             }
         }
         .onDisappear {
@@ -1380,9 +1407,11 @@ struct TouchGameScreen: View {
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
                         onDigit: { commit(digit: $0) },
-                        showsErase: lens.eraseDrop != nil,
-                        onErase: { eraseCurrentCell() },
-                        lensed: !reduceMotion
+                        // Never a given — `openRose` refuses to bloom the rose
+                        // on one — so "filled" is the only guard this needs.
+                        currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
+                            ? nil : game.entry(at: cursor),
+                        notedDigits: Set(game.pencilDigits(at: cursor))
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -1406,9 +1435,6 @@ struct TouchGameScreen: View {
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: model.game.map {
-                !$0.isGiven(cursor) && $0.entry(at: cursor) != 0
-            } ?? false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }
@@ -1538,6 +1564,12 @@ struct TouchGameScreen: View {
         guard let state = rose else { return }
         if state.pencil {
             model.togglePencil(digit, at: cursor)
+        } else if model.game?.entry(at: cursor) == digit {
+            // The rose opened on a cell that already holds this digit — its
+            // own petal carries the dashed erase rim (`FlickRoseView.petal`),
+            // and tapping (or flicking to) it erases rather than re-placing
+            // the same digit.
+            _ = model.erase(at: cursor)
         } else {
             model.place(digit, at: cursor)
             hapticsAfterPlacing(at: cursor)
@@ -1789,11 +1821,6 @@ struct TouchGameScreen: View {
         } else {
             haptics.playPlacement()
         }
-    }
-
-    private func eraseCurrentCell() {
-        _ = model.erase(at: cursor)
-        closeRose()
     }
 
     private func performUndo() {

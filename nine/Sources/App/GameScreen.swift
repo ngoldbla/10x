@@ -70,7 +70,6 @@ struct GameScreen: View {
             side: Double(BoardMetrics.side),
             inset: 28,
             pencil: pencil,
-            showsErase: false,
             scale: 1.0,
             clamped: false
         )
@@ -375,8 +374,7 @@ struct GameScreen: View {
                 state: rose,
                 accent: accent,
                 completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                showsFocusRing: true,
-                lensed: !reduceMotion
+                showsFocusRing: true
             )
             .position(x: center.x + 28, y: center.y + 28)
         } else if !pad.shimmer.isEmpty {
@@ -424,8 +422,7 @@ struct GameScreen: View {
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        showsFocusRing: true,
-                        lensed: !reduceMotion
+                        showsFocusRing: true
                     )
                     .position(
                         x: center.x + 28, // board padding inset

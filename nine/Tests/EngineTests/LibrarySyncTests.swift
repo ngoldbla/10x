@@ -225,4 +225,58 @@ extension LibrarySyncTests {
         LibrarySync.applyDeletion(id: id, into: &lib)
         #expect(lib.entry(id: id) == nil)
     }
+
+    // MARK: stale open runs arriving from the cloud
+
+    @Test func applyClosesARemoteOpenRunAtItsUpdatedAt() throws {
+        // The other device was killed mid-game, so its record arrives with the
+        // run still open. Adopting it open would tick a clock here for a board
+        // nobody is playing — these entries never pass through the library
+        // decoder, so this is the only seam that can catch them.
+        var lib = BoardLibrary()
+        var g = progressed(count: 3)
+        g.timer.start(at: t(0))
+        let remote = SyncedEntry(entry(game: g, updated: 10))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(10), makeID: sequentialIDs())
+
+        let adopted = try #require(lib.entry(id: remote.id))
+        #expect(!adopted.game.timer.isRunning)
+        // Capped at the sender's updatedAt, not left to accrue against our clock.
+        #expect(abs(adopted.game.timer.elapsed(at: t(1_000_000)) - 10) < 0.0001)
+    }
+
+    @Test func applyClosesARemoteDailysOpenRunToo() throws {
+        // The daily path routes through adoptDaily rather than upsert, so it
+        // needs its own proof that the cap survives the re-homing.
+        var lib = BoardLibrary()
+        let day = 19_700
+        var g = progressed(seed: 3, count: 8)
+        g.timer.start(at: t(0))
+        let remote = SyncedEntry(entry(
+            id: UUID(), kind: .daily(day: day), game: g, updated: 25
+        ))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(25), makeID: sequentialIDs())
+
+        let adopted = try #require(lib.dailyEntry(day: day))
+        #expect(!adopted.game.timer.isRunning)
+        #expect(abs(adopted.game.timer.elapsed(at: t(1_000_000)) - 25) < 0.0001)
+    }
+
+    @Test func applyLeavesTheLocalBoardsRunningClockAlone() throws {
+        // The local side of a merge may be the board in the player's hands.
+        // Capping it would stop the clock of a game actually being played —
+        // strictly worse than the bug the remote cap fixes.
+        var lib = BoardLibrary()
+        let id = UUID()
+        var local = progressed(count: 12)
+        local.timer.start(at: t(0))
+        lib.upsert(entry(id: id, game: local, updated: 30))
+        // An older, strictly-contained remote: the local board wins rule 4.
+        let remote = SyncedEntry(entry(id: id, game: progressed(count: 5), updated: 8))
+        _ = LibrarySync.apply(remote: remote, into: &lib, now: t(30), makeID: sequentialIDs())
+
+        let kept = try #require(lib.entry(id: id))
+        #expect(kept.game.fillFraction == local.fillFraction, "the local board won")
+        #expect(kept.game.timer.isRunning, "the clock in the player's hands keeps running")
+    }
 }

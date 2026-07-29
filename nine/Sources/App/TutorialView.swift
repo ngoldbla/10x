@@ -235,8 +235,7 @@ struct TutorialView: View {
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         scale: lens.scale,
-                        onDigit: { commit(digit: $0) },
-                        lensed: !reduceMotion
+                        onDigit: { commit(digit: $0) }
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -265,7 +264,6 @@ struct TutorialView: View {
             side: Double(side),
             inset: Double(inset),
             pencil: rose.pencil,
-            showsErase: false,
             scale: RoseLens.scale(forSide: Double(side))
         )
     }
@@ -696,8 +694,7 @@ struct PadTutorialView: View {
             // rendering change, and moving where the ring blooms is not.
             let lens = model.learningRose.map {
                 RoseLens(cursor: model.cursor, side: Double(side), inset: 20,
-                         pencil: $0.pencil, showsErase: false,
-                         scale: 0.6, clamped: false)
+                         pencil: $0.pencil, scale: 0.6, clamped: false)
             }
             BoardView(
                 game: game,
@@ -720,8 +717,7 @@ struct PadTutorialView: View {
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
                         showsFocusRing: true,
-                        scale: lens.scale,
-                        lensed: !reduceMotion
+                        scale: lens.scale
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }

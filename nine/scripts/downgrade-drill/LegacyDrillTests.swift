@@ -41,6 +41,29 @@ final class LegacyDrillTests: XCTestCase {
         XCTAssertEqual(history.records[0].points, 800, "the points earned are never restated")
     }
 
+    /// Task 2 added `SolveRecord.errors`, a plain optional persisted with no
+    /// carried-sibling machinery — unlike the band above, there is no
+    /// unrecognised *value* here for an old build to preserve, only an unknown
+    /// JSON key for it to ignore. The fixture's Nocturne solve carries an
+    /// `errors` count, and the whole point of this test is that a build that
+    /// has never heard of the key must not care that it is there.
+    func testTheOldBuildIgnoresTheUnknownErrorsKey() throws {
+        let data = try fixture("nine.history.json")
+        let text = String(decoding: data, as: UTF8.self)
+        XCTAssertTrue(text.contains("\"errors\""), "the fixture must actually exercise the new key")
+
+        let history = try CouchJSON.decode(SolveHistory.self, from: data)
+        XCTAssertEqual(history.records.count, 4, "an unrecognised `errors` key must not throw")
+        XCTAssertEqual(history.records[0].points, 800, "the record carrying it is otherwise untouched")
+
+        // The autosave round trip: this build re-encodes from its own typed
+        // value, which has no `errors` property to write back — and reading
+        // that rewrite must still succeed, exactly as the band's rewrite does.
+        let rewritten = try CouchJSON.encode(history)
+        let reread = try CouchJSON.decode(SolveHistory.self, from: rewritten)
+        XCTAssertEqual(reread.records.count, 4)
+    }
+
     /// And the library: a Nocturne board is an element this build cannot type,
     /// so Phase 0's quarantine holds it verbatim. The other boards are
     /// untouched, and the Nocturne one is handed back on the next upgrade.

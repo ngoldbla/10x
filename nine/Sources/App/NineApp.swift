@@ -142,16 +142,29 @@ struct RootView: View {
         // Coming forward: merge any widget moves first (PRD-3 §4). Going
         // back: belt-and-braces publish so the Home Screen is fresh the
         // moment the app leaves it.
+        //
+        // The clock hold (Task 4) is released before `ingestSharedDailyBoard`
+        // runs, not after: releasing first means the ingest's own
+        // `startClockIfUnheld` (and any board swap inside it) sees the true
+        // "are we actually being looked at" state rather than a one-tick-stale
+        // one. `.inactive` holds too, not just `.background` — the app is
+        // covered by the app switcher / an incoming call / Control Center
+        // there just as surely, and iOS can go `.active` → `.inactive` →
+        // `.background` or `.active` → `.inactive` → `.active` (a cancelled
+        // switch), so both non-active phases must hold and only `.active`
+        // may release.
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                model.releaseClock(.scene)
                 model.ingestSharedDailyBoard()
                 // The watch coming back into range is not an event the phone
                 // can hear, so today's daily is re-offered on every activation.
                 model.publishDailyToWatch()
                 model.syncOnForeground()
-            case .background:
-                WidgetBridge.publish(from: model)
+            case .inactive, .background:
+                model.holdClock(.scene)
+                if phase == .background { WidgetBridge.publish(from: model) }
             default:
                 break
             }
@@ -159,8 +172,20 @@ struct RootView: View {
         #endif
         #if os(tvOS) || os(macOS)
         // No widgets here, but the cloud library still pulls on foreground.
+        // Same clock-hold pattern as the iOS block above: on macOS, scenePhase
+        // tracks frontmost-ness, which *is* "looking at the board" there —
+        // Space-switching away or losing focus to another window holds the
+        // clock exactly as backgrounding does on iOS/tvOS.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.syncOnForeground() }
+            switch phase {
+            case .active:
+                model.releaseClock(.scene)
+                model.syncOnForeground()
+            case .inactive, .background:
+                model.holdClock(.scene)
+            default:
+                break
+            }
         }
         #endif
         // tvOS deliberately does NOT authenticate at launch: while signed out,

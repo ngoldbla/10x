@@ -193,6 +193,18 @@ public struct NineGame: Sendable, Codable, Equatable {
         moveLog.count(where: { $0.kind == .place })
     }
 
+    /// Wrong digits placed over the whole session, read off the append-only
+    /// log rather than the board: three wrong tries at one cell (each erased
+    /// or overwritten before the next) is three errors, matching the
+    /// `undoCount`/`placementCount` event-counting symmetry above rather than
+    /// the board-state predicates below (`errorCells`, `isError(at:)`), which
+    /// report only what is wrong on the board *now*. Device-local like
+    /// `undoCount`: a board resumed from iCloud with no local `moveLog`
+    /// starts at 0, and `clearLocalHistory()` empties it on the way out.
+    public var errorCount: Int {
+        moveLog.count(where: { $0.kind == .place && $0.digit != puzzle.solution.cells[$0.cell] })
+    }
+
     /// Seconds of play per digit placed, or nil before the first placement.
     /// The engine keeps no move timestamps ("no hidden clocks"), so this is
     /// total elapsed time divided by placements — a session average, not the
@@ -374,6 +386,18 @@ public struct ElapsedTimer: Sendable, Codable, Equatable {
     public mutating func pause(at now: Date) {
         guard let since = runningSince else { return }
         accumulated += max(0, now.timeIntervalSince(since))
+        runningSince = nil
+    }
+
+    /// Close a run that was left open by something other than an honest
+    /// `pause` — a process that died, or a load that finds `runningSince`
+    /// still set. `pause` trusts its instant because the caller was watching
+    /// the whole interval; here nobody was, so the gap since `since` is not
+    /// provable play and is capped at `cap` — the last instant this entry's
+    /// state is actually known to be current — rather than credited in full.
+    public mutating func closeOpenRun(notLaterThan cap: Date) {
+        guard let since = runningSince else { return }
+        accumulated += max(0, cap.timeIntervalSince(since))
         runningSince = nil
     }
 
