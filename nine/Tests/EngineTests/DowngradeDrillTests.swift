@@ -86,18 +86,25 @@ struct DowngradeDrillTests {
         Date(timeIntervalSinceReferenceDate: 800_000_000 + seconds)
     }
 
-    private func record(_ offset: TimeInterval, _ difficulty: Difficulty, points: Int) -> SolveRecord {
+    private func record(
+        _ offset: TimeInterval, _ difficulty: Difficulty, points: Int, errors: Int? = nil
+    ) -> SolveRecord {
         SolveRecord(date: t(offset), difficulty: difficulty, isDaily: false,
-                    seconds: 600, points: points)
+                    seconds: 600, points: points, errors: errors)
     }
 
     /// A history with one board from every band this build ships, Nocturne last.
+    ///
+    /// The Nocturne record also carries an `errors` count — Task 2's field,
+    /// added after this drill was written — so every drill that encodes this
+    /// fixture exercises a record with an unknown-to-the-old-build key sitting
+    /// right beside the `band` sibling the drill already covers.
     private func mixedHistory() -> SolveHistory {
         var history = SolveHistory()
         history.record(record(0, .gentle, points: 100))
         history.record(record(10, .steady, points: 250))
         history.record(record(20, .sharp, points: 500))
-        history.record(record(30, .nocturne, points: 800))
+        history.record(record(30, .nocturne, points: 800, errors: 3))
         return history
     }
 
@@ -185,6 +192,39 @@ struct DowngradeDrillTests {
         #expect(home.totalPoints == mixedHistory().totalPoints)
         #expect(home.count(of: .nocturne) == 0)
         #expect(home.count(of: .sharp) == 2)
+    }
+
+    // MARK: - nine.history: SolveRecord.errors (Task 2)
+
+    /// `errors` is a plain optional, deliberately *not* built like the band:
+    /// there is no unrecognised value to preserve, so an old build that has
+    /// never heard of the key just ignores it — the same thing Swift's
+    /// synthesized decode already does with any unknown JSON key. Nothing
+    /// about the rest of the record is put at risk by sitting beside it.
+    @Test func oldBuildDecodesARecordCarryingAnUnknownErrorsKey() throws {
+        let blob = try CouchJSON.encode(mixedHistory())
+
+        let old = try CouchJSON.decode(LegacySolveHistory.self, from: blob)
+
+        #expect(old.records.count == 4, "an unrecognised `errors` key must not throw")
+        #expect(old.records[0].points == 800, "the Nocturne record's other fields are untouched")
+    }
+
+    /// The accepted cost is smaller than the band's: an old build cannot carry
+    /// a key it was never taught, so once it re-encodes, `errors` is simply
+    /// gone rather than restated as something wrong. The solve, its date, its
+    /// time and its points all survive — only the count is lost, and only
+    /// once the old device actually autosaves.
+    @Test func anOldBuildRewriteDropsTheErrorsCountButKeepsTheSolve() throws {
+        let blob = try CouchJSON.encode(mixedHistory())
+
+        let old = try CouchJSON.decode(LegacySolveHistory.self, from: blob)
+        let rewritten = try CouchJSON.encode(old)
+        let home = try CouchJSON.decode(SolveHistory.self, from: rewritten)
+
+        #expect(home.records.count == 4)
+        #expect(home.totalPoints == mixedHistory().totalPoints)
+        #expect(home.records[0].errors == nil, "the old build never learned this key")
     }
 
     // MARK: - nine.history: the *next* case after Nocturne

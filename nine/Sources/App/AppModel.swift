@@ -1174,7 +1174,8 @@ final class AppModel {
             points: SolveScore.points(
                 difficulty: difficulty, isDaily: isDaily,
                 streak: streak.current, seconds: g.timer.elapsed(at: now)
-            )
+            ),
+            errors: g.errorCount
         )
         history.record(record)
         try? historyStore.flushNow()
@@ -1401,7 +1402,11 @@ final class AppModel {
             points: SolveScore.points(
                 difficulty: .steady, isDaily: true,
                 streak: streak.current, seconds: solve.seconds
-            )
+            ),
+            // No NineGame in scope here — only a PendingSolve — so there is no
+            // moveLog to read an error count from. Widget and watch solves
+            // both route through this one path, so both record nil.
+            errors: nil
         )
         history.record(record)
         try? historyStore.flushNow()

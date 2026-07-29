@@ -219,6 +219,33 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(game.placementCount, 2, "only .place events count")
     }
 
+    func testErrorCountReadsWrongPlacementsFromMoveLog() {
+        let right = puzzle.solution[hole]
+        // Two distinct wrong digits, neither equal to `right` nor each other —
+        // `place` rejects re-placing the entry already sitting in the cell, so
+        // the second wrong try needs its own digit.
+        let wrong1 = right == 9 ? 1 : right + 1
+        let wrong2 = right >= 8 ? 2 : right + 2
+        XCTAssertEqual(game.errorCount, 0)
+        game.place(wrong1, at: hole) // wrong  → 1
+        game.place(wrong2, at: hole) // wrong  → 2
+        game.place(right, at: hole)  // correct, does not count
+        game.erase(at: hole)         // erase, does not count
+        game.undo()                  // undo, does not count
+        XCTAssertEqual(game.errorCount, 2, "three tries at the cell, one of them correct")
+        XCTAssertEqual(game.undoCount, 1)
+    }
+
+    func testErrorCountClearedByClearLocalHistory() {
+        let right = puzzle.solution[hole]
+        let wrong = right == 9 ? 1 : right + 1
+        game.place(wrong, at: hole)
+        XCTAssertEqual(game.errorCount, 1)
+        game.clearLocalHistory()
+        XCTAssertEqual(game.errorCount, 0,
+                        "cloud parity: a board synced with no local moveLog reports no errors")
+    }
+
     func testAveragePaceWithInjectedClock() {
         let t0 = Date(timeIntervalSinceReferenceDate: 0)
         XCTAssertNil(game.averageSecondsPerPlacement(at: t0), "no pace before the first placement")

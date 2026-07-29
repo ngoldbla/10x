@@ -68,6 +68,16 @@ public struct SolveRecord: Sendable, Codable, Equatable, Identifiable {
     public let seconds: TimeInterval
     public let points: Int
 
+    /// Wrong digits placed during this solve (`NineGame.errorCount` at the
+    /// moment it finished), or nil when no `NineGame` was in scope to read it
+    /// from. That covers every solve recorded through
+    /// `recordSolveMadeElsewhere` — widget and watch solves both route through
+    /// there — plus every record written before this field existed. Unlike
+    /// the band below, a plain optional is enough: there is no unrecognised
+    /// value to preserve, and a downgraded build was never taught this key in
+    /// the first place, so it has nothing to carry across a round-trip.
+    public let errors: Int?
+
     /// A band id this build does not recognise, held verbatim so a downgrade
     /// from a *future* release does not silently rewrite the record as Sharp.
     /// Nil for every band this build ships. Part of `==`: two records that will
@@ -81,18 +91,19 @@ public struct SolveRecord: Sendable, Codable, Equatable, Identifiable {
     /// `unrecognisedBand` is set.
     private let carriedWireBand: String?
 
-    public init(date: Date, difficulty: Difficulty, isDaily: Bool, seconds: TimeInterval, points: Int) {
+    public init(date: Date, difficulty: Difficulty, isDaily: Bool, seconds: TimeInterval, points: Int, errors: Int? = nil) {
         self.date = date
         self.difficulty = difficulty
         self.isDaily = isDaily
         self.seconds = seconds
         self.points = points
+        self.errors = errors
         self.unrecognisedBand = nil
         self.carriedWireBand = nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case date, difficulty, isDaily, seconds, points, band
+        case date, difficulty, isDaily, seconds, points, band, errors
     }
 
     public init(from decoder: Decoder) throws {
@@ -103,6 +114,7 @@ public struct SolveRecord: Sendable, Codable, Equatable, Identifiable {
         isDaily = try c.decode(Bool.self, forKey: .isDaily)
         seconds = try c.decode(TimeInterval.self, forKey: .seconds)
         points = try c.decode(Int.self, forKey: .points)
+        errors = try c.decodeIfPresent(Int.self, forKey: .errors)
 
         // The sibling wins when it is present: it is the true band, and the
         // `difficulty` beside it is only the downgrade-safe stand-in.
@@ -140,6 +152,7 @@ public struct SolveRecord: Sendable, Codable, Equatable, Identifiable {
         try c.encode(isDaily, forKey: .isDaily)
         try c.encode(seconds, forKey: .seconds)
         try c.encode(points, forKey: .points)
+        try c.encodeIfPresent(errors, forKey: .errors)
         if let band = unrecognisedBand {
             try c.encode(carriedWireBand ?? difficulty.wireBand.rawValue, forKey: .difficulty)
             try c.encode(band, forKey: .band)

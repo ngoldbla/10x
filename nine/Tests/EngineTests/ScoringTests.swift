@@ -208,3 +208,53 @@ struct SolveHistoryTests {
         #expect(history.records.count == 3)
     }
 }
+
+/// `SolveRecord.errors` (Task 2 — PRD-26's debrief count) is a plain optional,
+/// deliberately not built like the band above it: there is no unrecognised
+/// *value* for a downgraded build to preserve, so it needs none of that
+/// machinery — just `decodeIfPresent` / conditional-encode, same as any other
+/// optional this record persists.
+@Suite("SolveRecord.errors coding")
+struct SolveRecordErrorsCodingTests {
+    private func t(_ seconds: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: 1_000_000 + seconds)
+    }
+
+    private func object(_ data: Data) throws -> [String: Any] {
+        try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+
+    @Test func errorsRoundTripsThroughEncodeAndDecode() throws {
+        let record = SolveRecord(date: t(0), difficulty: .steady, isDaily: false,
+                                  seconds: 400, points: 250, errors: 3)
+        let data = try JSONEncoder().encode(record)
+        let decoded = try JSONDecoder().decode(SolveRecord.self, from: data)
+        #expect(decoded == record)
+        #expect(decoded.errors == 3)
+    }
+
+    /// A record from before this field existed — the shape every solve in a
+    /// player's history was, until now — must decode with `errors == nil`
+    /// rather than throwing over the missing key.
+    @Test func aRecordWhoseJSONLacksTheKeyDecodesWithNilErrors() throws {
+        let record = SolveRecord(date: t(0), difficulty: .gentle, isDaily: false,
+                                  seconds: 300, points: 100)
+        let blob = try object(JSONEncoder().encode(record))
+        #expect(blob["errors"] == nil, "the fixture must not already carry the key")
+
+        let data = try JSONSerialization.data(withJSONObject: blob)
+        let decoded = try JSONDecoder().decode(SolveRecord.self, from: data)
+        #expect(decoded.errors == nil)
+    }
+
+    /// The write side of the same contract: a nil `errors` must not spend a
+    /// byte on the wire at all. A round-trip assertion alone would still pass
+    /// even if this always wrote `"errors":null` — a nil that decodes back to
+    /// nil — so this checks the JSON itself for the key's absence.
+    @Test func encodingANilErrorsEmitsNoKeyAtAll() throws {
+        let record = SolveRecord(date: t(0), difficulty: .sharp, isDaily: false,
+                                  seconds: 500, points: 500)
+        let blob = try object(JSONEncoder().encode(record))
+        #expect(blob["errors"] == nil)
+    }
+}
