@@ -211,24 +211,34 @@ Per EXECUTING-A-PRD §2:
 
 ## 5. Verification checklist
 
-- [ ] Golden corpus 56/56 **after every commit**.
-- [ ] `LoggedMove` with `at == nil` encodes byte-identically to 1.1's spelling.
-- [ ] A packed replay round-trips: pack → unpack → same moves, timed and untimed.
-- [ ] A truncated, over-long or garbage buffer decodes to nil, never throws.
-- [ ] Analysis soak: no `.slip` on a correct solve, no `.forced` that the solver
-      cannot reproduce from the same state.
-- [ ] Replay of an untimed log produces a debrief with no timing lines, and a
-      comet of the same duration as a timed one.
-- [ ] `ReplayVault` prunes exactly with the library and stays under its cap.
-- [ ] Three platform builds + a Release archive.
-- [ ] `ax-snapshot.py` diffed; re-recorded only where the change is intended.
-- [ ] Driven on a simulator — iOS debrief, share loop, tvOS ambient.
+- [x] Golden corpus 56/56 **after every commit**.
+- [x] `LoggedMove` with `at == nil` encodes byte-identically to 1.1's spelling —
+      asserted against the literal bytes, not against a round trip.
+- [x] A packed replay round-trips: pack → unpack → same moves, timed and untimed.
+      300 timed moves is **1288 bytes**.
+- [x] A truncated, over-long or garbage buffer decodes to nil, never throws —
+      including a header that promises 65535 moves and carries one.
+- [x] Analysis soak: a solver-order solve of a gentle, a sharp and a tempest
+      board yields no `.slip` and no `.leap`; a deep board names a technique
+      above the singles (`ReplayAnalysisTests`).
+- [x] Replay of an untimed log produces a debrief with no timing lines and a
+      comet of the same duration. Driven on a simulator, both ways.
+- [x] The comet follows the **log** and never the grid
+      (`theHeadFollowsTheLogAndNeverTheGrid`).
+- [x] `ReplayVault` prunes exactly with the library and stays under its cap; one
+      unreadable record costs one record.
+- [x] Three platform builds + a Release archive.
+- [x] `ax-snapshot.py`: it **found a defect on its first run** (§6) and is clean
+      after the fix; no baseline re-recorded.
+- [x] Driven on a simulator — iOS debrief, share loop (H.264 1080×1350, 5.000 s,
+      705 KB), tvOS ambient. **Four defects found there and nowhere else.**
 - [ ] Taste ritual: 11pm-in-bed, roommate, first-flick, delete-it-for-a-week,
       idle-pixel.
 
 ## 6. Non-goals and deferrals (recorded up front)
 
-- **A CloudKit Production schema deploy.** Human-owned, like PRD-7 §5.
+- **A CloudKit Production schema deploy.** Human-owned, like PRD-7 §5. The new
+  record type needs no entitlement change and no `match` re-mint.
 - **Editing, trimming or annotating a replay.** §3.2 — the type has no setter.
 - **Any number derived from `.leap` or `.slip`.** §3.3. There is no accuracy
   score, and the covenant is why.

@@ -3248,3 +3248,168 @@ file and silently takes the default.
   ~195 pt with both honesty lines showing. Measured, bounded, and the same
   behaviour PRD-11's card already has; a taller card would need the band resized,
   which moves the board.
+
+## PRD-26 — the comet, and the two classifiers that could not have been wrong out loud (2026-07-28)
+
+`PRD-26.md` did not exist when this started; `PROGRAM-2.0.md:85` was the whole
+spec, exactly as with PRD-25. The PRD is written now and is the forward
+document; this is what happened.
+
+### Two classifiers that pass every test and answer nothing
+
+"Replay analysis re-runs the solver alongside your moves to classify each
+placement" is one sentence in the plan and three different features depending on
+what "classify" means. Two readings were implemented before the third, and both
+are worth keeping because each looks correct until it is run.
+
+**"Does technique T *place* this cell?"** — a lane that cannot fire. Every pair,
+box-line, fish and wing **eliminates**; only the singles ever carry a
+`placement`, which `PRD-25.md:85` already records in another context. So the
+probe can answer nothing but `hiddenSingle`, `headline` is permanently nil, and
+*"You found the X-Wing at move 31"* — the one sentence the feature exists for —
+never appears on any board, with every test green. It was caught by writing the
+test that asserts a Tempest solve names a technique, which is the shape of test
+this repo keeps having to learn.
+
+**"Run the whole chain until the cell falls, and name the hardest technique that
+fired."** — credits an X-Wing on the far side of the grid for a cell it never
+touched. And because every Nine board is *proved solvable by logic*, the chain
+reaches every cell, so `.leap` becomes unreachable: `testALeapIsReachable`
+failed, and the honest fix was not to loosen the test but to notice that the
+question was wrong.
+
+What ships is PRD-25's `derivation` reused verbatim — the hardest technique that
+bore on **this** cell. Gating it additionally on `elsewhere == 0` ("no unrelated
+work first") reads as the principled bar and **fails the solver's own path**: the
+chain takes elimination-only steps between placements, none of which bear on the
+cell it is about to fill, so a perfectly-played Sharp board produced seven leaps
+and a Tempest board named nothing. Any non-zero bar would be a number nobody
+could defend, so there is none.
+
+`.leap`, not `.guess`. PROGRAM-2.0 says guess; a raw value becomes the
+localization identity the moment it ships (PRD-20's finding), so it is worth
+choosing once rather than renaming against nine translations later.
+
+### The 2 KB budget, and the cap that did not have to move
+
+`CoachProgress.Met` gained `usedInSolve`. A third `Bool`, spelled by the
+synthesized encoder on all 32 rows, puts a full blob **past** PRD-25 §2.5's 2 KB
+— which `theBlobIsBoundedNoMatterWhatItIsFed` measures rather than trusts, so it
+failed rather than shipping. Raising `capacity` was the easy answer and the wrong
+one: the budget is what keeps this blob in KVS beside the streak. `Met.encode`
+omits defaults now, which shrinks the existing rows too and is the more tolerant
+wire in the bargain.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| packed replay, 300 timed moves | **1288 bytes** (PROGRAM-2.0 budgets 1–2 KB) |
+| packed replay, the driven 55-move solve | **308 bytes** |
+| exported loop | H.264, 1080×1350, **5.000 s**, **705 KB** |
+| `swift test` | **3:26** (399 XCTest + 147 swift-testing, 0 failures) |
+
+Deltas rather than absolute timestamps in the packed log, and that is the one
+arithmetic decision worth defending: an absolute `UInt16` of deciseconds tops out
+at 6553 s — 109 minutes — which a leisurely Abyss can genuinely exceed, and the
+failure mode is every move after the ceiling collapsing onto one instant. A
+*delta* of 109 minutes cannot exist, because `ElapsedTimer` pauses in the
+background.
+
+### Where the honesty rule had to split
+
+"Old logs replay at uniform cadence" and "the debrief says fastest region" cannot
+both be unconditional, and the question came up as a real decision rather than as
+an edge case.
+
+- **The comet does not tell.** Same 5 s loop, no watermark, no dimming. The moves
+  are true and only their spacing is invented, and a uniform cadence *is* honestly
+  inventing the spacing.
+- **The debrief tells by omission.** Fastest region and longest-circled cell are
+  functions of `LoggedMove.at` and nothing else, so on an untimed log they are
+  absent and the card is shorter. It does not apologise for them. "Fastest region:
+  box 4" derived from a uniform cadence is a fabricated fact on a card the player
+  will believe — the class of thing `SolveCardFacts.swift:58` calls the app's
+  first dishonest pixel.
+
+Driven on a simulator, both ways, and the untimed run also proved the
+partially-timed rule in production: 55 seeded untimed moves plus one real timed
+placement pack as untimed, because a log is timed or it is not.
+
+### The AX lane found the one defect nothing else could
+
+**"Show your solve" was in the rotor of all 81 cells of every unsolved board.**
+`accessibilityAction(named:)` registers its action whatever the view's state, so
+the `debrief != nil` guard *inside* the closure guarded the effect and not the
+action's existence — a VoiceOver user on any mid-game board found an action that
+silently did nothing. Invisible to every screenshot, every unit test and every
+hand-driven walk-through; `ax-snapshot.py` diffed it on the first run.
+
+The fix is `accessibilityActions` (plural), which takes a `ViewBuilder` and so
+accepts a real `if`. Worth stating as the general rule, because the singular form
+is the one that reads naturally: **a conditional action needs a conditional
+builder, not a conditional body.**
+
+### The comet followed the grid, and it was the demo that was wrong
+
+Watching the exported loop, the digits appeared top-to-bottom — a picture of the
+grid rather than of a hand. The engine turned out to be innocent: nothing between
+`pack` and `CometTimeline.frame` sorts, and the seeded fixture was filling holes
+by ascending cell index because that is what `enumerate` over a hole list does.
+
+Two things came out of it anyway, and the second is the durable one. The harness
+seeds from `puzzle.steps` now — the proof chain already inside every board, whose
+placements genuinely jump (40, 3, 10, 44, 61, …) because deductions do. And
+`theHeadFollowsTheLogAndNeverTheGrid` pins the claim: a comet that visited cells
+in board order would look completely plausible, which is exactly why it needed a
+test and not a comment.
+
+### Three defects found only by driving it
+
+Each compiles, renders, and is invisible to every test in the repo.
+
+**The pull-up's reveal band *was* the control bar.** A bottom-120 pt band on a
+screen whose bottom 96 pt is six 44 pt buttons meant the one place the gesture
+listened was a row of buttons: every pull-up either did nothing or fought Undo.
+The fix is not a smaller band — a solved board takes no input at all
+(`AppModel.place` guards `solvedAt == nil`), so the board *is* the drag surface.
+
+**The grabber was drawn under the control bar.** `.bottom` padding 6 puts a 3 pt
+hairline beneath the bar and on top of the home indicator: invisible against one,
+confusable with the other. It sits under the completion chip now.
+
+**The comet's trail was drawn on top of the digits.** At 888 pt in the exported
+card a translucent disc over a numeral reads as a smudge on the digit, not as a
+path through the cell — visible only in a frame pulled out of the MP4. It is a
+cell-shaped wash *behind* the glyph now.
+
+### Not done, each with its reason
+
+- **A CloudKit production schema deploy.** The new `SolveReplay` record type
+  needs **no entitlement change and no `match` re-mint** — EXECUTING-A-PRD §6's
+  trap fires on capabilities, and a record type is schema — but it does need
+  deploying to the production environment before release. Human-owned, same shape
+  as PRD-7 §5's container gate.
+- **A macOS debrief.** The Mac gets the animated share card (it is the same
+  artifact leaving the same app) and no pull-up: a pull-up is a touch gesture and
+  the Mac's answer is a window, which is PRD-33's. The Mac also still has no first
+  run and no drawer, so this is the standing gap rather than a new one.
+- **No AX baseline reaches the debrief card**, for the reason PRD-25 recorded
+  about its own: the baselines photograph a mid-game board and this card exists
+  only after a solve. Its two accessibility rules were taken from PRD-25's scar
+  tissue rather than from a lane — the action button is a *sibling* of the prose,
+  not a child of a `.contain` container, and `minHeight: 44` sits outside the
+  glass.
+- **The nine languages are machine-drafted and unreviewed** — 12 keys × 9 locales,
+  every one `needs_review`, consistent with PRD-20's standing headline deferral.
+  Lowest confidence: "circled", which is figurative in English (the player circled
+  *around* a cell) and has no idiom in several of the nine, and "corrections",
+  where the neutral register matters and the obvious word in some languages
+  implies error.
+- **No device measurement of the export.** 150 `ImageRenderer` passes are
+  synchronous on the solve path; on an iPhone 17 Pro simulator it is imperceptible
+  behind the 2.4 s completion-chip gate, but that gate is the only thing hiding
+  it and a cold device has never been measured. PROGRAM-2.0's nightly lane is
+  where that number belongs.
+- **tvOS has no debrief and no share**, only the ambient surface — there is no
+  share sheet on tvOS (PRD-12's standing deferral) and a pull-up needs a touch.

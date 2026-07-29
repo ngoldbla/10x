@@ -714,11 +714,21 @@ struct TouchGameScreen: View {
             // hairline is not an accessibility affordance, and a pull-up with
             // no keyboard or VoiceOver route would be a feature only sighted
             // touch users have.
-            .accessibilityAction(named: Text(
-                debriefOpen ? DebriefPhrase.close : DebriefPhrase.open
-            )) {
-                guard debriefOpen || debrief != nil else { return }
-                withAnimation(.couchFast) { debriefOpen.toggle() }
+            //
+            // **`accessibilityActions` (plural), and that is not a style
+            // choice.** `accessibilityAction(named:)` registers the action
+            // whatever the view's state, so a guard inside the closure is a
+            // guard on the *effect* and not on the action's existence — which
+            // put "Show your solve" in the rotor of all 81 cells of every
+            // unsolved board, doing nothing. Invisible to every screenshot and
+            // every unit test; `ax-snapshot.py` is what found it. The plural
+            // form takes a `ViewBuilder`, so the `if` is real.
+            .accessibilityActions {
+                if debrief != nil {
+                    Button(debriefOpen ? DebriefPhrase.close : DebriefPhrase.open) {
+                        withAnimation(.couchFast) { debriefOpen.toggle() }
+                    }
+                }
             }
             .overlay {
                 // PRD-34: no `onNewGame` — the next board lives on the shelf,

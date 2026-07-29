@@ -82,6 +82,28 @@ import NineEngine
         #expect(frame.to == 2)
     }
 
+    /// **The comet follows the log, not the board.**
+    ///
+    /// A replay that visited cells top-to-bottom would be a picture of the
+    /// grid rather than of the hand that filled it — and it would look
+    /// *plausible*, which is what makes it worth a test rather than a comment.
+    /// Nothing between `pack` and this frame may sort, dedupe or reorder, so
+    /// this walks a deliberately scrambled path and asserts the head hits every
+    /// cell in exactly the order it was played.
+    @Test func theHeadFollowsTheLogAndNeverTheGrid() {
+        let path = [40, 3, 10, 44, 61, 58, 74, 27, 9, 36, 0, 18]
+        #expect(path != path.sorted(), "the fixture path must not be in board order")
+        let moves = path.enumerated().map {
+            LoggedMove(kind: .place, cell: $0.element, digit: 1, at: Double($0.offset))
+        }
+        // Sample the loop at each beat and collect the cells arrived at.
+        let times = CometTimeline.normalizedTimes(moves)
+        let visited = times.map {
+            CometTimeline.frame(at: $0, puzzle: Self.puzzle, moves: moves).from
+        }
+        #expect(visited == path.map { Optional($0) })
+    }
+
     @Test func theTailTrailsBehindTheHeadNearestFirst() {
         let moves = (0..<9).map { LoggedMove(kind: .place, cell: $0, digit: 1, at: Double($0)) }
         let frame = CometTimeline.frame(at: 1, puzzle: Self.puzzle, moves: moves)
