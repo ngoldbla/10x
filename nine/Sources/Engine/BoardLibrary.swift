@@ -12,9 +12,32 @@ import Foundation
 /// What kind of board is (or was) being played. Moved here from AppModel so the
 /// library (Engine) can key on it; the synthesized Codable shape is unchanged
 /// (case-name keyed), so old `nine.save` blobs still decode.
+///
+/// **PRD-24 appended `.channel`, and an older build throwing on it is the
+/// designed outcome rather than a tolerated one.** This enum has a *synthesized*
+/// `Codable`, so a build that has never heard of `.channel` throws when it meets
+/// one — `BoardLibrary`'s element-level decode catches that and quarantines the
+/// whole entry verbatim, handing it back untouched on upgrade
+/// (`DowngradeDrillTests`).
+///
+/// That is what should happen. Every other tolerance rule in this repo is about
+/// *preserving* a value an old build cannot read; this one is about **refusing to
+/// play** a board an old build cannot render. A build with no cage renderer that
+/// silently opened a killer board as classic would show the player a grid with
+/// impossible constraints and no cages drawn, and mark their correct entries as
+/// errors. Quarantine is the only right answer, and it is free.
 public enum GameKind: Codable, Sendable, Equatable, Hashable {
     case daily(day: Int)
     case free(Difficulty)
+    /// A board on a variant channel. `day` is non-nil exactly when it is that
+    /// channel's daily — one per day per channel, which is what keeps the classic
+    /// streak undiluted (`ChannelLedger`).
+    ///
+    /// One case with an optional day rather than a `.channelDaily`/`.channelFree`
+    /// pair: `GameKind` is switched on throughout `AppModel`, and the daily/free
+    /// distinction for a channel board is a property of the board rather than a
+    /// different kind of board.
+    case channel(channel: Channel, tier: VariantTier, day: Int?)
 }
 
 /// Lifecycle of a tracked board.
