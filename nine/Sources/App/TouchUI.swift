@@ -181,7 +181,12 @@ struct TouchHomeView: View {
                 GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                // A Focus filter can take the count away entirely (PRD-33).
+                // `if` rather than `.opacity(0)`: an invisible chip still holds
+                // its space and still speaks to VoiceOver.
+                if !model.focus.hidesStreak {
+                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                }
             }
         }
         .padding(.top, 8)
@@ -331,10 +336,16 @@ struct TouchHomeView: View {
         } else if let daily = model.savedDaily {
             HStack(spacing: 12) {
                 BoardFingerprint(game: daily, accent: accent, side: 34)
-                Text(Strings.string("shelf.today.continueProgress",
-                                    .text(BoardProgressCaption.text(for: daily))))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
+                // The constellation stays and the number goes (PRD-33). What
+                // `hidesDaily` is for is the *urgency* of an unfinished board,
+                // and "64%" is where the urgency lives — the fingerprint says
+                // "there is a board here" without saying how much you owe it.
+                if !model.focus.hidesDaily {
+                    Text(Strings.string("shelf.today.continueProgress",
+                                        .text(BoardProgressCaption.text(for: daily))))
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         } else {
             statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
@@ -2323,6 +2334,11 @@ private struct AmbientSlotView: View {
                         systemImage: "clock"
                     )
                 }
+            case .streak where model.focus.hidesStreak:
+                // The ambient slot is opt-in already; a Focus filter still
+                // outranks it, because the player asked the *system* and the
+                // system asked us (PRD-33).
+                EmptyView()
             case .streak:
                 // Its own capsule (points ride along here), so it takes the
                 // symbol rule from `StreakChip` rather than the whole view.

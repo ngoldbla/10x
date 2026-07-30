@@ -24,9 +24,16 @@ enum WidgetBridge {
         set { SharedDailyBoardStore.setKnownRevision(newValue) }
     }
 
-    static func publish(from model: AppModel) {
+    /// - Parameter foreground: whether the app is on screen, forwarded to
+    ///   `PresenceBridge` (PRD-30). Defaults to true because every publish site
+    ///   in `AppModel` is a move, a solve or a navigation — all of which happen
+    ///   with the app in front of someone. The one caller that is not is the
+    ///   `scenePhase` handler in `NineApp`, which says so explicitly, and that
+    ///   transition is the entire trigger for a Live Activity.
+    static func publish(from model: AppModel, foreground: Bool = true) {
         let now = Date()
         publishDailyBoard(from: model, at: now)
+        PresenceBridge.sync(from: model, foreground: foreground, at: now)
         let snapshot = snapshot(from: model, at: now)
         do {
             try WidgetSnapshotStore.save(snapshot)
@@ -46,11 +53,15 @@ enum WidgetBridge {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Mirror the current daily (on-screen or autosaved) into the shared
-    /// board file, revision++. No daily today → leave the file alone (the
-    /// widget's stale-day guard handles yesterday's leftovers).
-    private static func publishDailyBoard(from model: AppModel, at now: Date) {
-        let today = WidgetSnapshotStore.dayOrdinal(for: now)
+    /// Which board "the daily" means right now: the on-screen daily when there is
+    /// one, otherwise the library's in-progress daily. nil when there is no daily
+    /// for today at all.
+    ///
+    /// Extracted from `publishDailyBoard` when `PresenceBridge` (PRD-30) became a
+    /// second bookmark of the same board. Two surfaces pointing at the daily have
+    /// to agree about which board that is, and the cheapest guarantee is that
+    /// there is one answer rather than two implementations of it.
+    static func currentDaily(from model: AppModel, today: Int) -> (game: NineGame, day: Int)? {
         var current: (game: NineGame, day: Int)?
         if model.screen == .game, case .daily(let day)? = model.kind, let game = model.game {
             // On-screen daily (covers the just-solved board). Off the game
@@ -61,7 +72,16 @@ enum WidgetBridge {
             // with the library's in-progress daily.
             current = (daily.game, today)
         }
-        guard let (game, day) = current, day == today else { return }
+        guard let current, current.day == today else { return nil }
+        return current
+    }
+
+    /// Mirror the current daily (on-screen or autosaved) into the shared
+    /// board file, revision++. No daily today → leave the file alone (the
+    /// widget's stale-day guard handles yesterday's leftovers).
+    private static func publishDailyBoard(from model: AppModel, at now: Date) {
+        let today = WidgetSnapshotStore.dayOrdinal(for: now)
+        guard let (game, day) = currentDaily(from: model, today: today) else { return }
         let existing = SharedDailyBoardStore.load()
         if let existing, existing.isCurrent(today: today) {
             if existing.revision > knownBoardRevision {
@@ -124,7 +144,15 @@ enum WidgetBridge {
             lastCompletedDay: model.streak.lastCompletedDay,
             lastGraceDay: model.streak.lastGraceDay,
             totalPoints: model.totalPoints,
-            generatedAt: now
+            generatedAt: now,
+            // The look (PRD-30) and the quiet (PRD-33). Both are facts about how
+            // to draw rather than about the board, and both are in the reload
+            // digest, so changing a theme or turning on a Focus refreshes the
+            // Home Screen instead of waiting for an unrelated move.
+            themeRaw: model.prefs.theme.rawValue,
+            accentRaw: model.prefs.accent.rawValue,
+            focusHidesDaily: model.focus.hidesDaily,
+            focusHidesStreak: model.focus.hidesStreak
         )
     }
 }

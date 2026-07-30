@@ -119,7 +119,12 @@ struct HomeView: View {
                 .couchText(CouchTypography.title)
             Spacer()
             if model.displayedStreak > 0 {
-                StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                // A Focus filter can take the count away entirely (PRD-33).
+                // `if` rather than `.opacity(0)`: an invisible chip still holds
+                // its space and still speaks to VoiceOver.
+                if !model.focus.hidesStreak {
+                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                }
             }
         }
     }

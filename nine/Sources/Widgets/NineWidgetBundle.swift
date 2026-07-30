@@ -28,5 +28,11 @@ struct NineWidgetBundle: WidgetBundle {
         NineDailyWidget()
         NineStreakWidget()
         NineBoardWidget()
+        // The Live Activity (PRD-30). A bundle member like any other, with no
+        // `#if` and no entitlement behind it — Live Activities are gated by the
+        // app's `NSSupportsLiveActivities` Info.plist key alone, which is why
+        // this is the first new surface in three PRDs that needs no `match`
+        // re-mint (EXECUTING-A-PRD §6).
+        NineDailyPresenceActivity()
     }
 }

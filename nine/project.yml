@@ -33,6 +33,12 @@ targets:
       # Deliberately not a SwiftPM target: `LocalizedStringResource` does not
       # exist on Linux and Package.swift must stay Linux-clean.
       - Sources/Strings
+      # App Intents strings (PRD-33). Its own tree and its own catalog table
+      # because `appintentsmetadataprocessor` is a static extractor and cannot
+      # call `Strings.resource(_:)` — see Sources/Shortcuts/IntentStrings.swift.
+      # Listed by BOTH bundles that declare intents, for the same reason
+      # Sources/Strings is listed three times.
+      - Sources/Shortcuts
       - Assets.xcassets
       - path: PrivacyInfo.xcprivacy
         buildPhase: resources
@@ -169,10 +175,30 @@ targets:
         GCSupportedGameControllers:
           - ProfileName: ExtendedGamepad
           - ProfileName: MicroGamepad
-        # Widgets deep-link into today's daily via nine://daily.
+        # Widgets deep-link into today's daily via nine://daily. Registered on
+        # the shared Info.plist, so macOS advertises the scheme too — and until
+        # PRD-33 macOS had no `onOpenURL`, so it advertised a scheme it silently
+        # dropped.
         CFBundleURLTypes:
           - CFBundleURLName: com.couchsuite.nine
             CFBundleURLSchemes: [nine]
+        # PRD-30's Live Activity. This one key is the *whole* mechanism: there is
+        # no entitlement and no App ID capability behind Live Activities, which
+        # was checked rather than assumed — the only build settings Xcode 26.6
+        # defines are INFOPLIST_KEY_NSSupportsLiveActivities and
+        # …FrequentUpdates (CoreBuildSystem.xcspec). So unlike app groups
+        # (PRD-3), Game Center and CloudKit (PRD-8), this needs no `match --force`
+        # re-mint before merging, and the trap EXECUTING-A-PRD §6 says has fired
+        # three times does not fire here.
+        #
+        # Declared on the app, not the extension: ActivityKit checks the *host*
+        # app's plist, and the appex only renders. Ignored by tvOS and macOS,
+        # where ActivityKit does not exist.
+        #
+        # Deliberately NOT NSSupportsLiveActivitiesFrequentUpdates: that key buys
+        # a bigger push/update budget, and Nine's activity carries no clock and
+        # updates only when the board's picture changes.
+        NSSupportsLiveActivities: true
         # iOS-only keys (ignored by tvOS): no storyboard — an empty modern
         # launch screen inherits the window background. Appearance follows
         # the system (or the in-app Appearance pref) since 1.1.
@@ -204,6 +230,9 @@ targets:
       # into this bundle — see the long comment on `Nine.sources`. `Bundle.main`
       # here is the .appex, so this is the only copy the widget can read.
       - Sources/Strings
+      # The widget declares `BoardWidgetConfiguration`, so its configuration
+      # sheet's strings must resolve against the appex's own bundle.
+      - Sources/Shortcuts
     dependencies:
       - package: CouchKit
     settings:

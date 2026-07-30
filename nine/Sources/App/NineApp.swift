@@ -7,6 +7,7 @@
 // tvOS/iOS there is a single WindowGroup, so behavior is identical.
 import SwiftUI
 import CouchKit
+import AppIntents
 
 @main
 struct NineApp: App {
@@ -39,12 +40,50 @@ struct NineApp: App {
 
     @State private var model = AppModel()
 
+    /// The menu-bar extra's `@AppStorage` key (PRD-33). Named once so the App and
+    /// the View menu cannot come to disagree about which flag they are toggling —
+    /// a typo here is silent, because `@AppStorage` simply starts a new key.
+    static let menuBarExtraKey = "nine.mac.menuBarExtra"
+
     #if os(macOS)
     init() {
         // One board, one window — tabbing a sudoku makes no sense, and
         // dropping it clears the stock Show Tab Bar rows from the View menu.
         NSWindow.allowsAutomaticWindowTabbing = false
     }
+
+    /// Whether the menu-bar extra is inserted (PRD-33).
+    ///
+    /// **`@State`, seeded from `UserDefaults` — and the spelling is a hang fix,
+    /// not a preference.** Two obvious versions of this line wedge the app:
+    ///
+    /// | `isInserted:` | result |
+    /// |---|---|
+    /// | `Binding` reading `model.prefs.macMenuBarExtra` | **103% CPU, unresponsive** |
+    /// | `@AppStorage(…)` | **99% CPU, unresponsive** |
+    /// | `.constant(true)` / `.constant(false)` | quiet, 0.4% |
+    /// | `@State` | quiet, 0.7% |
+    ///
+    /// The spin is `AppDelegate.scenesDidChange` → `makeMainMenu` →
+    /// `AppKitMainMenuItem.updateMainMenu` → `MainMenuItemHost.requestUpdate` →
+    /// `scenesDidChange`, forever: a `MenuBarExtra` makes the main menu part of the
+    /// scene update, and a source that republishes during that update — whether
+    /// `@Observable` state or `UserDefaults` change notifications — closes the
+    /// loop. `MenuBarExtra` itself is innocent, which the two `.constant` rows
+    /// prove.
+    ///
+    /// **Found by driving the Mac, not by building it.** Three platform builds and
+    /// 615 tests were green; the app launched, opened a board from the menu bar,
+    /// and then stopped answering AppleEvents. Nothing else in the branch could
+    /// have caught it — which is the whole argument of EXECUTING-A-PRD §5.
+    ///
+    /// Persisting outside `NinePrefs` is what §2 asks for anyway: new state in its
+    /// own key, never a new field on `nine.prefs`, which ships in every released
+    /// build. Plain `UserDefaults` rather than `CouchStored` because the value is
+    /// read before any view exists and must never sync — a menu bar is a property
+    /// of one Mac.
+    @State private var menuBarExtraShown =
+        UserDefaults.standard.bool(forKey: NineApp.menuBarExtraKey)
     #endif
 
     var body: some Scene {
@@ -56,7 +95,7 @@ struct NineApp: App {
         }
         .defaultSize(width: 720, height: 820)
         .windowResizability(.contentMinSize)
-        .commands { NineCommands(model: model) }
+        .commands { NineCommands(model: model, menuBarExtraShown: $menuBarExtraShown) }
 
         // ⌘, — the standard Settings scene, iOS-parity rows minus touch-only.
         Settings {
@@ -69,6 +108,38 @@ struct NineApp: App {
             MacHistoryWindow(model: model)
         }
         .defaultSize(width: 440, height: 660)
+
+        // ⌥⌘A — the daily archive (PRD-33). **A window, not a sheet**, which is
+        // the sentence PRD-26 and PRD-31 both deferred to this PRD: "the Mac's
+        // answer to a second pane is a window". A calendar is the case that proves
+        // it — you consult it *while* looking at a board, and a sheet would cover
+        // the thing you are deciding about.
+        //
+        // `ArchiveSheetContent` needed no change to appear here; it was simply
+        // fenced `#if os(iOS)` and did not compile for the Mac at all.
+        Window(Strings.string("archive.title"), id: "archive") {
+            MacArchiveWindow(model: model)
+        }
+        .defaultSize(width: 420, height: 520)
+
+        // ⇧⌘E — the Technique School (PRD-25). It has compiled for macOS since it
+        // shipped and nothing has ever presented it.
+        Window(Strings.string("school.title"), id: "school") {
+            MacSchoolWindow(model: model)
+        }
+        .defaultSize(width: 520, height: 680)
+
+        // The menu-bar extra (PRD-33). Behind a pref that is off by default — see
+        // `NinePrefs.macMenuBarExtra`. `.window` rather than `.menu` because the
+        // content is a drawn board rather than a list of rows.
+        MenuBarExtra(isInserted: $menuBarExtraShown) {
+            MacMenuBarBoard(model: model)
+        } label: {
+            // The wordmark's own glyph, not a sudoku grid: the menu bar is a row of
+            // other apps' marks and this has to read as Nine at 16pt.
+            Image(systemName: "square.grid.3x3.fill")
+        }
+        .menuBarExtraStyle(.window)
         #else
         WindowGroup {
             RootView(model: model)
@@ -102,6 +173,18 @@ struct RootView: View {
         // materials and secondary text follow — both platforms.
         .preferredColorScheme(model.prefs.theme.colorScheme)
         .environment(\.nineTheme, model.prefs.theme)
+        // Hand the model to App Intents (PRD-33). `@Dependency` in an intent
+        // resolves through this, and a `@MainActor` class is implicitly
+        // `Sendable`, which is what `AppDependencyManager` requires.
+        //
+        // **Here rather than in `NineApp.init`**, which is the obvious place and
+        // is unsafe: `model` is `@State`, SwiftUI may build the `App` struct more
+        // than once, and its storage is attached after `init` — so an `init`
+        // registration can hand the intents a model instance the UI never shows.
+        // The failure would be silent and awful: "Start today's board" mutating a
+        // model nobody is looking at. By `onAppear` the live instance exists.
+        // Registration is last-writer-wins and idempotent in practice.
+        .onAppear { AppDependencyManager.shared.add(dependency: model) }
         #if os(macOS)
         // Drive the NSWindow (desk mode size/level, frame autosave) and host
         // the keyboard-gestured tutorial from Help ▸ How to Play.
@@ -127,9 +210,20 @@ struct RootView: View {
         }
         .animation(.couchFast, value: model.macShowTutorial)
         .onAppear { GameCenter.shared.authenticate() }
+        // Game ▸ Technique School and Help ▸ Technique School (PRD-33). Presented
+        // where the tutorial is, so the two coach surfaces are siblings; the
+        // `.environment` re-application is the same overlay-is-a-sibling fix the
+        // comment above records.
+        .onChange(of: model.macShowSchool) { _, wants in
+            if wants { openSchoolWindow() }
+        }
         #endif
-        #if os(iOS)
-        .onAppear { GameCenter.shared.authenticate() }
+        // `nine://` is registered on the **shared** Info.plist (project.yml), so
+        // macOS has advertised the scheme since PRD-3 and, until PRD-33, silently
+        // dropped every open of it — the handler was inside `#if os(iOS)`. That
+        // also blocked App Shortcuts' `OpenIntent`-shaped routing on the Mac. The
+        // fence is gone; the body is unchanged.
+        //
         // Widget taps land on today's daily. openToday() is already safe
         // mid-composition (compose() guards on `composing`).
         .onOpenURL { url in
@@ -139,6 +233,8 @@ struct RootView: View {
                 model.openToday()
             }
         }
+        #if os(iOS)
+        .onAppear { GameCenter.shared.authenticate() }
         // Coming forward: merge any widget moves first (PRD-3 §4). Going
         // back: belt-and-braces publish so the Home Screen is fresh the
         // moment the app leaves it.
@@ -164,7 +260,17 @@ struct RootView: View {
                 model.syncOnForeground()
             case .inactive, .background:
                 model.holdClock(.scene)
-                if phase == .background { WidgetBridge.publish(from: model) }
+                // `foreground: false` is the "and leave" half of PRD-30's
+                // start-and-leave: this is the only publish site in the app that
+                // is not a move, a solve or a navigation, and it is the one
+                // transition that may start a Live Activity.
+                //
+                // `.background` only, matching the existing publish: `.inactive`
+                // is the app switcher and an incoming call, and a phone that
+                // returns from either never left.
+                if phase == .background {
+                    WidgetBridge.publish(from: model, foreground: false)
+                }
             default:
                 break
             }
@@ -197,6 +303,19 @@ struct RootView: View {
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    #if os(macOS)
+    /// `openWindow` is an environment value and cannot be read from `Commands`
+    /// content that has no view of its own, so the two School menu rows set a flag
+    /// on the model — the `macShowTutorial`/`macShowBoards` pattern — and this
+    /// turns the flag into a window and resets it.
+    @Environment(\.openWindow) private var openWindow
+
+    private func openSchoolWindow() {
+        openWindow(id: "school")
+        model.macShowSchool = false
+    }
+    #endif
 
     // One model, three grammars: the TV screens speak remote (RemoteKit), the
     // touch screens speak fingers, the Mac screens speak keyboard + pointer.

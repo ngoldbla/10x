@@ -39,6 +39,27 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var totalPoints: Int
     public var generatedAt: Date
 
+    /// `ThemeChoice.rawValue` and `AccentChoice.rawValue`, mirrored from
+    /// `SharedAppearance` (PRD-30). nil = written by a build before this field.
+    ///
+    /// The appearance already crossed one process boundary — the watch has read
+    /// it out of KVS since PRD-6 — but never *this* one: `nine.appearance` goes
+    /// to `CouchStored` + KVS and the widget extension reads neither, so
+    /// `WidgetPalette` has been a hardcoded glacier-on-paper since PRD-3.
+    /// Additive and optional, `schemaVersion` stays 1, for the reason
+    /// `lastGraceDay` gives above. Resolved by `SharedPalette`.
+    public var themeRaw: String?
+    public var accentRaw: String?
+
+    /// The active Focus filter, mirrored so the Home Screen goes quiet too
+    /// (PRD-33). nil is the same answer as false: no filter.
+    ///
+    /// A filter that calmed the app while a widget two inches away kept showing
+    /// the streak and the percentage would not be a filter; it would be a
+    /// setting with a bug.
+    public var focusHidesDaily: Bool?
+    public var focusHidesStreak: Bool?
+
     public init(
         schemaVersion: Int = WidgetSnapshot.currentSchemaVersion,
         dailyDayOrdinal: Int? = nil,
@@ -49,7 +70,11 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         lastCompletedDay: Int? = nil,
         lastGraceDay: Int? = nil,
         totalPoints: Int = 0,
-        generatedAt: Date = Date()
+        generatedAt: Date = Date(),
+        themeRaw: String? = nil,
+        accentRaw: String? = nil,
+        focusHidesDaily: Bool? = nil,
+        focusHidesStreak: Bool? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.dailyDayOrdinal = dailyDayOrdinal
@@ -61,6 +86,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         self.lastGraceDay = lastGraceDay
         self.totalPoints = totalPoints
         self.generatedAt = generatedAt
+        self.themeRaw = themeRaw
+        self.accentRaw = accentRaw
+        self.focusHidesDaily = focusHidesDaily
+        self.focusHidesStreak = focusHidesStreak
     }
 }
 
@@ -126,6 +155,21 @@ extension WidgetSnapshot {
         streakBest = max(streakBest, streakCurrent)
     }
 
+    /// Theme and accent as the widget's palette wants them (PRD-30). An older
+    /// file, or a phone that has never opened prefs, yields the pair every
+    /// reader already treats as "use your default".
+    public var appearance: SharedAppearance {
+        SharedAppearance(theme: themeRaw ?? "", accent: accentRaw ?? "")
+    }
+
+    /// The Focus filter, with nil read as "none" (PRD-33).
+    public var focus: QuietFocus {
+        QuietFocus(
+            hidesDaily: focusHidesDaily ?? false,
+            hidesStreak: focusHidesStreak ?? false
+        )
+    }
+
     /// Coarse digest gating `WidgetCenter` reloads: state bucket
     /// (notStarted / solved / fill decile), displayed streak, points — plus the
     /// exact daily board revision. `place()` publishes on every move, and the
@@ -134,6 +178,12 @@ extension WidgetSnapshot {
     /// makes every *daily* move reload the widget (foreground reloads are
     /// WidgetKit-budget-exempt); free-play moves don't bump the revision, so
     /// there's no waste. Pass 0 to reproduce the pre-fix, glanceable-only digest.
+    ///
+    /// Appearance and Focus join the digest for the same reason the revision did:
+    /// they change what the widget draws, so a change that is not in here is a
+    /// change the Home Screen does not show. Switching theme, or turning on a
+    /// Focus, would otherwise leave three widgets in the old look until some
+    /// unrelated move happened to move the bucket.
     public func reloadDigest(today: Int, boardRevision: Int = 0) -> String {
         let state: String
         if isSolved(today: today) {
@@ -143,7 +193,10 @@ extension WidgetSnapshot {
         } else {
             state = "notStarted"
         }
-        return "\(state)|\(displayedStreak(today: today))|\(totalPoints)|r\(boardRevision)"
+        let look = "\(themeRaw ?? "-")/\(accentRaw ?? "-")"
+        let quiet = "\(focusHidesDaily == true ? "d" : "-")\(focusHidesStreak == true ? "s" : "-")"
+        return "\(state)|\(displayedStreak(today: today))|\(totalPoints)"
+            + "|r\(boardRevision)|\(look)|\(quiet)"
     }
 }
 

@@ -8,6 +8,11 @@
 import SwiftUI
 import Observation
 import CouchKit
+#if os(macOS)
+// `SecTask` — the only way to ask this binary what its own signature entitles it
+// to. macOS only, because the header is macOS only. See `mayBuildCloudContainer`.
+import Security
+#endif
 
 // MARK: - Persisted value types
 
@@ -70,13 +75,29 @@ struct NinePrefs: Codable, Sendable, Equatable {
     /// solve crescendo is deliberately *not* gated by this, being a once-a-
     /// board celebration rather than a per-move texture.
     var touchHaptics = true
+    /// iOS: the Live Activity that bookmarks a daily you started and left
+    /// (PRD-30).
+    ///
+    /// **On by default, and that is a covenant judgement rather than an
+    /// oversight.** The anti-bloat constitution's rule is about *notifications* —
+    /// "a single opt-in silent daily reminder at most, off by default" — and
+    /// three properties keep this on the other side of that line: it exists only
+    /// because the player started a board and walked away, it is never given an
+    /// `AlertConfiguration` so it cannot buzz or ring, and it ends itself on
+    /// solve and at midnight. iOS already owns a global off switch and a
+    /// swipe-to-dismiss, which is the real opt-in gate. Off by default would have
+    /// shipped a feature that effectively does not exist, behind a settings row
+    /// the covenant makes expensive.
+    ///
+    /// macOS and tvOS decode it and ignore it: ActivityKit exists on neither.
+    var livePresence = true
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case showTimer, errorHighlight, accent, numberHighlight
         case controlsAtBottom, resumeOnLaunch, boardAnchor, ambientSlot
-        case controllerHaptics, touchHaptics
+        case controllerHaptics, touchHaptics, livePresence
         case theme = "appearance"
     }
 
@@ -98,6 +119,7 @@ struct NinePrefs: Codable, Sendable, Equatable {
         ambientSlot = (try? c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot)) ?? .none
         controllerHaptics = try c.decodeIfPresent(Bool.self, forKey: .controllerHaptics) ?? true
         touchHaptics = try c.decodeIfPresent(Bool.self, forKey: .touchHaptics) ?? true
+        livePresence = try c.decodeIfPresent(Bool.self, forKey: .livePresence) ?? true
     }
 }
 
@@ -141,7 +163,49 @@ final class AppModel {
         didSet {
             prefsStore.wrappedValue = prefs
             publishAppearance()
+            #if os(iOS)
+            // Turning the Live Activity off should clear the Lock Screen in the
+            // same gesture, not at the next backgrounding (PRD-30). Turning it on
+            // deliberately does *not* start one: an activity is something the
+            // player's own play creates, and starting one from a settings toggle
+            // would make the toggle the trigger.
+            if oldValue.livePresence, !prefs.livePresence { PresenceBridge.endAll() }
+            // Theme and accent now reach the widget process, so a palette change
+            // has to reload it (PRD-30). `publish` is digest-gated, so a pref
+            // change that is not a look change costs nothing.
+            if oldValue.theme != prefs.theme || oldValue.accent != prefs.accent {
+                WidgetBridge.publish(from: self)
+            }
+            #endif
         }
+    }
+
+    /// The quiet a Focus filter is asking for (PRD-33). Written by
+    /// `QuietShelfFilter` when the system activates or deactivates a Focus; read
+    /// by the shelf, the Mac and — through `WidgetSnapshot` — the widget.
+    ///
+    /// A sibling top-level blob rather than a field on `nine.prefs`, and
+    /// **deliberately not cloud-synced**, for two separate reasons. It is machine
+    /// state the system writes rather than a preference the player set, so it does
+    /// not belong beside their settings; and a Focus is a property of the device
+    /// in front of you, so an iPhone entering Work Focus must not quiet an Apple
+    /// TV in another room. (EXECUTING-A-PRD §2 supplies the third reason for the
+    /// sibling key: an older build's next write would erase a new field on
+    /// `nine.prefs`.)
+    private(set) var focus: QuietFocus {
+        didSet { focusStore.wrappedValue = focus }
+    }
+
+    /// Adopt a Focus filter's state. The only writer is `QuietShelfFilter`.
+    func applyFocus(_ next: QuietFocus) {
+        guard focus != next else { return }
+        focus = next
+        try? focusStore.flushNow()
+        #if os(iOS)
+        // The Home Screen has to go quiet in the same breath or the filter is a
+        // lie two inches from the app icon.
+        WidgetBridge.publish(from: self)
+        #endif
     }
 
     /// Mirror theme + accent into the cloud-synced sibling key the watch reads
@@ -305,6 +369,9 @@ final class AppModel {
     /// property for (EXECUTING-A-PRD §2).
     @ObservationIgnored private let appearanceStore =
         CouchStored(wrappedValue: SharedAppearance(), SharedAppearance.storeKey, cloudSynced: true)
+    /// The Focus filter (PRD-33). Local, never `cloudSynced` — see `focus`.
+    @ObservationIgnored private let focusStore =
+        CouchStored(wrappedValue: QuietFocus.none, QuietFocus.storeKey)
     @ObservationIgnored private let libraryStore =
         CouchStored(wrappedValue: BoardLibrary(), "nine.library")
     /// Legacy single-slot store — read once for migration, then blanked so a
@@ -401,6 +468,26 @@ final class AppModel {
     /// Menu-driven request to open the board tracker (Game ▸ Boards…). The home
     /// view presents a GlassSheet bound to this; reset on dismiss.
     var macShowBoards = false
+    /// Menu-driven request to open the Technique School (PRD-25). `SchoolView` has
+    /// compiled for macOS since PRD-25 — its fence is `#if os(iOS) || os(macOS)` —
+    /// and has been unreachable there the whole time, because nothing presented
+    /// it. The cheapest patch in the repo, and PRD-33's menu bar is where it lands.
+    var macShowSchool = false
+
+    /// The board the Mac window is showing, remembered across launches (PRD-33).
+    ///
+    /// `resumeOnLaunch` already returns you to `mostRecentInProgress`, which is
+    /// *usually* the board you were on and is not the same claim: open an older
+    /// board out of the Boards window, quit, and the app comes back to a different
+    /// puzzle. This remembers the one the window actually had.
+    ///
+    /// Its own tiny local blob rather than `@SceneStorage`, because the restore has
+    /// to happen inside `AppModel.init` — before any view exists to read scene
+    /// storage — and rather than a field on `nine.prefs` for EXECUTING-A-PRD §2's
+    /// reason. Local and never `cloudSynced`: which window showed what is a fact
+    /// about this Mac.
+    @ObservationIgnored private let macWindowBoardStore =
+        CouchStored(wrappedValue: "", "nine.mac.windowBoard")
 
     func enterDeskMode() { windowMode = .desk }
     func exitDeskMode() { windowMode = .full }
@@ -522,6 +609,7 @@ final class AppModel {
 
     init() {
         prefs = prefsStore.wrappedValue
+        focus = focusStore.wrappedValue
         streak = streakStore.wrappedValue
         graceSeenDay = graceSeenStore.wrappedValue
         library = libraryStore.wrappedValue
@@ -581,8 +669,19 @@ final class AppModel {
         #if os(macOS)
         // Resume straight into a board in progress, as iOS — the Mac equivalent
         // of "fewer taps to the board" (PRD-4 §2.6 resume-on-launch parity).
-        if prefs.resumeOnLaunch, let entry = library.mostRecentInProgress {
-            startEntry(entry.id)
+        //
+        // PRD-33 adds the window's own memory in front of it: the board this
+        // window was showing, if it is still in progress, and `mostRecentInProgress`
+        // otherwise. The order matters and the fallback matters — a remembered id
+        // that has since been solved, archived, pruned or lost to a cloud merge
+        // must not leave the Mac on the shelf when there is a board to return to.
+        if prefs.resumeOnLaunch {
+            let remembered = UUID(uuidString: macWindowBoardStore.wrappedValue)
+                .flatMap { library.entry(id: $0) }
+                .flatMap { $0.status == .inProgress ? $0 : nil }
+            if let entry = remembered ?? library.mostRecentInProgress {
+                startEntry(entry.id)
+            }
         }
         #endif
         #if os(iOS)
@@ -609,10 +708,51 @@ final class AppModel {
         setUpCloudSyncIfAvailable()
     }
 
+    /// Whether *this binary* is allowed to build a `CKContainer`.
+    ///
+    /// **The bug this fixes has been recorded as a standing gap since PRD-20 and
+    /// re-quoted by PRD-31: "a locally-built Nine cannot launch on macOS at all on
+    /// an iCloud-signed-in host, trapping in `CKContainer.init` because the
+    /// entitlement-free build passes an account check it should not."** PRD-33's
+    /// whole Mac half is undriveable until it is fixed, so it is fixed here.
+    ///
+    /// The old guard asked the *operating system* whether there is an iCloud
+    /// account (`ubiquityIdentityToken`), which is true on any signed-in Mac
+    /// whether or not the binary in front of it carries the CloudKit entitlement.
+    /// `CKContainer(identifier:)` then traps — not throws, traps — because an
+    /// unentitled container request is a programmer error as far as CloudKit is
+    /// concerned. The right question is about the binary, so this asks the binary:
+    /// its own code signature, through `SecTask`.
+    ///
+    /// macOS only, and the scope is honest rather than lazy: `SecTask` is not in
+    /// the public iOS or tvOS SDK, and the trap has only ever been observed on
+    /// macOS, because it needs the combination of a signed-in host and a build
+    /// signed without the entitlement — which on iOS and tvOS means a simulator,
+    /// where there is no iCloud account to find. On those platforms the account
+    /// check alone remains correct and this returns true unchanged.
+    private var mayBuildCloudContainer: Bool {
+        #if os(macOS)
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        // Either key is enough to prove the signature carries CloudKit; asking
+        // for both would fail a future entitlement file that drops one.
+        for key in ["com.apple.developer.icloud-services",
+                    "com.apple.developer.icloud-container-identifiers"] {
+            if SecTaskCopyValueForEntitlement(task, key as CFString, nil) != nil {
+                return true
+            }
+        }
+        return false
+        #else
+        return true
+        #endif
+    }
+
     /// Construct and start the cloud store, but only when an iCloud account is
-    /// signed in. Idempotent — safe to call repeatedly (e.g. on foreground).
+    /// signed in **and** this binary is entitled to reach CloudKit. Idempotent —
+    /// safe to call repeatedly (e.g. on foreground).
     private func setUpCloudSyncIfAvailable() {
-        guard cloudStore == nil, FileManager.default.ubiquityIdentityToken != nil else { return }
+        guard cloudStore == nil, mayBuildCloudContainer,
+              FileManager.default.ubiquityIdentityToken != nil else { return }
         let store = LibraryCloudStore()
         store.onRemoteEntry = { [weak self] synced in self?.applyRemoteEntry(synced) }
         store.onRemoteReplay = { [weak self] replay in self?.applyRemoteReplay(replay) }
@@ -630,7 +770,18 @@ final class AppModel {
 
     var todayOrdinal: Int { DailySeed.dayOrdinal(for: Date()) }
 
-    var todaySolved: Bool { streak.hasCompleted(day: todayOrdinal) }
+    var todaySolved: Bool { hasSolved(day: todayOrdinal) }
+
+    /// Whether a given day's daily has been finished.
+    ///
+    /// A thin accessor over `streak`, and it earns its line: *where a solve is
+    /// recorded* is a fact about streak bookkeeping, and a caller that only wants to
+    /// know whether a board is done should not have to know it. `PresenceBridge`
+    /// (PRD-30) is the caller that made this obvious — it asks the question for an
+    /// injected date rather than for "now", so `todaySolved` was not enough, and
+    /// `QuietPresenceSealTests` forbids a quiet surface from naming the streak at
+    /// all. Both wanted the same thing.
+    func hasSolved(day: Int) -> Bool { streak.hasCompleted(day: day) }
 
     /// The past day the board on screen belongs to — nil for today's daily and
     /// for free play. Drives the in-game "Archive · Jul 12" chip, which is the
@@ -868,6 +1019,12 @@ final class AppModel {
         self.solvedAt = nil
         self.lastPlacedCell = nil
         self.screen = .game
+        #if os(macOS)
+        // Which board this window is showing (PRD-33). Written here rather than in
+        // each of the six callers, because this is the single funnel every one of
+        // them goes through.
+        macWindowBoardStore.wrappedValue = id.uuidString
+        #endif
         #if DEBUG
         // Simulator rig (never compiled into Release): launching with
         // --debug-fill brings any board one digit from the win, so the
@@ -1253,6 +1410,11 @@ final class AppModel {
         #if os(macOS)
         // Desk mode is a board posture; home always gets the full window.
         windowMode = .full
+        // Going to the shelf is a decision about where you want to be, so the
+        // window forgets its board (PRD-33). Without this, quitting from the shelf
+        // and relaunching would drag you back onto a board you had just left —
+        // which is `resumeOnLaunch`'s job to decide, not a stale id's.
+        macWindowBoardStore.wrappedValue = ""
         #endif
         #if os(tvOS)
         // Home is a remote surface; the pad session ends at the shelf.
