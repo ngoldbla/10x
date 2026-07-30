@@ -1793,7 +1793,19 @@ final class AppModel {
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
         // widgets are iOS-only.
         #if os(iOS) || os(macOS) || os(tvOS)
-        GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        // A channel solve reports the channel's own history and streak to the
+        // channel's own boards (PRD-24). Reading them off the ledger here rather
+        // than passing the top-level pair keeps the "never diluted" rule true on
+        // this surface too: the classic leaderboard cannot receive a killer score
+        // because the arguments it would need are not the ones in scope.
+        if let channelSlot {
+            let state = channels.state(for: channelSlot)
+            GameCenter.shared.reportSolve(
+                record: record, history: state.history, streak: state.streak,
+                channel: channelSlot)
+        } else {
+            GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        }
         #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)

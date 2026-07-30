@@ -952,6 +952,11 @@ experience them as two: the welcome and the first flick are one sequence.
 - **The teaser carries a remove-by date in its own comment: 2026-10-25.** A
   "coming soon" with no expiry rots into a lie on someone's home screen. If
   PRD-23/24 have not landed Killer or Thermo by then, the card comes out.
+  **Resolved 2026-07-30 — by delivery, not by expiry.** PRD-24 shipped both
+  channels and deleted the card almost three months early. It promised they would
+  "simply appear here"; where it stood is now the pager rail that turns the page to
+  them. Its three strings went with it, because the audit reports a dead string as
+  a string translators are paid for.
 - **Not done here:** the welcome ledger is iOS-only (PRD-18 §2 defers tvOS and
   macOS parity), and the tvOS/macOS first runs are unchanged — the TV still
   shows its remote legend and the Mac still has no first-run screen at all. The
@@ -4033,3 +4038,300 @@ travel.
 - **No Mac first run and no Mac stats drawer.** PRD-34's and PRD-9's respectively.
   **No Mac debrief**: PRD-26's "never unbidden" is a shipped decision and a window is
   not a reason to re-litigate it.
+
+## PRD-24 — the channel that had to be refused, and the two knobs that could never have fired (2026-07-30)
+
+[PRD-24](PRD-24.md) opens the Channels shelf: Classic | Thermo | Killer, each with
+its own Today, streak, stats slice and leaderboard, and dailies one per day per
+channel. Thermo ships first as the de-risking variant, then Killer on the same
+machinery. Nine commits, driven on an iPhone 17 Pro.
+
+The PRD's strategic claim is a negative one — *a killer board is played with exactly
+the same rose, on the same board view, through the same four buttons* — so the
+interesting work was mostly in what did **not** change, and the interesting failures
+were all in things that were green.
+
+### The finding that changed the ladder: a band knob that cannot reject
+
+`scripts/thermo-scan.sh 200` on the first draft of `thermoBand` reported
+**200/200 composed at every tier**, which looks exactly like a pass. The shape
+line beside it did not:
+
+| knob | set to | measured |
+|---|---|---|
+| `maxGivens` | 30 / 24 / 18 | max **19 / 19 / 11** |
+| `minVariantSteps` | 3 / 6 / 10 | p50 **11 / 13 / 18** |
+
+Neither knob could ever have rejected anything. A band parameter that cannot fire
+is a decision dressed as a constraint, and the tier was in fact defined by whatever
+the dig happened to do. Both were tightened to sit inside the measured distribution;
+the diagnostic then confirms they fire (`digExhausted` 14/17/7 and `decoration`
+1/4/7 per 60 attempts) while supply stays 200/200 — the cost is paid in attempts,
+not in supply.
+
+**What actually walks the thermo ladder is chain width.** A wider chain closes the
+board with fewer givens, because the extra techniques do work the clues would
+otherwise have to: Gentle 14 → Steady 12 → Sharp 7 (p50). That answers the question
+PRD-23 §5 left open for this PRD — killer's ladder is compressed (6/4/0, separated
+mostly by technique set); thermo's is not. For thermo, three tiers read as three
+tiers.
+
+Thermo, 200 seeds per tier, Mac Release:
+
+| tier | composed | p50 | **p95** | max | givens p50 (max) | tubes | cells on a tube |
+|---|---|---|---|---|---|---|---|
+| gentle | 200/200 | 0.00 s | **0.01 s** | 0.16 s | 14 (19) | 8 | 28 |
+| steady | 200/200 | 0.01 s | **0.02 s** | 0.12 s | 12 (16) | 9 | 32 |
+| sharp  | 200/200 | 0.01 s | **0.03 s** | 0.14 s | 7 (11) | 10 | 43 |
+
+5–14× cheaper than killer Sharp (0.14 s) and ~175× cheaper than Nocturne (5.25 s),
+on every tier. That is the whole case for shipping thermo first.
+
+### Thermo's diagnostic needed a third cause, and it is the ruleset's fault
+
+Killer can fail two ways — not unique, or the chain cannot close it — and PRD-23's
+`--diag` separates exactly those. Thermo has a third that the ruleset makes *likely*
+rather than unlikely: a tube layout covers the board partially by construction and
+cannot determine a grid on its own, so a thermo band's clue ceiling has to stay well
+above zero, and a board carrying a dozen givens may be one the **classic** chain
+closes unaided. The tubes are then decoration, `minVariantSteps` rejects it, and the
+failure looks nothing like either killer cause and wants the *opposite* fix — fewer
+givens or more coverage, because a wider chain makes it worse. So the lane counts
+the rejection reason directly instead of leaving it to be inferred.
+
+### A quarantine that is the desired outcome, not a tolerated one
+
+Every other tolerance rule in this repo is about *preserving* a value an old build
+cannot read. `GameKind.channel` is about **refusing to play** a board an old build
+cannot render, and that inverts the usual reasoning:
+
+> A build with no cage renderer that opened a killer board as ordinary sudoku would
+> show a grid with no cages drawn, under constraints it does not enforce, and would
+> mark the player's correct entries as **errors** — `NineGame.isError` compares
+> against a solution that is only *the* solution under the rules.
+
+`GameKind` has a synthesized `Codable`, so an old build throws and Phase 0's
+element-level decode catches it. The drill reuses `QuarantiningLibrary` unchanged and
+pins that both channel boards come back with channel, tier and day intact. Nothing
+was needed to make this work; what was needed was noticing it is right.
+
+The same reasoning runs through `ChannelRules.isPlayable`, which is false in all
+four ways a board's rules can be untrustworthy — absent, unreadable, empty, or
+carrying a future `.arrow` — and through two independent refusals built on it:
+`openChannelBoard` will not start such a board, and `BoardView.drawRules` will not
+draw it. Two guards for one hazard, kept because a renderer that trusts its input is
+a renderer that ships the bug.
+
+### "The classic streak is never diluted" as a type, not a comment
+
+The requirement is PROGRAM-2.0's. A comment stating it survives until the first
+refactor, so:
+
+- `nine.streak`, `nine.history` and `nine.archive` are untouched and classic-only.
+  Nothing in `ChannelLedger` reads or writes them, so the dilution question has no
+  code path to travel down. The drill asserts a channel solve leaves `nine.history`
+  byte-identical.
+- **`Channel.Ledgered` has no classic case.** `Channel` has three because the shelf
+  has three pages; the ledger's whole mutating API is keyed by the nested type,
+  which has only `.thermo` and `.killer`. "Record a classic solve into the channel
+  ledger" is not a call that can be written rather than one that is guarded, and the
+  same type keys the per-channel leaderboard IDs, so a killer score cannot reach the
+  classic board either.
+- The ledger records a solve **atomically** — streak and history move together or
+  neither does — because a caller updating one and forgetting the other is the shape
+  of every streak bug this repo has had (PRD-13 found a third copy of the streak
+  rule in `BoardIntents`).
+
+`StreakState` and `SolveHistory` are reused as value types, once per channel, and
+that is the design rather than a shortcut: per-channel grace *is* PRD-13's
+non-stacking rule and per-channel stats *are*
+`count(of:)`/`bestSeconds(for:)`/`averageSeconds(for:)`/`trend(_:)`. Neither had to
+be re-derived or kept in step. `SolveHistory.record` gained a `capacity:` parameter
+defaulting to `Self.capacity`, so every classic caller is byte-identical; a channel
+keeps 200 against classic's 1000, which is a KVS budget (1 MB total, ~150 KB already
+spent) and not a preference.
+
+`nine.channels` needed no wire bridge at all, and the reason is worth stating: it is
+a **new** key, so no shipped build has ever written it. `nine.history` needed the
+`band`-sibling contortion for one added `Difficulty` case precisely because the
+throwing build was already on TestFlight.
+
+### Three defects found only by driving it, each green everywhere else
+
+1. **The leading chevron was never in the accessibility tree.** The pager's first
+   draft put `.accessibilityElement(children: .contain)` plus a label on the
+   enclosing `HStack`, and SwiftUI merged the first child button into the labelled
+   container. `describe-ui` showed "Next channel" on every page and never "Previous
+   channel" — including page 3, where Next is *disabled* and Previous is the only one
+   that works. Same trap the Today card carries a comment about
+   (`TouchUI.swift:308`, where a nested `Button` collapsed an 89×129 element to
+   44×44). Fixed by labelling the indicator rather than the container.
+2. **The tier cards reported a 41pt-wide accessibility frame**, under the charter's
+   44pt floor, because SwiftUI derives it from tight content bounds when the content
+   is only a symbol and a caption. Classic's difficulty cards escape this by
+   accident — their `MiniBoard` is 64pt and forces the width. `contentShape(.accessibility, …)`;
+   now 75×96.
+3. **The tubes were silent.** With nine thermometers drawn on screen, `describe-ui`
+   reported the cell under one as `Row 3, column 5` / `Empty`. A VoiceOver player had
+   no way to learn any of them existed, and every gate was green: three platform
+   builds, 470 tests, 81 children in 9 box containers, all AX baselines matching. The
+   tree was structurally perfect and semantically silent.
+
+The fix for (3) contains the finding worth keeping. `cellHint` was the obvious home
+— its own doc comment says it "can afford the extra syllables the label cannot" —
+and it is **wrong, because VoiceOver hints can be turned off**. A cage's printed sum
+is not a tip about a cell; it is the primary information on a killer board, closer to
+a given. A hint-only clause leaves those players an unplayable board that reports no
+error anywhere. So the clause is in the *label*, and the four AX baselines matching
+with no re-record is the proof it cannot leak onto a classic board.
+
+The two rulesets say different things because they are different things: a cage is
+its sum ("cage of 15"), a thermometer is *positional* ("thermometer, 2 of 4") —
+its constraint is largely spent by `initialCandidates` before a technique runs, so
+what a player needs is where along the tube they are. A clause reading only "on a
+thermometer" would report the one thing inferable from a board with no cages on it.
+
+### PRD-20's lane refused this diff five times, every time correctly
+
+Worth recording as a group, because the lane is now the most productive reviewer in
+the repo:
+
+1. `EnglishPhrases.table` unsorted — the catalog is generated by diffing that file.
+2. **Eleven keys with no translator comment**, a hard failure by design. "Sharp" is
+   unguessable in isolation, and "Killer" as the name of a puzzle variant localizes
+   nothing like the adjective — `channel.killer.title`'s comment now says so in
+   capitals.
+3. Two keys used by no Swift file yet (removed, reintroduced with the shelf that
+   uses them).
+4. Two pager labels reported as dead because the key was threaded through a
+   parameter — the audit greps for `Strings.string("…")`, so the label is resolved at
+   the call site now.
+5. **`coach.cageCombination.sentence` splicing a joined digit list through `%2$@`.**
+   A `%N$@` hole inside a `coach.*` sentence carries English's grammar into nine
+   languages that do not share it, and "none of them puts 2, 5 and 9 here" needs a
+   conjunction `BoardSpeech` has no business choosing. Reworded to name one digit as
+   an `.int` and let the board's coach wash carry the rest, which is what
+   `coachNakedPair` already does.
+
+The `board.cell.withRule` join was then added to the splice allowlist *with* its
+reason: both halves are finished translated strings, so what the join carries is
+punctuation and order — the same sanctioned shape as `board.announce.pair`.
+
+### The seal came off the app layer and went onto the rose
+
+PRD-23's `VariantChannelSealTests` said in its own header: *"When PRD-24 does open
+the channel, this test is the thing to delete, and deleting it should feel like a
+decision."* The decision was not to delete it but to re-aim it. The old seal
+asserted a *temporary* fact — no variant surface exists yet — which stops being true
+by definition on the day the shelf ships. `VariantInputSealTests` asserts the claim
+this PRD actually makes, which is narrower, stronger and permanent:
+
+> the input covenant is variant-agnostic, and the watch stays classic-only.
+
+It is a hand-written list of seven files rather than a directory sweep, and that is
+the substantive change: a tree is a location, this is an argument about
+responsibility. Each entry is on the path between a finger and `NineGame.place`.
+`BoardView` is deliberately **not** sealed — it renders cages and tubes, and
+rendering a constraint is not reading input under it.
+
+### The input-concept budget: this release spends exactly one
+
+The shelf page-turn, and nothing else. `Sources/` held zero `TabView`s, zero
+horizontal `ScrollView`s and zero `scrollTargetBehavior`s before this, so it is
+genuinely new; it is paid for by the rose being untouched across every variant. The
+rose is unchanged, there is no fifth control button, and no gesture was added to the
+game screen — the page-turn is on the shelf, where nothing is at stake, and it ships
+*paired* with chevrons and a named accessibility action because a swipe alone is not
+an affordance (the lesson PRD-34 records about the stats drawer).
+
+### A tripwire PRD-23 correctly did not need, and one line of spec made mandatory
+
+PRD-23 shipped variant generation with no golden corpus, and that was right: nothing
+was persisted and no daily depended on it. "Dailies one per day per channel" makes
+every channel daily `(day → seed) → board`, so a quiet change to either tiler, the
+band ladder, the inverse dig, the trim or the verifier re-rolls every future channel
+daily and breaks every shared channel seed. `VariantCorpusTests` freezes 9 seeds
+(2.4 s in Debug), re-frozen the same deliberate way as the classic 56.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| thermo compose p95, Mac Release | 0.01 / 0.02 / 0.03 s (gentle / steady / sharp) |
+| thermo composed rate | 200/200 per tier |
+| killer compose p95, Mac Release (PRD-23, unchanged) | 0.02 / 0.05 / 0.14 s |
+| thermo givens p50 | 14 / 12 / 7 |
+| tubes per board | 8 / 9 / 10 |
+| channel history capacity | 200 records per channel (classic keeps 1000) |
+| both channels' KVS cost at capacity | ~44 KB against a 1 MB store |
+| new catalog keys | 30, × 9 locales = 270 machine drafts, all `needs_review` |
+| catalog size | 498 → 528 keys |
+| AX baselines | 5 (`channel.txt` is new); classic four match with **no** re-record |
+| contrast harness | 26 cells, every one clears its floor |
+| golden corpus | 56/56 after every commit |
+| variant corpus | 9/9 |
+| `swift test` | 479 XCTest + 197 swift-testing, 0 failures, 195 s |
+| platform builds | iOS + tvOS + macOS green, plus a Release archive |
+
+### Not done, each with its reason
+
+- **No tvOS or macOS channel page.** Both compile, both stay on Classic, and neither
+  is broken — `model.channel` defaults to `.classic` and they never change it. The
+  reason it is a deferral rather than a port: a page-turn is a touch gesture, so the
+  TV needs a focus-based switcher and the Mac a menu or segmented one, and each is a
+  design question rather than a translation of this one. The same shape as PRD-12's
+  tvOS share card, PRD-13's grace card, PRD-18's welcome and PRD-26's Mac debrief.
+- **A variant board does not sync.** `nine.channelRules` is local, riding with
+  `nine.library`, and `LibraryCloudStore` syncs per-entry CloudKit records — so
+  carrying a board's rules across needs a new record type and a production schema
+  deploy, the human gate PRD-26's replays also had. The failure mode is deliberate
+  rather than latent: a board whose rules did not arrive is not `isPlayable`, so it
+  refuses to open instead of opening under the wrong rules, and says so on its row.
+  The per-channel *streak* does sync — `nine.channels` is KVS like `nine.streak`.
+- **The per-channel leaderboards have no App Store Connect records.** The IDs and the
+  submission are in; the records are a human gate of exactly the kind PRD-7 §5
+  describes. **No entitlement change and therefore no `match` re-mint** — Game Center
+  is already on all three GameKit platforms. Submission is fire-and-forget `try?`, so
+  until the records exist a channel solve submits into silence, which is the right
+  failure mode for a leaderboard and why this can ship ahead of the portal work.
+- **Achievements stay classic-only.** A channel solve does not advance them.
+  Splitting them per channel would triple a set the covenant already calls the outer
+  edge of what it tolerates, and "first killer solve" is a badge, which
+  `EXECUTING-A-PRD` §1 rules out by name.
+- **The share card says the tier, not the channel.** A killer Steady solve shares as
+  "Steady". `SolveCardFacts` and `ShareCard` are laid out around a single band
+  caption and widening them is a share-card change rather than a channel one — but
+  the card is honestly incomplete rather than wrong, which was the deciding factor
+  against the alternative of printing nothing.
+- **No contrast measurement on a variant board.** The harness seeds the frozen
+  classic AX fixture, so its 26 green cells prove only that `BoardView.draw` gained a
+  pass without moving classic's numbers. A tube is a new ground for the digit above
+  it and wants its own fixture, which is a harness change.
+- **No channel archive.** `nine.archive` is classic-only and there is no way to open
+  a past channel daily. `ChannelLedger.record` already threads the `openedOn`
+  provenance guard through, so the streak side is ready for it.
+- **No widget channel parameter.** PRD-33 built the `AppIntentConfiguration` this
+  slots into and said so; `SharedDailyBoard` is a single slot keyed on the day
+  ordinal with no channel axis, so the widget shows Classic and the channels are
+  structurally invisible to it. That is also why `openChannelToday` needs no widget
+  merge.
+- **No School lessons for the four variant techniques.** They have coach *sentences*
+  now, which is what PRD-11 left owed; a lesson is an exemplar `(seed, difficulty,
+  stepIndex)` and `TechniqueSchool` has no variant axis. PRD-25's surface, unblocked
+  by this PRD rather than delivered by it.
+- **No device-measured compose time**, the standing gap since PRD-17: every figure
+  here is Mac Release and the phone estimate is ×3. PROGRAM-2.0's nightly lane.
+- **No fast-seed catalog and no `PuzzleForge` pantry.** PROGRAM-2.0 §Pillar B
+  specifies both as cost mitigations. At a 0.03 s p95 there is even less to mitigate
+  than there was at killer's 0.14 s.
+- **Rule of 45 is still single-unit only** and `cageCombination` still does no
+  bipartite matching — both PRD-23's, both unchanged, both still costing an
+  elimination rather than causing a wrong one.
+- **The nine languages are machine-drafted and no human has read them**, the
+  headline deferral standing since PRD-20. 270 new drafts, every one
+  `needs_review`. `variantTier.*` reuses `difficulty.*.title`'s drafts verbatim
+  rather than inventing a second synonym for an identical meaning.
+- **No AI-generated rulesets**, explicitly deferred to 2.x by PROGRAM-2.0: they
+  strain the proof covenant until the verifier can gate arbitrary rules. `.arrow`
+  remains the case `VariantConstraint`'s tolerant decode was written for and stays
+  unwritten — it is now also the case two refusal paths are tested against.

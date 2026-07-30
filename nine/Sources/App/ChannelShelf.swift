@@ -40,8 +40,65 @@ struct ChannelShelfContent: View {
     var body: some View {
         VStack(spacing: 20) {
             todayCard
+            statsSlice
             boardsSection
             tierRow
+        }
+    }
+
+    // MARK: This channel's stats slice
+
+    /// Solves, best and average — this channel's, and nothing classic's.
+    ///
+    /// **Every number here is `SolveHistory`'s own aggregation on the channel's
+    /// own history**, which is the payoff of `ChannelLedger` holding a whole
+    /// `SolveHistory` per channel rather than a bespoke summary: `count(of:)`,
+    /// `bestSeconds(for:)` and `averageSeconds(for:)` arrived already written and
+    /// already tested, and a channel's stats cannot drift from classic's because
+    /// they are the same code reading different bytes.
+    ///
+    /// Absent until there is something to say, rather than showing zeroes — the
+    /// honest-absence rule PRD-22 landed when it deleted the blank grey 0% rings
+    /// from this shelf. A tier with no solves contributes no row, and a channel
+    /// with no solves at all contributes no card.
+    @ViewBuilder
+    private var statsSlice: some View {
+        let slice = model.history(on: channel)
+        let rows = VariantTier.allCases.compactMap { tier -> (VariantTier, Int, TimeInterval)? in
+            let band = tier.wireDifficulty
+            let count = slice.count(of: band)
+            guard count > 0, let best = slice.bestSeconds(for: band) else { return nil }
+            return (tier, count, best)
+        }
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Strings.string("channel.stats.title"))
+                    .couchText(CouchTypography.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(rows, id: \.0) { tier, count, best in
+                    HStack(spacing: 8) {
+                        Text(Strings.variantTier(tier)).couchText(CouchTypography.caption)
+                        Spacer()
+                        Text(Strings.string(
+                            "channel.stats.row",
+                            .int(count), .text(SolveCardFacts.elapsedText(best))))
+                            .couchText(CouchTypography.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    // One utterance per row — a tier name followed by an orphaned
+                    // "3 · 4:12" is the shape VoiceOver reads worst.
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(Strings.string(
+                        "channel.stats.label",
+                        .text(Strings.variantTier(tier)),
+                        .int(count), .text(SolveCardFacts.elapsedText(best))))
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .couchGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 

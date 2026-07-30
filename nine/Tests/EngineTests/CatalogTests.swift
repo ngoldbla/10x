@@ -830,11 +830,14 @@ final class CatalogTests: XCTestCase {
         // the four variant techniques' sentences, of which `innieOutie` is three
         // because it splits on unit kind: `coach.cageSingle.sentence`,
         // `coach.cageCombination.sentence` and `coach.innieOutie.sentence.{row,
-        // col,box}`. Every other key the PRD added is a single noun or takes one
-        // number — a channel name, a blurb, a tier name, a cage sum, a tube length.
-        XCTAssertEqual(keysCarryingTwoOrMore, 48, """
+        // col,box}`. And the channel's stats slice: `channel.stats.row` (a count
+        // and a time) and `channel.stats.label` (those two plus the tier name, the
+        // second of the PRD's two three-argument keys). Every other key it added
+        // is a single noun or takes one number — a channel name, a blurb, a tier
+        // name, a cage sum, a tube length.
+        XCTAssertEqual(keysCarryingTwoOrMore, 50, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 48 this test was calibrated against. That is fine and the \
+            not the 50 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \
