@@ -190,6 +190,29 @@ public struct GeneratedPuzzle: Sendable, Codable, Equatable {
     /// Ordered solver steps proving technique-bounded solvability.
     public let steps: [SolveStep]
 
+    /// **This adds no field**, which is the only thing that matters about it: the
+    /// golden corpus freezes the encoded bytes of this type, so a stored property
+    /// would move all 56 classic hashes and re-roll every future daily. An
+    /// initializer is not persisted and the hashes do not notice it.
+    ///
+    /// It exists because PRD-24 needs one caller outside this file —
+    /// `VariantPuzzle.asGeneratedPuzzle`, which lends a variant board's grid to
+    /// the `NineGame` the whole app is built on. Swift's synthesized memberwise
+    /// init is internal, and `Sources/App` is a different module.
+    public init(
+        puzzle: SudokuGrid,
+        solution: SudokuGrid,
+        difficulty: Difficulty,
+        seed: UInt64,
+        steps: [SolveStep]
+    ) {
+        self.puzzle = puzzle
+        self.solution = solution
+        self.difficulty = difficulty
+        self.seed = seed
+        self.steps = steps
+    }
+
     public var hardestTechnique: Technique? { steps.map(\.technique).max() }
     public var givenCount: Int { puzzle.givenCount }
 }

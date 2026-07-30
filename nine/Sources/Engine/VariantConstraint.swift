@@ -269,6 +269,49 @@ public struct VariantPuzzle: Sendable, Codable, Equatable {
     public var givenCount: Int { puzzle.givenCount }
     /// The compiled form the solver actually runs against.
     public var context: ConstraintContext { ConstraintContext.compile(constraints) }
+
+    /// This board's grid lent to a `GeneratedPuzzle`, so it can become an ordinary
+    /// `NineGame`.
+    ///
+    /// **This is PRD-24 §1's claim as a data structure.** A variant board's play
+    /// state is the classic play state — the same 81 entries, the same pencil
+    /// bitmasks, the same undo stack, the same timer, the same move log — which is
+    /// why the rose, the coach, the replay, the debrief and the share card all work
+    /// on a thermo board with no new code. The constraints are not *in* here; they
+    /// live beside the board in `ChannelRules`, which is the same
+    /// sibling-not-a-field rule that kept them out of `GeneratedPuzzle` in PRD-23.
+    ///
+    /// `tier` is mapped onto `Difficulty` because `GeneratedPuzzle` requires one
+    /// and `SolveScore` and the stats slice read it. The mapping is lossy in one
+    /// direction and harmlessly so: the authoritative tier is in
+    /// `GameKind.channel` and in `ChannelRules`, both read in preference to this.
+    /// Deliberately *not* the reverse mapping — a variant tier is not a classic
+    /// band, which is why `VariantTier` exists as a separate enum at all.
+    public var asGeneratedPuzzle: GeneratedPuzzle {
+        GeneratedPuzzle(
+            puzzle: puzzle,
+            solution: solution,
+            difficulty: tier.wireDifficulty,
+            seed: seed,
+            steps: steps)
+    }
+}
+
+extension VariantTier {
+    /// The `Difficulty` a tier is written as when a variant board has to wear one.
+    ///
+    /// Only the three 1.0 bands are used, and never a deep-end one: a killer or
+    /// thermo board's hardest technique is a variant technique by construction, so
+    /// `Difficulty.floor` comparisons against Nocturne or Abyss would be
+    /// meaningless — the reasoning `VariantTier`'s own header gives for not being
+    /// `Difficulty` in the first place.
+    public var wireDifficulty: Difficulty {
+        switch self {
+        case .gentle: return .gentle
+        case .steady: return .steady
+        case .sharp: return .sharp
+        }
+    }
 }
 
 /// Killer's difficulty ladder. Deliberately *not* `Difficulty`: that enum's

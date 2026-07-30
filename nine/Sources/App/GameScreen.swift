@@ -354,6 +354,7 @@ struct GameScreen: View {
                 // Same-number highlight is the Triangle toggle in a pad session.
                 highlightDigit: model.prefs.numberHighlight ? pad.highlightDigit : nil,
                 dimmedExcept: pad.peekDigit,
+                channelRules: model.currentRules,
                 // Gyro trophy: DualSense/DualShock tilt steers the sheen after
                 // the sweep settles (PRD-5 §2.2). No motion → a calm centered
                 // highlight, which keeps the loop alive but harmless.
@@ -411,6 +412,7 @@ struct GameScreen: View {
                 // on a digit lights up all of its kind (notes included).
                 highlightDigit: model.prefs.numberHighlight && game.entry(at: cursor) != 0
                     ? game.entry(at: cursor) : nil,
+                channelRules: model.currentRules,
                 // Afterglow: the wave detonates from the winning cell; no
                 // tilt source on tvOS — the sheen settles and the loop stops.
                 waveOrigin: model.lastPlacedCell

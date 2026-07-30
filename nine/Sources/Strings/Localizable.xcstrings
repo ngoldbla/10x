@@ -2833,6 +2833,138 @@
         }
       }
     },
+    "board.cell.ruleSeparator": {
+      "comment": "Separator between two rules on one puzzle square, when a square sits on two thermometers at once. English uses a comma and a space. Punctuation only.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        }
+      }
+    },
+    "board.cell.withRule": {
+      "comment": "Accessibility label for a puzzle square on a variant board: the square's position, then the rule it sits under, as ONE utterance VoiceOver reads on every focus move. %1$@ is like \"Row 3, column 5\"; %2$@ is like \"cage of 15\" or \"thermometer, 2 of 4\". Both halves are finished translated strings — the comma and space between them is the join, and where a join goes differs per language (Japanese uses 、 and no space). Keep it SHORT: it is spoken every time focus moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、%2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，%2$@"
+          }
+        }
+      }
+    },
     "board.digitPlural.eight": {
       "comment": "\"the 8s\" — the digit 8 as a countable plural noun.",
       "extractionState": "manual",
@@ -5161,6 +5293,138 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "带笔记的格子"
+          }
+        }
+      }
+    },
+    "board.rule.cage": {
+      "comment": "Spoken part of a puzzle square's label on a Killer board: the total its outlined cage must add up to. %1$lld is that total (2-45). Very short — it is spoken every time focus moves. \"Cage\" is the outlined group of squares.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Käfig mit %1$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cage of %1$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "jaula de %1$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "cage de %1$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "gabbia da %1$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "合計 %1$lld のケージ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "합 %1$lld 케이지"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "kooi van %1$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "gaiola de %1$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "和为 %1$lld 的笼子"
+          }
+        }
+      }
+    },
+    "board.rule.thermo": {
+      "comment": "Spoken part of a puzzle square's label on a Thermo board: where this square sits along its thermometer. %1$lld is the position counting from the round bulb end (1 = the bulb) and %2$lld is the thermometer's length. Digits increase from bulb to tip, so the position is what tells the player how small or large this square can be. Very short — spoken every time focus moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Thermometer, %1$lld von %2$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thermometer, %1$lld of %2$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termómetro, %1$lld de %2$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "thermomètre, %1$lld sur %2$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termometro, %1$lld di %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "サーモ、%2$lld 個中 %1$lld 番目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "서모, %2$lld 중 %1$lld번째"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "thermometer, %1$lld van %2$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termômetro, %1$lld de %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "温度计，第 %1$lld 个，共 %2$lld 个"
           }
         }
       }
@@ -8535,6 +8799,996 @@
         }
       }
     },
+    "channel.classic.blurb": {
+      "comment": "One-line subtitle under the Classic channel's title, saying that this page is plain sudoku. Calm and plain, not a sales pitch. Under about 25 characters.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sudoku, wie es ist"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sudoku, as it is"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sudoku, tal cual"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le sudoku, tel quel"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sudoku, così com'è"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "そのままの数独"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "그대로의 스도쿠"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sudoku, zoals het is"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sudoku, como ele é"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "数独，本来的样子"
+          }
+        }
+      }
+    },
+    "channel.classic.title": {
+      "comment": "Channel name, the first of three pages on the home shelf: ordinary sudoku with no extra rules. Shown as a page title. One word.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Klassisch"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Classic"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Clásico"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Classique"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Classico"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "クラシック"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "클래식"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Klassiek"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Clássico"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "经典"
+          }
+        }
+      }
+    },
+    "channel.killer.blurb": {
+      "comment": "One-line subtitle under the Killer channel's title. \"Cages\" are the outlined regions; \"add up\" refers to each one's printed total. Convey \"outlined groups that sum to a number\". Under about 25 characters.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Käfige mit Summe"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cages that add up"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jaulas que suman"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Des cages qui s'additionnent"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Gabbie che si sommano"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "合計のあるケージ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "합이 있는 케이지"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kooien met een som"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Gaiolas que somam"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "有和的笼子"
+          }
+        }
+      }
+    },
+    "channel.killer.title": {
+      "comment": "Channel name, the sudoku variant known in English as Killer Sudoku: the grid is divided into outlined \"cages\", each printed with a total its digits must add up to. NOT the adjective \"killer\" and nothing to do with killing — this is the established name of a puzzle type. Use whatever your language's sudoku players call this variant. One word.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Killer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "キラー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "킬러"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Killer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "杀手"
+          }
+        }
+      }
+    },
+    "channel.next": {
+      "comment": "Accessibility label for the button that turns the home shelf to the next channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nächster Kanal"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next channel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canal siguiente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canal suivant"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canale successivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "次のチャンネル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "다음 채널"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Volgend kanaal"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Próximo canal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "下一个频道"
+          }
+        }
+      }
+    },
+    "channel.pager.label": {
+      "comment": "Accessibility label for the whole channel page indicator, read as one utterance. %1$@ is the channel name, %2$lld the current page, %3$lld the total (3 today). Match how your language says \"page N of M\".",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, Seite %2$lld von %3$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, page %2$lld of %3$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, página %2$lld de %3$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, page %2$lld sur %3$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, pagina %2$lld di %3$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、%3$lld ページ中 %2$lld ページ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %3$lld페이지 중 %2$lld페이지"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, pagina %2$lld van %3$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, página %2$lld de %3$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，第 %2$lld 页，共 %3$lld 页"
+          }
+        }
+      }
+    },
+    "channel.previous": {
+      "comment": "Accessibility label for the button that turns the home shelf to the previous channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vorheriger Kanal"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous channel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canal anterior"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canal précédent"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canale precedente"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "前のチャンネル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이전 채널"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vorig kanaal"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Canal anterior"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "上一个频道"
+          }
+        }
+      }
+    },
+    "channel.stats.label": {
+      "comment": "Accessibility label for one row of a channel's solve times, spoken as ONE utterance. %1$@ is a difficulty name, %2$lld the number solved, %3$@ a time already formatted as m:ss. \"Best\" means fastest.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld gelöst, Bestzeit %3$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$lld solved, best %3$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld resueltos, mejor %3$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ : %2$lld résolus, meilleur %3$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld risolti, migliore %3$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@：%2$lld 問クリア、最速 %3$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld개 완료, 최고 %3$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld opgelost, beste %3$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@: %2$lld resolvidos, melhor %3$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@：已完成 %2$lld 个，最快 %3$@"
+          }
+        }
+      }
+    },
+    "channel.stats.row": {
+      "comment": "One row of a channel's solve times: how many puzzles solved at this difficulty and the best time. %1$lld is the count, %2$@ is a time already formatted as m:ss in the reader's own numerals. Compact — it sits at the right edge of a narrow row. The separator is a middle dot.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld · %2$@"
+          }
+        }
+      }
+    },
+    "channel.stats.title": {
+      "comment": "Heading over a channel's own solve times on the home shelf. Possessive and plain — these are the player's times on THIS channel only. Two or three words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deine Zeiten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your times"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tus tiempos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vos temps"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "I tuoi tempi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなたのタイム"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "내 기록"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jouw tijden"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Seus tempos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你的用时"
+          }
+        }
+      }
+    },
+    "channel.thermo.blurb": {
+      "comment": "One-line subtitle under the Thermo channel's title. \"Tubes\" are the thermometer shapes; \"only rise\" means the digits along one must strictly increase. Convey \"the numbers along each shape always go up\". Under about 25 characters.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Röhren, die nur steigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tubes that only rise"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tubos que solo suben"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Des tubes qui ne montent"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tubi che salgono sempre"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "上がるだけの管"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "오르기만 하는 관"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Buizen die alleen stijgen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tubos que só sobem"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "只升不降的管"
+          }
+        }
+      }
+    },
+    "channel.thermo.title": {
+      "comment": "Channel name, a sudoku variant played on \"thermometers\" — shapes drawn on the grid whose digits must increase from the round bulb end to the tip. Short for \"thermometer\". Use whatever your language's sudoku players call this variant if there is one; otherwise a short word for thermometer. One word.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Thermo"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thermo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Termo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Thermo"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Termo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "サーモ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "서모"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Thermo"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Termo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "温度计"
+          }
+        }
+      }
+    },
+    "channel.today.label": {
+      "comment": "Accessibility label for a channel's Today card, spoken as ONE utterance so VoiceOver does not read a title and then an orphaned status. %1$@ is the channel name; %2$@ is a whole sentence about its state (\"Solved\", \"Continue · Half done\"). The full stop between them is the join — place it as your language would.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ täglich. %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ daily. %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ de hoy. %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ du jour. %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ di oggi. %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ の本日の問題。%2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "오늘의 %1$@. %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ van vandaag. %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ de hoje. %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ 今日谜题。%2$@"
+          }
+        }
+      }
+    },
+    "channel.today.oneADay": {
+      "comment": "Resting state of a channel's Today card, before that channel's daily puzzle has been started. Says there is one puzzle per day AND that each channel has its own — playing today's Thermo does not use up today's Classic. Short.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eines pro Tag, pro Kanal"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One a day, per channel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uno al día, por canal"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Un par jour, par canal"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uno al giorno, per canale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "チャンネルごとに1日1問"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "채널마다 하루 하나"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eén per dag, per kanaal"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Um por dia, por canal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "每个频道每天一个"
+          }
+        }
+      }
+    },
+    "channel.unavailable": {
+      "comment": "Shown on a saved variant puzzle that cannot be opened because this copy of the app does not understand one of its rules; it arrived from a newer version. Plain and brief, not an apology and not an error code. Fits on one line under a puzzle's name.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Neueres Nine nötig"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs a newer Nine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Requiere un Nine más nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nine plus récent requis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serve un Nine più recente"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "新しい Nine が必要"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "최신 Nine 필요"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nieuwere Nine nodig"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Precisa de um Nine mais novo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "需要更新版 Nine"
+          }
+        }
+      }
+    },
     "coach.action.markIt": {
       "comment": "The coaching card's button when the hint only eliminates candidates: writes the pencil marks that follow. A verb in the imperative.",
       "extractionState": "manual",
@@ -8927,6 +10181,138 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "第 %2$lld 行里还能放 %1$lld 的格子都在第 %3$lld 宫，所以第 %3$lld 宫的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.cageCombination.sentence": {
+      "comment": "Coach explanation on a Killer board: a cage's printed total admits only a few sets of digits, and none of the sets still possible puts this digit in this square. %1$lld is the cage's size and %2$lld is the digit being ruled out. \"Cage\" is the outlined group with a printed total.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dieser Käfig aus %1$lld Feldern kann nur wenige Ziffernsätze aufnehmen, und keiner der noch möglichen setzt hier eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cage of %1$lld cells can only hold a few sets of digits, and none of the ones still possible puts a %2$lld here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Esta jaula de %1$lld casillas solo admite unos pocos conjuntos de dígitos, y ninguno de los posibles pone un %2$lld aquí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cette cage de %1$lld cases n'admet que quelques ensembles de chiffres, et aucun de ceux encore possibles ne place un %2$lld ici."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Questa gabbia da %1$lld caselle ammette solo pochi insiemi di cifre, e nessuno di quelli ancora possibili mette un %2$lld qui."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld マスのこのケージに入る数字の組み合わせは限られており、まだ可能などの組み合わせもここに %2$lld を置きません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 케이지에 들어갈 수 있는 숫자 조합은 몇 가지뿐이며, 아직 가능한 어떤 조합도 여기에 %2$lld을 놓지 않습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deze kooi van %1$lld vakjes kan maar enkele cijfersets bevatten, en geen van de nog mogelijke zet hier een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Esta gaiola de %1$lld quadrados só admite alguns conjuntos de dígitos, e nenhum dos ainda possíveis coloca um %2$lld aqui."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这个 %1$lld 格笼子只能容纳少数几组数字，而仍然可能的组合中没有一组会在这里放 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.cageSingle.sentence": {
+      "comment": "Coach explanation on a Killer board: only one square of a cage is still empty, so the cage's printed total forces its digit. %1$lld is how many squares the cage has and %2$lld is the digit. \"Cage\" is the outlined group with a printed total.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nur ein Feld dieses %1$lld-Feld-Käfigs ist noch leer, also lässt die Käfigsumme nur eine %2$lld zu."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One square of this %1$lld-cell cage is still empty, so the cage total leaves only a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Solo queda una casilla vacía en esta jaula de %1$lld, así que el total de la jaula solo admite un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Une seule case de cette cage de %1$lld est encore vide : le total de la cage n'admet donc qu'un %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Una sola casella di questa gabbia da %1$lld è ancora vuota, quindi il totale della gabbia ammette solo un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この %1$lld マスのケージで空いているのは 1 マスだけなので、ケージの合計から %2$lld しか入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 케이지에서 빈 칸이 하나뿐이므로 케이지 합에 따라 %2$lld만 들어갈 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Slechts één vakje van deze kooi van %1$lld is nog leeg, dus de kooisom laat alleen een %2$lld toe."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Só um quadrado desta gaiola de %1$lld ainda está vazio, então o total da gaiola só admite um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这个 %1$lld 格笼子里只剩一格是空的，所以笼子的和只能是 %2$lld。"
           }
         }
       }
@@ -9587,6 +10973,204 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "第 %1$lld 行里只有一个格子能放 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.box": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\", for a 3x3 BOX. %1$lld is the box number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Block %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Box %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La caja %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La boîte %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Il blocco %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld ブロックの合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 박스의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Blok %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A caixa %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld ブロック的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.col": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\", for a COLUMN. %1$lld is the column number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Spalte %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Column %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La columna %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La colonne %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La colonna %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 列の合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 열의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kolom %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A coluna %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 列的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.row": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\": every ROW holds 1 through 9 and so totals 45, and the cages covering this row account for all but one square, which forces that square. %1$lld is the row number and %2$lld the digit. 45 is arithmetic, not a translatable word. Three separate sentences exist for row/column/box so each can be phrased naturally.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zeile %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Row %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La fila %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La ligne %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La riga %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 行の合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 행의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rij %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A linha %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 行的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
           }
         }
       }
@@ -10379,6 +11963,72 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "在这三行里，%1$lld 只能落在三列上，所以这三列的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.thermoBound.sentence": {
+      "comment": "Coach explanation on a Thermo board: digits along a thermometer increase strictly from the round bulb end to the tip, which limits how small or large each square on it can be. %1$lld is the thermometer's length in squares. \"Floor and ceiling\" means a lowest and highest possible digit — phrase it naturally rather than literally.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Die Ziffern steigen vom Kolben zur Spitze dieses %1$lld-Feld-Thermometers, was jedem Feld darauf eine Unter- und Obergrenze gibt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digits rise from the bulb to the tip of this %1$lld-cell thermometer, which puts a floor and a ceiling on every square along it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Los dígitos aumentan del bulbo a la punta de este termómetro de %1$lld casillas, lo que fija un mínimo y un máximo en cada casilla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Les chiffres montent du bulbe à la pointe de ce thermomètre de %1$lld cases, ce qui donne un minimum et un maximum à chaque case."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le cifre crescono dal bulbo alla punta di questo termometro da %1$lld caselle, dando a ogni casella un minimo e un massimo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld マスのこのサーモは球部から先端へ数字が増えるので、各マスに下限と上限がつきます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 서모는 구근에서 끝으로 숫자가 커지므로 각 칸에 최솟값과 최댓값이 정해집니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "De cijfers stijgen van de bol naar de punt van deze thermometer van %1$lld vakjes, wat elk vakje een onder- en bovengrens geeft."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Os dígitos aumentam do bulbo à ponta deste termômetro de %1$lld quadrados, o que dá a cada quadrado um mínimo e um máximo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "数字沿这个 %1$lld 格温度计从球端向尖端递增，因此每一格都有下限和上限。"
           }
         }
       }
@@ -28317,6 +29967,138 @@
         }
       }
     },
+    "shelf.channel.daily": {
+      "comment": "Title of a saved variant puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a date like \"Jul 26\". The separator is a middle dot; keep the channel first — it is what makes this a different puzzle rather than a harder one.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "shelf.channel.free": {
+      "comment": "Title of a saved variant practice puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a difficulty (Gentle, Steady, Sharp). The separator is a middle dot; keep the channel first.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "shelf.continue.caption": {
       "comment": "Caption under the Continue card. %1$@ is a difficulty name (\"Steady\"), %2$@ a progress phrase (\"41%\"). Punctuation only — reorder if this language reads the other way round.",
       "extractionState": "manual",
@@ -29621,204 +31403,6 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "今日"
-          }
-        }
-      }
-    },
-    "shelf.variants.answer": {
-      "comment": "What the variants teaser says once tapped, replacing its subtitle for a few seconds. The point is that nothing is being asked of the player — no email, no notification, no purchase.",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "In Arbeit – sie erscheinen dann einfach hier."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In the works — they'll simply appear here."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "En preparación — aparecerán aquí sin más."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "En préparation — elles apparaîtront ici, tout simplement."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "In lavorazione — appariranno semplicemente qui."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "制作中です。できたらここに並びます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "준비 중이에요. 다 되면 여기에 그냥 나타나요."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "In de maak — ze verschijnen hier vanzelf."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Em desenvolvimento — elas simplesmente vão aparecer aqui."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "正在做了，到时候会直接出现在这里。"
-          }
-        }
-      }
-    },
-    "shelf.variants.subtitle": {
-      "comment": "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Neue Varianten kommen bald."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New variants, coming soon."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nuevas variantes, próximamente."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "De nouvelles variantes, bientôt."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nuove varianti, in arrivo."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "新しいバリエーションを準備中です。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "새로운 변형이 곧 추가돼요."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nieuwe varianten, binnenkort."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Novas variantes, em breve."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "新的变体玩法，即将到来。"
-          }
-        }
-      }
-    },
-    "shelf.variants.title": {
-      "comment": "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Thermo"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Killer · Thermo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Termómetro"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Thermo"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Thermo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "キラー · サーモ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "킬러 · 서모"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Thermo"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Killer · Thermo"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "杀手 · 温度计"
           }
         }
       }
@@ -33119,6 +34703,204 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "每天一张共享的 %1$@ 棋盘。每天解开它，连续天数就会增长 —— 连续天数会让你的积分翻倍。"
+          }
+        }
+      }
+    },
+    "variantTier.gentle.title": {
+      "comment": "Difficulty of a variant puzzle, easiest of three. Same calm register as difficulty.gentle.title — not \"Easy\", which judges the player. May well be the same word you used there; it is a separate string because the two ladders can diverge. One or two words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sanft"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gentle"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suave"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Doux"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Delicata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "穏やか"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "순함"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zacht"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suave"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "温和"
+          }
+        }
+      }
+    },
+    "variantTier.sharp.title": {
+      "comment": "Difficulty of a variant puzzle, hardest of three: keen-witted, demanding. NOT the knife and NOT the musical accidental. See variantTier.gentle.title on why this is separate from difficulty.sharp.title. One or two words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Scharf"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharp"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Agudo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Affûté"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Acuto"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "鋭敏"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "날카로움"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Scherp"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Perspicaz"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "锐利"
+          }
+        }
+      }
+    },
+    "variantTier.steady.title": {
+      "comment": "Difficulty of a variant puzzle, middle of three: unhurried, dependable. See variantTier.gentle.title on why this is separate from difficulty.steady.title. One or two words.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Stetig"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steady"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Constante"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Régulier"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Costante"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "着実"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "꾸준함"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Gestaag"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Constante"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "平稳"
           }
         }
       }

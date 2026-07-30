@@ -28,6 +28,28 @@ final class GameCenter: NSObject {
     enum ID {
         static let pointsBoard = "com.couchsuite.nine.points"
         static let streakBoard = "com.couchsuite.nine.streak"
+
+        /// A channel's own two boards (PRD-24). Built by interpolation off the
+        /// frozen `Channel` raw value, for `Strings.channel(_:)`'s reason: a
+        /// `switch` is a second list that can disagree with the enum, and adding a
+        /// channel would compile.
+        ///
+        /// **These need App Store Connect records that do not exist yet, and that
+        /// is a human gate of exactly the kind PRD-7 §5 describes** — like the
+        /// CloudKit container, and like PRD-26's production schema deploy. No
+        /// entitlement is involved (Game Center is already on all three GameKit
+        /// platforms) so **no `match` re-mint is implied**. Submission is
+        /// fire-and-forget `try?` by design, so until the records exist a channel
+        /// solve submits into silence rather than crashing — which is the right
+        /// failure mode for a leaderboard and the reason this can ship ahead of
+        /// the portal work.
+        static func channelPoints(_ channel: Channel.Ledgered) -> String {
+            "com.couchsuite.nine.points.\(channel.rawValue)"
+        }
+        static func channelStreak(_ channel: Channel.Ledgered) -> String {
+            "com.couchsuite.nine.streak.\(channel.rawValue)"
+        }
+
         static let firstSolve = "com.couchsuite.nine.solve.first"
         static let tenSolves = "com.couchsuite.nine.solve.ten"
         static let fiftySolves = "com.couchsuite.nine.solve.fifty"
@@ -48,17 +70,34 @@ final class GameCenter: NSObject {
     }
 
     /// Mirror one finished board into leaderboards + achievements.
-    func reportSolve(record: SolveRecord, history: SolveHistory, streak: StreakState) {
+    ///
+    /// `channel` is the board's channel, non-nil only for a variant board
+    /// (PRD-24). When it is set, `history` and `streak` are **that channel's**, and
+    /// the scores go to that channel's own two boards — so a killer solve never
+    /// lands on the classic leaderboard, which is the same separation
+    /// `ChannelLedger` enforces one layer down.
+    ///
+    /// Achievements are deliberately **classic-only**: they are counted against the
+    /// classic history and a channel solve does not advance them. Splitting them
+    /// per channel would triple a set the covenant already calls the outer edge of
+    /// what it tolerates, and "first killer solve" is a badge — which
+    /// `EXECUTING-A-PRD` §1 rules out by name.
+    func reportSolve(
+        record: SolveRecord, history: SolveHistory, streak: StreakState,
+        channel: Channel.Ledgered? = nil
+    ) {
         guard isAuthenticated else { return }
         Task {
             try? await GKLeaderboard.submitScore(
                 history.totalPoints, context: 0, player: GKLocalPlayer.local,
-                leaderboardIDs: [ID.pointsBoard]
+                leaderboardIDs: [channel.map(ID.channelPoints) ?? ID.pointsBoard]
             )
             try? await GKLeaderboard.submitScore(
                 streak.best, context: 0, player: GKLocalPlayer.local,
-                leaderboardIDs: [ID.streakBoard]
+                leaderboardIDs: [channel.map(ID.channelStreak) ?? ID.streakBoard]
             )
+            // A channel solve stops here. Everything below counts classic solves.
+            guard channel == nil else { return }
             let solves = history.records.count
             var achievements: [GKAchievement] = [
                 progress(ID.firstSolve, fraction: Double(solves)),

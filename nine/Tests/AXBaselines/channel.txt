@@ -1,0 +1,15 @@
+# nine accessibility tree — screen: channel
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+#
+# Regenerate: nine/scripts/ax-snapshot.py --record
+
+[Content]
+  Button "Previous channel"  (20,146 44x44)
+  Heading "Thermo, page 2 of 3"  (171,152 60x33)
+  Button "Next channel"  (338,146 44x44)
+  Button "Thermo daily. One a day, per channel"  (38,228 169x129)
+  Button "Gentle, Thermo"  (38,414 75x96)
+  Button "Steady, Thermo"  (163,414 75x96)
+  Button "Sharp, Thermo"  (289,414 75x96)
+
+# 7 elements in 1 container

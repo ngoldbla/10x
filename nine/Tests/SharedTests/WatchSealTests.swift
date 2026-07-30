@@ -103,20 +103,29 @@ final class WatchSealTests: XCTestCase {
     // MARK: - Classic only
 
     /// **Watch stays classic-only** (PROGRAM-2.0, PRD-24). Belt to
-    /// `VariantChannelSealTests`'s braces: that test now covers `Sources/Watch`
-    /// too, and this one says out loud that the watch is *meant* to be in its
-    /// list, so removing it there is a deliberate act rather than a tidy-up.
+    /// `VariantInputSealTests`'s braces: that test greps `Sources/Watch` for every
+    /// variant symbol, and this one says out loud that the watch is *meant* to be
+    /// in its list, so removing it there is a deliberate act rather than a
+    /// tidy-up.
+    ///
+    /// PRD-24 renamed the seal it points at. The old `VariantChannelSealTests`
+    /// sealed the *whole app layer* away from the variant engine, which the
+    /// Channels shelf makes impossible; the replacement seals the input layer and
+    /// the wrist, which is the claim that stays true. This pointer moving with it
+    /// is the reason the assertion is on the file's content rather than on its
+    /// existence alone.
     func testTheWatchIsInsideTheVariantSeal() throws {
         let seal = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()   // SharedTests
                 .deletingLastPathComponent()   // Tests
-                .appendingPathComponent("EngineTests/VariantChannelSealTests.swift"),
+                .appendingPathComponent("EngineTests/VariantInputSealTests.swift"),
             encoding: .utf8)
         XCTAssertTrue(seal.contains("\"Sources/Watch\""), """
-            VariantChannelSealTests no longer seals Sources/Watch. The watch is \
+            VariantInputSealTests no longer seals Sources/Watch. The watch is \
             classic-only (PROGRAM-2.0); a variant reaching it would ship a \
-            channel with no surface, no daily and no leaderboard.
+            channel with no surface, no daily and no leaderboard — and a wrist \
+            cannot render a cage sum legibly or compose above gentle.
             """)
     }
 

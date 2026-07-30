@@ -202,6 +202,12 @@ INTERPOLATED_FAMILIES = [
     ("Technique", "Sources/Engine/LogicSolver.swift", "technique.%s.name"),
     ("Difficulty", "Sources/Engine/Generator.swift", "difficulty.%s.title"),
     ("NineTip", "Sources/Shared/TipCoach.swift", "tip.%s"),
+    # PRD-24. `Channel` carries two suffixes rather than one, so it is listed
+    # twice — the shelf page needs a name and a one-line blurb, and both are
+    # reached only by interpolation off the frozen raw value.
+    ("Channel", "Sources/Engine/ChannelLedger.swift", "channel.%s.title"),
+    ("Channel", "Sources/Engine/ChannelLedger.swift", "channel.%s.blurb"),
+    ("VariantTier", "Sources/Engine/VariantConstraint.swift", "variantTier.%s.title"),
 ]
 
 # Key families built as `scope + ".field"` — a *prefix* held as data, crossed
@@ -1116,6 +1122,46 @@ COMMENTS = {
     "coach.xWing.sentence.rowBase": "Coach explanation, X-wing based on two ROWS: in two rows the digit can only sit in the same two columns, so it is cleared from the rest of those columns. %1$lld is the digit and appears TWICE — move both if you reorder. The words \"rows\" and \"columns\" are part of the sentence; write them the way your language names them.",
     "coach.xWing.sentence.colBase": "Coach explanation, X-wing based on two COLUMNS: in two columns the digit can only sit in the same two rows, so it is cleared from the rest of those rows. %1$lld is the digit and appears twice.",
 
+    # Channels (PRD-24). The three pages of the home shelf: three rulesets, each
+    # with its own daily, streak and stats. A title is one word on a page header;
+    # a blurb is one short line under it saying what the ruleset is.
+    "channel.classic.title": "Channel name, the first of three pages on the home shelf: ordinary sudoku with no extra rules. Shown as a page title. One word.",
+    "channel.classic.blurb": "One-line subtitle under the Classic channel's title, saying that this page is plain sudoku. Calm and plain, not a sales pitch. Under about 25 characters.",
+    "channel.thermo.title": "Channel name, a sudoku variant played on \"thermometers\" — shapes drawn on the grid whose digits must increase from the round bulb end to the tip. Short for \"thermometer\". Use whatever your language's sudoku players call this variant if there is one; otherwise a short word for thermometer. One word.",
+    "channel.thermo.blurb": "One-line subtitle under the Thermo channel's title. \"Tubes\" are the thermometer shapes; \"only rise\" means the digits along one must strictly increase. Convey \"the numbers along each shape always go up\". Under about 25 characters.",
+    "channel.killer.title": "Channel name, the sudoku variant known in English as Killer Sudoku: the grid is divided into outlined \"cages\", each printed with a total its digits must add up to. NOT the adjective \"killer\" and nothing to do with killing — this is the established name of a puzzle type. Use whatever your language's sudoku players call this variant. One word.",
+    "channel.killer.blurb": "One-line subtitle under the Killer channel's title. \"Cages\" are the outlined regions; \"add up\" refers to each one's printed total. Convey \"outlined groups that sum to a number\". Under about 25 characters.",
+    "board.cell.withRule": "Accessibility label for a puzzle square on a variant board: the square's position, then the rule it sits under, as ONE utterance VoiceOver reads on every focus move. %1$@ is like \"Row 3, column 5\"; %2$@ is like \"cage of 15\" or \"thermometer, 2 of 4\". Both halves are finished translated strings — the comma and space between them is the join, and where a join goes differs per language (Japanese uses \u3001 and no space). Keep it SHORT: it is spoken every time focus moves.",
+    "board.cell.ruleSeparator": "Separator between two rules on one puzzle square, when a square sits on two thermometers at once. English uses a comma and a space. Punctuation only.",
+    "board.rule.cage": "Spoken part of a puzzle square's label on a Killer board: the total its outlined cage must add up to. %1$lld is that total (2-45). Very short — it is spoken every time focus moves. \"Cage\" is the outlined group of squares.",
+    "board.rule.thermo": "Spoken part of a puzzle square's label on a Thermo board: where this square sits along its thermometer. %1$lld is the position counting from the round bulb end (1 = the bulb) and %2$lld is the thermometer's length. Digits increase from bulb to tip, so the position is what tells the player how small or large this square can be. Very short — spoken every time focus moves.",
+    "coach.cageSingle.sentence": "Coach explanation on a Killer board: only one square of a cage is still empty, so the cage's printed total forces its digit. %1$lld is how many squares the cage has and %2$lld is the digit. \"Cage\" is the outlined group with a printed total.",
+    "coach.cageCombination.sentence": "Coach explanation on a Killer board: a cage's printed total admits only a few sets of digits, and none of the sets still possible puts this digit in this square. %1$lld is the cage's size and %2$lld is the digit being ruled out. \"Cage\" is the outlined group with a printed total.",
+    "coach.innieOutie.sentence.row": "Coach explanation on a Killer board, the \"rule of 45\": every ROW holds 1 through 9 and so totals 45, and the cages covering this row account for all but one square, which forces that square. %1$lld is the row number and %2$lld the digit. 45 is arithmetic, not a translatable word. Three separate sentences exist for row/column/box so each can be phrased naturally.",
+    "coach.innieOutie.sentence.col": "Coach explanation on a Killer board, the \"rule of 45\", for a COLUMN. %1$lld is the column number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+    "coach.innieOutie.sentence.box": "Coach explanation on a Killer board, the \"rule of 45\", for a 3x3 BOX. %1$lld is the box number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+    "coach.thermoBound.sentence": "Coach explanation on a Thermo board: digits along a thermometer increase strictly from the round bulb end to the tip, which limits how small or large each square on it can be. %1$lld is the thermometer's length in squares. \"Floor and ceiling\" means a lowest and highest possible digit — phrase it naturally rather than literally.",
+    "channel.next": "Accessibility label for the button that turns the home shelf to the next channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+    "channel.previous": "Accessibility label for the button that turns the home shelf to the previous channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+    "channel.pager.label": "Accessibility label for the whole channel page indicator, read as one utterance. %1$@ is the channel name, %2$lld the current page, %3$lld the total (3 today). Match how your language says \"page N of M\".",
+    "channel.stats.title": "Heading over a channel's own solve times on the home shelf. Possessive and plain — these are the player's times on THIS channel only. Two or three words.",
+    "channel.stats.row": "One row of a channel's solve times: how many puzzles solved at this difficulty and the best time. %1$lld is the count, %2$@ is a time already formatted as m:ss in the reader's own numerals. Compact — it sits at the right edge of a narrow row. The separator is a middle dot.",
+    "channel.stats.label": "Accessibility label for one row of a channel's solve times, spoken as ONE utterance. %1$@ is a difficulty name, %2$lld the number solved, %3$@ a time already formatted as m:ss. \"Best\" means fastest.",
+    "channel.today.label": "Accessibility label for a channel's Today card, spoken as ONE utterance so VoiceOver does not read a title and then an orphaned status. %1$@ is the channel name; %2$@ is a whole sentence about its state (\"Solved\", \"Continue · Half done\"). The full stop between them is the join — place it as your language would.",
+    "channel.today.oneADay": "Resting state of a channel's Today card, before that channel's daily puzzle has been started. Says there is one puzzle per day AND that each channel has its own — playing today's Thermo does not use up today's Classic. Short.",
+    "channel.unavailable": "Shown on a saved variant puzzle that cannot be opened because this copy of the app does not understand one of its rules; it arrived from a newer version. Plain and brief, not an apology and not an error code. Fits on one line under a puzzle's name.",
+
+    # Variant tiers (PRD-24). The difficulty ladder for a variant channel.
+    # Deliberately its own key family rather than reusing difficulty.*.title:
+    # a tier and a band are different ladders, so a rename of one must not move
+    # the other, and a translator gets one string per meaning.
+    "variantTier.gentle.title": "Difficulty of a variant puzzle, easiest of three. Same calm register as difficulty.gentle.title — not \"Easy\", which judges the player. May well be the same word you used there; it is a separate string because the two ladders can diverge. One or two words.",
+    "variantTier.steady.title": "Difficulty of a variant puzzle, middle of three: unhurried, dependable. See variantTier.gentle.title on why this is separate from difficulty.steady.title. One or two words.",
+    "variantTier.sharp.title": "Difficulty of a variant puzzle, hardest of three: keen-witted, demanding. NOT the knife and NOT the musical accidental. See variantTier.gentle.title on why this is separate from difficulty.sharp.title. One or two words.",
+
+    "shelf.channel.daily": "Title of a saved variant puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a date like \"Jul 26\". The separator is a middle dot; keep the channel first — it is what makes this a different puzzle rather than a harder one.",
+    "shelf.channel.free": "Title of a saved variant practice puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a difficulty (Gentle, Steady, Sharp). The separator is a middle dot; keep the channel first.",
+
     # Difficulty bands. Names of the four settings a player picks between, shown
     # on buttons, in menus and on the share card. Short: one or two words.
     "difficulty.gentle.title": "Difficulty band, easiest of four. Shown on buttons and menus and on the share card. An adjective in the app's calm register — not \"Easy\", which sounds like a judgement of the player. One or two words.",
@@ -1229,9 +1275,6 @@ COMMENTS = {
     "shelf.boards.subtitleCount": "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "shelf.history.subtitle": "Subtitle of the Apple TV shelf's History tile — what the sheet behind it holds. A fragment, not a sentence.",
     "shelf.replays.subtitle": "Subtitle of the Apple TV shelf's Replays tile, which opens an ambient screen replaying the player's own finished boards. \"Retraced\" means drawn again, following the same path. A fragment, not a sentence.",
-    "shelf.variants.title": "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
-    "shelf.variants.subtitle": "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
-    "shelf.variants.answer": "What the variants teaser says once tapped, replacing its subtitle for a few seconds. The point is that nothing is being asked of the player — no email, no notification, no purchase.",
     "shelf.difficulty.label": "VoiceOver label of a free-play difficulty card. %1$@ is the band's name (\"Nocturne\"), %2$@ its one-line blurb. Punctuation only.",
     "shelf.daily.date": "How a past day's board is named in a list of boards. %1$@ is a date (\"12 Jul 2026\"). \"Daily\" here is a noun — the day's shared puzzle — not an adverb.",
     "shelf.archive.hint": "VoiceOver hint on the calendar glyph in the corner of the Today card: what opening the archive gets you. A fragment, as VoiceOver hints are.",

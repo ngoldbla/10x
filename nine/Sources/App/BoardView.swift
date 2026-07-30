@@ -212,6 +212,19 @@ struct BoardView: View {
     /// nor a Pencil in range. PRD-31 gave iPadOS the same halo off the same
     /// value, because a hovering Pencil tip and a pointer are the same question.
     var hoverCell: Int? = nil
+    /// The variant rules drawn on this board — killer cages, thermo tubes — or nil
+    /// for a classic board (PRD-24).
+    ///
+    /// **Nil by default, so all nine existing call sites render byte-identically**,
+    /// which is `coachFocus`'s and `dimmedExcept`'s pattern and the reason the
+    /// watch board, the tutorial boards, the first-run board and the school board
+    /// needed no change at all.
+    ///
+    /// A `ChannelRules` rather than a `[VariantConstraint]` because the record is
+    /// self-describing and the renderer needs to know *which* ruleset it is
+    /// drawing: a cage and a thermometer are both "cells plus a number" on the
+    /// wire and completely different marks on the board.
+    var channelRules: ChannelRules? = nil
     /// The player's own handwriting (PRD-31). Pencil marks are drawn from these
     /// glyphs when the digit has one and from the rounded typeface when it does
     /// not — so the board fills with the player's hand a digit at a time rather
@@ -323,7 +336,8 @@ struct BoardView: View {
                 showErrors: showErrors,
                 side: side,
                 inset: inset,
-                actions: axActions
+                actions: axActions,
+                channelRules: channelRules
             )
         }
         .accessibilityHidden(roseOpen)
@@ -536,6 +550,16 @@ struct BoardView: View {
             with: .color(gridTone.opacity(
                 increased ? (isLight ? 0.20 : 0.16) : (isLight ? 0.07 : 0.05))),
             lineWidth: 1)
+
+        // 2.2 Variant rules: killer cages and thermo tubes (PRD-24).
+        //
+        //     **This seam is chosen, not convenient.** Above the hairlines,
+        //     because a tube crossed by a cell separator reads as three marks
+        //     rather than one stroke; below the highlight, the coach wash, the
+        //     cursor ring and the digits, because those are the loudest marks on
+        //     the board and a rule is context rather than news — and because
+        //     nothing may ever occlude a digit the player placed.
+        if let channelRules { drawRules(channelRules, in: &context, cell: cell, scale: scale) }
 
         // 2.4 Box borders, Increase Contrast only. The rest of the time these
         //     are the luminance step above — a wash you read as an edge, which
@@ -800,6 +824,152 @@ struct BoardView: View {
                 )
             }
         }
+    }
+
+    // MARK: - Variant rules (PRD-24)
+
+    /// Draw whatever rules this board carries. One entry point, dispatching on the
+    /// constraint rather than on the channel, so a board that somehow held both
+    /// would draw both instead of silently dropping one.
+    private func drawRules(
+        _ rules: ChannelRules, in context: inout GraphicsContext,
+        cell: CGFloat, scale: CGFloat
+    ) {
+        // A rule this build cannot enforce is not drawn, because drawing a mark
+        // whose meaning we do not know is worse than drawing nothing: the player
+        // would reason about it. `AppModel.openChannelBoard` refuses to open such a
+        // board at all, so this is the second of two guards, kept because a
+        // renderer that trusts its input is a renderer that ships the bug.
+        guard rules.isPlayable else { return }
+        for constraint in rules.constraints {
+            switch constraint {
+            case .cage(let cage): drawCage(cage, in: &context, cell: cell, scale: scale)
+            case .thermometer(let thermo):
+                drawThermometer(thermo, in: &context, cell: cell, scale: scale)
+            case .unrecognized: continue
+            }
+        }
+    }
+
+    /// A killer cage: a dashed outline hugging the region, with its sum in the
+    /// top-left cell's corner.
+    ///
+    /// The outline is drawn as **the cage's own border only** — each cell
+    /// contributes an inset edge where its neighbour across that edge is outside
+    /// the cage — rather than as a rounded rect around the bounding box, which
+    /// would be wrong for every cage that is not a rectangle, i.e. most of them.
+    /// The dash pattern is the same family as the coach's dashed victim ring, so
+    /// the board has one vocabulary for "this group of cells is what we are talking
+    /// about".
+    private func drawCage(
+        _ cage: Cage, in context: inout GraphicsContext, cell: CGFloat, scale: CGFloat
+    ) {
+        let members = Set(cage.cells)
+        let inset = 3.0 * scale
+        var path = Path()
+        for index in cage.cells {
+            let row = Sudoku.row(of: index), col = Sudoku.col(of: index)
+            let x = CGFloat(col) * cell, y = CGFloat(row) * cell
+            let left = x + inset, right = x + cell - inset
+            let top = y + inset, bottom = y + cell - inset
+            // An edge is drawn only where the cage stops. `row`/`col` bounds are
+            // checked before the membership lookup so a cell on the grid's rim
+            // does not wrap around to the far side and think it has a neighbour.
+            if row == 0 || !members.contains(index - 9) {
+                path.move(to: CGPoint(x: left, y: top))
+                path.addLine(to: CGPoint(x: right, y: top))
+            }
+            if row == 8 || !members.contains(index + 9) {
+                path.move(to: CGPoint(x: left, y: bottom))
+                path.addLine(to: CGPoint(x: right, y: bottom))
+            }
+            if col == 0 || !members.contains(index - 1) {
+                path.move(to: CGPoint(x: left, y: top))
+                path.addLine(to: CGPoint(x: left, y: bottom))
+            }
+            if col == 8 || !members.contains(index + 1) {
+                path.move(to: CGPoint(x: right, y: top))
+                path.addLine(to: CGPoint(x: right, y: bottom))
+            }
+        }
+        context.stroke(
+            path,
+            with: .color(digitTone.opacity(increased ? 0.62 : 0.38)),
+            style: StrokeStyle(
+                lineWidth: max(1, 1.4 * scale), lineCap: .round,
+                dash: [3.5 * scale, 3 * scale]))
+
+        // The sum, in the cage's first cell — `Cage.cells` is sorted ascending, so
+        // that is its top-left-most cell on every cage shape, deterministically.
+        guard let anchor = cage.cells.first else { return }
+        let row = Sudoku.row(of: anchor), col = Sudoku.col(of: anchor)
+        // Tighter than the pencil-note inset (`cell * 0.28`) so a sum and a note
+        // in slot 1 of the same cell do not collide. They still sit close, and a
+        // cage anchor is usually empty on a killer board — Sharp has no givens at
+        // all — so this is the cheap fix rather than relaying the notes.
+        let point = CGPoint(
+            x: CGFloat(col) * cell + cell * 0.19,
+            y: CGFloat(row) * cell + cell * 0.17)
+        context.draw(
+            Text(verbatim: "\(cage.sum)")
+                .font(.system(size: 15 * scale, weight: .semibold, design: .rounded))
+                .foregroundStyle(digitTone.opacity(increased ? 0.95 : 0.72)),
+            at: point)
+    }
+
+    /// A thermometer as a luminous glass tube: a bulb disc at the base and a
+    /// capsule stroke running through every cell centre to the tip.
+    ///
+    /// **No new shader.** PRD-22 established that the board `Canvas` *is* the
+    /// render surface the three `layerEffect`s sample, so a tube drawn here is
+    /// lensed and washed by the existing pipeline for free — which is what makes it
+    /// read as glass rather than as a grey pipe. Two strokes do the work: a wide
+    /// soft one for the body and a narrow brighter one along its spine, which is
+    /// how a cylinder reads without a gradient.
+    ///
+    /// Drawn in `gridTone` rather than in the accent, deliberately. The accent is
+    /// the app's "this is *your* mark" colour — entries, the same-number highlight,
+    /// the cursor — and a thermometer is part of the puzzle, like a given. A board
+    /// of accent-coloured tubes would look like a board the player had already
+    /// filled in.
+    private func drawThermometer(
+        _ thermo: Thermometer, in context: inout GraphicsContext,
+        cell: CGFloat, scale: CGFloat
+    ) {
+        let centres = thermo.cells.map { index in
+            CGPoint(
+                x: CGFloat(Sudoku.col(of: index)) * cell + cell / 2,
+                y: CGFloat(Sudoku.row(of: index)) * cell + cell / 2)
+        }
+        guard let bulb = centres.first else { return }
+
+        var spine = Path()
+        spine.move(to: bulb)
+        for point in centres.dropFirst() { spine.addLine(to: point) }
+
+        let body = increased ? 0.30 : 0.17
+        let highlight = increased ? 0.42 : 0.26
+        // Body: wide, soft, round-capped and round-joined so a bend reads as one
+        // continuous tube rather than as two segments meeting at a corner.
+        context.stroke(
+            spine, with: .color(gridTone.opacity(body)),
+            style: StrokeStyle(lineWidth: cell * 0.42, lineCap: .round, lineJoin: .round))
+        // Spine: narrower and brighter, the specular line down a cylinder.
+        context.stroke(
+            spine, with: .color(gridTone.opacity(highlight)),
+            style: StrokeStyle(lineWidth: cell * 0.13, lineCap: .round, lineJoin: .round))
+
+        // The bulb, which is the only thing telling the player which end is the
+        // small one. Without it a tube is symmetric and the constraint is
+        // unreadable — so it is drawn last, over the body, and larger than the
+        // stroke that leads out of it.
+        let radius = cell * 0.30
+        let disc = Path(ellipseIn: CGRect(
+            x: bulb.x - radius, y: bulb.y - radius, width: radius * 2, height: radius * 2))
+        context.fill(disc, with: .color(gridTone.opacity(body)))
+        context.stroke(
+            disc, with: .color(gridTone.opacity(highlight)),
+            lineWidth: max(1, 1.2 * scale))
     }
 
     /// 0…1 progress of the completion wave, nil when idle / finished.

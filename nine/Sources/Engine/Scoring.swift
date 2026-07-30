@@ -239,10 +239,23 @@ public struct SolveHistory: Sendable, Codable, Equatable {
         lhs.records == rhs.records
     }
 
-    public mutating func record(_ record: SolveRecord) {
+    /// Keep a solve, newest first, trimming the tail past `capacity`.
+    ///
+    /// `capacity` is a parameter with `Self.capacity` as its default rather than
+    /// a stored property, and both halves of that matter. The default means every
+    /// classic caller is byte-identical to before — `nine.history` keeps its 1000.
+    /// A *stored* property would have had to be persisted or re-derived on every
+    /// decode, and `SolveHistory`'s encode is pinned by
+    /// `aKnownOnlyHistoryRoundTripsByteIdentically`.
+    ///
+    /// The one caller that passes something else is `ChannelLedger`, which holds
+    /// one of these per channel and is bounded by a KVS budget rather than by
+    /// classic's — see `ChannelLedger.historyCapacity`.
+    public mutating func record(_ record: SolveRecord, capacity: Int = Self.capacity) {
         records.insert(record, at: 0)
-        if records.count > Self.capacity {
-            records.removeLast(records.count - Self.capacity)
+        let limit = max(1, capacity)
+        if records.count > limit {
+            records.removeLast(records.count - limit)
         }
     }
 

@@ -506,6 +506,10 @@ struct DowngradeDrillTests {
 
     /// `BoardLibrary` with the legacy element type spliced in — the same decode
     /// this build ships, reading through 1.5's `LibraryEntry`.
+    ///
+    /// PRD-24 reuses this harness unchanged for the `.channel` drill above: a
+    /// `GameKind` case the legacy mirror has never heard of fails to type through
+    /// exactly the same door a `Difficulty` case did.
     struct QuarantiningLibrary: Codable {
         var entries: [LegacyLibraryEntry] = []
         var quarantined: [QuarantinedEntry] = []
@@ -533,6 +537,116 @@ struct DowngradeDrillTests {
             for entry in entries { try array.encode(entry) }
             for element in quarantined { try array.encode(element) }
         }
+    }
+
+    // MARK: - PRD-24: a channel board meets a build with no channels
+
+    /// The PRD-24 half of the drill, and the asymmetry with the Nocturne half is
+    /// the whole point.
+    ///
+    /// Nocturne's problem was *preservation*: an old build had to keep a board it
+    /// could not read. A channel board's problem is **refusal**. A build with no
+    /// cage or tube renderer that opened a killer board as ordinary sudoku would
+    /// show a grid with no cages drawn, under constraints it does not enforce, and
+    /// would mark the player's correct entries as errors — `NineGame.isError`
+    /// compares against a solution that is only *the* solution under the rules.
+    ///
+    /// So quarantine is not the tolerated outcome here, it is the desired one, and
+    /// it is free: `GameKind` has a synthesized `Codable`, the old build throws on
+    /// the unknown case, and Phase 0's element-level decode catches it.
+    @Test func oldBuildQuarantinesAChannelBoardRatherThanPlayingItAsClassic() throws {
+        var library = BoardLibrary()
+        _ = library.create(kind: .free(.gentle), game: Self.gentleBoard, now: t(0))
+        _ = library.create(
+            kind: .channel(channel: .killer, tier: .steady, day: nil),
+            game: Self.gentleBoard, now: t(10))
+        _ = library.create(
+            kind: .channel(channel: .thermo, tier: .gentle, day: 20_649),
+            game: Self.gentleBoard, now: t(20))
+        let blob = try CouchJSON.encode(library)
+
+        let elements = try object(blob)["entries"] as! [Any]
+        #expect(elements.count == 3)
+        var readable = 0, unreadable = 0
+        for element in elements {
+            let data = try JSONSerialization.data(withJSONObject: element)
+            if (try? CouchJSON.decode(LegacyLibraryEntry.self, from: data)) != nil {
+                readable += 1
+            } else {
+                unreadable += 1
+            }
+        }
+        #expect(readable == 1, "only the classic board may be readable by the old build")
+        #expect(unreadable == 2, "both channel boards must refuse to type")
+    }
+
+    /// Downgrade → upgrade: the old build quarantines both channel boards, writes
+    /// the library back, and this build gets them returned with channel, tier and
+    /// day intact. They are invisible while the player is on the old build, which
+    /// is the accepted cost and strictly better than the alternative — nothing is
+    /// lost, and nothing is played wrong.
+    @Test func aChannelBoardSurvivesAnOldBuildRewriteVerbatim() throws {
+        var library = BoardLibrary()
+        _ = library.create(kind: .free(.gentle), game: Self.gentleBoard, now: t(0))
+        let killerID = library.create(
+            kind: .channel(channel: .killer, tier: .sharp, day: nil),
+            game: Self.gentleBoard, now: t(10))
+        let thermoID = library.create(
+            kind: .channel(channel: .thermo, tier: .gentle, day: 20_649),
+            game: Self.gentleBoard, now: t(20))
+        let blob = try CouchJSON.encode(library)
+
+        let quarantining = try CouchJSON.decode(QuarantiningLibrary.self, from: blob)
+        #expect(quarantining.entries.count == 1)
+        #expect(quarantining.quarantined.count == 2)
+        let rewritten = try CouchJSON.encode(quarantining)
+
+        let home = try CouchJSON.decode(BoardLibrary.self, from: rewritten)
+        #expect(home.entries.count == 3)
+        #expect(home.quarantined.isEmpty)
+        let killerBoard = try #require(home.entries.first { $0.id == killerID })
+        #expect(killerBoard.kind == .channel(channel: .killer, tier: .sharp, day: nil))
+        let thermoBoard = try #require(home.entries.first { $0.id == thermoID })
+        #expect(thermoBoard.kind == .channel(channel: .thermo, tier: .gentle, day: 20_649))
+    }
+
+    /// `GameKind.channel` round-trips with every field intact, including the
+    /// optional day that distinguishes a channel daily from channel free play.
+    @Test func theChannelGameKindRoundTrips() throws {
+        let kinds: [GameKind] = [
+            .channel(channel: .thermo, tier: .gentle, day: nil),
+            .channel(channel: .thermo, tier: .steady, day: 20_649),
+            .channel(channel: .killer, tier: .sharp, day: 1),
+            .daily(day: 20_649),
+            .free(.nocturne),
+        ]
+        for kind in kinds {
+            let back = try CouchJSON.decode(GameKind.self, from: try CouchJSON.encode(kind))
+            #expect(back == kind)
+        }
+    }
+
+    /// `nine.channels` is a **new** blob, so no shipped build has ever written it
+    /// and there is nothing to bridge on the wire — which is the whole reason the
+    /// channel streak could be added without the `band`-sibling contortion
+    /// `nine.history` needed. What an old build does with it is never open it.
+    ///
+    /// The drill for the classic side is therefore the negative: a channel solve
+    /// must leave `nine.history` byte-identical.
+    @Test func aChannelSolveLeavesTheClassicHistoryByteIdentical() throws {
+        let before = try CouchJSON.encode(mixedHistory())
+
+        var ledger = ChannelLedger()
+        ledger.record(
+            SolveRecord(date: t(0), difficulty: .steady, isDaily: true,
+                        seconds: 300, points: 400),
+            on: .thermo, day: 20_649, openedOn: 20_649)
+        #expect(ledger.displayedStreak(for: .thermo, today: 20_649) == 1)
+
+        // Nothing above could have touched it — there is no argument that would
+        // let it — and this is the assertion that stays true when someone adds
+        // one.
+        #expect(try CouchJSON.encode(mixedHistory()) == before)
     }
 
     // MARK: - Fixtures for the out-of-tree drill

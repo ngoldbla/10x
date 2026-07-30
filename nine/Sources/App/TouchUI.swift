@@ -25,9 +25,12 @@ struct TouchHomeView: View {
     @State private var showArchive = false
     /// The variants teaser's answer, swapped in place of its own subtitle so
     /// the shelf never grows a floating chip nobody asked for.
-    @State private var variantsChip = false
-    @State private var variantsChipDismissal: Task<Void, Never>?
     @Environment(\.colorScheme) private var colorScheme
+    /// Read rather than pinned: `DragGesture.translation` is not RTL-mirrored
+    /// (`FlickRoseView:128`), and unlike the rose — whose petal order must NOT
+    /// mirror, decision 3 of PRD-20 — a pager genuinely should. See
+    /// `pageTurnGesture`.
+    @Environment(\.layoutDirection) private var layoutDirection
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
@@ -65,6 +68,10 @@ struct TouchHomeView: View {
                         shelfColumn
                     }
                 }
+                // Above the `ScrollView`'s own content and simultaneous with it, so
+                // the shelf still scrolls vertically and the six cards still take
+                // taps. See `pageTurnGesture` for the three traps.
+                .simultaneousGesture(pageTurnGesture)
             }
             // The scrim swallows touches, but a hit-test is not the whole
             // story: left in the tree, the shelf's six buttons interleave with
@@ -106,24 +113,69 @@ struct TouchHomeView: View {
         }
         .animation(.couchFast, value: showTutorial)
         .animation(.couchFast, value: showSchool)
-        .onDisappear { variantsChipDismissal?.cancel() }
     }
 
-    /// The phone's shelf, unchanged.
+    /// The phone's shelf. Classic's page is unchanged below the pager rail.
     private var shelfColumn: some View {
         VStack(spacing: 20) {
             header
-            graceCard
-            todayCard
-            continueCard
-            boardsSection
-            freePlayRow
-            learnRow
-            variantsTeaser
+            ChannelPagerRail(model: model, accent: accent)
+            if let ledgered = model.channel.ledgered {
+                ChannelShelfContent(model: model, channel: ledgered, accent: accent)
+            } else {
+                graceCard
+                todayCard
+                continueCard
+                boardsSection
+                freePlayRow
+                learnRow
+            }
         }
         .padding(20)
         .frame(maxWidth: 560)
         .frame(maxWidth: .infinity) // center the column on iPad
+    }
+
+    // MARK: The page-turn (PRD-24)
+
+    /// **This release's one new input concept, and the only one it spends.**
+    ///
+    /// `Sources/` contained zero `TabView`s, zero horizontal `ScrollView`s and zero
+    /// `scrollTargetBehavior`s before this, so a page-turn is genuinely new — and it
+    /// is paid for by the rose being untouched across every variant, which
+    /// `VariantInputSealTests` now enforces permanently. It is on the *shelf* only,
+    /// where nothing is at stake: no gesture is added to the game screen and there
+    /// is no fifth control button.
+    ///
+    /// Three traps, each of them documented elsewhere in this file or the next one
+    /// by someone who hit it:
+    ///
+    ///  1. **`.simultaneousGesture`, not `.gesture`.** A `DragGesture` that claims
+    ///     the stroke exclusively takes the vertical scroll with it and the shelf
+    ///     stops scrolling. Attached in the same position and for the same reason
+    ///     the game screen attaches its drawer gesture above its own scrim
+    ///     (`boardColumn`, "so the drawer's own scrim is a child").
+    ///  2. **Horizontal dominance is checked, not assumed.** A stroke is a page-turn
+    ///     only when it is more sideways than not; anything else is left to the
+    ///     `ScrollView` untouched. Without this, scrolling the shelf at a slight
+    ///     angle turns the page.
+    ///  3. **`DragGesture.translation` is not RTL-mirrored** — `FlickRoseView:128`
+    ///     is where that was found, and it cost PRD-20 a rose that read
+    ///     `3 2 1 / 6 5 4 / 9 8 7` in Arabic. Pages are laid out in reading order,
+    ///     so under RTL a leftward stroke moves *back*. Resolved against the
+    ///     environment rather than pinned, because a pager genuinely should mirror
+    ///     — unlike the rose, whose petal order must not.
+    private static let pageTurnDistance: CGFloat = 24
+
+    private var pageTurnGesture: some Gesture {
+        DragGesture(minimumDistance: Self.pageTurnDistance)
+            .onEnded { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                guard abs(dx) > abs(dy), abs(dx) >= Self.pageTurnDistance else { return }
+                let backwards = layoutDirection == .rightToLeft ? dx > 0 : dx < 0
+                withAnimation(.couchFast) { model.turnShelf(by: backwards ? 1 : -1) }
+            }
     }
 
     /// Two columns for a regular-width window (PRD-31).
@@ -148,22 +200,39 @@ struct TouchHomeView: View {
     private var shelfPair: some View {
         VStack(spacing: 20) {
             header
-            HStack(alignment: .top, spacing: 20) {
-                VStack(spacing: 20) {
-                    graceCard
-                    todayCard
-                    continueCard
-                    boardsSection
+            ChannelPagerRail(model: model, accent: accent)
+            if let ledgered = model.channel.ledgered {
+                // A channel page is one column's worth of cards, so in the
+                // two-column composition it takes the leading column and the
+                // trailing one holds the ways to learn — which are channel-agnostic
+                // and belong on every page. `fixedSize(vertical:)` on both for
+                // PRD-31's reason: Today carries `minHeight` with no maximum and
+                // inflates to half the screen without it.
+                HStack(alignment: .top, spacing: 20) {
+                    ChannelShelfContent(model: model, channel: ledgered, accent: accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    VStack(spacing: 20) { learnRow }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .top)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .top)
-                VStack(spacing: 20) {
-                    freePlayRow
-                    learnRow
-                    variantsTeaser
+            } else {
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(spacing: 20) {
+                        graceCard
+                        todayCard
+                        continueCard
+                        boardsSection
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    VStack(spacing: 20) {
+                        freePlayRow
+                        learnRow
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .top)
             }
         }
         .padding(24)
@@ -180,7 +249,15 @@ struct TouchHomeView: View {
             if model.totalPoints > 0 {
                 GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
-            if model.displayedStreak > 0 {
+            // The streak belongs to the page you are on (PRD-24). Classic reads
+            // `nine.streak`; a channel reads its own slot in `nine.channels`, and
+            // there is no argument that would make either read the other.
+            if let ledgered = model.channel.ledgered {
+                if model.displayedStreak(on: ledgered) > 0, !model.focus.hidesStreak {
+                    StreakChip(days: model.displayedStreak(on: ledgered),
+                               held: model.streakHeld(on: ledgered))
+                }
+            } else if model.displayedStreak > 0 {
                 // A Focus filter can take the count away entirely (PRD-33).
                 // `if` rather than `.opacity(0)`: an invisible chip still holds
                 // its space and still speaks to VoiceOver.
@@ -447,6 +524,19 @@ struct TouchHomeView: View {
             return Strings.string("shelf.daily.date",
                                   .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty): return Strings.difficulty(difficulty)
+        // A channel board names its channel first, because that is what makes it a
+        // different board rather than a harder one. A channel daily gets the date
+        // treatment its classic sibling gets; free play gets its tier.
+        case .channel(let channel, let tier, let day):
+            if let day {
+                return Strings.string(
+                    "shelf.channel.daily",
+                    .text(Strings.channel(channel)),
+                    .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
+            }
+            return Strings.string(
+                "shelf.channel.free",
+                .text(Strings.channel(channel)), .text(Strings.variantTier(tier)))
         }
     }
 
@@ -530,49 +620,6 @@ struct TouchHomeView: View {
         .disabled(composeInFlight && model.composing != .free(difficulty))
     }
 
-    // MARK: Variants teaser (PRD-18)
-
-    /// The "one price, growing app" story, told once at the foot of the shelf
-    /// and never anywhere else: no email capture, no notify-me, no link out.
-    /// Tapping it says the honest thing — they will simply appear here.
-    ///
-    /// **Remove-by date: 2026-10-25.** A promise with no delivery date rots
-    /// into a lie on someone's home screen. If PRD-23/24 have not shipped
-    /// Killer or Thermo by then, this card comes out; it is four lines and a
-    /// glyph, and re-adding it the week variants land costs nothing.
-    private var variantsTeaser: some View {
-        TouchCard(action: {
-            withAnimation(.couchFast) { variantsChip = true }
-            variantsChipDismissal?.cancel()
-            variantsChipDismissal = Task {
-                try? await Task.sleep(nanoseconds: 2_600_000_000)
-                guard !Task.isCancelled else { return }
-                withAnimation(.couchAmbient) { variantsChip = false }
-            }
-        }) {
-            HStack(spacing: 16) {
-                Image(systemName: "square.on.square")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: 40)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(Strings.string("shelf.variants.title"))
-                        .font(CouchTypography.body)
-                    Text(Strings.string(variantsChip ? "shelf.variants.answer"
-                                                     : "shelf.variants.subtitle"))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Image(systemName: variantsChip ? "checkmark" : "sparkles")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(accent)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     // MARK: Helpers
 
     private func statusLabel(_ text: String, symbol: String) -> some View {
@@ -598,7 +645,14 @@ struct TouchHomeView: View {
 /// A tappable glass slab: the touch counterpart of the TV shelf card.
 /// A Button (not a bare tap gesture) so it gets pressed feedback and the
 /// full accessibility treatment for free.
-private struct TouchCard<Content: View>: View {
+///
+/// Internal rather than private since PRD-24: the channel shelf lives in
+/// `ChannelShelf.swift` (a new file, because `TouchUI.swift` is the file-contention
+/// hotspot `EXECUTING-A-PRD` §7 names) and uses the same chrome. Sharing the type
+/// is strictly better than a second copy of it — a shelf where one page's cards
+/// press differently from another's is the kind of drift nobody notices in review
+/// and everybody feels.
+struct TouchCard<Content: View>: View {
     let action: @MainActor () -> Void
     @ViewBuilder let content: Content
 
@@ -613,7 +667,7 @@ private struct TouchCard<Content: View>: View {
     }
 }
 
-private struct TouchCardStyle: ButtonStyle {
+struct TouchCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
@@ -1378,6 +1432,15 @@ struct TouchGameScreen: View {
         case .free(let d)?:
             isDaily = false
             difficulty = d
+        // A channel solve shares as the tier it was, which is honest as far as it
+        // goes and no further: the card says "Steady" where it should say "Killer ·
+        // Steady", because `SolveCardFacts` and `ShareCard` are laid out around a
+        // single band caption and widening them is a share-card change rather than
+        // a channel one. Recorded in DEVIATIONS; the alternative was shipping a
+        // card that claims a classic solve.
+        case .channel(_, let tier, let day)?:
+            isDaily = day != nil
+            difficulty = tier.wireDifficulty
         case nil:
             return nil
         }
@@ -1670,6 +1733,10 @@ struct TouchGameScreen: View {
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 coachFocus: boardFocus,
                 hoverCell: hoverCell,
+                // Cages and tubes when the board is a channel board, nil when it
+                // is classic — which is every board that existed before PRD-24, so
+                // classic renders byte-identically.
+                channelRules: model.currentRules,
                 hand: model.hand,
                 // Afterglow: the wave detonates from the winning cell, and
                 // after the sweep the gyro steers the trophy sheen.

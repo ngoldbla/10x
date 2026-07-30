@@ -489,6 +489,9 @@ struct MacGameScreen: View {
         case .free(let d)?:
             isDaily = false
             difficulty = d
+        case .channel(_, let tier, let day)?:
+            isDaily = day != nil
+            difficulty = tier.wireDifficulty
         case nil:
             return nil
         }
@@ -558,6 +561,7 @@ struct MacGameScreen: View {
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 coachFocus: why?.focus ?? whyRefusal?.focus,
                 hoverCell: model.solvedAt == nil ? hoverCell : nil,
+                channelRules: model.currentRules,
                 waveOrigin: model.lastPlacedCell,
                 afterglowTilt: { pointer.tilt(at: $0) },
                 side: side,

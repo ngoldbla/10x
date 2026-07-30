@@ -83,6 +83,74 @@ public enum BoardSpeech {
         return Phrase.box(Sudoku.box(of: cell) + 1)
     }
 
+    // MARK: - Variant rules (PRD-24)
+
+    /// The cell's label, plus what rules it sits under. Identical to
+    /// `cellLabel(_:)` when `rules` is nil, which is every classic board.
+    ///
+    /// **The clause is in the label rather than the hint, and driving the app is
+    /// what decided that.** With nine tubes drawn on the board, `describe-ui`
+    /// reported the cell under one as `Row 3, column 5` / `Empty` — a
+    /// structurally perfect, semantically silent tree that every gate passed. The
+    /// obvious home was `cellHint`, which "can afford the extra syllables the
+    /// label cannot"; the reason it is wrong is that **VoiceOver hints can be
+    /// turned off.** A cage's printed sum is not a tip about the cell, it is the
+    /// primary information on a killer board — closer to a given than to a hint —
+    /// so a hint-only clause leaves those players an unplayable board that reports
+    /// no error anywhere.
+    ///
+    /// The cost is syllables on every focus move, and it is paid only on a variant
+    /// board. `Tests/AXBaselines/*.txt` freeze the classic labels and would catch
+    /// a leak.
+    public static func cellLabel(_ cell: Int, rules: ChannelRules?) -> String {
+        let base = cellLabel(cell)
+        let clause = constraintClause(cell, rules: rules)
+        guard !clause.isEmpty else { return base }
+        return Phrase.cellWithRule(cell: base, rule: clause)
+    }
+
+    /// What a cell's variant rules sound like, or "" for none.
+    ///
+    /// The two rulesets say different things because they *are* different things,
+    /// and saying the same thing about both would be the tidy wrong answer:
+    ///
+    ///   • A **cage** is its sum. The number is printed on the board, a sighted
+    ///     player reads it without asking, and it is what every cage technique
+    ///     reasons from — so the clause is the sum.
+    ///   • A **thermometer** is *positional*. Its digits increase bulb→tip, and
+    ///     `ConstraintContext` spends most of the constraint in
+    ///     `initialCandidates` before a technique runs, so the useful fact about a
+    ///     cell is *where along the tube it sits*. A clause that only said "on a
+    ///     thermometer" would report the one thing a player could already infer
+    ///     from a board with no cages on it.
+    ///
+    /// A cell on two thermometers reports both. Our tiler never builds those
+    /// (`ThermoTilingTests` pins the layout disjoint) but `thermoPositions` is a
+    /// list per cell precisely because a received board may, and picking one would
+    /// be quietly wrong about the board rather than loudly unsupported.
+    public static func constraintClause(_ cell: Int, rules: ChannelRules?) -> String {
+        guard isValidCell(cell), let rules, rules.isPlayable else { return "" }
+        var clauses: [String] = []
+        for constraint in rules.constraints {
+            switch constraint {
+            case .cage(let cage) where cage.cells.contains(cell):
+                clauses.append(Phrase.cageRule(sum: cage.sum))
+            case .thermometer(let thermo):
+                guard let position = thermo.cells.firstIndex(of: cell) else { continue }
+                clauses.append(Phrase.thermoRule(
+                    position: position + 1, count: thermo.cells.count))
+            // A rule this build cannot interpret is not described, for
+            // `BoardView.drawRules`'s reason one sense over: a mark whose meaning
+            // is unknown is worse described than undescribed, because the player
+            // would reason about it.
+            case .cage, .unrecognized:
+                continue
+            }
+        }
+        guard !clauses.isEmpty else { return "" }
+        return clauses.joined(separator: Phrase.ruleSeparator)
+    }
+
     /// The VoiceOver *hint*: box number plus how to act on the cell. Spoken
     /// once per focus (and only when hints are enabled), so it can afford the
     /// extra syllables the label cannot.
@@ -493,11 +561,82 @@ public enum BoardSpeech {
             return wraps ? Phrase.coachColoringWrap(digit: digit)
                          : Phrase.coachColoringTrap(digit: digit)
 
-        default:
-            // The four variant techniques (PRD-23). Naming them here would trip
-            // the channel seal, and they are unreachable on a classic board.
-            return ""
+        // MARK: The four variant techniques (PRD-24)
+        //
+        // PRD-11 left all four falling to `default: return ""`, because naming
+        // them in `Sources/Shared` would have tripped PRD-23's channel seal and
+        // they were unreachable on a classic board (`DEVIATIONS.md:1559`). Both
+        // halves of that are now false, and a coach that goes silent on the only
+        // techniques a killer board uses is a coach the channel cannot ship with.
+        //
+        // Every one of them reads its numbers off the `SolveStep` and hands them
+        // to the phrase book whole, exactly as the ten classic branches above do —
+        // which is the payoff PRD-23 promised when it made variant reasoning
+        // ordinary `Technique` cases emitting ordinary `SolveStep`s.
+
+        case .cageSingle:
+            // The killer analogue of a naked single: one open cell in the cage, so
+            // the digit is the sum minus what is already in it. `digits[0]` is the
+            // placement, and `cells` is the whole cage — the count is what makes
+            // the sentence checkable by the player.
+            guard isValidDigit(digit), !step.cells.isEmpty else { return "" }
+            return Phrase.coachCageSingle(digit: digit, cageSize: step.cells.count)
+
+        case .innieOutie:
+            // The rule of 45: a unit sums to 45, the cages covering it leave
+            // exactly one cell uncounted, so that cell is forced. The unit kind is
+            // readable off the cells, and it is spoken rather than inferred — a
+            // sentence about "this group" would be true of a cage too, which is
+            // the one thing the argument is NOT about.
+            guard isValidDigit(digit), let unit = unit(of: step.cells) else { return "" }
+            return Phrase.coachInnieOutie(digit: digit, in: unit)
+
+        case .cageCombination:
+            // A cage of n cells summing to s admits a small fixed set of digit
+            // combinations; the position rules some out, and a digit surviving in
+            // none of the rest is impossible. Eliminations, not a placement — so
+            // the sentence names what is being ruled out.
+            guard let first = step.digits.first, isValidDigit(first),
+                  !step.cells.isEmpty else { return "" }
+            return Phrase.coachCageCombination(digit: first, cageSize: step.cells.count)
+
+        case .thermoBound:
+            // A thermometer increases bulb→tip, so each cell is floored by
+            // everything before it and capped by everything after. The sentence
+            // names the tube's length because that is what sets the bounds — a
+            // three-cell tube's bulb cannot exceed 7, and the player can check
+            // that arithmetic from the number alone.
+            guard !step.cells.isEmpty else { return "" }
+            return Phrase.coachThermoBound(length: step.cells.count)
         }
+    }
+
+    /// Which unit a step's cells are, or nil when they are not one.
+    ///
+    /// Read off the cells rather than passed in, because `SolveStep` carries no
+    /// unit kind and adding a field to it would move every frozen hash in the
+    /// golden corpus — the rule PRD-23 established and this PRD inherits. The
+    /// index contract `ConstraintContext.units` documents (0…8 rows, 9…17 columns,
+    /// 18…26 boxes) is the *solver's* view of the same question; this is the
+    /// reverse, and geometry answers it without needing the index.
+    ///
+    /// Rows are tested before columns and columns before boxes, and the order is
+    /// load-bearing in exactly one case: a set of nine cells cannot be two kinds
+    /// of unit at once, so any order is correct — but the row test is the cheapest
+    /// and the innie/outie steps this serves are mostly rows and columns.
+    private static func unit(of cells: [Int]) -> Unit? {
+        guard cells.count == 9, cells.allSatisfy(isValidCell) else { return nil }
+        if Set(cells.map { $0 / 9 }).count == 1 {
+            return Unit(kind: .row, number: cells[0] / 9 + 1)
+        }
+        if Set(cells.map { $0 % 9 }).count == 1 {
+            return Unit(kind: .column, number: cells[0] % 9 + 1)
+        }
+        let boxes = Set(cells.map { ($0 / 27) * 3 + ($0 % 9) / 3 })
+        if boxes.count == 1, let box = boxes.first {
+            return Unit(kind: .box, number: box + 1)
+        }
+        return nil
     }
 
     // MARK: - Guards
@@ -835,6 +974,64 @@ private enum Phrase {
     }
     static func coachColoringTrap(digit: Int) -> String {
         Phrasebook.current.string("coach.simpleColoring.sentence.trap", .int(digit))
+    }
+
+    // MARK: Variant rules and the four variant techniques (PRD-24)
+
+    /// A cell's label plus the rules it is under, as one utterance. The join is
+    /// the translator's — English wants a comma and a space, Japanese wants 、and
+    /// no space, which is the same ruling `board.cell.hintPair` records.
+    static func cellWithRule(cell: String, rule: String) -> String {
+        Phrasebook.current.string("board.cell.withRule", .text(cell), .text(rule))
+    }
+    /// Between two rules on one cell. A cell can sit on two thermometers.
+    static var ruleSeparator: String {
+        Phrasebook.current.string("board.cell.ruleSeparator")
+    }
+    static func cageRule(sum: Int) -> String {
+        Phrasebook.current.string("board.rule.cage", .int(sum))
+    }
+    static func thermoRule(position: Int, count: Int) -> String {
+        Phrasebook.current.string("board.rule.thermo", .int(position), .int(count))
+    }
+
+    static func coachCageSingle(digit: Int, cageSize: Int) -> String {
+        Phrasebook.current.string("coach.cageSingle.sentence", .int(cageSize), .int(digit))
+    }
+    /// Three sentences rather than one frame with a unit noun dropped in, which is
+    /// the rule PRD-20 Task 7 landed: the hole in such a frame carries English's
+    /// grammar — one preposition, no inflection, this word order — into nine
+    /// languages that do not share it.
+    static func coachInnieOutie(digit: Int, in unit: Unit) -> String {
+        switch unit.kind {
+        case .row:
+            return Phrasebook.current.string("coach.innieOutie.sentence.row",
+                                             .int(unit.number), .int(digit))
+        case .column:
+            return Phrasebook.current.string("coach.innieOutie.sentence.col",
+                                             .int(unit.number), .int(digit))
+        case .box:
+            return Phrasebook.current.string("coach.innieOutie.sentence.box",
+                                             .int(unit.number), .int(digit))
+        }
+    }
+    /// One digit, not the list.
+    ///
+    /// The first draft joined `step.digits` into a string and spliced it, and
+    /// `testNoCoachSentenceSplicesAPreFormattedWord` refused it — correctly. A
+    /// `%N$@` hole inside a `coach.*` sentence carries English's grammar into nine
+    /// languages that do not share it, which is the ruling PRD-20 Task 7 landed,
+    /// and "none of them puts 2, 5 and 9 here" needs a conjunction this file has
+    /// no business choosing. The board already shows the other digits — the coach
+    /// wash lights every eliminated cell — so the sentence names the one it is
+    /// about and lets the board carry the rest, exactly as `coachNakedPair` names
+    /// two digits and no more.
+    static func coachCageCombination(digit: Int, cageSize: Int) -> String {
+        Phrasebook.current.string("coach.cageCombination.sentence",
+                                  .int(cageSize), .int(digit))
+    }
+    static func coachThermoBound(length: Int) -> String {
+        Phrasebook.current.string("coach.thermoBound.sentence", .int(length))
     }
 
     /// The two ends of the Crown-rose run. Named rather than drawn, because

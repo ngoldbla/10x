@@ -344,6 +344,42 @@ final class AppModel {
     /// The library entry the on-screen game reads from and persists back into.
     private(set) var currentEntryID: UUID?
 
+    // MARK: - Channels (PRD-24)
+
+    /// Every channel's own streak and solves. Classic's are `streak` and
+    /// `history` above and stay there — see `ChannelLedger`, where the fact that
+    /// this type cannot hold a classic slot is the whole "the classic streak is
+    /// never diluted" proof.
+    private(set) var channels: ChannelLedger {
+        didSet { channelsStore.wrappedValue = channels }
+    }
+
+    /// Each variant board's rules, keyed by library entry. Its own blob for
+    /// `nine.replays`'s reason, and never a field on `LibraryEntry`.
+    private(set) var channelRules: ChannelRuleStore {
+        didSet { channelRulesStore.wrappedValue = channelRules }
+    }
+
+    /// The shelf page the player is on.
+    ///
+    /// **Deliberately not persisted, and it is a calm decision rather than a
+    /// saving.** Coming back to the app should put you where the app is, which is
+    /// Classic; a shelf that remembers you were on Killer last Tuesday greets a
+    /// player who opened the app to do the daily with a page they have to turn
+    /// back. It also means the channels can never strand someone: there is no
+    /// state to be stuck in.
+    var channel: Channel = .classic
+
+    /// Turn the shelf's page. Bounded rather than wrapping: a pager that wraps
+    /// has no edges, and the edges are what tell the player there are three of
+    /// these and they are at one end.
+    func turnShelf(by pages: Int) {
+        let all = Channel.allCases
+        guard let current = all.firstIndex(of: channel) else { return }
+        let next = min(all.count - 1, max(0, current + pages))
+        channel = all[next]
+    }
+
     /// Independent reasons the clock is not allowed to run right now (Task 4).
     /// `.scene` is the app not being looked at at all (backgrounded/inactive);
     /// `.sheet` is a board-covering overlay up while the app IS foreground
@@ -431,6 +467,38 @@ final class AppModel {
     /// checkmark is a property of the player, not of the hand that earned it.
     @ObservationIgnored private let archiveStore =
         CouchStored(wrappedValue: ArchiveLedger(), "nine.archive", cloudSynced: true)
+    /// PRD-24's per-channel streaks and stats slices. Cloud-synced beside
+    /// `nine.streak` and `nine.history`, for their reason: a streak the player
+    /// earned is a streak on every device.
+    ///
+    /// A **new** blob rather than a widening of `nine.streak` or `nine.history`,
+    /// and that placement is the whole safety argument. Those two are already on
+    /// TestFlight with decoders that predate channels, and both are `cloudSynced`
+    /// — so a mixed-version player's two devices fight over them under
+    /// last-writer-wins. `nine.history` needed the `band`-sibling wire bridge for
+    /// exactly one added `Difficulty` case. A key no shipped build has ever
+    /// written needs no bridge at all: an old build does not read it, does not
+    /// write it, and cannot strip it.
+    ///
+    /// Its KVS cost is bounded by `ChannelLedger.historyCapacity` (200 per
+    /// channel, ~44 KB for both) rather than by hope — the store gives the whole
+    /// app 1 MB.
+    @ObservationIgnored private let channelsStore =
+        CouchStored(wrappedValue: ChannelLedger(), "nine.channels", cloudSynced: true)
+    /// PRD-24's per-board variant rules. Its own blob, **local-only**, both for
+    /// `nine.replays`'s reasons: never a field on `LibraryEntry` (1515 ms against
+    /// a 49 ms baseline), and off KVS because it rides with `nine.library`, which
+    /// is also local.
+    ///
+    /// The consequence is that a variant board does not reach another device yet.
+    /// `LibraryCloudStore` syncs per-entry CloudKit records, so carrying the rules
+    /// across needs a new record type and a production schema deploy — the human
+    /// gate PRD-26's replays also had. Deferred rather than half-built, and
+    /// `ChannelRules.isPlayable` is false for a board whose rules did not arrive,
+    /// so the failure mode is a board that will not open rather than one opened
+    /// under the wrong rules.
+    @ObservationIgnored private let channelRulesStore =
+        CouchStored(wrappedValue: ChannelRuleStore(), "nine.channelRules")
     /// The `lastGraceDay` whose "your streak held" card has already been seen,
     /// or 0 for none (PRD-13 §3).
     ///
@@ -622,6 +690,8 @@ final class AppModel {
         hand = handStore.wrappedValue
         archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
+        channels = channelsStore.wrappedValue
+        channelRules = channelRulesStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit
         // the affordance is budgeted in, and `AppModel` is built exactly once
@@ -861,6 +931,84 @@ final class AppModel {
 
     var totalPoints: Int { history.totalPoints }
 
+    // MARK: - Derived, per channel (PRD-24)
+
+    /// Every accessor below is the classic one with a channel argument, reading
+    /// the channel's own `StreakState` and `SolveHistory` instead of the top-level
+    /// ones. None of them re-derives anything: per-channel grace is PRD-13's rule
+    /// and per-channel stats are `SolveHistory`'s aggregation, both inherited.
+    ///
+    /// They take `Channel.Ledgered` rather than `Channel`, so a caller cannot ask
+    /// them about classic — the answers for classic are `displayedStreak`,
+    /// `todaySolved` and `history`, which read the blobs classic has always used.
+
+    func displayedStreak(on channel: Channel.Ledgered) -> Int {
+        channels.displayedStreak(for: channel, today: todayOrdinal)
+    }
+
+    /// A channel streak standing on a grace bridge, so its chip wears a shield.
+    /// Guarded on the displayed value as well as the state, for `streakHeld`'s
+    /// reason: a lapsed bridge must not put a shield on a chip nobody draws.
+    func streakHeld(on channel: Channel.Ledgered) -> Bool {
+        displayedStreak(on: channel) > 0 && channels.state(for: channel).streak.standsOnGrace
+    }
+
+    /// Whether this channel's daily for `day` is done. One per day per channel.
+    func hasSolved(_ channel: Channel.Ledgered, day: Int) -> Bool {
+        channels.hasSolved(channel, day: day)
+    }
+
+    func todaySolved(on channel: Channel.Ledgered) -> Bool {
+        hasSolved(channel, day: todayOrdinal)
+    }
+
+    /// This channel's stats slice.
+    func history(on channel: Channel.Ledgered) -> SolveHistory {
+        channels.state(for: channel).history
+    }
+
+    /// This channel's in-progress daily for today, if there is one.
+    func savedDaily(on channel: Channel.Ledgered) -> LibraryEntry? {
+        library.partials.first {
+            if case .channel(let c, _, let day) = $0.kind {
+                return c == channel.channel && day == todayOrdinal
+            }
+            return false
+        }
+    }
+
+    /// This channel's in-progress free-play boards, newest first.
+    func partials(on channel: Channel.Ledgered) -> [LibraryEntry] {
+        library.partials.filter {
+            if case .channel(let c, _, let day) = $0.kind {
+                return c == channel.channel && day == nil
+            }
+            return false
+        }
+    }
+
+    /// The variant rules for the board on screen, or nil when it is classic.
+    ///
+    /// This is what `BoardView` draws cages and tubes from, and what
+    /// `GameScreen` gates on: a `.channel` board whose rules are missing or
+    /// unenforceable returns nil here, and a nil that reaches the board means the
+    /// board renders as classic. That would be wrong, so `openChannelBoard`
+    /// refuses to *start* such an entry — the check is at the door rather than at
+    /// the renderer, because by the time the renderer sees it there is nothing
+    /// good left to do.
+    var currentRules: ChannelRules? {
+        guard case .channel? = kind, let id = currentEntryID else { return nil }
+        guard let rules = channelRules.rules(for: id), rules.isPlayable else { return nil }
+        return rules
+    }
+
+    /// The channel the board on screen belongs to — `.classic` for a classic
+    /// board, which is what every pre-PRD-24 surface keeps getting.
+    var currentChannel: Channel {
+        if case .channel(let c, _, _)? = kind { return c }
+        return .classic
+    }
+
     /// Whether Undo would do anything right now — drives the Mac Edit ▸ Undo
     /// menu item's enabled state (PRD-4 §2.4).
     var canUndo: Bool { solvedAt == nil && !(game?.undoStack.isEmpty ?? true) }
@@ -927,6 +1075,106 @@ final class AppModel {
 
     func startFree(_ difficulty: Difficulty) {
         compose(kind: .free(difficulty), seed: .random(in: UInt64.min...UInt64.max), difficulty: difficulty)
+    }
+
+    // MARK: - Starting channel games (PRD-24)
+
+    /// Open a channel's daily: resume today's in-progress board, or compose it.
+    ///
+    /// Mirrors `openToday` and drops the two things that are classic-only. No
+    /// widget ingestion — `SharedDailyBoard` is a single slot keyed on the day
+    /// ordinal alone with no channel axis, so a channel daily is structurally
+    /// invisible to the widget and needs no merge. And no `PhoneWatchLink`
+    /// publish: the watch is classic-only, which `VariantInputSealTests` enforces
+    /// from the source side.
+    func openChannelToday(_ channel: Channel.Ledgered) {
+        let day = todayOrdinal
+        if let entry = savedDaily(on: channel) {
+            openChannelBoard(entry.id)
+        } else {
+            composeChannel(
+                channel: channel, tier: VariantChannel.dailyTier, day: day,
+                seed: DailySeed.seed(forDayOrdinal: day))
+        }
+    }
+
+    /// Start a fresh free-play board on a channel at a chosen tier.
+    func startChannelFree(_ channel: Channel.Ledgered, tier: VariantTier) {
+        composeChannel(
+            channel: channel, tier: tier, day: nil,
+            seed: .random(in: UInt64.min...UInt64.max))
+    }
+
+    /// Resume a stored channel board, **refusing the ones whose rules this build
+    /// cannot enforce.**
+    ///
+    /// This is the door `currentRules` documents. A `.channel` entry with missing,
+    /// unreadable or future rules must not open, because a board rendered without
+    /// its cages is not a harder board — it is a board whose correct entries get
+    /// marked as errors, since `NineGame.isError` compares against a solution that
+    /// is only *the* solution under the rules.
+    ///
+    /// Returns whether it opened, so the caller can say something rather than
+    /// present a dead tap. Silence here would be the worst of the three options.
+    @discardableResult
+    func openChannelBoard(_ id: UUID) -> Bool {
+        guard let entry = library.entry(id: id),
+              case .channel = entry.kind,
+              let rules = channelRules.rules(for: id), rules.isPlayable
+        else { return false }
+        startEntry(id)
+        return true
+    }
+
+    /// Compose a variant board and adopt it.
+    ///
+    /// The interesting three lines are the ones that turn a `VariantPuzzle` into a
+    /// `NineGame`. A variant board's play state — entries, pencil marks, undo
+    /// stack, timer, move log — is *the classic play state*, which is PRD-24 §1's
+    /// claim restated as a data structure and what makes the rose, the coach, the
+    /// replay, the debrief and the share card work on a thermo board with no new
+    /// code at all.
+    ///
+    /// `NineGame` needs a `GeneratedPuzzle`, so the variant board lends its grid,
+    /// solution, seed and trace to one, with the tier mapped onto the `Difficulty`
+    /// the wire wants. That mapping is lossy in one direction only and harmlessly:
+    /// the authoritative tier lives in `GameKind.channel` and in `ChannelRules`,
+    /// both of which are read in preference to it, and `Difficulty` is what
+    /// `SolveScore` and the stats slice need in order to work unchanged.
+    ///
+    /// **Nil compose is a first-class outcome and it is handled visibly.** A tier
+    /// that exhausted its attempt budget clears `composing` and does nothing else,
+    /// so the shelf card returns to its resting state rather than spinning
+    /// forever. Both shipped rulesets compose 200/200 per tier in Release, so this
+    /// is the branch that should never run — which is exactly why it must not be a
+    /// `try!`.
+    private func composeChannel(
+        channel: Channel.Ledgered, tier: VariantTier, day: Int?, seed: UInt64
+    ) {
+        guard composing == nil else { return }
+        let kind = GameKind.channel(channel: channel.channel, tier: tier, day: day)
+        composing = kind
+        Task.detached(priority: .userInitiated) {
+            // Pure, Sendable, deterministic — safe off the main actor, exactly as
+            // classic composition is.
+            let composed = VariantChannel.compose(
+                seed: seed, variant: channel.variant, tier: tier)
+            await MainActor.run {
+                self.composing = nil
+                guard let composed else { return }
+                let now = Date()
+                let newGame = NineGame(puzzle: composed.asGeneratedPuzzle)
+                let id = self.library.create(kind: kind, game: newGame, now: now)
+                // The rules before the board goes on screen, so nothing can ever
+                // observe a `.channel` entry that has none.
+                var rules = self.channelRules
+                rules.store(ChannelRules(composed), for: id)
+                self.channelRules = rules
+                self.startEntry(id)
+                self.persistProgress()
+                try? self.channelRulesStore.flushNow()
+            }
+        }
     }
 
     /// Drop the most-recent free partial without playing it (the Continue
@@ -1088,6 +1336,17 @@ final class AppModel {
                     #endif
                 case .free:
                     id = self.library.create(kind: kind, game: newGame, now: now)
+                case .channel:
+                    // Unreachable: this is classic composition and its callers all
+                    // pass `.daily` or `.free`. A channel board is composed by
+                    // `composeChannel`, which is a different function because it
+                    // calls a different generator and has to store rules alongside
+                    // the entry. Asserted rather than silently created, because a
+                    // `.channel` entry arriving here would be a board with no
+                    // rules — the exact state `ChannelRules.isPlayable` exists to
+                    // refuse, reached from the one direction that could bypass it.
+                    assertionFailure("a channel board must go through composeChannel")
+                    return
                 }
                 self.startEntry(id)
                 self.persistProgress()
@@ -1462,11 +1721,27 @@ final class AppModel {
                 try? archiveStore.flushNow()
             }
         }
+        // A channel board's streak and solve log go to `nine.channels` and
+        // nowhere else (PRD-24). Resolved before the record is built because the
+        // channel's own streak is what its points are scored against.
+        var channelSlot: Channel.Ledgered?
+        var channelDay: Int?
+        if case .channel(let c, _, let day)? = kind, let slot = c.ledgered {
+            channelSlot = slot
+            channelDay = day
+            isDaily = day != nil
+        }
+
         let difficulty: Difficulty
         switch kind {
         case .free(let d)?: difficulty = d
+        case .channel(_, let tier, _)?: difficulty = tier.wireDifficulty
         default: difficulty = .steady // the daily composes at steady
         }
+        // The streak the points are scored against is the *board's* channel's, so
+        // a first-ever killer solve is not paid a bonus earned on classic.
+        let scoringStreak = channelSlot.map { channels.state(for: $0).streak.current }
+            ?? streak.current
         let record = SolveRecord(
             date: now,
             difficulty: difficulty,
@@ -1474,12 +1749,35 @@ final class AppModel {
             seconds: g.timer.elapsed(at: now),
             points: SolveScore.points(
                 difficulty: difficulty, isDaily: isDaily,
-                streak: streak.current, seconds: g.timer.elapsed(at: now)
+                streak: scoringStreak, seconds: g.timer.elapsed(at: now)
             ),
             errors: g.errorCount
         )
-        history.record(record)
-        try? historyStore.flushNow()
+        if let channelSlot {
+            // The channel's streak and its history move together or not at all —
+            // `ChannelLedger.record` is the only door, and it takes a type that
+            // cannot name classic. `nine.streak`, `nine.history` and
+            // `nine.archive` are untouched on this path, which is what "the
+            // classic streak is never diluted" means in practice.
+            var ledger = channels
+            if let channelDay {
+                // `openedOn`-equivalent provenance: a channel board created on an
+                // earlier day must not extend today's streak. There is no channel
+                // archive yet, so the created-on day is the only past a channel
+                // board can have.
+                let opened = currentEntryID
+                    .flatMap { library.entry(id: $0) }
+                    .map { DailySeed.dayOrdinal(for: $0.createdAt) } ?? channelDay
+                ledger.record(record, on: channelSlot, day: channelDay, openedOn: opened)
+            } else {
+                ledger.recordFreePlay(record, on: channelSlot)
+            }
+            channels = ledger
+            try? channelsStore.flushNow()
+        } else {
+            history.record(record)
+            try? historyStore.flushNow()
+        }
         // The board is done; keep it as a "previously played" entry.
         if let id = currentEntryID {
             library.markSolved(id: id, at: now)
@@ -1495,7 +1793,19 @@ final class AppModel {
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
         // widgets are iOS-only.
         #if os(iOS) || os(macOS) || os(tvOS)
-        GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        // A channel solve reports the channel's own history and streak to the
+        // channel's own boards (PRD-24). Reading them off the ledger here rather
+        // than passing the top-level pair keeps the "never diluted" rule true on
+        // this surface too: the classic leaderboard cannot receive a killer score
+        // because the arguments it would need are not the ones in scope.
+        if let channelSlot {
+            let state = channels.state(for: channelSlot)
+            GameCenter.shared.reportSolve(
+                record: record, history: state.history, streak: state.streak,
+                channel: channelSlot)
+        } else {
+            GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        }
         #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)

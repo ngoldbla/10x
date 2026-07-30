@@ -95,31 +95,22 @@ struct BoardsSheetContent: View {
             Text(Strings.string("boards.fresh.title"))
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 10 * s) {
-                ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                    Button {
-                        model.startFree(difficulty)
-                        onClose?()
-                    } label: {
-                        Text(Strings.difficulty(difficulty))
-                            .font(CouchTypography.caption)
-                            .foregroundStyle(accent)
-                            .frame(maxWidth: .infinity)
-                            // 14, not 12: measured at 40pt in the sim, and the
-                            // craft charter's floor for a tap target is 44.
-                            .padding(.vertical, 14 * s)
-                            // Glass on glass is invisible: inside a GlassSheet
-                            // `couchGlassInteractive` rendered these three as
-                            // bare text with no affordance at all (verified in
-                            // the sim). A tinted fill and hairline is the least
-                            // ink that still reads as "these are buttons".
-                            .background(accent.opacity(0.12), in: Capsule())
-                            .overlay { Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 1) }
-                            .contentShape(.accessibility, Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Strings.string(
-                        "boards.fresh.label", .text(Strings.difficulty(difficulty))))
+            // Three and three, borrowing the shelf's own split rather than a
+            // new one, so the sheet groups the bands the way the home screen
+            // already taught. This was one six-wide row until now: it was
+            // authored for the original three, and PRD-25 appended Nocturne,
+            // Tempest and Abyss to `allCases` without the layout being
+            // revisited. Six across a ~336pt sheet body is ~47pt a pill, so the
+            // long titles wrapped to two lines while the short ones did not and
+            // the row sat at mixed heights. Iterating the band helpers instead
+            // of `allCases` also puts this row back behind `isDeepEnd`'s
+            // exhaustive switch, which exists to stop exactly that.
+            VStack(spacing: 10 * s) {
+                HStack(spacing: 10 * s) {
+                    ForEach(Difficulty.rowBands, id: \.self) { freshPill($0) }
+                }
+                HStack(spacing: 10 * s) {
+                    ForEach(Difficulty.deepBands, id: \.self) { freshPill($0) }
                 }
             }
             // The board you are on is never destroyed by this: it stays in
@@ -128,6 +119,58 @@ struct BoardsSheetContent: View {
                 .font(.system(size: 11 * s, weight: .medium, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    /// One "start a new board" pill.
+    ///
+    /// There is a second copy of this row on tvOS, in `PrefsSheet`'s
+    /// `newGameSection`. It is duplicated on purpose rather than factored into
+    /// a shared control — the two differ in their affordance (see below) and a
+    /// component that took a flag for that would be the worse artefact. Change
+    /// one, go look at the other.
+    ///
+    /// **No stroke, and a `plus`.** Glass on glass is invisible: inside a
+    /// `GlassSheet`, `couchGlassInteractive` rendered these as bare text with no
+    /// affordance at all, and the tinted capsule with a hairline that replaced
+    /// it is — exactly — the look of an *unselected filter chip*. Under a
+    /// heading that says only "Fresh board", a playtester read the row as
+    /// filters over the list below instead of six buttons that each make a
+    /// board. So the outline goes, its ink moves into the fill, and the label
+    /// leads with a plus: the one mark no filter chip carries. Same ink budget,
+    /// spent on saying "this adds something" instead of "this is selectable".
+    private func freshPill(_ difficulty: Difficulty) -> some View {
+        Button {
+            model.startFree(difficulty)
+            onClose?()
+        } label: {
+            Label {
+                Text(Strings.difficulty(difficulty))
+            } icon: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10 * s, weight: .bold, design: .rounded))
+            }
+            .font(CouchTypography.caption)
+            .foregroundStyle(accent)
+            // The longest band title in the ten shipped locales is 9 characters
+            // ("Constante", "Perspicaz"), ~63pt here, inside a ~81pt content
+            // box. It fits, but not by much, so cap the line and let a tight
+            // locale buy the last hair by shrinking rather than by wrapping.
+            .lineLimit(1)
+            .minimumScaleFactor(0.9)
+            // Inset before the stretch, so 12pt is a floor the label keeps
+            // while the capsule still fills its column. The other order pads
+            // outside the stretched frame and shrinks the capsule instead.
+            .padding(.horizontal, 12 * s)
+            .frame(maxWidth: .infinity)
+            // 14, not 12: measured at 40pt in the sim, and the craft charter's
+            // floor for a tap target is 44.
+            .padding(.vertical, 14 * s)
+            .background(accent.opacity(0.18), in: Capsule())
+            .contentShape(.accessibility, Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Strings.string(
+            "boards.fresh.label", .text(Strings.difficulty(difficulty))))
     }
 
     // MARK: - In progress
@@ -276,6 +319,19 @@ struct BoardsSheetContent: View {
                                   .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty):
             return Strings.difficulty(difficulty)
+        // PRD-24. The channel comes first for `TouchHomeView.boardTitle`'s reason:
+        // it is what makes this a different board rather than a harder one, and the
+        // tracker is exactly where two boards at the same tier need telling apart.
+        case .channel(let channel, let tier, let day):
+            if let day {
+                return Strings.string(
+                    "shelf.channel.daily",
+                    .text(Strings.channel(channel)),
+                    .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
+            }
+            return Strings.string(
+                "shelf.channel.free",
+                .text(Strings.channel(channel)), .text(Strings.variantTier(tier)))
         }
     }
 
