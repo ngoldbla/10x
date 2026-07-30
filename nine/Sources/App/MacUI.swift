@@ -21,69 +21,10 @@ import SwiftUI
 import AppKit
 import CouchKit
 
-// MARK: - Keyboard grammar
-
-/// One decoded keystroke over the board. Pure classification (no state), so
-/// the game screen and the tutorial share it.
-enum BoardKeyAction {
-    case move(Direction4)
-    case place(Int)
-    case pencil(Int)
-    case erase
-    case toggleStickyPencil
-    case highlight
-    case nextEmpty(forward: Bool)
-    case escape
-}
-
-enum MacBoardKeys {
-    /// Classify a `KeyPress` into a board action, or nil to pass it through
-    /// (⌘-shortcuts belong to the menus). The never-misfire rule is trivial
-    /// here: a keystroke is unambiguous.
-    static func action(for press: KeyPress) -> BoardKeyAction? {
-        switch press.key {
-        case .upArrow: return .move(.up)
-        case .downArrow: return .move(.down)
-        case .leftArrow: return .move(.left)
-        case .rightArrow: return .move(.right)
-        case .escape: return .escape
-        case .space: return .highlight
-        case .tab: return .nextEmpty(forward: !press.modifiers.contains(.shift))
-        case .delete, .deleteForward: return .erase
-        default: break
-        }
-        let ch = press.key.character
-        if ch == "p" || ch == "P" { return .toggleStickyPencil }
-        if ch == "0" { return .erase }
-        // The hardware delete (backspace) key can arrive as a raw control
-        // character rather than KeyEquivalent.delete (observed in validation).
-        if ch == "\u{7F}" || ch == "\u{08}" { return .erase }
-        if let digit = digitValue(press), (1...9).contains(digit) {
-            return press.modifiers.contains(.shift) ? .pencil(digit) : .place(digit)
-        }
-        return nil
-    }
-
-    /// The digit a key stands for, tolerating layouts that deliver ⇧1 as its
-    /// shifted symbol rather than the base digit.
-    private static func digitValue(_ press: KeyPress) -> Int? {
-        if let value = press.key.character.wholeNumberValue, (0...9).contains(value) {
-            return value
-        }
-        switch press.key.character {
-        case "!": return 1
-        case "@": return 2
-        case "#": return 3
-        case "$": return 4
-        case "%": return 5
-        case "^": return 6
-        case "&": return 7
-        case "*": return 8
-        case "(": return 9
-        default: return nil
-        }
-    }
-}
+// The keyboard grammar itself now lives in `BoardKeys.swift`, compiled for iOS
+// as well: a Magic Keyboard on an iPad had none of the table above, and the
+// cheapest way to give it all of them was to delete the platform fence rather
+// than write a second copy that would drift.
 
 // MARK: - Menu ↔ focused view actions
 
@@ -822,7 +763,7 @@ struct MacGameScreen: View {
         guard model.game != nil else { return false }
         // ⌘-shortcuts belong to the menus (Undo, New Game, Desk, Settings…).
         if press.modifiers.contains(.command) { return false }
-        guard let action = MacBoardKeys.action(for: press) else { return false }
+        guard let action = BoardKeys.action(for: press) else { return false }
 
         switch action {
         case .move(let direction):

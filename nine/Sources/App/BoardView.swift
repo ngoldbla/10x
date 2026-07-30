@@ -207,9 +207,20 @@ struct BoardView: View {
     var dimmedExcept: Int? = nil
     /// The cell under the pointer (macOS, PRD-4 §2.3) — the first hover
     /// affordance in the suite. Drawn as a faint accent halo, dimmer than the
-    /// cursor ring, and suppressed when it coincides with the cursor. Nil on
-    /// every other platform (no pointer).
+    /// cursor ring, and suppressed when it coincides with the cursor. Nil where
+    /// nothing can hover: tvOS, the watch, and an iPad with neither a trackpad
+    /// nor a Pencil in range. PRD-31 gave iPadOS the same halo off the same
+    /// value, because a hovering Pencil tip and a pointer are the same question.
     var hoverCell: Int? = nil
+    /// The player's own handwriting (PRD-31). Pencil marks are drawn from these
+    /// glyphs when the digit has one and from the rounded typeface when it does
+    /// not — so the board fills with the player's hand a digit at a time rather
+    /// than switching over all at once.
+    ///
+    /// Notes only, never placed digits: the two typefaces are the app's way of
+    /// saying *tentative* and *committed*, and inking an entry would erase that
+    /// distinction to make a nicer screenshot.
+    var hand = HandGlyphs()
     /// Origin cell of the Afterglow shockwave — the winning placement.
     /// Nil (or Reduce Motion) keeps the classic diagonal luminance wave.
     var waveOrigin: Int? = nil
@@ -228,6 +239,27 @@ struct BoardView: View {
     /// solved trophy stay readable without offering moves that would be
     /// refused. See BoardAccessibility.swift.
     var axActions = BoardAXActions()
+
+    /// A stored glyph as a `Path`, scaled into a `box`-sized square centred on
+    /// `point` (PRD-31).
+    ///
+    /// `HandGlyphs` stores every specimen already fitted to a unit box, so this
+    /// is a scale and a translate and nothing else — the arithmetic that could
+    /// let a note paint into its neighbour lives in `HandGlyphs.boxed`, on the
+    /// write side, where one test covers every future glyph at once
+    /// (`testAStoredGlyphNeverLeavesItsBox`).
+    static func inkPath(_ glyph: InkGlyph, centredAt point: CGPoint, box: CGFloat) -> Path {
+        var path = Path()
+        for stroke in glyph.strokes where stroke.count >= 2 {
+            func place(_ ink: InkPoint) -> CGPoint {
+                CGPoint(x: point.x + (CGFloat(ink.x) - 0.5) * box,
+                        y: point.y + (CGFloat(ink.y) - 0.5) * box)
+            }
+            path.move(to: place(stroke[0]))
+            for ink in stroke.dropFirst() { path.addLine(to: place(ink)) }
+        }
+        return path
+    }
 
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -707,12 +739,34 @@ struct BoardView: View {
                     let highlighted = solvedAt == nil && mark == highlightDigit
                     var noteColor = highlighted ? accent : gridTone.opacity(0.55)
                     if let dimmedExcept, mark != dimmedExcept { noteColor = noteColor.opacity(0.16) }
-                    context.draw(
-                        Text("\(mark)")
-                            .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
-                            .foregroundStyle(noteColor),
-                        at: point
-                    )
+                    // PRD-31: the player's own glyph if they have written this
+                    // digit, the rounded typeface if they have not. Every note
+                    // of a learned digit wears the hand — including the ones
+                    // placed with the rose, on a phone, with no Pencil in the
+                    // room — because a board where three marks are handwritten
+                    // and the rest are set looks like a bug rather than a
+                    // signature.
+                    if let glyph = hand.glyph(for: mark) {
+                        // 0.30 of a cell, trimmed from 0.34 after looking at a
+                        // real board: a written glyph is a thin outline where
+                        // the typeface is a solid mass, so it needs to be a
+                        // little larger to read — but at 0.34 the note pitch
+                        // (0.28) is smaller than the glyph, and neighbouring
+                        // marks in the mini keypad start to touch.
+                        context.stroke(
+                            Self.inkPath(glyph, centredAt: point, box: cell * 0.30),
+                            with: .color(noteColor),
+                            style: StrokeStyle(lineWidth: max(1, (highlighted ? 2.6 : 1.9) * scale),
+                                               lineCap: .round, lineJoin: .round)
+                        )
+                    } else {
+                        context.draw(
+                            Text("\(mark)")
+                                .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(noteColor),
+                            at: point
+                        )
+                    }
                 }
             }
         }

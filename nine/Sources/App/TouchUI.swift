@@ -48,20 +48,23 @@ struct TouchHomeView: View {
 
     var body: some View {
         ZStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    header
-                    graceCard
-                    todayCard
-                    continueCard
-                    boardsSection
-                    freePlayRow
-                    learnRow
-                    variantsTeaser
+            GeometryReader { geo in
+                ScrollView {
+                    // PRD-31. On a window wide enough for the drafting table,
+                    // the shelf splits rather than sitting as a 560pt ribbon in
+                    // the middle of 800pt of nothing. The split is decided by
+                    // the *same* function the game screen uses — one answer to
+                    // "is this a regular-width window", so the two screens can
+                    // never disagree about whether a window is one, and Stage
+                    // Manager gets the composition right on both at once.
+                    if BoardCompositionRules
+                        .resolve(width: Double(geo.size.width),
+                                 height: Double(geo.size.height)).table != nil {
+                        shelfPair
+                    } else {
+                        shelfColumn
+                    }
                 }
-                .padding(20)
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity) // center the column on iPad
             }
             // The scrim swallows touches, but a hit-test is not the whole
             // story: left in the tree, the shelf's six buttons interleave with
@@ -104,6 +107,68 @@ struct TouchHomeView: View {
         .animation(.couchFast, value: showTutorial)
         .animation(.couchFast, value: showSchool)
         .onDisappear { variantsChipDismissal?.cancel() }
+    }
+
+    /// The phone's shelf, unchanged.
+    private var shelfColumn: some View {
+        VStack(spacing: 20) {
+            header
+            graceCard
+            todayCard
+            continueCard
+            boardsSection
+            freePlayRow
+            learnRow
+            variantsTeaser
+        }
+        .padding(20)
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity) // center the column on iPad
+    }
+
+    /// Two columns for a regular-width window (PRD-31).
+    ///
+    /// The split is by *kind*, not by height: the leading column is the boards
+    /// you have — today, the grace card, what you were in the middle of, the
+    /// tracker — and the trailing column is the boards you could start plus the
+    /// ways to learn. So the eye goes left for "where was I" and right for
+    /// "what now", which is the same question order the phone asks by scrolling.
+    ///
+    /// The header spans both, because a wordmark that sat in one column would
+    /// read as that column's title.
+    /// **`fixedSize(vertical:)` on each column is load-bearing, and driving the
+    /// iPad is what found that.** `todayCard` carries `minHeight: 130` with no
+    /// maximum, which makes it flexible *upward* — it accepts any height it is
+    /// offered. On the phone that has never shown, because a `ScrollView`
+    /// proposes nil and every child settles at its ideal size. Put the card in
+    /// an `HStack` beside a taller column and the column is suddenly given a
+    /// concrete height, `VStack` divides the surplus between the card and the
+    /// trailing `Spacer`, and Today inflates to half the screen. A latent
+    /// property of shipped code that only a second column could expose.
+    private var shelfPair: some View {
+        VStack(spacing: 20) {
+            header
+            HStack(alignment: .top, spacing: 20) {
+                VStack(spacing: 20) {
+                    graceCard
+                    todayCard
+                    continueCard
+                    boardsSection
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .top)
+                VStack(spacing: 20) {
+                    freePlayRow
+                    learnRow
+                    variantsTeaser
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 1080)
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
@@ -626,6 +691,18 @@ struct TouchGameScreen: View {
     /// feature whose whole discipline is that it waits and never asks: an
     /// error toast about a share nobody requested would be worse than silence.
     @State private var shareCard: ShareCardExport?
+    /// PRD-31. The cell under the pointer or the hovering Pencil tip, drawn as
+    /// the halo `BoardView` has had since PRD-4 and the Mac has been the only
+    /// caller of. An iPad with a trackpad or a hovering Pencil is the same
+    /// situation the Mac was in and got the same answer.
+    @State private var hoverCell: Int?
+    /// The petal the tip is over, previewed as a ghost digit in the cursor
+    /// cell. `BoardView.previewDigit` has existed since tvOS's pad rose and has
+    /// been dead on iOS — hover is what finally arms it.
+    @State private var hoverDigit: Int?
+    /// Apple Pencil handwriting (PRD-31), the release's one new input concept.
+    @State private var scribe = PencilScribe()
+    @FocusState private var boardFocused: Bool
     @State private var haptics = AfterglowHaptics()
     @State private var motion = AfterglowMotion()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -652,99 +729,24 @@ struct TouchGameScreen: View {
 
     var body: some View {
         GeometryReader { geo in
-            let boardInset: CGFloat = 12
-            let controlsAtBottom = model.prefs.controlsAtBottom
-            let side = max(200, min(geo.size.width - 2 * boardInset - 16,
-                                    geo.size.height - 76 - 2 * boardInset - 16))
-            let freeSpace = geo.size.height - (side + 2 * boardInset + 16) - 76
-
-            VStack(spacing: 12) {
-                if controlsAtBottom {
-                    band(.top, freeSpace: freeSpace)
-                    boardArea(side: side, inset: boardInset)
-                    band(.bottom, freeSpace: freeSpace)
-                    controlBar
+            // PRD-31. The composition is a function of the *window*, never of
+            // the device: a size class calls a 1000pt Stage Manager tile and a
+            // 1366pt full-screen iPad by the same name, and only one of them
+            // can seat a rail beside a full board. `DraftingTableTests` sweeps
+            // the whole decision on Linux.
+            let composition = BoardCompositionRules.resolve(
+                width: Double(geo.size.width), height: Double(geo.size.height))
+            Group {
+                if let table = composition.table {
+                    draftingTable(table, in: geo.size)
                 } else {
-                    controlBar
-                    band(.top, freeSpace: freeSpace)
-                    boardArea(side: side, inset: boardInset)
-                    band(.bottom, freeSpace: freeSpace)
+                    boardColumn(side: CGFloat(composition.boardSide), in: geo.size)
                 }
             }
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) { toastView.padding(.bottom, controlsAtBottom ? 84 : 20) }
-            .overlay(alignment: .bottom) { tipView.padding(.bottom, controlsAtBottom ? 84 : 20) }
-            .overlay(alignment: .bottom) { completionChip.padding(.bottom, controlsAtBottom ? 128 : 64) }
             .onChange(of: model.solvedAt) { renderShareCard() }
-            .overlay(alignment: .bottom) {
-                autoNotesChipView.padding(.bottom, controlsAtBottom ? 84 : 20)
-            }
-            // Above the board, below the drawer and the prefs sheet.
+            // Above the board and its chips, below the prefs sheet.
             .overlay { coachView }
             .overlay { whyView }
-            .overlay(alignment: .top) { composingChip.padding(.top, controlsAtBottom ? 12 : 64) }
-            // The grabber sits *under* the drawer it advertises, so the panel
-            // slides over it rather than the hairline floating on the glass.
-            .overlay(alignment: .top) { drawerGrabber }
-            // The debrief's twin at the other edge, in the same order and for
-            // the same reason: the hint under the panel it advertises.
-            .overlay(alignment: .bottom) { debriefGrabber }
-            // Above the board and its chips, below the prefs sheet — Settings
-            // must always stack over the drawer, never under it.
-            .overlay(alignment: .top) { statsDrawer }
-            .overlay(alignment: .bottom) { debriefPanel }
-            // Attached *above* the drawer overlay, so the drawer's own scrim
-            // is a child of the gesture rather than a lid over it — one
-            // gesture drives both the pull-down and the drag-up dismiss.
-            // The flexible bands around the board are `Color.clear`, which
-            // SwiftUI does not hit-test, so without a content shape the whole
-            // reveal band is a hole and the pull-down never starts. Claiming
-            // the frame costs nothing: children (board, control bar, scrim)
-            // are hit-tested first, and nothing else wants the empty space.
-            .contentShape(Rectangle())
-            // Simultaneous, not a blocking strip across the top: a hit-testing
-            // overlay there would swallow control-bar taps whenever the bar is
-            // the top row (`controlsAtBottom == false`).
-            .simultaneousGesture(drawerRevealGesture)
-            // The pull-up needs the screen height to know where its bottom
-            // band is, which is why it takes `geo` and the drawer does not.
-            // Simultaneous with the drawer's rather than exclusive: the two
-            // guard each other (`acceptsDebriefDrag` refuses while the drawer
-            // is open, and a debrief only exists on a solved board, where the
-            // drawer's own guards have already stood down).
-            .simultaneousGesture(debriefRevealGesture(height: geo.size.height))
-            // The drawer is otherwise reachable only by an unhinted pull-down,
-            // so VoiceOver gets a named action. It must honour the same guards
-            // as the drag: opening it under the prefs sheet would scrim the
-            // screen from below, and opening it with no game would measure a
-            // height off an empty panel.
-            .accessibilityAction(named: Text(Strings.string(
-                drawerOpen ? "game.drawer.hide" : "game.drawer.show"))) {
-                guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
-                if !drawerOpen { model.noteDrawerFound() }
-                withAnimation(.couchFast) { drawerOpen.toggle() }
-            }
-            // The debrief's own named action, for the same reason: a 3 pt
-            // hairline is not an accessibility affordance, and a pull-up with
-            // no keyboard or VoiceOver route would be a feature only sighted
-            // touch users have.
-            //
-            // **`accessibilityActions` (plural), and that is not a style
-            // choice.** `accessibilityAction(named:)` registers the action
-            // whatever the view's state, so a guard inside the closure is a
-            // guard on the *effect* and not on the action's existence — which
-            // put "Show your solve" in the rotor of all 81 cells of every
-            // unsolved board, doing nothing. Invisible to every screenshot and
-            // every unit test; `ax-snapshot.py` is what found it. The plural
-            // form takes a `ViewBuilder`, so the `if` is real.
-            .accessibilityActions {
-                if debrief != nil {
-                    Button(debriefOpen ? DebriefPhrase.close : DebriefPhrase.open) {
-                        withAnimation(.couchFast) { debriefOpen.toggle() }
-                    }
-                }
-            }
             .overlay {
                 // PRD-34: no `onNewGame` — the next board lives on the shelf,
                 // in the Boards sheet, and in the post-solve "Another" chip.
@@ -753,6 +755,24 @@ struct TouchGameScreen: View {
                 }
             }
         }
+        // PRD-31 keyboard parity. An iPad in a Magic Keyboard had none of the
+        // Mac's grammar — no arrows, no digits, no ⇧-digit note, no
+        // Tab-to-next-empty — and `BoardKeys` is now compiled for both, so this
+        // is the whole of it. `.focusEffectDisabled` because a focus ring
+        // belongs on a control and this is a whole screen.
+        //
+        // **Outside the `GeometryReader`, and that is not cosmetic.** Inside,
+        // the focusable surface is rebuilt on every geometry change and the
+        // `@FocusState` set in `onAppear` never survives to see a keystroke:
+        // the log shows `Keyboard receives keyEvent` and the cursor does not
+        // move. `MacUI` has carried the same three lines outside its own
+        // `GeometryReader` since PRD-4, under a comment about "focus wars",
+        // and this is that comment being right a second time.
+        .focusable()
+        .focusEffectDisabled()
+        .focused($boardFocused)
+        .onKeyPress { press in handleKey(press) ? .handled : .ignored }
+        .onAppear { boardFocused = true }
         // A hint describes one position, so any move makes it stale. Retiring
         // it beats leaving a card on screen that is quietly no longer true.
         .onChange(of: model.game?.entries) { _, _ in
@@ -791,6 +811,12 @@ struct TouchGameScreen: View {
         .onDisappear {
             haptics.stop()
             motion.stop()
+            // A half-written glyph must not survive the screen it was written
+            // on: the pending commit holds a cell index, and the next board has
+            // a different digit in it.
+            scribe.cancel()
+            hoverCell = nil
+            hoverDigit = nil
             // Cleared, not just cancelled: the timer that would have retired
             // this chip is gone, so leaving `tip` set would strand it on the
             // next appearance of this screen with nothing left to dismiss it.
@@ -802,6 +828,209 @@ struct TouchGameScreen: View {
             why = nil
             whyRefusal = nil
         }
+    }
+
+    // MARK: The two compositions (PRD-31)
+
+    /// Where the floating chrome parks. Column mode dodges the horizontal
+    /// control bar; the drafting table has none to dodge, because its controls
+    /// are a column off to the side.
+    private struct ChromeInsets {
+        var chip: CGFloat
+        var completion: CGFloat
+        var top: CGFloat
+        var debriefGrabber: CGFloat
+
+        static func column(controlsAtBottom: Bool) -> ChromeInsets {
+            ChromeInsets(chip: controlsAtBottom ? 84 : 20,
+                         completion: controlsAtBottom ? 128 : 64,
+                         top: controlsAtBottom ? 12 : 64,
+                         debriefGrabber: controlsAtBottom ? 108 : 44)
+        }
+
+        static let table = ChromeInsets(chip: 20, completion: 64, top: 12, debriefGrabber: 44)
+    }
+
+    /// The phone's stack, unchanged: bands around the board, a horizontal
+    /// control bar at one edge, and a stats drawer you find by pulling down.
+    private func boardColumn(side: CGFloat, in size: CGSize) -> some View {
+        let controlsAtBottom = model.prefs.controlsAtBottom
+        let inset = CGFloat(BoardCompositionRules.boardInset)
+        let freeSpace = size.height - (side + 2 * inset + 16) - 76
+        return chromed(
+            VStack(spacing: 12) {
+                if controlsAtBottom {
+                    band(.top, freeSpace: freeSpace)
+                    boardArea(side: side, inset: inset)
+                    band(.bottom, freeSpace: freeSpace)
+                    controlBar
+                } else {
+                    controlBar
+                    band(.top, freeSpace: freeSpace)
+                    boardArea(side: side, inset: inset)
+                    band(.bottom, freeSpace: freeSpace)
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity),
+            insets: .column(controlsAtBottom: controlsAtBottom),
+            revealHeight: size.height,
+            controlBarReserve: controlsAtBottom ? Self.controlBarReserve : 0
+        )
+        // The grabber sits *under* the drawer it advertises, so the panel
+        // slides over it rather than the hairline floating on the glass.
+        .overlay(alignment: .top) { drawerGrabber }
+        // Above the board and its chips, below the prefs sheet — Settings
+        // must always stack over the drawer, never under it.
+        .overlay(alignment: .top) { statsDrawer }
+        // Attached *above* the drawer overlay, so the drawer's own scrim
+        // is a child of the gesture rather than a lid over it — one
+        // gesture drives both the pull-down and the drag-up dismiss.
+        //
+        // Simultaneous, not a blocking strip across the top: a hit-testing
+        // overlay there would swallow control-bar taps whenever the bar is
+        // the top row (`controlsAtBottom == false`).
+        .simultaneousGesture(drawerRevealGesture)
+        // The drawer is otherwise reachable only by an unhinted pull-down,
+        // so VoiceOver gets a named action. It must honour the same guards
+        // as the drag: opening it under the prefs sheet would scrim the
+        // screen from below, and opening it with no game would measure a
+        // height off an empty panel.
+        //
+        // **This lives here rather than beside the debrief's action**, so the
+        // drafting table does not carry it. An action named "Show board stats"
+        // on a screen where the stats are already on screen, permanently, does
+        // nothing — which is exactly the defect `ax-snapshot.py` found in
+        // PRD-26's rotor and the reason that one is an `accessibilityActions`
+        // builder. The cheapest way not to register a useless action is not to
+        // be in the composition that would.
+        .accessibilityAction(named: Text(Strings.string(
+            drawerOpen ? "game.drawer.hide" : "game.drawer.show"))) {
+            guard drawerOpen || (rose == nil && !showPrefs && model.game != nil) else { return }
+            if !drawerOpen { model.noteDrawerFound() }
+            withAnimation(.couchFast) { drawerOpen.toggle() }
+        }
+    }
+
+    /// PRD-31's drafting table: controls in a column at the leading edge, the
+    /// board centre stage, the stats as a rail that is simply *there*.
+    ///
+    /// Controls lead and stats trail, and the sides are not interchangeable.
+    /// The rail is the thing you glance at, and glancing is cheaper on the side
+    /// your writing hand is not covering; the controls are the thing you reach
+    /// for, and reaching across the board with a Pencil in your hand drags your
+    /// wrist over the grid you are reading. (Left-handed players get the worse
+    /// half of that, which is recorded in DEVIATIONS rather than solved: a
+    /// handedness pref is a settings row, and the covenant makes those
+    /// expensive.)
+    private func draftingTable(_ table: DraftingTable, in size: CGSize) -> some View {
+        let padding = CGFloat(table.outerPadding)
+        let inset = CGFloat(BoardCompositionRules.boardInset)
+        // `.top`, so the rail can be as tall as its own content. Both other
+        // columns claim `maxHeight: .infinity` and so fill regardless.
+        return HStack(alignment: .top, spacing: CGFloat(table.gutter)) {
+            controlColumn
+                .frame(width: CGFloat(table.controlColumnWidth))
+                .frame(maxHeight: .infinity)
+            chromed(
+                boardArea(side: CGFloat(table.boardSide), inset: inset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity),
+                insets: .table,
+                revealHeight: size.height - 2 * padding,
+                // No horizontal control bar to keep the pull-up away from —
+                // this is the reserve that PRD-26 discovered *was* the whole
+                // gesture band on the phone.
+                controlBarReserve: 0
+            )
+            statsRail(width: CGFloat(table.railWidth))
+        }
+        .padding(padding)
+    }
+
+    /// Everything that floats over the board, in whichever composition is up.
+    ///
+    /// One stack shared by both arms rather than two lists that would drift:
+    /// the toast, the tip, the completion chip, the auto-notes chip, the
+    /// composing/archive chip and PRD-26's whole pull-up are identical in
+    /// meaning on a phone and on a drafting table, and only their insets differ.
+    private func chromed(
+        _ content: some View,
+        insets: ChromeInsets,
+        revealHeight: CGFloat,
+        controlBarReserve: CGFloat
+    ) -> some View {
+        content
+            .overlay(alignment: .bottom) { toastView.padding(.bottom, insets.chip) }
+            .overlay(alignment: .bottom) { tipView.padding(.bottom, insets.chip) }
+            .overlay(alignment: .bottom) { completionChip.padding(.bottom, insets.completion) }
+            .overlay(alignment: .bottom) { autoNotesChipView.padding(.bottom, insets.chip) }
+            .overlay(alignment: .top) { composingChip.padding(.top, insets.top) }
+            // The debrief's twin at the drawer's other edge, in the same order
+            // and for the same reason: the hint under the panel it advertises.
+            .overlay(alignment: .bottom) {
+                debriefGrabber.padding(.bottom, insets.debriefGrabber)
+            }
+            .overlay(alignment: .bottom) { debriefPanel }
+            // The flexible bands around the board are `Color.clear`, which
+            // SwiftUI does not hit-test, so without a content shape the whole
+            // reveal band is a hole and the pull-up never starts. Claiming
+            // the frame costs nothing: children (board, control bar, scrim)
+            // are hit-tested first, and nothing else wants the empty space.
+            .contentShape(Rectangle())
+            .simultaneousGesture(debriefRevealGesture(height: revealHeight,
+                                                      reserve: controlBarReserve))
+            // The debrief's named action, because a 3 pt hairline is not an
+            // accessibility affordance and a pull-up with no keyboard or
+            // VoiceOver route would be a feature only sighted touch users have.
+            //
+            // **`accessibilityActions` (plural), and that is not a style
+            // choice.** `accessibilityAction(named:)` registers the action
+            // whatever the view's state, so a guard inside the closure is a
+            // guard on the *effect* and not on the action's existence — which
+            // put "Show your solve" in the rotor of all 81 cells of every
+            // unsolved board, doing nothing. Invisible to every screenshot and
+            // every unit test; `ax-snapshot.py` is what found it. The plural
+            // form takes a `ViewBuilder`, so the `if` is real.
+            .accessibilityActions {
+                if debrief != nil {
+                    Button(debriefOpen ? DebriefPhrase.close : DebriefPhrase.open) {
+                        withAnimation(.couchFast) { debriefOpen.toggle() }
+                    }
+                }
+            }
+    }
+
+    /// The stats drawer with the drawer taken off it (PRD-31).
+    ///
+    /// This is the same `StatsDrawerContent` the pull-down shows, at the same
+    /// width, in the same glass — the panel is not redesigned for the iPad, it
+    /// is simply left open. PRD-34 spent a hairline grabber and three sessions
+    /// of its budget teaching people that the drawer exists; at this width the
+    /// geometry says it instead, for free and permanently, which is the whole
+    /// argument for the composition.
+    private func statsRail(width: CGFloat) -> some View {
+        VStack(spacing: 14) {
+            // The chips the phone parks in its free bands have no bands here,
+            // and the rail is where they belong: the timer is already one of
+            // the drawer's own tiles, and the ambient slot is ambient.
+            if model.prefs.ambientSlot != .none, model.composing == nil {
+                AmbientSlotView(model: model)
+            }
+            timerChip
+            StatsDrawerContent(model: model)
+        }
+        .padding(16)
+        // **As tall as it has to be, and no taller.** The first version was a
+        // full-height slab, and driving an 11" iPad showed what that is: 200 pt
+        // of stats above 700 pt of empty glass, which reads as a panel that
+        // failed to load rather than as a rail. A drawer is the height of what
+        // is in it; leaving it open should not change that.
+        .frame(width: width, alignment: .top)
+        .couchGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        // One container, so Switch Control's group scan treats the rail as a
+        // place rather than as fourteen loose elements between the board and
+        // the edge of the screen (PRD-19's grouping rule).
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Chrome
@@ -821,52 +1050,105 @@ struct TouchGameScreen: View {
     /// 53pt to spare.
     private var controlBar: some View {
         HStack(spacing: 6) {
-            GlassIconButton(symbol: "chevron.left", label: Strings.string("game.control.home")) {
-                haptics.stop()
-                motion.stop()
-                model.goHome()
-            }
+            homeButton
             Spacer()
-            GlassIconButton(
-                symbol: "lightbulb",
-                label: Strings.string("game.control.hint"),
-                active: coachAdvice != nil,
-                accent: accent
-            ) {
-                toggleCoach()
-            }
-            GlassIconButton(
-                symbol: "pencil",
-                label: Strings.string("game.control.pencil"),
-                active: pencilMode,
-                accent: accent
-            ) {
-                pencilMode.toggle()
-                pencilEverToggled = true
-                dismissTip()
-            }
-            GlassIconButton(
-                symbol: "wand.and.stars",
-                label: Strings.string("game.control.autoNotes"),
-                active: model.autoNotes,
-                accent: accent
-            ) {
-                toggleAutoNotes()
-            }
-            GlassIconButton(symbol: "arrow.uturn.backward",
-                            label: Strings.string("game.control.undo")) { performUndo() }
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 1.2).onEnded { _ in
-                        #if DEBUG
-                        model.debugFillAlmostAll() // test rig; no-op in Release
-                        #endif
-                    }
-                )
-            GlassIconButton(symbol: "gearshape",
-                            label: Strings.string("game.control.settings")) { showPrefs = true }
+            hintButton
+            pencilButton
+            autoNotesButton
+            undoButton
+            settingsButton
         }
         .padding(model.prefs.controlsAtBottom ? .bottom : .top, 8)
         .padding(.horizontal, 6)
+    }
+
+    /// The same six controls stood on end, for the drafting table (PRD-31).
+    ///
+    /// The arrangement is not the bar rotated. Home pins to the top, where
+    /// "out of here" belongs and where a stray reach cannot find it; the five
+    /// tools group at the bottom, in the arc a hand resting on the glass
+    /// already sweeps. Same buttons, same labels, same 44pt targets — so
+    /// VoiceOver, Voice Control and Full Keyboard Access all read a control
+    /// column exactly as they read the bar.
+    private var controlColumn: some View {
+        VStack(spacing: 10) {
+            homeButton
+            Spacer(minLength: 12)
+            hintButton
+            pencilButton
+            autoNotesButton
+            undoButton
+            settingsButton
+        }
+        .padding(.vertical, 4)
+    }
+
+    // The six, factored so the bar and the column cannot come to disagree
+    // about what a control does — the failure mode a second copy invites.
+
+    private var homeButton: some View {
+        GlassIconButton(symbol: "chevron.left", label: Strings.string("game.control.home")) {
+            haptics.stop()
+            motion.stop()
+            model.goHome()
+        }
+    }
+
+    private var hintButton: some View {
+        GlassIconButton(
+            symbol: "lightbulb",
+            label: Strings.string("game.control.hint"),
+            active: coachAdvice != nil,
+            accent: accent
+        ) {
+            toggleCoach()
+        }
+    }
+
+    private var pencilButton: some View {
+        GlassIconButton(
+            symbol: "pencil",
+            label: Strings.string("game.control.pencil"),
+            active: pencilMode,
+            accent: accent
+        ) {
+            pencilMode.toggle()
+            pencilEverToggled = true
+            dismissTip()
+        }
+    }
+
+    private var autoNotesButton: some View {
+        GlassIconButton(
+            symbol: "wand.and.stars",
+            label: Strings.string("game.control.autoNotes"),
+            active: model.autoNotes,
+            accent: accent
+        ) {
+            toggleAutoNotes()
+        }
+    }
+
+    private var undoButton: some View {
+        GlassIconButton(symbol: "arrow.uturn.backward",
+                        label: Strings.string("game.control.undo")) { performUndo() }
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 1.2).onEnded { _ in
+                    #if DEBUG
+                    model.debugFillAlmostAll() // test rig; no-op in Release
+                    #endif
+                }
+            )
+            // The one shortcut worth spending on a hardware keyboard beside the
+            // `BoardKeys` grammar: ⌘Z is muscle memory everywhere else, and
+            // `BoardKeys` deliberately passes ⌘-chords through untouched.
+            .keyboardShortcut("z", modifiers: .command)
+    }
+
+    private var settingsButton: some View {
+        GlassIconButton(symbol: "gearshape",
+                        label: Strings.string("game.control.settings")) { showPrefs = true }
+            .keyboardShortcut(",", modifiers: .command)
     }
 
     /// One of the two flexible bands around the board (PRD-2). The band on
@@ -1218,7 +1500,9 @@ struct TouchGameScreen: View {
     /// buttons, so every pull-up either did nothing or fought Undo.
     private static let controlBarReserve: CGFloat = 96
 
-    private func acceptsDebriefDrag(_ value: DragGesture.Value, in height: CGFloat) -> Bool {
+    private func acceptsDebriefDrag(
+        _ value: DragGesture.Value, in height: CGFloat, reserve: CGFloat
+    ) -> Bool {
         guard debrief != nil, rose == nil, !showPrefs, !drawerOpen else { return false }
         // Open, the whole screen steers it — that is the drag-down dismiss.
         if debriefOpen { return true }
@@ -1227,18 +1511,21 @@ struct TouchGameScreen: View {
         // `AppModel.place` guards `solvedAt == nil`, so there is nothing here
         // for an upward stroke to steal.
         guard value.startLocation.y > Self.drawerRevealBand else { return false }
-        return value.startLocation.y <= height
-            - (model.prefs.controlsAtBottom ? Self.controlBarReserve : 0)
+        // The reserve is passed in rather than read off the pref, because the
+        // drafting table has no horizontal control bar to reserve for (PRD-31)
+        // — its six buttons are a column beside the board, outside this
+        // gesture's view entirely.
+        return value.startLocation.y <= height - reserve
     }
 
-    private func debriefRevealGesture(height: CGFloat) -> some Gesture {
+    private func debriefRevealGesture(height: CGFloat, reserve: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12)
             .updating($debriefDrag) { value, offset, _ in
-                guard acceptsDebriefDrag(value, in: height) else { return }
+                guard acceptsDebriefDrag(value, in: height, reserve: reserve) else { return }
                 offset = value.translation.height
             }
             .onEnded { value in
-                guard acceptsDebriefDrag(value, in: height) else { return }
+                guard acceptsDebriefDrag(value, in: height, reserve: reserve) else { return }
                 let projected = ((debriefOpen ? debriefHeight : 0)
                                  - value.predictedEndTranslation.height) / debriefHeight
                 withAnimation(.couchFast) { debriefOpen = projected > Self.drawerSnapThreshold }
@@ -1264,12 +1551,12 @@ struct TouchGameScreen: View {
                 .fill(.secondary)
                 .frame(width: 36, height: 3)
                 .opacity(0.35 * (1 - debriefProgress))
-                // Under the completion chip, not on the screen's bottom edge:
-                // that edge belongs to the control bar and to the home
-                // indicator, and a hairline drawn there is invisible against
-                // one and confusable with the other. Measured on an
-                // iPhone 17 Pro, where the first version landed on both.
-                .padding(.bottom, model.prefs.controlsAtBottom ? 108 : 44)
+                // The inset comes from `ChromeInsets` now — under the
+                // completion chip, never on the screen's bottom edge: that edge
+                // belongs to the control bar and to the home indicator, and a
+                // hairline drawn there is invisible against one and confusable
+                // with the other. Measured on an iPhone 17 Pro, where the first
+                // version landed on both.
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
@@ -1363,10 +1650,16 @@ struct TouchGameScreen: View {
                 solvedAt: model.solvedAt,
                 roseOpen: rose != nil,
                 roseLens: reduceMotion || model.solvedAt != nil ? nil : lens,
-                previewDigit: nil, // touch petals are direct — nothing to preview
-                previewPencil: false,
+                // A finger on a petal is direct — it lands where it lands, and
+                // a preview of a digit already committing is noise. A *hovering*
+                // Pencil tip is the opposite: it is asking what would happen,
+                // and this is the answer (PRD-31).
+                previewDigit: hoverDigit,
+                previewPencil: rose?.pencil ?? false,
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 coachFocus: boardFocus,
+                hoverCell: hoverCell,
+                hand: model.hand,
                 // Afterglow: the wave detonates from the winning cell, and
                 // after the sweep the gyro steers the trophy sheen.
                 waveOrigin: model.lastPlacedCell,
@@ -1377,6 +1670,11 @@ struct TouchGameScreen: View {
             )
             .contentShape(Rectangle())
             .onTapGesture { location in
+                // A Pencil stroke also reaches the tap recogniser; the window
+                // in `PencilScribe` is what tells the two apart. A Pencil *tap*
+                // is unaffected — it produces no stroke, so nothing suppresses
+                // it and the rose blooms exactly as it does under a finger.
+                guard !scribe.isActive else { return }
                 handleBoardTap(at: location, side: side, inset: inset)
             }
             // PRD-25's one gesture. Additive by construction: a plain tap still
@@ -1392,8 +1690,44 @@ struct TouchGameScreen: View {
             )
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.45)
-                    .onEnded { _ in askWhy(at: pressPoint, side: side, inset: inset) }
+                    .onEnded { _ in
+                        // Writing a 4 takes longer than 0.45 s, and without
+                        // this a why-chain opens over the ink every time.
+                        guard !scribe.suppressesTouch else { return }
+                        askWhy(at: pressPoint, side: side, inset: inset)
+                    }
             )
+            // PRD-31's one new input concept. `.pencil` events only — finger
+            // and pointer events arrive here too and are dropped, so every
+            // gesture above still behaves exactly as it did.
+            .simultaneousGesture(
+                SpatialEventGesture(coordinateSpace: .local)
+                    .onChanged { events in
+                        scribe.handle(events) { glyph in
+                            commitInk(glyph, side: side, inset: inset)
+                        }
+                    }
+                    .onEnded { _ in
+                        scribe.finish { glyph in
+                            commitInk(glyph, side: side, inset: inset)
+                        }
+                    }
+            )
+            .overlay { WetInkView(strokes: scribe.strokes, accent: accent, side: side) }
+            // The halo the Mac has had since PRD-4, now on the iPad: a trackpad
+            // pointer and a hovering Apple Pencil deliver the same phases, so
+            // one modifier serves both.
+            .onContinuousHover(coordinateSpace: .local) { phase in
+                switch phase {
+                case .active(let point):
+                    let local = CGPoint(x: point.x - inset, y: point.y - inset)
+                    hoverCell = BoardMetrics.cellIndex(at: local, side: side)
+                    hoverDigit = lens.flatMap { petalDigit(at: point, lens: $0) }
+                case .ended:
+                    hoverCell = nil
+                    hoverDigit = nil
+                }
+            }
             .overlay {
                 if let rose, let lens, model.solvedAt == nil {
                     // Scrim: any touch beside the rose cancels it — and blocks
@@ -1421,6 +1755,128 @@ struct TouchGameScreen: View {
             GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
                 .frame(height: side)
         }
+    }
+
+    // MARK: Keyboard (PRD-31)
+
+    /// The Mac's board grammar, on an iPad with a keyboard attached.
+    ///
+    /// Deliberately a *reuse* of `BoardKeys` rather than a second table:
+    /// keyboard parity means the two platforms cannot disagree about what `P`
+    /// does, and the only way to guarantee that is for there to be one answer.
+    /// Where the two screens legitimately differ they differ here, in the
+    /// handling, not in the classification — `pencilMode` is this screen's
+    /// state, `Esc` closes this screen's rose, and the touch app has a control
+    /// bar the Mac replaces with menus.
+    ///
+    /// ⌘-chords fall through untouched, so the system's own shortcuts and the
+    /// two `keyboardShortcut` buttons in the control bar keep working.
+    private func handleKey(_ press: KeyPress) -> Bool {
+        guard let game = model.game else { return false }
+        if press.modifiers.contains(.command) { return false }
+        // A solved board takes no input, exactly as `AppModel.place` insists;
+        // the one key that still means something is the way out.
+        if model.solvedAt != nil {
+            guard case .escape = press.key else { return false }
+            model.goHome()
+            return true
+        }
+        guard let action = BoardKeys.action(for: press) else { return false }
+        switch action {
+        case .move(let direction):
+            closeRose()
+            cursor = BoardMetrics.moveCursor(cursor, direction, wrap: true)
+        case .place(let digit):
+            closeRose()
+            if pencilMode {
+                model.togglePencil(digit, at: cursor)
+            } else {
+                model.place(digit, at: cursor)
+                hapticsAfterPlacing(at: cursor)
+            }
+        case .pencil(let digit):
+            closeRose()
+            model.togglePencil(digit, at: cursor)
+        case .erase:
+            closeRose()
+            _ = model.erase(at: cursor)
+        case .toggleStickyPencil:
+            pencilMode.toggle()
+            pencilEverToggled = true
+            dismissTip()
+        case .highlight:
+            guard model.prefs.numberHighlight else { return true }
+            let digit = game.entry(at: cursor)
+            guard digit != 0 else { return true }
+            highlightedDigit = highlightedDigit == digit ? nil : digit
+            highlightEverUsed = true
+        case .nextEmpty(let forward):
+            closeRose()
+            cursor = BoardMetrics.nextEmptyCell(from: cursor, in: game, forward: forward)
+        case .escape:
+            if rose != nil { closeRose() } else { model.goHome() }
+        }
+        return true
+    }
+
+    // MARK: Pencil (PRD-31)
+
+    /// Which petal a hovering tip is over, in the board's padded view space, or
+    /// nil if it is between petals or outside the ring.
+    ///
+    /// The radius is the petal's own, not the 44pt hit target `TouchRose` uses:
+    /// a tap has to be forgiving because a fingertip is 10mm across and lands
+    /// blind, and a hover is neither — the tip is 1mm, it is visible, and a
+    /// generous radius would make the preview flicker between neighbours in the
+    /// gaps where the honest answer is "none of them".
+    private func petalDigit(at point: CGPoint, lens: RoseLens) -> Int? {
+        guard rose != nil, model.solvedAt == nil else { return nil }
+        for digit in 1...9 {
+            let centre = lens.petalCentre(digit: digit)
+            let dx = point.x - CGFloat(centre.x + lens.inset)
+            let dy = point.y - CGFloat(centre.y + lens.inset)
+            if hypot(dx, dy) <= CGFloat(lens.petalRadius) { return digit }
+        }
+        return nil
+    }
+
+    /// A finished glyph: find the cell it was written in, read it, and toggle
+    /// the note.
+    ///
+    /// Every refusal below is silent, and that is the design. A stroke the app
+    /// cannot use leaves no mark, no toast and no shake — the ink simply is not
+    /// there any more, and the player writes it again. The alternative is a
+    /// message about handwriting on a board someone is thinking over, which the
+    /// idle-pixel test rejects on its own.
+    private func commitInk(_ glyph: InkGlyph, side: CGFloat, inset: CGFloat) {
+        guard let game = model.game, model.solvedAt == nil, rose == nil,
+              let bounds = glyph.bounds else { return }
+        // Board-local: the strokes arrive in the padded frame the board draws
+        // into, and every geometry helper below speaks the Canvas's space.
+        let local = InkGlyph(strokes: glyph.strokes.map { stroke in
+            stroke.map { InkPoint(x: $0.x - Double(inset), y: $0.y - Double(inset)) }
+        })
+        let cellSide = Double(side) / 9
+        let extent = max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY)
+        // Bigger than a dot, smaller than a doodle. The upper bound is what
+        // stops a resting wrist or a stray drag across three boxes from being
+        // read as an enormous 1; the lower stops a Pencil tap that jittered.
+        guard extent >= cellSide * 0.22, extent <= cellSide * 2.2 else { return }
+        let centre = CGPoint(x: (bounds.minX + bounds.maxX) / 2 - Double(inset),
+                             y: (bounds.minY + bounds.maxY) / 2 - Double(inset))
+        guard let cell = BoardMetrics.cellIndex(at: centre, side: side),
+              !game.isGiven(cell), game.entry(at: cell) == 0,
+              let reading = DigitHand.read(local), DigitHand.commits(reading) else { return }
+        // **Toggle, not set.** Writing a digit that is already noted takes it
+        // away — so erase costs no gesture, no mode and no second concept, and
+        // it reads the same as the rose's dashed-rim petal.
+        model.togglePencil(reading.digit, at: cell)
+        cursor = cell
+        // The specimen updates only on the stricter reading. `learnHand` is a
+        // no-op when the glyph is unchanged, so a steady hand writes no blob.
+        if DigitHand.adopts(reading) { model.learnHand(local, as: reading.digit) }
+        if model.prefs.touchHaptics { haptics.playPlacement() }
+        dismissTip()
     }
 
     /// The rose's geometry: where the petals are drawn, and — through
@@ -1548,6 +2004,10 @@ struct TouchGameScreen: View {
     /// on the ordering of a `@State` write it made two lines earlier.
     private func openRose(at cell: Int) {
         guard let game = model.game, !game.isGiven(cell) else { return }
+        // The rose and the Pencil want the same square inches. Whatever was
+        // half-written is dropped rather than committed into a cell the player
+        // has just aimed a ring at.
+        scribe.cancel()
         // Notes only make sense in empty cells; a filled cell opens the
         // normal rose even in pencil mode (same rule as tvOS hold-click).
         let pencil = pencilMode && game.entry(at: cell) == 0
@@ -1558,6 +2018,7 @@ struct TouchGameScreen: View {
 
     private func closeRose() {
         withAnimation(.couchFast) { rose = nil }
+        hoverDigit = nil
     }
 
     private func commit(digit: Int) {
@@ -1916,6 +2377,11 @@ struct GlassIconButton: View {
                 .contentShape(.accessibility, Circle())
         }
         .buttonStyle(TouchCardStyle())
+        // PRD-31: an iPad with a trackpad has a pointer, and a 44pt glass disc
+        // that does not answer one reads as decoration. `.automatic` takes the
+        // system's own shape-aware effect rather than inventing a highlight;
+        // it is inert with no pointer attached, so the phone is unchanged.
+        .hoverEffect()
         .accessibilityLabel(label)
     }
 }
