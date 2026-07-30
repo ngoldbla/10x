@@ -237,18 +237,23 @@ struct PrefsSheetContent: View {
                 .font(CouchTypography.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 28 * CouchScale.chrome)
-            HStack(spacing: 10) {
-                ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                    Button {
-                        start(difficulty)
-                    } label: {
-                        Text(Strings.difficulty(difficulty))
-                            .font(CouchTypography.caption)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .couchGlassInteractive(in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+            // Three and three, matching the shelf's `rowBands`/`deepBands`
+            // split. This was one six-wide row: authored for the original
+            // three, then PRD-25 appended Nocturne, Tempest and Abyss to
+            // `allCases` and doubled it without the layout being looked at, so
+            // the long titles wrapped and the row sat at mixed heights. The
+            // twin of this row is `BoardsSheet.freshPill` — duplicated on
+            // purpose, so change one and go look at the other. Only the shape
+            // is shared: here the affordance is the focus ring, so
+            // `couchGlassInteractive` stays and there is no filter-chip
+            // reading to fix. Wrapping is safe for focus — tvOS derives it from
+            // geometry (see `SwatchFlow`), so a second row needs no work.
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    ForEach(Difficulty.rowBands, id: \.self) { newGamePill($0, start) }
+                }
+                HStack(spacing: 10) {
+                    ForEach(Difficulty.deepBands, id: \.self) { newGamePill($0, start) }
                 }
             }
             .padding(.horizontal, 28 * CouchScale.chrome)
@@ -261,6 +266,29 @@ struct PrefsSheetContent: View {
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 28 * CouchScale.chrome)
         }
+    }
+
+    private func newGamePill(
+        _ difficulty: Difficulty,
+        _ start: @escaping @MainActor (Difficulty) -> Void
+    ) -> some View {
+        Button {
+            start(difficulty)
+        } label: {
+            Text(Strings.difficulty(difficulty))
+                .font(CouchTypography.caption)
+                // Cap the line and let a tight locale shrink by a hair rather
+                // than grow a second line and break the row's height.
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                // Inset before the stretch, so 12pt is a floor the label keeps
+                // while the capsule still fills its column.
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .couchGlassInteractive(in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
     #endif
 
