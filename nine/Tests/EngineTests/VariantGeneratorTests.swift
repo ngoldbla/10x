@@ -254,19 +254,45 @@ final class VariantGeneratorTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(VariantPuzzle.self, from: data), puzzle)
     }
 
-    // MARK: - The channel seal
+    // MARK: - The channel, now open
 
-    /// Release cannot reach the composer at all, and Debug needs an environment
-    /// variable, so a developer running the app in Xcode still sees nothing.
-    func testTheChannelIsShutUnlessDeliberatelyOpened() {
-        #if DEBUG
-        XCTAssertEqual(VariantChannel.isOpen,
-                       ProcessInfo.processInfo.environment["NINE_VARIANTS"] == "1")
-        #else
-        XCTAssertFalse(VariantChannel.isOpen, "the channel does not exist in Release")
-        #endif
-        if !VariantChannel.isOpen {
-            XCTAssertNil(VariantChannel.compose(seed: 1, variant: .killer, tier: .gentle))
-        }
+    /// This replaces `testTheChannelIsShutUnlessDeliberatelyOpened`, which asserted
+    /// that Release could not reach the composer at all and that Debug needed
+    /// `NINE_VARIANTS=1`. Both were true and both are now false: the channel is the
+    /// product.
+    ///
+    /// What has to stay true is the contract that made one door worth having in the
+    /// first place — **nil is a first-class answer, and there is no third
+    /// outcome.** A caller either gets a fully proven board or nothing.
+    func testTheChannelComposesInEveryConfiguration() throws {
+        let board = try XCTUnwrap(
+            VariantChannel.compose(seed: 1, variant: .thermo, tier: .gentle),
+            "the channel is open in every configuration now")
+        assertWellFormed(board, .gentle, "channel thermo gentle seed 1")
+        XCTAssertNil(VariantChannel.compose(seed: 1, variant: .classic, tier: .gentle),
+                     "classic generation is PuzzleGenerator's and always was")
+        XCTAssertNil(VariantChannel.compose(
+            seed: 1, variant: .unrecognized("arrow"), tier: .gentle))
+    }
+
+    /// The `(day, channel) → board` primitive, which is what "dailies one per day
+    /// per channel" is built on. Same day and channel is the same board; two
+    /// channels on the same day are different boards.
+    func testAChannelDailyIsDeterministicAndPerChannel() throws {
+        let day = 20_649
+        let thermo = try XCTUnwrap(VariantChannel.daily(day: day, channel: .thermo))
+        XCTAssertEqual(thermo, VariantChannel.daily(day: day, channel: .thermo))
+        XCTAssertEqual(thermo.variant, .thermo)
+        XCTAssertEqual(thermo.tier, VariantChannel.dailyTier)
+        // Every daily is `.steady`, matching classic: a daily is the board
+        // everybody plays today, so it is not where the player picks a tier.
+        XCTAssertEqual(VariantChannel.dailyTier, .steady)
+
+        let killer = try XCTUnwrap(VariantChannel.daily(day: day, channel: .killer))
+        XCTAssertNotEqual(thermo.puzzle, killer.puzzle,
+                          "two channels must not share a day's board")
+        XCTAssertNotEqual(
+            thermo.puzzle,
+            try XCTUnwrap(VariantChannel.daily(day: day + 1, channel: .thermo)).puzzle)
     }
 }
