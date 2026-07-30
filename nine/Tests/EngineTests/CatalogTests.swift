@@ -820,9 +820,14 @@ final class CatalogTests: XCTestCase {
         // 36 → 37 for PRD-26, and it is one key: `debrief.headline` ("You
         // found the %1$@ at move %2$lld"). Its ten siblings carry one index or
         // none.
-        XCTAssertEqual(keysCarryingTwoOrMore, 37, """
+        //
+        // 37 → 39 for PRD-24, and it is two: `shelf.channel.daily` and
+        // `shelf.channel.free`, both "%1$@ · %2$@" — a channel name and either a
+        // date or a tier. Every other key that PRD added is a single noun with no
+        // arguments at all, which is what a channel name and a blurb are.
+        XCTAssertEqual(keysCarryingTwoOrMore, 39, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 37 this test was calibrated against. That is fine and the \
+            not the 39 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

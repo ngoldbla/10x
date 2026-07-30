@@ -202,6 +202,12 @@ INTERPOLATED_FAMILIES = [
     ("Technique", "Sources/Engine/LogicSolver.swift", "technique.%s.name"),
     ("Difficulty", "Sources/Engine/Generator.swift", "difficulty.%s.title"),
     ("NineTip", "Sources/Shared/TipCoach.swift", "tip.%s"),
+    # PRD-24. `Channel` carries two suffixes rather than one, so it is listed
+    # twice — the shelf page needs a name and a one-line blurb, and both are
+    # reached only by interpolation off the frozen raw value.
+    ("Channel", "Sources/Engine/ChannelLedger.swift", "channel.%s.title"),
+    ("Channel", "Sources/Engine/ChannelLedger.swift", "channel.%s.blurb"),
+    ("VariantTier", "Sources/Engine/VariantConstraint.swift", "variantTier.%s.title"),
 ]
 
 # Key families built as `scope + ".field"` — a *prefix* held as data, crossed
@@ -1115,6 +1121,27 @@ COMMENTS = {
     "coach.boxLine.sentence.colToBox": "Coach explanation, box-line reduction claiming a COLUMN's digit INTO a box. %1$lld is the digit, %2$lld the column number, %3$lld the box number. %1$lld and %3$lld each appear twice.",
     "coach.xWing.sentence.rowBase": "Coach explanation, X-wing based on two ROWS: in two rows the digit can only sit in the same two columns, so it is cleared from the rest of those columns. %1$lld is the digit and appears TWICE — move both if you reorder. The words \"rows\" and \"columns\" are part of the sentence; write them the way your language names them.",
     "coach.xWing.sentence.colBase": "Coach explanation, X-wing based on two COLUMNS: in two columns the digit can only sit in the same two rows, so it is cleared from the rest of those rows. %1$lld is the digit and appears twice.",
+
+    # Channels (PRD-24). The three pages of the home shelf: three rulesets, each
+    # with its own daily, streak and stats. A title is one word on a page header;
+    # a blurb is one short line under it saying what the ruleset is.
+    "channel.classic.title": "Channel name, the first of three pages on the home shelf: ordinary sudoku with no extra rules. Shown as a page title. One word.",
+    "channel.classic.blurb": "One-line subtitle under the Classic channel's title, saying that this page is plain sudoku. Calm and plain, not a sales pitch. Under about 25 characters.",
+    "channel.thermo.title": "Channel name, a sudoku variant played on \"thermometers\" — shapes drawn on the grid whose digits must increase from the round bulb end to the tip. Short for \"thermometer\". Use whatever your language's sudoku players call this variant if there is one; otherwise a short word for thermometer. One word.",
+    "channel.thermo.blurb": "One-line subtitle under the Thermo channel's title. \"Tubes\" are the thermometer shapes; \"only rise\" means the digits along one must strictly increase. Convey \"the numbers along each shape always go up\". Under about 25 characters.",
+    "channel.killer.title": "Channel name, the sudoku variant known in English as Killer Sudoku: the grid is divided into outlined \"cages\", each printed with a total its digits must add up to. NOT the adjective \"killer\" and nothing to do with killing — this is the established name of a puzzle type. Use whatever your language's sudoku players call this variant. One word.",
+    "channel.killer.blurb": "One-line subtitle under the Killer channel's title. \"Cages\" are the outlined regions; \"add up\" refers to each one's printed total. Convey \"outlined groups that sum to a number\". Under about 25 characters.",
+
+    # Variant tiers (PRD-24). The difficulty ladder for a variant channel.
+    # Deliberately its own key family rather than reusing difficulty.*.title:
+    # a tier and a band are different ladders, so a rename of one must not move
+    # the other, and a translator gets one string per meaning.
+    "variantTier.gentle.title": "Difficulty of a variant puzzle, easiest of three. Same calm register as difficulty.gentle.title — not \"Easy\", which judges the player. May well be the same word you used there; it is a separate string because the two ladders can diverge. One or two words.",
+    "variantTier.steady.title": "Difficulty of a variant puzzle, middle of three: unhurried, dependable. See variantTier.gentle.title on why this is separate from difficulty.steady.title. One or two words.",
+    "variantTier.sharp.title": "Difficulty of a variant puzzle, hardest of three: keen-witted, demanding. NOT the knife and NOT the musical accidental. See variantTier.gentle.title on why this is separate from difficulty.sharp.title. One or two words.",
+
+    "shelf.channel.daily": "Title of a saved variant puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a date like \"Jul 26\". The separator is a middle dot; keep the channel first — it is what makes this a different puzzle rather than a harder one.",
+    "shelf.channel.free": "Title of a saved variant practice puzzle in the board list. %1$@ is a channel name (Thermo, Killer), %2$@ is a difficulty (Gentle, Steady, Sharp). The separator is a middle dot; keep the channel first.",
 
     # Difficulty bands. Names of the four settings a player picks between, shown
     # on buttons, in menus and on the share card. Short: one or two words.

@@ -447,6 +447,19 @@ struct TouchHomeView: View {
             return Strings.string("shelf.daily.date",
                                   .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty): return Strings.difficulty(difficulty)
+        // A channel board names its channel first, because that is what makes it a
+        // different board rather than a harder one. A channel daily gets the date
+        // treatment its classic sibling gets; free play gets its tier.
+        case .channel(let channel, let tier, let day):
+            if let day {
+                return Strings.string(
+                    "shelf.channel.daily",
+                    .text(Strings.channel(channel)),
+                    .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
+            }
+            return Strings.string(
+                "shelf.channel.free",
+                .text(Strings.channel(channel)), .text(Strings.variantTier(tier)))
         }
     }
 
@@ -1378,6 +1391,15 @@ struct TouchGameScreen: View {
         case .free(let d)?:
             isDaily = false
             difficulty = d
+        // A channel solve shares as the tier it was, which is honest as far as it
+        // goes and no further: the card says "Steady" where it should say "Killer ·
+        // Steady", because `SolveCardFacts` and `ShareCard` are laid out around a
+        // single band caption and widening them is a share-card change rather than
+        // a channel one. Recorded in DEVIATIONS; the alternative was shipping a
+        // card that claims a classic solve.
+        case .channel(_, let tier, let day)?:
+            isDaily = day != nil
+            difficulty = tier.wireDifficulty
         case nil:
             return nil
         }

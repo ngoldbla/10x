@@ -319,6 +319,19 @@ struct BoardsSheetContent: View {
                                   .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
         case .free(let difficulty):
             return Strings.difficulty(difficulty)
+        // PRD-24. The channel comes first for `TouchHomeView.boardTitle`'s reason:
+        // it is what makes this a different board rather than a harder one, and the
+        // tracker is exactly where two boards at the same tier need telling apart.
+        case .channel(let channel, let tier, let day):
+            if let day {
+                return Strings.string(
+                    "shelf.channel.daily",
+                    .text(Strings.channel(channel)),
+                    .text(ArchiveCalendar.mediumLabel(forDayOrdinal: day)))
+            }
+            return Strings.string(
+                "shelf.channel.free",
+                .text(Strings.channel(channel)), .text(Strings.variantTier(tier)))
         }
     }
 

@@ -489,6 +489,9 @@ struct MacGameScreen: View {
         case .free(let d)?:
             isDaily = false
             difficulty = d
+        case .channel(_, let tier, let day)?:
+            isDaily = day != nil
+            difficulty = tier.wireDifficulty
         case nil:
             return nil
         }

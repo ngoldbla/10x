@@ -94,6 +94,35 @@ public enum Strings {
         Phrasebook.current.string("difficulty.\(difficulty.rawValue).title")
     }
 
+    /// A channel's name, keyed the same way for the same reason (PRD-24). The raw
+    /// values are frozen — they are persisted inside `GameKind.channel`, they key
+    /// `ChannelLedger`, and they index the variant corpus — so the ID side of this
+    /// lookup cannot drift.
+    public static func channel(_ channel: Channel) -> String {
+        Phrasebook.current.string("channel.\(channel.rawValue).title")
+    }
+
+    /// What a channel is *about*, one line, for the shelf page's subtitle.
+    public static func channelBlurb(_ channel: Channel) -> String {
+        Phrasebook.current.string("channel.\(channel.rawValue).blurb")
+    }
+
+    /// A variant tier's name.
+    ///
+    /// These are the keys `VariantTier`'s own header predicted: *"Whoever builds
+    /// that UI adds `variantTier.<raw>.title` to `EnglishPhrases.table` … naming
+    /// three tiers nobody can see today would just be three strings a translator
+    /// is paid for."* PRD-24 is that UI, so they exist now.
+    ///
+    /// Deliberately **not** `Strings.difficulty(tier.wireDifficulty)`, even though
+    /// the English words coincide today. A tier and a band are different ladders —
+    /// which is why `VariantTier` is a separate enum — so routing one through the
+    /// other's catalog key would make a rename of either silently move both, and
+    /// would hand translators one string to cover two meanings.
+    public static func variantTier(_ tier: VariantTier) -> String {
+        Phrasebook.current.string("variantTier.\(tier.rawValue).title")
+    }
+
     /// The same key as a `LocalizedStringResource`, for the call sites whose
     /// parameter genuinely is one.
     ///
