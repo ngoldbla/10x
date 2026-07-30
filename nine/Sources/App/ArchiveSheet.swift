@@ -15,9 +15,18 @@
 // wearing badges. Everything else stays quiet — no counts, no fills, no streaks
 // (the archive is the one surface that must not imply a past day is owed).
 //
-// iOS only (PRD-14 §3). The TV and the Mac still see archive boards in their
-// board trackers, as ordinary `.daily` library entries.
-#if os(iOS)
+// iOS and macOS. It was iOS-only when PRD-14 shipped — "the TV and the Mac still
+// see archive boards in their board trackers, as ordinary `.daily` library
+// entries" — which was true and was also the reason the Mac had no calendar at
+// all. PRD-33 gives it one, as a **window** rather than a sheet, and widening this
+// fence was the whole cost: `ArchiveSheetContent` needed no change, because
+// `ArchiveCalendar` already owned every date and every word from
+// `Sources/Shared`.
+//
+// tvOS stays out. A month grid is a pointer or a fingertip surface, and driving
+// seven columns of days with a Siri Remote is the interaction PRD-14 declined in
+// the first place.
+#if os(iOS) || os(macOS)
 import SwiftUI
 import CouchKit
 

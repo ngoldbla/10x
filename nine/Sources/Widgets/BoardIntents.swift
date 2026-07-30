@@ -7,6 +7,66 @@ import AppIntents
 import Foundation
 import WidgetKit
 
+// MARK: - Configuration (PRD-33)
+
+/// Which side of a medium board widget the digit pad sits on.
+///
+/// **This is handedness**, which `DEVIATIONS.md` recorded as deferred at the end
+/// of PRD-31: "Left-handed players get the worse half of the
+/// controls-lead/stats-trail decision. A handedness row is a settings row and the
+/// covenant makes those expensive."
+///
+/// A widget configuration is not a settings row. It is per *placed widget*,
+/// edited in the system's own long-press sheet, and it costs the app no chrome at
+/// all — which is why it is the one parameter worth having today. The value of
+/// having it is also the substrate: PRD-24's Channels need exactly this
+/// `AppIntentConfiguration`, and adding a `channel` parameter to an intent that
+/// already exists is a smaller change than converting a `StaticConfiguration`
+/// while people have the widget on their Home Screen.
+enum RailSide: String, AppEnum {
+    case trailing, leading
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(
+        name: LocalizedStringResource("intent.railSide.title", table: IntentStrings.table)
+    )
+
+    /// Written out rather than built from `rawValue`: an interpolated key would
+    /// also be invisible to `appintentsmetadataprocessor`, which is a static
+    /// extractor — see `IntentStrings`.
+    static let caseDisplayRepresentations: [RailSide: DisplayRepresentation] = [
+        .trailing: DisplayRepresentation(
+            title: LocalizedStringResource("intent.railSide.trailing", table: IntentStrings.table)
+        ),
+        .leading: DisplayRepresentation(
+            title: LocalizedStringResource("intent.railSide.leading", table: IntentStrings.table)
+        ),
+    ]
+}
+
+/// The board widget's configuration. One parameter today; see `RailSide`.
+struct BoardWidgetConfiguration: WidgetConfigurationIntent {
+    static let title = LocalizedStringResource(
+        "intent.boardWidget.title", table: IntentStrings.table
+    )
+    static let description = IntentDescription(
+        LocalizedStringResource("intent.boardWidget.description", table: IntentStrings.table)
+    )
+
+    @Parameter(
+        title: LocalizedStringResource("intent.railSide.title", table: IntentStrings.table),
+        default: .trailing
+    )
+    var railSide: RailSide
+
+    init() {}
+
+    init(railSide: RailSide) {
+        self.railSide = railSide
+    }
+}
+
+// MARK: - Play
+
 /// Tap a cell: select it (tap again to deselect). Givens are never
 /// selectable. Selection is ephemeral UserDefaults state keyed to the day
 /// (privacy manifest reason CA92.1).

@@ -22,12 +22,42 @@ struct StreakWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: DailyEntry
 
+    private var focus: QuietFocus { entry.snapshot?.focus ?? .none }
+
     var body: some View {
+        // A Focus filter hiding the streak hides it *here* above all: this widget
+        // is nothing but a streak, and it lives on the Lock Screen, which is the
+        // surface a filtered player sees most often without choosing to (PRD-33).
+        //
+        // Not `EmptyView()` — a Lock Screen slot with nothing in it reads as a
+        // widget that failed to load, and a player who cannot tell the difference
+        // will go looking. The board's own glyph is the honest thing to put there:
+        // still Nine, still today, just not counting.
+        if focus.hidesStreak {
+            quiet
+        } else {
+            switch family {
+            case .accessoryInline:
+                Label(inlineText, systemImage: entry.displayedStreak > 0
+                      ? "flame.fill" : "flame")
+            default:
+                circular
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var quiet: some View {
         switch family {
         case .accessoryInline:
-            Label(inlineText, systemImage: entry.displayedStreak > 0 ? "flame.fill" : "flame")
+            Text(Strings.string("widget.brand.daily"))
         default:
-            circular
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "square.grid.3x3")
+                    .font(.title3)
+                    .widgetAccentable()
+            }
         }
     }
 

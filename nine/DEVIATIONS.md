@@ -3729,3 +3729,307 @@ felt by nobody. Left unwired, and the comment corrected rather than fulfilled.
 - **The nine languages gained no new keys**, which is the one piece of good news
   in this list: the rail reuses `board.stats.*` verbatim and the Pencil says
   nothing at all.
+
+## PRD-30 + PRD-33 — the presence that carries no clock, and the two lines that hung the Mac (2026-07-30)
+
+Neither `PRD-30.md` nor `PRD-33.md` existed when this started; `PROGRAM-2.0.md:97`
+and `:100` were the whole spec, the same way they were for PRD-25, PRD-26 and
+PRD-31. Both PRDs are written now and are the forward documents; this is what
+happened.
+
+Rejected by the plan and still rejected: **Siri voice solving**. Nothing in
+`NineIntents.swift` takes a cell, a digit or a move.
+
+### Six claims checked against the SDK before a line was written, and four were false
+
+The plan's Pillar E is a list of platform features, so the first task was finding
+out which of them exist. `swiftc -typecheck` per target, `.swiftinterface` files,
+and the build tools' own `--help`:
+
+| Claim | Verdict |
+|---|---|
+| Live Activities need an entitlement and a `match` re-mint | **False.** The only build settings Xcode 26.6 defines are `INFOPLIST_KEY_NSSupportsLiveActivities` and `…FrequentUpdates` (`CoreBuildSystem.xcspec`). No entitlement, no App ID capability. **The trap EXECUTING-A-PRD §6 says has fired three times does not fire here** — the first new surface in three PRDs that needs nothing from the portal. |
+| `#if canImport(ActivityKit)` is the right fence | **False, and it compiles.** `canImport(ActivityKit)` is **true on macOS** and false on tvOS/watchOS. But every type in the module, `ActivityAttributes` included, is `@available(macOS, unavailable)` — so on macOS the import succeeds and the conformance then fails. `canImport` answers "is there a module", which is not the question. The fence is `#if os(iOS)`. |
+| A third-party app can donate a Journaling Suggestion | **False — there is no API.** See below. |
+| StandBy is a widget family you can target | **False.** StandBy is a `WidgetLocation`, and the only function taking one is `disfavoredLocations(_:for:)` — an *opt-out*. There is no `\.widgetLocation` to read. |
+| App Shortcut phrases localize through `Localizable.xcstrings` | **False.** They need their own `AppShortcuts.(xc)strings`, and `appshortcutstringsprocessor --help` names the file and the `--app-name-override` flag that exists to turn its `${applicationName}` check off. |
+| `SetFocusFilterIntent` needs an entitlement | **False**, and it is available on every platform Nine ships (iOS 16 / macOS 13 / tvOS 16 / watchOS 9). |
+
+### Journaling Suggestions cannot be built, and the near-miss is the interesting part
+
+`JournalingSuggestions.swiftinterface` is 350 lines and entirely a **consumer**
+surface: `JournalingSuggestionsPicker`, `JournalingSuggestionsConfiguration`, and
+fifteen closed system asset types (Workout, WorkoutGroup, Contact, Location,
+LocationGroup, Song, Podcast, GenericMedia, Photo, Video, LivePhoto,
+MotionActivity, StateOfMind, Reflection, EventPoster). There is no `donate`, no
+provider protocol, and `grep -rl JournalingSuggestion` over every other framework
+in the SDK returns nothing. The framework is for apps that want to *read* the
+system's suggestions. A sudoku solve cannot become one.
+
+The one path that would technically work was examined and refused. **HealthKit
+`HKStateOfMind` *is* an asset type**, so an app that logs a mood does produce a
+suggestion. Taking it would mean a HealthKit entitlement and capability — the trap
+that has fired three times — a permission prompt, and asking a player how they feel
+about a sudoku. The product intent ("the completed daily as a private reflective
+moment") is already shipped as PRD-26's debrief, which is a pull-up you have to ask
+for.
+
+### PRD-30: the payload is the mechanism
+
+PRD-30's requirement is a **negative** — no timers, no countdowns, no
+streak-endangered nagging ever — and negatives erode without anything going red. A
+Live Activity that grows an elapsed-time line still builds, still passes every
+other test, and is exactly the app Nine promised not to be.
+
+So the negative is structural rather than editorial. `DailyPresence` carries a day
+ordinal, a band id, a 22-byte glyph and a revision; `NineDailyActivity.ContentState`
+— the bytes ActivityKit re-encodes on every update — carries the glyph and the
+revision. No `Date`, no `TimeInterval`, no count, no streak. Two seals hold it:
+`testThePresencePayloadCarriesNoClockAndNoStreak` reflects over the encoded JSON
+keys, and `QuietPresenceSealTests` greps every quiet surface for `timerInterval`,
+`style: .timer`, `countsDown`, `AlertConfiguration`, `pushType: .token` and the word
+"streak". `Text(_:style: .timer)` is the one that matters: **it needs no field in
+the payload at all**, because the system animates it from a `Date` on its own side.
+
+The seal fired once on its first honest run, and correctly: `PresenceBridge` read
+`model.streak.hasCompleted(day:)` to ask whether the daily was solved. Not a
+rendered streak — but the fix is better than an exemption. `AppModel.hasSolved(day:)`
+now exists, because *where a solve is recorded* is streak bookkeeping and a caller
+that only wants to know whether a board is done should not have to know it.
+
+`QuietPresenceTests` also caught the tolerant decode being tolerant in only one
+field of four: three scalars used `try … ?? default`, which survives an *absent* key
+and throws on a key of the wrong *type*. `NinePrefs` and `SharedAppearance` both had
+this right already.
+
+A `PresenceScreen` parameter was written and deleted. "Is the daily the board on
+screen" sounds like part of "start-and-leave", and `glyph.isTouched` already proves
+the player started the daily — so the extra check would only have dropped the
+bookmark for someone who plays the daily at breakfast and a free board at lunch.
+More code, worse behaviour; the test that replaced it is
+`testNothingStartsWhileThePlayerIsLookingAtTheApp`.
+
+### PRD-30: the finding that improved three widgets that already shipped
+
+`WidgetPalette` was three hardcoded constants under a comment saying "the in-app
+tinted themes don't reach the extension (it can't read nine's prefs)". True, and not
+a law. `SharedAppearance` has carried theme and accent across a process boundary
+since PRD-6 — just not *this* one, because it travels by KVS and the widget
+extension reads KVS no more than it reads Application Support. Nobody noticed
+because the three shipped widgets are small; a StandBy face is the largest thing
+Nine draws on any screen.
+
+Two additive optionals on `WidgetSnapshot` (`schemaVersion` stays 1, per
+`lastGraceDay`'s own rule) and `Sources/Shared/SharedPalette.swift` fixed it for all
+four widgets at once. The palette is a second copy of the numbers by necessity —
+`AccentChoice.lightBarRGB` is already a hand-written second copy in the App layer,
+under a comment saying SwiftUI `Color` → RGB round-tripping is unreliable — so
+`SharedPaletteTests` reads `Theme.swift` as text and fails in both directions. It
+was falsified against three perturbations: a changed accent triple, a changed theme
+background, and a deleted theme row.
+
+`SharedPalette.resolve` also encodes PRD-22's finding in its shape: the accent's
+light/dark variant follows the **theme's** leaning, not the system's. Camel is a
+light theme on a phone in dark mode, and a vivid accent on Camel is 3.36:1.
+
+### PRD-33: App Intents cannot use the app's string seam, and the failure is quiet
+
+`EXECUTING-A-PRD.md` §4 calls `Strings` "the single seam" every user-facing string
+goes through. It does not compile in an intent:
+
+```
+error: 'LocalizedStringResource' must be initialized with a call to its
+       initializer or a string literal
+error: At least one halting error produced during export. No AppIntents metadata
+       have been exported and this target is not usable with AppIntents until
+       errors are resolved.
+```
+
+`appintentsmetadataprocessor` is a **static extractor** — it reads the source for
+the strings the system will show without running anything, so a value produced by a
+function call is no value at all. There is no runtime lookup available at any price.
+
+**The dangerous part is that its error is not fatal to the Swift compile.** It says
+"this target is not usable with AppIntents" and the build carries on. Written a
+little differently this ships an app with no Shortcuts entries and no red anywhere —
+the same family as PRD-16's alternate icons, which shipped green with no
+`CFBundleAlternateIcons` at all.
+
+That is not hypothetical here: the **first** iOS build of this branch produced no
+`Metadata.appintents` in `Nine.app` and `** BUILD SUCCEEDED`, because `xcodegen`
+had not been re-run and the two new files were not in the project. The artifact was
+the only thing that disagreed. What settles it now is reading
+`Nine.app/Metadata.appintents/extract.actionsdata`: five intents with the right
+identifiers, `QuietShelfFilter` carrying
+`com.apple.link.systemProtocol.FocusConfiguration`, `NineBand` as a
+`linkEnumeration`, and four `autoShortcuts` with the right short-title keys.
+
+So intent strings are literal keys in their own table, and two hand-authored
+catalogs exist that `scripts/strings.py` cannot own — it *generates*
+`Localizable.xcstrings` from `EnglishPhrases.table`, and `--audit` reports any row
+no accessor reaches as a dead string. `IntentCatalogTests` applies the same four
+rules `CatalogTests` applies to the big catalog, by a different route, and was
+falsified against a missing locale, a translated coined band name, and an orphan row.
+
+The phrase catalog is half-checked here on purpose: the build checks the other half.
+`appshortcutstringsprocessor` fails with **"Invalid Utterance. Every App Shortcut
+utterance should have one '${applicationName}' in it"** — verified by dropping it
+from one German phrase.
+
+### PRD-33: the trap that made the Mac driveable, and the two lines that undid it
+
+**The CloudKit trap is fixed.** PRD-20 recorded it and PRD-31 re-quoted it: "a
+locally-built Nine cannot launch on macOS at all on an iCloud-signed-in host,
+trapping in `CKContainer.init` because the entitlement-free build passes an account
+check it should not". The guard asked the *operating system* whether an iCloud
+account exists, which is true on any signed-in Mac whatever the binary is signed
+with; `CKContainer(identifier:)` then **traps** rather than throwing, because an
+unentitled container request is a programmer error as far as CloudKit is concerned.
+
+`AppModel.mayBuildCloudContainer` asks the binary instead, through `SecTask`. macOS
+only, and the scope is honest rather than lazy: `SecTask` is not in the public iOS or
+tvOS SDK, and the trap needs a signed-in host *and* an unentitled build, which on
+those platforms means a simulator with no iCloud account to find.
+
+Proven both ways rather than assumed. Reverting the guard reproduces
+`EXC_BREAKPOINT` with a stack reading `CKContainer.__allocating_init(identifier:)` ←
+`LibraryCloudStore.init()` ← `setUpCloudSyncIfAvailable()` ← `AppModel.init()`;
+restoring it launches and stays up. **Everything else on the Mac in this PRD was
+driven because of this** — the menu bar was read out of the live process, the
+menu-bar board was clicked and photographed.
+
+**And then two obvious spellings of one line hung the app at 100% CPU.**
+`MenuBarExtra(isInserted:)` takes a `Binding<Bool>`, and the pref has to be readable
+from `App.body`:
+
+| `isInserted:` | result |
+|---|---|
+| `Binding` reading `model.prefs.macMenuBarExtra` | **103% CPU, unresponsive** |
+| `@AppStorage(…)` | **99% CPU, unresponsive** |
+| `.constant(true)` / `.constant(false)` | quiet, 0.4% |
+| `@State` seeded from `UserDefaults` | quiet, 0.1% |
+
+The spin is `AppDelegate.scenesDidChange` → `makeMainMenu` →
+`AppKitMainMenuItem.updateMainMenu` → `MainMenuItemHost.requestUpdate` →
+`scenesDidChange`, forever, read off `sample`. A `MenuBarExtra` makes the main menu
+part of the scene update, and any source that republishes *during* that update —
+`@Observable` state or `UserDefaults` change notifications alike — closes the loop.
+The two `.constant` rows are what prove `MenuBarExtra` itself is innocent.
+
+**Neither version could have been caught by anything but driving it.** Three
+platform builds and 615 tests were green; the app launched, drew a board from the
+menu bar, and then stopped answering AppleEvents. `@AppStorage` is standard practice
+in an `App`, which is exactly why the second attempt looked like the fix.
+
+Persisting outside `NinePrefs` turned out to be what EXECUTING-A-PRD §2 asks for
+anyway — new state in its own key, never a new field on `nine.prefs`, which ships in
+every released build — so the field was removed from `NinePrefs` rather than kept
+beside the `@State`.
+
+### PRD-33: three fences were the whole cost of three "missing" Mac features
+
+Worth recording together, because the pattern is that the Mac's gaps were mostly
+not gaps in the code:
+
+- **The archive** had no Mac surface because `ArchiveSheet.swift` was `#if os(iOS)`
+  and did not compile there. `ArchiveCalendar` already owned every date and every
+  word from `Sources/Shared`, so widening the fence was the entire change.
+- **The coach card** had never reached the Mac because `CoachCard.swift` was
+  `#if os(iOS)`. It is `WhyCardContent`'s sibling, and that has rendered on the Mac
+  since PRD-25.
+- **The Technique School** has compiled for macOS since PRD-25 (`#if os(iOS) ||
+  os(macOS)`) and nothing had ever presented it. The cheapest patch in the repo.
+
+And one genuine absence: **macOS had no `onOpenURL` at all**, while
+`project.yml` registers `nine://` on the *shared* Info.plist — so the Mac has
+advertised a scheme it silently dropped since PRD-3. The handler's body needed no
+change; only its fence.
+
+### The literal "three moves" cap was refused
+
+PROGRAM-2.0 writes the medium board widget as a *"three moves" mode*. A widget that
+silently stops accepting taps after the third is input that breaks with no
+explanation: it fails the first-flick test outright, and to anyone who has met one it
+reads as a paywall — which the covenant forbids the *shape* of as well as the
+substance. What "three moves" asserts is a claim about **scale**, and the honest way
+to say that is a surface small enough to make it obvious with the app one tap away.
+
+The `AppIntentConfiguration` the item really wanted is there, and its one real
+parameter today is **handedness** — which DEVIATIONS recorded as deferred at the end
+of PRD-31 because "a handedness row is a settings row and the covenant makes those
+expensive". A widget configuration is not a settings row: per placed widget, edited
+in the system's own sheet, no app chrome at all. PRD-24's channel parameter slots
+into the same intent.
+
+### The input-concept budget: this release spends zero
+
+Every surface is an output surface (Live Activity, Dynamic Island, StandBy,
+menu-bar extra), an invocation (App Shortcuts, Action button, menu rows over
+`BoardKeys`' existing table) or configuration (Focus filters, widget
+configuration). The widget's medium family extends PRD-3's tap-cell/tap-digit
+grammar to a second size rather than inventing one, and the menu-bar board is
+deliberately not playable so it stays on this side of the line — a rose in a 260pt
+popover would have petals under the minimum target size and nowhere for a flick to
+travel.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| the board glyph, both masks | **22 bytes** (ActivityKit's cap is 4KB for attributes + state) |
+| new keys in `Localizable.xcstrings` | **14**, ×10 locales; catalog now **501** keys |
+| `Intents.xcstrings` | **35** keys × 10 locales, hand-authored |
+| `AppShortcuts.xcstrings` | **9** phrases × 10 locales, hand-authored |
+| intents in the built artifact | **5**, and **4** `autoShortcuts` |
+| menu-bar spin, before → after | **103% → 0.1%** CPU |
+| AX baselines | **1 of 5 drifted** (prefs, one new row), re-recorded |
+| Release archive | **ARCHIVE SUCCEEDED**; `NSSupportsLiveActivities` true, 5 intents, 4 shortcuts, 3 catalogs × 10 locales |
+| golden corpus | **56/56** |
+| `swift test` | **454 XCTest** (6 skipped) **+ 161 swift-testing**, 0 failures |
+
+### Not done, each with its reason
+
+- **No Live Activity has ever appeared on a Lock Screen, and no Dynamic Island has
+  ever shown the glyph.** ActivityKit needs the app backgrounded on a device or a
+  booted simulator, and a Live Activity is not in the accessibility tree
+  `ax-snapshot.py` reads even when it is on screen. The policy is proven by unit
+  test, the views compile on all three platforms, the Release archive carries
+  `NSSupportsLiveActivities` and links ActivityKit into the appex — and the
+  rendering is unphotographed. The same class of standing deferral as PRD-31's "no
+  Apple Pencil has ever written a digit into Nine".
+- **The loc lane did not run, and the reason is this host rather than this branch.**
+  `loc-harness.py` failed twice at `simctl bootstatus` — `Status=4294967295`,
+  "Waiting on System App" — on a freshly created `Nine-Loc`, with **4481 free pages
+  (~70 MB)** on the machine. The failure is before the app is installed, so nothing
+  in the diff can reach it. `--selftest` passes (15 cases, every assertion watched
+  to fire and to stay quiet) and CI runs the lane on its own runner.
+- **The AX lane, by contrast, worked** — which is worth recording because the two
+  sections above this one say the simulator would not drive at all. Five screens
+  captured on `Nine-AX`, one intended drift, re-recorded. Whatever broke on
+  2026-07-29 either was not `ax-snapshot.py` or has stopped; it was not
+  investigated here, and the note above it is now at least partly stale.
+- **No Siri phrase has been spoken and no Action button pressed.** The metadata is
+  verified from the artifact rather than the source, which is the strongest check
+  available without hardware, but a microphone is hardware.
+- **No Focus has ever activated.** `QuietShelfFilter` extracts with the right system
+  protocol and the filtered rendering is exercised by construction; Settings ▸ Focus
+  needs the simulator.
+- **The static→intent widget migration is unverified.** The plan was to place the
+  widget on the old build, install the new one and look — which needs the lane.
+  Existing placed widgets are expected to adopt a default-initialised configuration;
+  that is an expectation, not an observation.
+- **The prefs AX baseline lost the accent label to the new row**, which is PRD-16's
+  recorded pattern happening again: "the AX lane lost the accent swatches to the
+  taller theme row". The sheet is taller than the capture and every row added pushes
+  something below it. Re-recorded deliberately; the fix is a scrolled second capture,
+  which is `ax-snapshot.py`'s to make.
+- **No tvOS or macOS AX/contrast/loc lane**, unchanged: `describe-ui` is iOS-only.
+  The Mac menu bar was read out of the live process by `System Events` instead, which
+  is not a baseline anything diffs.
+- **The nine languages are machine-drafted and unreviewed**, consistent with
+  PRD-20's standing headline deferral. The drafts here were built against a term
+  table pulled out of the shipped catalog rather than invented — board, erase, notes,
+  continue, today and empty-cell all reuse the words already on screen.
+- **No Mac first run and no Mac stats drawer.** PRD-34's and PRD-9's respectively.
+  **No Mac debrief**: PRD-26's "never unbidden" is a shipped decision and a window is
+  not a reason to re-litigate it.

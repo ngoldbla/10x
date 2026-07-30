@@ -28,7 +28,11 @@ extension CoachAdvice {
     }
 }
 
-#if os(iOS)
+// iOS and macOS. The fence was `#if os(iOS)` because the Mac had no coach at all
+// — `MacUI` said so — and PRD-33's Board menu is the surface that gives it one.
+// Widening the fence was the entire cost: the card is `WhyCardContent`'s sibling,
+// and that has rendered on the Mac since PRD-25.
+#if os(iOS) || os(macOS)
 /// The card: a heading, one sentence, and at most one button. It sits in the
 /// free band opposite the controls, which PRD-2 sized precisely so a panel
 /// could appear there without the board moving a pixel.

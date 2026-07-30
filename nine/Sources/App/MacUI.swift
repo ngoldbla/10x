@@ -31,8 +31,29 @@ import CouchKit
 /// Actions the menu bar routes back into the focused game screen (so the
 /// Undo toast, which lives in view state, still shows). Published via
 /// `focusedSceneValue`; a nil value greys the menu item out.
+///
+/// PRD-33 asks for "a real menu bar with every command", and every command means
+/// the *board's* commands too — which are all view state, not model state. The
+/// cursor lives in `MacGameScreen`, so a Board menu cannot reach it any other
+/// way, and a nil closure greying the row out is exactly right when no board is
+/// on screen. This is the same channel the Undo row has used since PRD-4, widened
+/// rather than replaced.
 struct NineFocusActions {
     var performUndo: (@MainActor () -> Void)? = nil
+    /// ⌥-click's twin (PRD-25's Mac door, PRD-33's keyboard one). Pointer idioms
+    /// are not discoverable and a menu row with a shortcut beside it is.
+    var askWhy: (@MainActor () -> Void)? = nil
+    /// PRD-11's coach hint. The Mac has never had one — `MacUI` says so at the
+    /// top of `MacGameScreen` — and a menu row is the cheapest surface that does
+    /// not add chrome to a board someone is thinking over.
+    var showHint: (@MainActor () -> Void)? = nil
+    var toggleAutoNotes: (@MainActor () -> Void)? = nil
+    var toggleStickyPencil: (@MainActor () -> Void)? = nil
+    var erase: (@MainActor () -> Void)? = nil
+    var nextEmpty: (@MainActor (Bool) -> Void)? = nil
+    /// Whether sticky pencil is on, so the menu can show a checkmark rather than
+    /// a verb whose current state you have to guess.
+    var pencilOn: Bool = false
 }
 
 struct NineFocusActionsKey: FocusedValueKey {
@@ -93,7 +114,12 @@ struct MacHomeView: View {
                 GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
             if model.displayedStreak > 0 {
-                StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                // A Focus filter can take the count away entirely (PRD-33).
+                // `if` rather than `.opacity(0)`: an invisible chip still holds
+                // its space and still speaks to VoiceOver.
+                if !model.focus.hidesStreak {
+                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
+                }
             }
         }
         .padding(.top, 8)
@@ -288,6 +314,8 @@ struct MacGameScreen: View {
     /// instead because ⌥-click is a pointer idiom that needs no chrome.
     @State private var why: WhyNarration?
     @State private var whyRefusal: WhyRefusal?
+    /// PRD-11's coach hint, reaching the Mac with PRD-33's menu bar.
+    @State private var coachAdvice: CoachAdvice?
     @State private var deskHovering = false
     /// The Mac's trophy tilt: the pointer steers the sheen (PRD-4 §2.6).
     @State private var pointer = AfterglowPointer()
@@ -311,6 +339,7 @@ struct MacGameScreen: View {
             .overlay(alignment: .topTrailing) { if !isDesk { statusChips.padding(20) } }
             .overlay(alignment: .bottom) { toastView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { whyView.padding(.bottom, isDesk ? 12 : 28) }
+            .overlay(alignment: .bottom) { coachView.padding(.bottom, isDesk ? 12 : 28) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, isDesk ? 40 : 72) }
             .onChange(of: model.solvedAt) { renderShareCard() }
             .overlay(alignment: .top) { composingChip.padding(.top, isDesk ? 8 : 16) }
@@ -319,7 +348,22 @@ struct MacGameScreen: View {
         .focusable()
         .focusEffectDisabled()
         .focused($boardFocused)
-        .focusedSceneValue(\.nineActions, NineFocusActions(performUndo: performUndo))
+        // The whole Board menu, routed through the one channel that can reach view
+        // state (PRD-33). Each closure is nil-able at the source rather than
+        // guarded at the call site, because a nil closure is what greys the row.
+        .focusedSceneValue(\.nineActions, NineFocusActions(
+            performUndo: performUndo,
+            askWhy: askWhyAtCursor,
+            showHint: toggleCoach,
+            toggleAutoNotes: toggleAutoNotes,
+            toggleStickyPencil: { pencilMode.toggle() },
+            erase: { _ = model.erase(at: cursor) },
+            nextEmpty: { forward in
+                guard let game = model.game else { return }
+                cursor = BoardMetrics.nextEmptyCell(from: cursor, in: game, forward: forward)
+            },
+            pencilOn: pencilMode
+        ))
         .onKeyPress { press in handleKey(press) ? .handled : .ignored }
         .onHover { deskHovering = $0 }
         // The keyboard is the superpower (PRD-4 §2.2): the board claims key
@@ -639,7 +683,23 @@ struct MacGameScreen: View {
         guard let cell = BoardMetrics.cellIndex(at: point, side: side),
               game.entry(at: cell) == 0 else { return }
         cursor = cell
+        askWhy(atCell: cell)
+    }
+
+    /// The same question from the keyboard or the Board menu (PRD-33). ⌥-click has
+    /// worked since PRD-25 and is undiscoverable by construction — a pointer idiom
+    /// with a modifier has no affordance anywhere — so the derivation now also has
+    /// a menu row with a shortcut printed beside it.
+    private func askWhyAtCursor() {
+        askWhy(atCell: cursor)
+    }
+
+    private func askWhy(atCell cell: Int) {
+        guard let game = model.game, model.solvedAt == nil, rose == nil,
+              game.entry(at: cell) == 0 else { return }
+        cursor = cell
         guard let outcome = model.requestDerivation(forCell: cell) else { return }
+        dismissCoach()
         withAnimation(.couchFast) {
             switch outcome {
             case .success(let derivation):
@@ -650,12 +710,71 @@ struct MacGameScreen: View {
                 whyRefusal = WhyRefusal(refusal: refusal)
             }
         }
+        announceWhy()
+    }
+
+    /// VoiceOver hears the beat it cannot see the board light up. iOS has done
+    /// this since PRD-25 (`TouchUI.announceWhy`) and the Mac has not — the half of
+    /// ⌥-click that was genuinely missing rather than merely undiscoverable. Same
+    /// join, through the same keys, so a screen reader is told the sentence the
+    /// card shows rather than a second spelling of it.
+    private func announceWhy() {
+        if let beat = why?.beat {
+            announce(CoachCardLabel.spoken(
+                title: BoardSpeech.coachTitle(.step(beat.coach)),
+                sentence: BoardSpeech.coachSentence(.step(beat.coach))))
+        } else if let whyRefusal {
+            announce(CoachCardLabel.spoken(title: whyRefusal.title,
+                                           sentence: whyRefusal.sentence))
+        }
+    }
+
+    // MARK: The coach (PRD-11, arriving on the Mac with PRD-33)
+
+    /// The Mac's hint. No lightbulb button: the sixth control the touch bar has
+    /// would be a fifth button here, and the covenant forbids one. A menu row and
+    /// a shortcut cost the board no pixels at all.
+    private func toggleCoach() {
+        guard model.game != nil, model.solvedAt == nil else { return }
+        guard coachAdvice == nil else { return dismissCoach() }
+        guard let advice = model.requestCoachAdvice() else { return }
+        dismissWhy()
+        withAnimation(.couchFast) { coachAdvice = advice }
+        announce(CoachCardLabel.spoken(title: BoardSpeech.coachTitle(advice),
+                                       sentence: BoardSpeech.coachSentence(advice)))
+    }
+
+    private func dismissCoach() {
+        guard coachAdvice != nil else { return }
+        withAnimation(.couchFast) { coachAdvice = nil }
+    }
+
+    @ViewBuilder
+    private var coachView: some View {
+        if let coachAdvice {
+            CoachCardContent(
+                advice: coachAdvice,
+                accent: accent,
+                actionTitle: coachAdvice.actionTitle(autoNotes: model.autoNotes)
+            ) {
+                if case .step(let step) = coachAdvice { model.applyCoachStep(step) }
+                dismissCoach()
+            }
+        }
+    }
+
+    /// Auto-notes, the wand's Mac twin. No chip: the touch chip exists because a
+    /// thumb cannot see the whole board at once, and a Mac window can.
+    private func toggleAutoNotes() {
+        guard model.game != nil, model.solvedAt == nil else { return }
+        model.autoNotes = !model.autoNotes
     }
 
     private func advanceWhy() {
         guard var running = why else { return }
         running.advance()
         withAnimation(.couchFast) { why = running }
+        announceWhy()
     }
 
     private func dismissWhy() {
@@ -860,11 +979,134 @@ struct MacHistoryWindow: View {
     }
 }
 
+// MARK: - Archive window (⌥⌘A) and School window (⇧⌘E) — PRD-33
+
+/// The daily archive, in a window. Tapping a day routes through the same
+/// `openArchiveDay` the iOS sheet uses and the board appears in the *main*
+/// window — which is the point of it being a second window rather than a sheet.
+struct MacArchiveWindow: View {
+    let model: AppModel
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    var body: some View {
+        ZStack {
+            VoidBackground()
+            ArchiveSheetContent(model: model, onClose: { dismissWindow(id: "archive") })
+                .padding(20)
+        }
+        .frame(minWidth: 380, minHeight: 460)
+        .environment(\.nineTheme, model.prefs.theme)
+        .preferredColorScheme(model.prefs.theme.colorScheme)
+    }
+}
+
+/// The Technique School (PRD-25), which has compiled for macOS since it shipped
+/// and had no presenter anywhere.
+struct MacSchoolWindow: View {
+    let model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    var body: some View {
+        ZStack {
+            VoidBackground()
+            SchoolView(
+                model: model,
+                accent: model.prefs.accent.color(isLight: colorScheme == .light),
+                onDismiss: { dismissWindow(id: "school") }
+            )
+        }
+        .frame(minWidth: 460, minHeight: 520)
+        .environment(\.nineTheme, model.prefs.theme)
+        .preferredColorScheme(model.prefs.theme.colorScheme)
+    }
+}
+
+// MARK: - Menu-bar extra (PRD-33)
+
+/// The mini board that lives behind the menu-bar glyph.
+///
+/// **It is deliberately not playable.** A full rose in a 240pt popover would be a
+/// worse rose than the one in the window — the petals would be under the minimum
+/// target size and the flick would have nowhere to travel — and it would be a
+/// second input concept, against a budget of one that this release has otherwise
+/// spent nothing of. What it is instead is a *glance* and two doors: how today's
+/// board looks, and the two ways back into it.
+///
+/// The board is drawn with `BoardFingerprint`, the same constellation the shelf
+/// uses, for the same reason PRD-22 gave: at this size a grid of digits is a smudge
+/// and a constellation is a portrait.
+struct MacMenuBarBoard: View {
+    let model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openWindow) private var openWindow
+
+    private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                if let daily = model.savedDaily {
+                    BoardFingerprint(game: daily, accent: accent, side: 64)
+                } else if let (game, _) = model.savedFree {
+                    BoardFingerprint(game: game, accent: accent, side: 64)
+                } else {
+                    // The honest zero-state (craft charter), not a fake board.
+                    Image(systemName: "square.grid.3x3")
+                        .font(.system(size: 30, weight: .light))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 64, height: 64)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Phrase.wordmark)
+                        .font(.headline)
+                    Text(menuBarStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Divider()
+            Button(Strings.string("menu.game.today")) { model.openToday() }
+            Button(Strings.string("menu.game.continue")) {
+                if let entry = model.library.mostRecentInProgress {
+                    model.resumeEntry(id: entry.id)
+                }
+            }
+            .disabled(model.library.mostRecentInProgress == nil)
+        }
+        .buttonStyle(.plain)
+        .padding(16)
+        .frame(width: 260)
+        .environment(\.nineTheme, model.prefs.theme)
+    }
+
+    /// One line, and never a count of days. The menu bar is the surface a player
+    /// sees most often without choosing to, so a streak here would be the closest
+    /// thing to nagging this app could build — and a Focus filter takes it away
+    /// everywhere else already.
+    private var menuBarStatus: String {
+        if model.todaySolved { return Strings.string("status.solved") }
+        if let daily = model.savedDaily, !model.focus.hidesDaily {
+            return Strings.string("shelf.today.continueProgress",
+                                  .text(BoardProgressCaption.text(for: daily)))
+        }
+        if model.savedDaily != nil { return Strings.string("shelf.today.title") }
+        return Strings.string("shelf.today.oneADay")
+    }
+}
+
 // MARK: - Menu bar
 
 struct NineCommands: Commands {
     let model: AppModel
     @FocusedValue(\.nineActions) private var actions
+    /// The App's own `@State`, threaded down rather than re-read. `@AppStorage`
+    /// here would reintroduce the spin the long note at
+    /// `NineApp.menuBarExtraShown` records — the loop is closed by *any* source
+    /// that republishes while the main menu is being rebuilt, and this menu is
+    /// part of that rebuild.
+    @Binding var menuBarExtraShown: Bool
 
     var body: some Commands {
         // Game
@@ -889,13 +1131,65 @@ struct NineCommands: Commands {
             }
             Button(Strings.string("menu.game.today")) { model.openToday() }
                 .keyboardShortcut("t", modifiers: .command)
+            // PRD-33: "continue" is the one door the Mac never had. ⌘N gives you a
+            // new board and ⌘T gives you today's; the board you were actually on
+            // took a trip through the Boards sheet.
+            Button(Strings.string("menu.game.continue")) {
+                if let entry = model.library.mostRecentInProgress {
+                    model.resumeEntry(id: entry.id)
+                }
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(model.library.mostRecentInProgress == nil)
             Divider()
             HistoryMenuButton()
             Button(Strings.string("menu.game.boards")) { model.macShowBoards = true }
                 .keyboardShortcut("b", modifiers: .command)
+            ArchiveMenuButton()
+            Button(Strings.string("school.title")) { model.macShowSchool = true }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             Divider()
             Button(Strings.string("menu.game.discard")) { model.discardSaved() }
                 .disabled(model.savedFree == nil)
+        }
+
+        // Board — the commands that belong to the grid rather than to the app
+        // (PRD-33). Its own menu, not rows bolted onto Game: Game is about which
+        // board, and this is about what you do to one. Every row routes through
+        // `NineFocusActions`, so all of them grey out on the shelf, which is
+        // correct and free.
+        CommandMenu(Strings.string("menu.board.title")) {
+            Button(Strings.string("menu.board.why")) { actions?.askWhy?() }
+                .keyboardShortcut("y", modifiers: [.command, .shift])
+                .disabled(actions?.askWhy == nil)
+            Button(Strings.string("menu.board.hint")) { actions?.showHint?() }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+                .disabled(actions?.showHint == nil)
+            Divider()
+            // A Toggle rather than a verb: "Pencil" with a checkmark says what is
+            // true, where "Turn on pencil" makes you remember what you last did.
+            Toggle(Strings.string("menu.board.pencil"), isOn: Binding(
+                get: { actions?.pencilOn ?? false },
+                set: { _ in actions?.toggleStickyPencil?() }
+            ))
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(actions?.toggleStickyPencil == nil)
+            Toggle(Strings.string("menu.board.autoNotes"), isOn: Binding(
+                get: { model.autoNotes },
+                set: { _ in actions?.toggleAutoNotes?() }
+            ))
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .disabled(actions?.toggleAutoNotes == nil)
+            Divider()
+            Button(Strings.string("menu.board.erase")) { actions?.erase?() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(actions?.erase == nil)
+            Button(Strings.string("menu.board.nextEmpty")) { actions?.nextEmpty?(true) }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                .disabled(actions?.nextEmpty == nil)
+            Button(Strings.string("menu.board.previousEmpty")) { actions?.nextEmpty?(false) }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                .disabled(actions?.nextEmpty == nil)
         }
 
         // Edit — replace the stock Undo/Redo so ⌘Z drives the game's toast.
@@ -929,11 +1223,26 @@ struct NineCommands: Commands {
                 get: { model.deskFloating },
                 set: { model.deskFloating = $0 }
             ))
+            Divider()
+            // PRD-33's menu-bar extra, and it is **off by default** — a permanent
+            // glyph in the menu bar is the idle-pixel test's most literal subject,
+            // and the one surface where a pixel Nine draws is on screen even when
+            // Nine is not running.
+            Toggle(Strings.string("menu.view.menuBar"), isOn: Binding(
+                get: { menuBarExtraShown },
+                set: { on in
+                    menuBarExtraShown = on
+                    // Written here rather than by a property wrapper, so nothing
+                    // observes `UserDefaults` during a menu rebuild.
+                    UserDefaults.standard.set(on, forKey: NineApp.menuBarExtraKey)
+                }
+            ))
         }
 
         // Help
         CommandGroup(replacing: .help) {
             Button(Strings.string("menu.help.howToPlay")) { model.macShowTutorial = true }
+            Button(Strings.string("school.title")) { model.macShowSchool = true }
         }
     }
 
@@ -955,6 +1264,20 @@ private struct HistoryMenuButton: View {
     var body: some View {
         Button(Strings.string("history.title")) { openWindow(id: "history") }
             .keyboardShortcut("y", modifiers: .command)
+    }
+}
+
+/// The daily archive, which had no Mac surface at all before PRD-33 — and could
+/// not have had one, because `ArchiveSheet.swift` was `#if os(iOS)` and did not
+/// compile for the Mac. A window rather than an overlay, for the reason PRD-26 and
+/// PRD-31 both deferred to this PRD: **the Mac's answer to a second pane is a
+/// window.** A calendar you consult while looking at a board is exactly the case.
+private struct ArchiveMenuButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button(Strings.string("archive.title")) { openWindow(id: "archive") }
+            .keyboardShortcut("a", modifiers: [.command, .option])
     }
 }
 

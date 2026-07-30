@@ -111,6 +111,18 @@ struct PrefsSheetContent: View {
             ) {
                 model.prefs.touchHaptics.toggle()
             }
+
+            // PRD-30. In Feel rather than Layout because what it decides is not
+            // where something sits but whether the app is present when you are
+            // not looking at it — which is the same kind of question as whether
+            // the board answers your hands.
+            prefRow(
+                title: Strings.string("prefs.livePresence.title"),
+                detail: Phrase.onOff(model.prefs.livePresence),
+                symbol: model.prefs.livePresence ? "lock.iphone" : "iphone"
+            ) {
+                model.prefs.livePresence.toggle()
+            }
             #endif
 
             #if os(tvOS)

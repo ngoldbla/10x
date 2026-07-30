@@ -417,9 +417,9 @@ final class CatalogTests: XCTestCase {
         // 17 → 18 for Task 3 of the four-fixes program: `debrief.errors`
         // joins them, the wrongness count the debrief had no number for
         // before ("1 error" against "2 errors").
-        XCTAssertEqual(pluralised, 18,
+        XCTAssertEqual(pluralised, 20,
                        "English carries a different number of whole-string plurals than "
-                       + "the 18 this catalog was built with — if that is deliberate, "
+                       + "the 20 this catalog was built with — if that is deliberate, "
                        + "move the number; if it is not, a plural has been flattened at "
                        + "the source and every locale followed it")
         XCTAssertEqual(substituted, 3,
