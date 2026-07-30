@@ -63,6 +63,10 @@ struct BoardAXGrid: View {
     let side: CGFloat
     let inset: CGFloat
     let actions: BoardAXActions
+    /// The variant rules on this board, or nil for classic (PRD-24). Default-nil
+    /// so every classic caller produces a byte-identical tree — which the four
+    /// `Tests/AXBaselines/*.txt` files are the proof of.
+    var channelRules: ChannelRules? = nil
 
     @Namespace private var rotorSpace
 
@@ -150,7 +154,12 @@ struct BoardAXGrid: View {
             .frame(width: rect.width, height: rect.height)
             .position(x: rect.midX - box.minX, y: rect.midY - box.minY)
             .accessibilityElement()
-            .accessibilityLabel(BoardSpeech.cellLabel(cell))
+            // The label carries the cell's variant rules, not the hint, and not
+            // the value. The value is "Empty" / "4, given" and is about what the
+            // *player* has done; the rules are about the board, and VoiceOver
+            // hints can be switched off — so a cage sum in the hint is a cage sum
+            // some players never hear. See `BoardSpeech.cellLabel(_:rules:)`.
+            .accessibilityLabel(BoardSpeech.cellLabel(cell, rules: channelRules))
             .accessibilityValue(BoardSpeech.cellValue(cell, in: game, showErrors: showErrors))
             .accessibilityHint(playable ? BoardSpeech.cellHint(cell) : "")
             .accessibilityAddTraits(traits(cell: cell, given: given, playable: playable))

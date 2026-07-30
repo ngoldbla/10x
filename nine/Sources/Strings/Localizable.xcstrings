@@ -2833,6 +2833,138 @@
         }
       }
     },
+    "board.cell.ruleSeparator": {
+      "comment": "Separator between two rules on one puzzle square, when a square sits on two thermometers at once. English uses a comma and a space. Punctuation only.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": ", "
+          }
+        }
+      }
+    },
+    "board.cell.withRule": {
+      "comment": "Accessibility label for a puzzle square on a variant board: the square's position, then the rule it sits under, as ONE utterance VoiceOver reads on every focus move. %1$@ is like \"Row 3, column 5\"; %2$@ is like \"cage of 15\" or \"thermometer, 2 of 4\". Both halves are finished translated strings — the comma and space between them is the join, and where a join goes differs per language (Japanese uses 、 and no space). Keep it SHORT: it is spoken every time focus moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、%2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，%2$@"
+          }
+        }
+      }
+    },
     "board.digitPlural.eight": {
       "comment": "\"the 8s\" — the digit 8 as a countable plural noun.",
       "extractionState": "manual",
@@ -5161,6 +5293,138 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "带笔记的格子"
+          }
+        }
+      }
+    },
+    "board.rule.cage": {
+      "comment": "Spoken part of a puzzle square's label on a Killer board: the total its outlined cage must add up to. %1$lld is that total (2-45). Very short — it is spoken every time focus moves. \"Cage\" is the outlined group of squares.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Käfig mit %1$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cage of %1$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "jaula de %1$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "cage de %1$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "gabbia da %1$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "合計 %1$lld のケージ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "합 %1$lld 케이지"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "kooi van %1$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "gaiola de %1$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "和为 %1$lld 的笼子"
+          }
+        }
+      }
+    },
+    "board.rule.thermo": {
+      "comment": "Spoken part of a puzzle square's label on a Thermo board: where this square sits along its thermometer. %1$lld is the position counting from the round bulb end (1 = the bulb) and %2$lld is the thermometer's length. Digits increase from bulb to tip, so the position is what tells the player how small or large this square can be. Very short — spoken every time focus moves.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Thermometer, %1$lld von %2$lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thermometer, %1$lld of %2$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termómetro, %1$lld de %2$lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "thermomètre, %1$lld sur %2$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termometro, %1$lld di %2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "サーモ、%2$lld 個中 %1$lld 番目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "서모, %2$lld 중 %1$lld번째"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "thermometer, %1$lld van %2$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "termômetro, %1$lld de %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "温度计，第 %1$lld 个，共 %2$lld 个"
           }
         }
       }
@@ -9723,6 +9987,138 @@
         }
       }
     },
+    "coach.cageCombination.sentence": {
+      "comment": "Coach explanation on a Killer board: a cage's printed total admits only a few sets of digits, and none of the sets still possible puts this digit in this square. %1$lld is the cage's size and %2$lld is the digit being ruled out. \"Cage\" is the outlined group with a printed total.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dieser Käfig aus %1$lld Feldern kann nur wenige Ziffernsätze aufnehmen, und keiner der noch möglichen setzt hier eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cage of %1$lld cells can only hold a few sets of digits, and none of the ones still possible puts a %2$lld here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Esta jaula de %1$lld casillas solo admite unos pocos conjuntos de dígitos, y ninguno de los posibles pone un %2$lld aquí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Cette cage de %1$lld cases n'admet que quelques ensembles de chiffres, et aucun de ceux encore possibles ne place un %2$lld ici."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Questa gabbia da %1$lld caselle ammette solo pochi insiemi di cifre, e nessuno di quelli ancora possibili mette un %2$lld qui."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld マスのこのケージに入る数字の組み合わせは限られており、まだ可能などの組み合わせもここに %2$lld を置きません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 케이지에 들어갈 수 있는 숫자 조합은 몇 가지뿐이며, 아직 가능한 어떤 조합도 여기에 %2$lld을 놓지 않습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deze kooi van %1$lld vakjes kan maar enkele cijfersets bevatten, en geen van de nog mogelijke zet hier een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Esta gaiola de %1$lld quadrados só admite alguns conjuntos de dígitos, e nenhum dos ainda possíveis coloca um %2$lld aqui."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这个 %1$lld 格笼子只能容纳少数几组数字，而仍然可能的组合中没有一组会在这里放 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.cageSingle.sentence": {
+      "comment": "Coach explanation on a Killer board: only one square of a cage is still empty, so the cage's printed total forces its digit. %1$lld is how many squares the cage has and %2$lld is the digit. \"Cage\" is the outlined group with a printed total.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nur ein Feld dieses %1$lld-Feld-Käfigs ist noch leer, also lässt die Käfigsumme nur eine %2$lld zu."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One square of this %1$lld-cell cage is still empty, so the cage total leaves only a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Solo queda una casilla vacía en esta jaula de %1$lld, así que el total de la jaula solo admite un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Une seule case de cette cage de %1$lld est encore vide : le total de la cage n'admet donc qu'un %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Una sola casella di questa gabbia da %1$lld è ancora vuota, quindi il totale della gabbia ammette solo un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "この %1$lld マスのケージで空いているのは 1 マスだけなので、ケージの合計から %2$lld しか入りません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 케이지에서 빈 칸이 하나뿐이므로 케이지 합에 따라 %2$lld만 들어갈 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Slechts één vakje van deze kooi van %1$lld is nog leeg, dus de kooisom laat alleen een %2$lld toe."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Só um quadrado desta gaiola de %1$lld ainda está vazio, então o total da gaiola só admite um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "这个 %1$lld 格笼子里只剩一格是空的，所以笼子的和只能是 %2$lld。"
+          }
+        }
+      }
+    },
     "coach.card.label": {
       "comment": "VoiceOver label of the coaching card, joining its heading and its sentence into one utterance. %1$@ is a technique name or a card heading, %2$@ the explanation. Punctuation only, and it is yours: replace \". \" with \"。\" or with whatever ends a sentence here, and reorder the two if that is how this language says it.",
       "extractionState": "manual",
@@ -10379,6 +10775,204 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "第 %1$lld 行里只有一个格子能放 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.box": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\", for a 3x3 BOX. %1$lld is the box number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Block %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Box %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La caja %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La boîte %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Il blocco %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld ブロックの合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 박스의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Blok %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A caixa %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld ブロック的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.col": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\", for a COLUMN. %1$lld is the column number and %2$lld the digit. See coach.innieOutie.sentence.row.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Spalte %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Column %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La columna %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La colonne %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La colonna %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 列の合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 열의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kolom %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A coluna %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 列的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
+          }
+        }
+      }
+    },
+    "coach.innieOutie.sentence.row": {
+      "comment": "Coach explanation on a Killer board, the \"rule of 45\": every ROW holds 1 through 9 and so totals 45, and the cages covering this row account for all but one square, which forces that square. %1$lld is the row number and %2$lld the digit. 45 is arithmetic, not a translatable word. Three separate sentences exist for row/column/box so each can be phrased naturally.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zeile %1$lld summiert sich zu 45, und die Käfige darüber erfassen alle Felder bis auf eines — also ist dieses eine %2$lld."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Row %1$lld sums to 45, and the cages covering it account for every square but one — so that one is a %2$lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La fila %1$lld suma 45, y las jaulas que la cubren abarcan todas las casillas menos una — así que esa es un %2$lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La ligne %1$lld totalise 45, et les cages qui la couvrent comptent toutes les cases sauf une — celle-là vaut donc %2$lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La riga %1$lld somma 45, e le gabbie che la coprono contano tutte le caselle tranne una — quella è quindi un %2$lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 行の合計は 45 で、覆っているケージは 1 マスを除くすべてを数えます。よってそのマスは %2$lld です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld번째 행의 합은 45이고, 이를 덮는 케이지가 한 칸만 빼고 모두 포함하므로 그 칸은 %2$lld입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rij %1$lld telt op tot 45, en de kooien die hem bedekken dekken alle vakjes op één na — dat ene is dus een %2$lld."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A linha %1$lld soma 45, e as gaiolas que a cobrem abrangem todos os quadrados menos um — esse é um %2$lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "第 %1$lld 行的和为 45，覆盖它的笼子涵盖了除一格以外的所有格，所以那一格是 %2$lld。"
           }
         }
       }
@@ -11171,6 +11765,72 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "在这三行里，%1$lld 只能落在三列上，所以这三列的其他格子都不能是 %1$lld。"
+          }
+        }
+      }
+    },
+    "coach.thermoBound.sentence": {
+      "comment": "Coach explanation on a Thermo board: digits along a thermometer increase strictly from the round bulb end to the tip, which limits how small or large each square on it can be. %1$lld is the thermometer's length in squares. \"Floor and ceiling\" means a lowest and highest possible digit — phrase it naturally rather than literally.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Die Ziffern steigen vom Kolben zur Spitze dieses %1$lld-Feld-Thermometers, was jedem Feld darauf eine Unter- und Obergrenze gibt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digits rise from the bulb to the tip of this %1$lld-cell thermometer, which puts a floor and a ceiling on every square along it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Los dígitos aumentan del bulbo a la punta de este termómetro de %1$lld casillas, lo que fija un mínimo y un máximo en cada casilla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Les chiffres montent du bulbe à la pointe de ce thermomètre de %1$lld cases, ce qui donne un minimum et un maximum à chaque case."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Le cifre crescono dal bulbo alla punta di questo termometro da %1$lld caselle, dando a ogni casella un minimo e un massimo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld マスのこのサーモは球部から先端へ数字が増えるので、各マスに下限と上限がつきます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$lld칸 서모는 구근에서 끝으로 숫자가 커지므로 각 칸에 최솟값과 최댓값이 정해집니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "De cijfers stijgen van de bol naar de punt van deze thermometer van %1$lld vakjes, wat elk vakje een onder- en bovengrens geeft."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Os dígitos aumentam do bulbo à ponta deste termômetro de %1$lld quadrados, o que dá a cada quadrado um mínimo e um máximo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "数字沿这个 %1$lld 格温度计从球端向尖端递增，因此每一格都有下限和上限。"
           }
         }
       }

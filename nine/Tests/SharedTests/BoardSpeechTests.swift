@@ -803,6 +803,15 @@ final class BoardSpeechTests: XCTestCase {
             // pseudolocalizer destroying. The numbers are formatted in Swift
             // now; what stays translated is the separator between them.
             "rowNumeral", "columnNumeral",
+            // board.cell.withRule (PRD-24): a cell's finished label and a
+            // finished rule clause, joined for one utterance. The same shape as
+            // `firstSentence`/`secondSentence` above and sanctioned for the same
+            // reason — both halves are already translated, so what the join
+            // carries is punctuation and order and nothing else. Note the
+            // *rule clause itself* is a whole catalog entry
+            // (`board.rule.cage` / `board.rule.thermo`), not a noun spliced into
+            // a frame, which is what this rule is actually about.
+            "cell", "rule",
         ]
         let pattern = try NSRegularExpression(pattern: #"\.text\(([A-Za-z_][A-Za-z0-9_]*)\)"#)
         let range = NSRange(source.startIndex..., in: source)
@@ -863,6 +872,16 @@ final class BoardSpeechTests: XCTestCase {
             "coach.boxLine.sentence.boxToRow",
             "coach.boxLine.sentence.colToBox",
             "coach.boxLine.sentence.rowToBox",
+            // PRD-24's four variant techniques, which PRD-11 left falling to
+            // `default: return ""` because naming them in `Sources/Shared` would
+            // have tripped PRD-23's channel seal (`DEVIATIONS.md:1559`). Note the
+            // rule holding at another new joint: `innieOutie` splits three ways on
+            // unit kind exactly as `hiddenSingle` does, while `cageSingle`,
+            // `cageCombination` and `thermoBound` are single entries because
+            // neither reasons about a unit — a cage is emphatically *not* a unit
+            // (`ConstraintContext.units`) and a thermometer is not one either.
+            "coach.cageCombination.sentence",
+            "coach.cageSingle.sentence",
             "coach.exhausted.sentence",
             "coach.hiddenPair.sentence.box",
             "coach.hiddenPair.sentence.col",
@@ -871,6 +890,9 @@ final class BoardSpeechTests: XCTestCase {
             "coach.hiddenSingle.sentence.cell",
             "coach.hiddenSingle.sentence.col",
             "coach.hiddenSingle.sentence.row",
+            "coach.innieOutie.sentence.box",
+            "coach.innieOutie.sentence.col",
+            "coach.innieOutie.sentence.row",
             "coach.nakedPair.sentence.box",
             "coach.nakedPair.sentence.col",
             "coach.nakedPair.sentence.row",
@@ -881,6 +903,7 @@ final class BoardSpeechTests: XCTestCase {
             "coach.slip.sentence",
             "coach.swordfish.sentence.colBase",
             "coach.swordfish.sentence.rowBase",
+            "coach.thermoBound.sentence",
             "coach.xWing.sentence.colBase",
             "coach.xWing.sentence.rowBase",
             "coach.xyWing.sentence",

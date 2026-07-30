@@ -336,7 +336,8 @@ struct BoardView: View {
                 showErrors: showErrors,
                 side: side,
                 inset: inset,
-                actions: axActions
+                actions: axActions,
+                channelRules: channelRules
             )
         }
         .accessibilityHidden(roseOpen)

@@ -821,17 +821,20 @@ final class CatalogTests: XCTestCase {
         // found the %1$@ at move %2$lld"). Its ten siblings carry one index or
         // none.
         //
-        // 37 → 41 for PRD-24, and it is four, all on the channel shelf:
+        // 37 → 48 for PRD-24, and it is eleven, in three groups. The shelf:
         // `shelf.channel.daily` and `shelf.channel.free` (both "%1$@ · %2$@" — a
         // channel name and either a date or a tier), `channel.today.label` (a
         // channel name plus a whole status sentence, joined for VoiceOver) and
-        // `channel.pager.label` (a channel name plus "page N of M", which is the
-        // only three-argument key that PRD added). Every other key it added is a
-        // single noun with no arguments at all, which is what a channel name, a
-        // blurb and a tier name are.
-        XCTAssertEqual(keysCarryingTwoOrMore, 41, """
+        // `channel.pager.label` (the only three-argument key the PRD added). The
+        // board's spoken rules: `board.cell.withRule` and `board.rule.thermo`. And
+        // the four variant techniques' sentences, of which `innieOutie` is three
+        // because it splits on unit kind: `coach.cageSingle.sentence`,
+        // `coach.cageCombination.sentence` and `coach.innieOutie.sentence.{row,
+        // col,box}`. Every other key the PRD added is a single noun or takes one
+        // number — a channel name, a blurb, a tier name, a cage sum, a tube length.
+        XCTAssertEqual(keysCarryingTwoOrMore, 48, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 41 this test was calibrated against. That is fine and the \
+            not the 48 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \
