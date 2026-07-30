@@ -313,6 +313,21 @@ def screens():
         # rather than of the swipe, and the frames do not move between runs.
         dict(name="home", prefs=PREFS_ERRORS_ON, taps=["Home", "SCROLL_BOTTOM"],
              anchor="How to play", probe=False),
+        # A channel page (PRD-24), and it needs its own baseline rather than
+        # riding on `home`'s: `home` scrolls to the bottom before it reads, so the
+        # pager rail at the top of the shelf is structurally invisible to it. A
+        # baseline that cannot see the new surface is a baseline that will not
+        # catch the new surface regressing.
+        #
+        # Reached by tapping the pager's own chevron rather than by a swipe,
+        # deliberately — the chevron is the route that has to keep working for
+        # VoiceOver and Switch Control, and driving it here is what proves it is
+        # in the tree at all. The first version of the rail put an
+        # `accessibilityLabel` on the enclosing `HStack`, which made SwiftUI merge
+        # the leading chevron away entirely; three platform builds passed and only
+        # a live dump disagreed.
+        dict(name="channel", prefs=PREFS_ERRORS_ON, taps=["Home", "Next channel"],
+             anchor="Thermo, page 2 of 3", probe=False),
     ]
 
 

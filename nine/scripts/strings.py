@@ -1131,6 +1131,12 @@ COMMENTS = {
     "channel.thermo.blurb": "One-line subtitle under the Thermo channel's title. \"Tubes\" are the thermometer shapes; \"only rise\" means the digits along one must strictly increase. Convey \"the numbers along each shape always go up\". Under about 25 characters.",
     "channel.killer.title": "Channel name, the sudoku variant known in English as Killer Sudoku: the grid is divided into outlined \"cages\", each printed with a total its digits must add up to. NOT the adjective \"killer\" and nothing to do with killing — this is the established name of a puzzle type. Use whatever your language's sudoku players call this variant. One word.",
     "channel.killer.blurb": "One-line subtitle under the Killer channel's title. \"Cages\" are the outlined regions; \"add up\" refers to each one's printed total. Convey \"outlined groups that sum to a number\". Under about 25 characters.",
+    "channel.next": "Accessibility label for the button that turns the home shelf to the next channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+    "channel.previous": "Accessibility label for the button that turns the home shelf to the previous channel page. A verb phrase VoiceOver reads before the word \"button\". Short.",
+    "channel.pager.label": "Accessibility label for the whole channel page indicator, read as one utterance. %1$@ is the channel name, %2$lld the current page, %3$lld the total (3 today). Match how your language says \"page N of M\".",
+    "channel.today.label": "Accessibility label for a channel's Today card, spoken as ONE utterance so VoiceOver does not read a title and then an orphaned status. %1$@ is the channel name; %2$@ is a whole sentence about its state (\"Solved\", \"Continue · Half done\"). The full stop between them is the join — place it as your language would.",
+    "channel.today.oneADay": "Resting state of a channel's Today card, before that channel's daily puzzle has been started. Says there is one puzzle per day AND that each channel has its own — playing today's Thermo does not use up today's Classic. Short.",
+    "channel.unavailable": "Shown on a saved variant puzzle that cannot be opened because this copy of the app does not understand one of its rules; it arrived from a newer version. Plain and brief, not an apology and not an error code. Fits on one line under a puzzle's name.",
 
     # Variant tiers (PRD-24). The difficulty ladder for a variant channel.
     # Deliberately its own key family rather than reusing difficulty.*.title:
@@ -1256,9 +1262,6 @@ COMMENTS = {
     "shelf.boards.subtitleCount": "Subtitle of the Apple TV shelf's Boards tile. %1$lld is how many boards are started but unfinished, always 1 or more. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
     "shelf.history.subtitle": "Subtitle of the Apple TV shelf's History tile — what the sheet behind it holds. A fragment, not a sentence.",
     "shelf.replays.subtitle": "Subtitle of the Apple TV shelf's Replays tile, which opens an ambient screen replaying the player's own finished boards. \"Retraced\" means drawn again, following the same path. A fragment, not a sentence.",
-    "shelf.variants.title": "Title of the shelf card teasing the two sudoku variants Nine will add. Both are names of puzzle types — use this language's established names if it has them. The separator is a middle dot.",
-    "shelf.variants.subtitle": "Subtitle of the variants teaser card, before it is tapped. A promise, gently made; no date, no sign-up.",
-    "shelf.variants.answer": "What the variants teaser says once tapped, replacing its subtitle for a few seconds. The point is that nothing is being asked of the player — no email, no notification, no purchase.",
     "shelf.difficulty.label": "VoiceOver label of a free-play difficulty card. %1$@ is the band's name (\"Nocturne\"), %2$@ its one-line blurb. Punctuation only.",
     "shelf.daily.date": "How a past day's board is named in a list of boards. %1$@ is a date (\"12 Jul 2026\"). \"Daily\" here is a noun — the day's shared puzzle — not an adverb.",
     "shelf.archive.hint": "VoiceOver hint on the calendar glyph in the corner of the Today card: what opening the archive gets you. A fragment, as VoiceOver hints are.",
