@@ -305,7 +305,7 @@ struct TutorialView: View {
     private func handleKey(_ press: KeyPress) -> Bool {
         guard var g = game else { return false }
         if press.modifiers.contains(.command) { return false }
-        guard let action = MacBoardKeys.action(for: press) else { return false }
+        guard let action = BoardKeys.action(for: press) else { return false }
         switch action {
         case .move(let direction):
             if rose == nil { cursor = BoardMetrics.moveCursor(cursor, direction, wrap: true) }

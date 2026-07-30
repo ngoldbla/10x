@@ -3510,3 +3510,222 @@ costs on the table, so the costs are recorded rather than implied:
   covered incidentally, through `scenePhase`.
 - **The nine languages are machine-drafted and unreviewed**, consistent with PRD-20's
   standing headline deferral.
+
+## PRD-31 — the drafting table, and the recognizer that had to be allowed to say no (2026-07-29)
+
+`PRD-31.md` did not exist when this started; `PROGRAM-2.0.md:97` was the whole
+spec, the same way it was for PRD-25 and PRD-26. The PRD is written now and is
+the forward document; this is what happened.
+
+### The finding that shaped everything: there was no iPad code to adapt
+
+`Sources/` held **zero** `horizontalSizeClass`, zero `verticalSizeClass`, zero
+`UIDevice`, zero `userInterfaceIdiom`. The entire iPad story was one
+`.frame(maxWidth: 560)` on the shelf under the comment "center the column on
+iPad" and a board clamp that subtracts a control-bar reserve from the height
+term and nothing from the width term — portrait reasoning, shipped to a device
+`project.yml:182` grants all four orientations.
+
+So the question was never "which size class" but whether to introduce one at
+all, and the answer is no. **A size class is wrong for this app.** A 1000×700
+Stage Manager tile on an iPad Pro reports `.regular` horizontally while having
+less usable width than an iPhone 17 Pro Max has height; an external display
+hands us 1920×1080 from the same idiom that hands us 834×1194. The composition
+is a pure function of the window (`Sources/Shared/DraftingTable.swift`,
+Linux-clean, tested by `swift test` with no simulator, exactly like `RoseLens`),
+and **there is no Stage Manager code anywhere in this change** — Stage Manager
+sanity is what asking the window gets you for free.
+
+The adoption rule is *the rail never costs you board*, and it is what correctly
+refuses portrait. Any width threshold generous enough to admit an 11" in
+landscape (1194pt) also admits an iPad Pro upright (1024pt), where the board
+would fall from 984 to 568 to make room. Held literally the rule is also
+unusable: on an 11" the two sides land within single-digit points, so a 2pt
+chrome change anywhere would flip the entire composition. The 8% skirt is the
+width of that knife edge, named rather than implied, and it is the only
+softening — the 520pt floor and the comparison itself are absolute.
+
+| Window | Composition | Board |
+|---|---|---|
+| iPad mini landscape | table | 617pt |
+| iPad 11" landscape | table | 678pt (column would draw 718) |
+| iPad Pro 13" landscape | table | 850pt |
+| iPad Pro 12.9" portrait | column | 984pt (table would draw 568) |
+| Stage Manager 1000×700 | column | 584pt |
+| 1080p external display | table | 1000pt, capped |
+
+`testTheRailNeverMeaningfullyCostsBoard` sweeps 169×113 window sizes rather than
+the two an engineer happens to open, and `testShrinkingAWindowCrossesOnceAndStaysCrossed`
+pins the property a two-threshold rule would have broken: dragging a window
+narrower crosses into the column exactly once and never oscillates.
+
+### Three defects found only by driving an iPad, each invisible to every test
+
+**The two-column shelf inflated the Today card to half the screen.** `todayCard`
+carries `.frame(minHeight: 130)` with no maximum, which makes it flexible
+*upward* — it accepts any height offered. On the phone that has never shown,
+because a `ScrollView` proposes nil and every child settles at its ideal size.
+Put it in an `HStack` beside a taller column and the column is suddenly given a
+concrete height, `VStack` divides the surplus between the card and the trailing
+`Spacer`, and Today becomes a slab. A latent property of shipped code that only
+a second column could expose; the fix is `fixedSize(horizontal: false, vertical: true)`
+on each column, and the comment says so where the next person will be tempted to
+remove it.
+
+**The rail was 200pt of stats above 700pt of empty glass.** Specified and built
+as a full-height panel, which is what "rail" suggests, and on an 11" it reads as
+a panel that failed to load. A drawer is the height of what is in it, and
+leaving it open should not change that. It is intrinsic-height now, top-aligned,
+with the `HStack` switched to `.top` and the other two columns claiming
+`maxHeight: .infinity` so they still fill.
+
+**Keyboard parity built, shipped green, and could not receive a keystroke.**
+`.focusable()`/`.focused()`/`.onKeyPress` were attached *inside* the
+`GeometryReader`, where the surface is rebuilt on every geometry change and the
+`@FocusState` set in `onAppear` never survives to see a key. The log showed
+`[UIKit:KeyboardUI] Keyboard receives keyEvent type: 4` and the cursor did not
+move — the event reached the app and fell through. `MacUI.swift:319-330` has
+carried the same three lines *outside* its own `GeometryReader` since PRD-4,
+under a comment about "focus wars"; this is that comment being right a second
+time. Verified after the fix by injecting HID keycodes: arrows moved the cursor,
+`5` placed, `⌘Z` undid it, `⇧3` left `Empty, notes 3`.
+
+### The recognizer, and the two constants that had to be measured rather than chosen
+
+$P point-cloud matching against authored templates — deterministic, Linux-clean,
+~150 lines, no training data. A model would be neither Lane-1-testable nor
+stable across OS versions, which is the property `GoldenCorpusTests` exists to
+forbid. One deviation from stock $P earns its keep: scaling **uniformly** by the
+larger dimension instead of to a non-uniform unit box, because a `1` is a
+vertical line of zero width and stock $P divides by that.
+
+The templates stay authored and never learn. Feeding accepted glyphs back in is
+the obvious next move and it is a trap: the day the matcher reads your 4 as a 9,
+that 4-shape becomes the 9 template and every subsequent 4 reads as a 9 more
+confidently than the last. Learning affects **rendering only**.
+
+**The commit bar is set for safety, not at the crossover, and it costs
+something.** Measured across 45 synthesized hands and five deliberately degraded
+ones:
+
+| population | score |
+|---|---|
+| garbage — dash, box, scribble, cross, circle | ≤ **0.033** |
+| best *wrong* reading (a 7 whose hook is so small it is a 1) | **0.391** |
+| worst *right* reading (a 3 with flat bumps) | **0.303** |
+| ordinary hands, all 45, all correct | ≥ **0.58** |
+
+The last two overlap, so **no bar keeps every right answer and drops every wrong
+one**. 0.45 sits above the wrong answers and refuses some right ones as the
+price. `testTheSafeBarAlsoRefusesSomeCorrectReadings` asserts that price is
+still being paid, so nobody quietly lowers the bar and re-opens the failure that
+matters: a mark appearing in a cell the player did not mean.
+
+**A margin bar was written, measured, and deleted.** "A guess that barely beats
+its rival is a coin toss" is a good idea that is false here — not because the
+populations overlap (they nearly separate) but because **the score bar has
+already rejected everything the margin bar could reject**. Every reading in the
+corpus that clears 0.45 is correct. `testTheMarginBarWouldHaveNothingLeftToReject`
+fails the day that stops being true, and `Reading.margin` survives as reported
+diagnostics so the next person to have the idea meets the number instead of the
+intuition.
+
+The first draft of that test **asserted the opposite and passed for the wrong
+reason**: it bucketed the five degraded hands as "wrong" by which list they came
+from rather than by what the matcher actually said, and two of them are read
+correctly. It measured its own labelling. Caught by a failing assertion, which
+is the shape of test this repo keeps having to learn.
+
+### Erase costs nothing, because the model already toggles
+
+A full Pencil vocabulary was on the table — write to place, scribble to erase,
+double-tap to switch tool — and every item is a second input concept against a
+budget of one. What ships falls out of a rule the app already had:
+`NineGame.togglePencil` *toggles*, so writing a 4 into a cell that already notes
+a 4 takes it away. No gesture, no mode, no glyph, and it reads the same as the
+rose's dashed-rim petal. The Pencil never places a digit even though the
+recognizer would allow it: your hand is what *tentative* looks like and the
+typeface is what *committed* looks like, and inking an entry would spend that
+distinction on a nicer screenshot.
+
+### The specimen, and why it is not per board
+
+One accepted glyph per digit, **773 bytes for all nine**, in its own cloud-synced
+top-level blob. Per-mark ink would be per-board state, which EXECUTING-A-PRD §2
+prices at 1515 ms against a 49 ms baseline. The specimen is also the better
+product: every pencil mark wears the hand, *including the ones placed with the
+rose, on the phone, with no Pencil in the room*, so a board looks like one person
+wrote it rather than like nine unrelated scrawls.
+
+Last confident stroke wins, at a stricter bar (0.60) than placement. First-wins
+would enshrine the one bad 4 written while the pen skipped, recoverable only
+through a settings row nobody should have to find.
+
+### The haptic the source had already earmarked for this PRD, and why it is not wired
+
+`AfterglowHaptics.swift` carries a comment saying `AfterglowScore.boxDetent`
+"remains tvOS's … until iPad's Pencil hover gives touch a traversal of its own
+(PRD-31)". The premise is right and the conclusion fails on physics: during a
+hover **neither hand is touching the iPad**, so a taptic pulse in the chassis is
+felt by nobody. Left unwired, and the comment corrected rather than fulfilled.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| a full hand, nine glyphs, encoded | **773 bytes** (test asserts < 4096) |
+| board, iPad 11" landscape | **678pt** table vs 718pt column |
+| board, iPad Pro 13" landscape | **850pt** |
+| board cap | 1000pt, **inert on every shipping device** (pinned by test) |
+| composition decision | swept over **19,097** window sizes in 0.006 s |
+| AX baselines after `.focusable()` | **all five match**, no re-record |
+| golden corpus | **56/56** |
+| `swift test` | **3:17** (424 XCTest, 6 skipped + 161 swift-testing, 0 failures) |
+
+### Not done, each with its reason
+
+- **No Apple Pencil has ever written a digit into Nine, and no pointer has ever
+  hovered over it.** There is no Pencil and no hover in a simulator, and neither
+  can be synthesized: `SpatialEventCollection.Event.Kind.pencil` and
+  `onContinuousHover` both need hardware. The recognizer is measured only against
+  constructed strokes — constructed *differently from the templates* (different
+  control points, different stroke splits, a shear, a rotation, per-point jitter),
+  so a template that only matches its own coordinates fails — but that is not the
+  same thing as a hand. The same class of standing deferral as PRD-20's "no human
+  has read the nine languages". The **rendering** half was driven end to end: a
+  real `nine.hand` blob seeded into the container, notes laid down over the
+  keyboard, and the strokes photographed at note scale
+  (`.context/prd31/06-handwritten-notes.png`).
+- **The glyph box is 0.30 of a cell and that number came from one screenshot.**
+  At 0.34 neighbouring marks in the mini keypad touch, because the note pitch is
+  0.28. It has not been checked against a mixed cell — some digits learned, some
+  not — where a written glyph sits beside a typeset one and the two optical sizes
+  have to agree.
+- **`sim-use tap` still does not drive this app's shelf, and `origin/main`
+  reproduces it exactly.** Tapping a difficulty card at coordinates that match
+  both the render and the reported accessibility frame does nothing, on the
+  unmodified shipped build as well as this one; taps on the learn row and inside
+  sheets work. This is the same unexplained lane failure recorded in the previous
+  section, re-confirmed against main rather than assumed. Routed around with the
+  widget deep link (`simctl openurl nine://daily`) and HID key injection, which is
+  how everything above was driven. Still unexamined.
+- **No Mac rail.** The layout function is shared and the Mac would take it
+  cheaply, but `MacUI` has no drawer, no first run, and cannot be launched locally
+  on an iCloud-signed-in host (PRD-20's standing gap), so it would ship undriven.
+  The Mac's answer to a second pane is a window, which is PRD-33's.
+- **No handedness preference.** Left-handed players get the worse half of
+  controls-lead/stats-trail. A handedness row is a settings row and the covenant
+  makes those expensive; the cheaper future fix is to mirror the composition off
+  the same pure function, which takes no new state.
+- **The debrief is not in the rail.** PRD-26's "never unbidden" is a shipped
+  decision and geometry is not a reason to re-litigate it, so the pull-up stays a
+  pull-up over the board.
+- **No AX baseline covers the drafting table.** `ax-snapshot.py` is pinned to an
+  iPhone 17 Pro (`DEVICE_TYPE`), which fixes the point geometry every frame in the
+  baselines is measured in; an iPad lane means a second device and a second set of
+  five baselines. The tree *was* read by hand in landscape — 81 cells in nine box
+  containers, the rail's nine digit rings labelled, Home present — but nothing
+  diffs it on the next PR.
+- **The nine languages gained no new keys**, which is the one piece of good news
+  in this list: the rail reuses `board.stats.*` verbatim and the Pencil says
+  nothing at all.

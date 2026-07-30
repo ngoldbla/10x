@@ -197,6 +197,30 @@ final class AppModel {
     private(set) var replays: ReplayVault {
         didSet { replaysStore.wrappedValue = replays }
     }
+    /// PRD-31's handwriting: one accepted glyph per digit, the specimen every
+    /// pencil mark on the board is drawn with.
+    ///
+    /// A property of the *person*, like `coachProgress` and unlike `replays` —
+    /// so it is cloud-synced, and so writing a 4 on the iPad makes the phone's
+    /// notes wear it too. Its own top-level key rather than a field on
+    /// `nine.prefs`, for the reason every blob added since 1.1 has been: an
+    /// older build's next write erases a field it has no property for
+    /// (EXECUTING-A-PRD §2). Nine glyphs pack to well under 4 KB, measured by
+    /// `testAFullHandFitsTheKeyValueBudget`, which is what makes KVS the right
+    /// home rather than a CloudKit record.
+    private(set) var hand: HandGlyphs {
+        didSet { handStore.wrappedValue = hand }
+    }
+
+    /// Adopt this ink as the player's glyph for `digit`. Called only when the
+    /// reading cleared `DigitHand.adoptScore`, which is the stricter of the two
+    /// bars — see `HandGlyphs`.
+    func learnHand(_ glyph: InkGlyph, as digit: Int) {
+        var updated = hand
+        updated.learn(glyph, as: digit)
+        guard updated != hand else { return }
+        hand = updated
+    }
     /// Which dailies are solved (PRD-14) — the archive grid's checkmarks.
     /// Written only by `finishSolve` and the launch backfill; the library
     /// cannot hold this, because `prune()` caps solved boards at 20.
@@ -323,6 +347,10 @@ final class AppModel {
     /// `NineLibrary` zone, beside the board it belongs to.
     @ObservationIgnored private let replaysStore =
         CouchStored(wrappedValue: ReplayVault(), "nine.replays")
+    /// PRD-31's handwriting specimens. Cloud-synced for `coachProgress`'s
+    /// reason: your hand is yours, not the device's.
+    @ObservationIgnored private let handStore =
+        CouchStored(wrappedValue: HandGlyphs(), "nine.hand", cloudSynced: true)
     @ObservationIgnored private let sessionCountStore =
         CouchStored(wrappedValue: 0, "nine.sessionCount")
     @ObservationIgnored private let drawerFoundStore =
@@ -503,6 +531,7 @@ final class AppModel {
         coach = coachStore.wrappedValue
         coachProgress = coachProgressStore.wrappedValue
         replays = replaysStore.wrappedValue
+        hand = handStore.wrappedValue
         archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
