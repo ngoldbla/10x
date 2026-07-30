@@ -561,6 +561,7 @@ struct MacGameScreen: View {
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 coachFocus: why?.focus ?? whyRefusal?.focus,
                 hoverCell: model.solvedAt == nil ? hoverCell : nil,
+                channelRules: model.currentRules,
                 waveOrigin: model.lastPlacedCell,
                 afterglowTilt: { pointer.tilt(at: $0) },
                 side: side,

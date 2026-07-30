@@ -1692,6 +1692,10 @@ struct TouchGameScreen: View {
                 highlightDigit: model.prefs.numberHighlight ? highlightedDigit : nil,
                 coachFocus: boardFocus,
                 hoverCell: hoverCell,
+                // Cages and tubes when the board is a channel board, nil when it
+                // is classic — which is every board that existed before PRD-24, so
+                // classic renders byte-identically.
+                channelRules: model.currentRules,
                 hand: model.hand,
                 // Afterglow: the wave detonates from the winning cell, and
                 // after the sweep the gyro steers the trophy sheen.
