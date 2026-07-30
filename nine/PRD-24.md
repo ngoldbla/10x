@@ -158,10 +158,47 @@ first technique runs. So the knobs are different:
 The ladder is **measured, not chosen.** `scripts/thermo-scan.sh` reports
 composed-rate, p50/p90/p95/p99/max and the technique mix per tier in Release,
 exactly as `killer-scan.sh` does, and a tier ships only at a p95 the player does
-not notice. If a tier does not compose, the diagnostic lane must separate the
-same two causes PRD-23's did — *is the board even unique* versus *can the chain
-close it* — because they want opposite fixes and guessing cost PRD-23 3,000
-wasted attempts.
+not notice.
+
+Thermo's diagnostic lane needs a **third** cause that killer's did not, and the
+ruleset makes it likely rather than unlikely. Killer can fail two ways — not
+unique, or the chain cannot close it. A thermo band's clue ceiling has to stay
+well above zero, so a board carrying a dozen givens may be one the *classic*
+chain closes unaided: the tubes are decoration, `minVariantSteps` rejects it, and
+that failure looks nothing like either killer cause and wants the opposite fix
+(fewer givens or more coverage — a **wider** chain makes it worse). So the lane
+counts the rejection reason rather than leaving it to be inferred.
+
+### Measured, 200 seeds per tier, Apple silicon Mac, Release
+
+| tier | composed | p50 | p95 | max | givens p50 (max) | tubes | cells on a tube |
+|---|---|---|---|---|---|---|---|
+| gentle | 200/200 | 0.00 s | **0.01 s** | 0.16 s | 14 (19) | 8 | 28 |
+| steady | 200/200 | 0.01 s | **0.02 s** | 0.12 s | 12 (16) | 9 | 32 |
+| sharp  | 200/200 | 0.01 s | **0.03 s** | 0.14 s | 7 (11) | 10 | 43 |
+
+Thermo is 5–14× cheaper than killer's Sharp (0.14 s) and ~175× cheaper than
+Nocturne (5.25 s), on every tier. That is what makes it the right ruleset to
+de-risk the channel architecture with.
+
+**The finding, and it changed the ladder.** The first draft composed 200/200 too
+— which looks like a pass. But the shape report showed `maxGivens` set to
+30/24/18 against a measured *max* of 19/19/11, and `minVariantSteps` at 3/6/10
+against a measured p50 of 11/13/18. **Neither knob could ever reject anything.**
+A band parameter that cannot fire is a decision dressed as a constraint, and the
+tier would have been defined by whatever the dig happened to do.
+
+What actually walks the ladder is the third knob: **a wider chain closes the
+board with fewer givens**, because the extra techniques do work the clues would
+otherwise have to. Gentle 14 → Steady 12 → Sharp 7. Both dead knobs were then
+tightened to sit just inside the measured distribution, where the diagnostic
+confirms they fire (`digExhausted` 14/17/7 and `decoration` 1/4/7 per 60
+attempts) while supply stays 200/200 — the cost is paid in attempts, not in
+supply.
+
+This also answers the question PRD-23 §5 left open for this PRD. Killer's ladder
+is compressed (6/4/0 givens, separated mostly by technique set); thermo's is
+not. For thermo, three tiers read as three tiers.
 
 ### 3.3 What must not move
 
