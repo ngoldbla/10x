@@ -97,23 +97,30 @@ enum AppIcons {
 
 /// The "App icon" row: four icon-shaped swatches, the current one ringed.
 struct AppIconRow: View {
+    /// The live accent, resolved for the current ground by the sheet that owns
+    /// this row. Passed in rather than read here: this view has no model, and
+    /// the one thing it must not do is invent a second answer to "what colour
+    /// is this app right now".
+    let accent: Color
+
     @State private var selection: AppIconChoice = .original
 
     var body: some View {
         if AppIcons.supported {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(Strings.string("prefs.appIcon.title"))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(selection.title)
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 28 * CouchScale.chrome)
+            // The row's header line and its gutter come from `PrefsSheet`'s own
+            // metrics rather than from a second set of numbers here: this row
+            // is drawn *inside* that sheet's Appearance card, and it was the
+            // third of the four left edges the W4A audit found in one 387pt
+            // panel. One vertical for the symbol, one for the label, one row
+            // height, in both files.
+            VStack(alignment: .leading, spacing: 0) {
+                PrefsSheetContent.SwatchHeader(
+                    title: Strings.string("prefs.appIcon.title"),
+                    symbol: "app.badge.fill",
+                    value: selection.title,
+                    accent: accent)
 
-                PrefsSheetContent.SwatchFlow(spacing: 14 * CouchScale.chrome) {
+                PrefsSheetContent.SwatchFlow(spacing: PrefsSheetContent.Swatch.gap) {
                     ForEach(AppIconChoice.allCases, id: \.self) { choice in
                         Button {
                             Task {
@@ -124,17 +131,23 @@ struct AppIconRow: View {
                             iconSwatch(choice)
                         }
                         .buttonStyle(.plain)
+                        // Now a statement of fact rather than a correction: the
+                        // swatch really is `Hit.min` square. It used to be
+                        // `44 * CouchScale.chrome` — 24.2pt drawn on iOS — with
+                        // this line quietly telling the accessibility tree 44.
                         .contentShape(
                             .accessibility,
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .size(width: 44, height: 44))
+                            RoundedRectangle(
+                                cornerRadius: PrefsSheetContent.Swatch.ringRadius,
+                                style: .continuous)
+                                .size(width: Hit.min, height: Hit.min))
                         .accessibilityLabel(choice.title)
                         .accessibilityAddTraits(choice == selection ? [.isSelected] : [])
                     }
                 }
-                .padding(.horizontal, 22 * CouchScale.chrome)
+                .padding(.horizontal, PrefsSheetContent.Metrics.gutter)
+                .padding(.bottom, PrefsSheetContent.Metrics.cardPadding)
             }
-            .padding(.vertical, 6 * CouchScale.chrome)
             // Read on appear rather than in the initializer: the system owns
             // this value and can change it behind our back (another scene, a
             // shortcut), so the row asks every time it comes back.
@@ -148,36 +161,54 @@ struct AppIconRow: View {
     /// shows up as a hitch when the sheet opens.
     private func iconSwatch(_ choice: AppIconChoice) -> some View {
         let colors = choice.swatch
-        let side = 44 * CouchScale.chrome
+        // **Not `44 * CouchScale.chrome`.** That is 24.2pt on iOS — the only
+        // platform this file compiles for — so the four icon swatches were a
+        // little over half the size the accessibility tree was told they were,
+        // with no interactive `contentShape` to make up the difference. A floor
+        // that scales is not a floor (`Hit.min`).
+        let side = PrefsSheetContent.Swatch.art
         let unit = side / 9
+        let isSelected = choice == selection
+        // The Home Screen's continuous corner, so the swatch reads as an icon
+        // and not as another theme tile.
+        let art = RoundedRectangle(cornerRadius: side * Radius.iconSquircle, style: .continuous)
         return ZStack {
-            Rectangle().fill(colors.ground)
-            VStack(spacing: unit) {
-                ForEach(0..<3, id: \.self) { row in
-                    HStack(spacing: unit) {
-                        ForEach(0..<3, id: \.self) { column in
-                            Rectangle()
-                                .fill(colors.mark)
-                                .frame(width: unit * 1.6, height: unit * 1.6)
-                                // The centre pixel carries the icon's secondary,
-                                // exactly as the rendered icon does.
-                                .opacity(row == 1 && column == 1 ? 0.55 : 1)
+            ZStack {
+                Rectangle().fill(colors.ground)
+                VStack(spacing: unit) {
+                    ForEach(0..<3, id: \.self) { row in
+                        HStack(spacing: unit) {
+                            ForEach(0..<3, id: \.self) { column in
+                                Rectangle()
+                                    .fill(colors.mark)
+                                    .frame(width: unit * 1.6, height: unit * 1.6)
+                                    // The centre pixel carries the icon's secondary,
+                                    // exactly as the rendered icon does.
+                                    .opacity(row == 1 && column == 1 ? 0.55 : 1)
+                            }
                         }
                     }
                 }
             }
+            .frame(width: side, height: side)
+            .clipShape(art)
+            .overlay {
+                art.strokeBorder(
+                    Color.primary.opacity(PrefsSheetContent.Swatch.hairlineTone),
+                    lineWidth: PrefsSheetContent.Swatch.hairline)
+            }
+            // The selection ring is drawn *outside* the art, on the 44pt hit
+            // shape, so it never crops the icon it is pointing at — and it is
+            // five times the unselected hairline rather than the shipped
+            // 1.65-against-1, which was not a difference anybody could see.
+            if isSelected {
+                RoundedRectangle(
+                    cornerRadius: PrefsSheetContent.Swatch.ringRadius, style: .continuous)
+                    .strokeBorder(Color.primary, lineWidth: PrefsSheetContent.Swatch.selected)
+                    .frame(width: Hit.min, height: Hit.min)
+            }
         }
-        .frame(width: side, height: side)
-        // The Home Screen's continuous corner, so the swatch reads as an icon
-        // and not as another theme tile.
-        .clipShape(RoundedRectangle(cornerRadius: side * 0.2237, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: side * 0.2237, style: .continuous)
-                .strokeBorder(
-                    choice == selection ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary),
-                    lineWidth: choice == selection ? 3 * CouchScale.chrome : 1)
-        }
-        .padding(6 * CouchScale.chrome)
+        .frame(width: Hit.min, height: Hit.min)
     }
 }
 #endif

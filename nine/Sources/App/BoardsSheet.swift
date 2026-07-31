@@ -19,6 +19,22 @@ struct BoardsSheetContent: View {
     @State private var debriefBoard: UUID?
 
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
+
+    /// The one wash every element inside this sheet is drawn on.
+    ///
+    /// This sheet lives inside a `GlassSheet`, which is already `.regular`
+    /// glass — so a pill, a row card or a round button that asks for `.regular`
+    /// again gets a second lens over the first, and two lenses read as one
+    /// slightly murkier pane rather than as two surfaces. Every inner element
+    /// here is therefore `couchInset`: `.identity` glass (it still merges with
+    /// its siblings inside the container) plus this tint, which is the whole of
+    /// the separation. `gridTone` because it is the theme's own bidirectional
+    /// tone — pale on the six dark grounds, dark on Paper and Camel — so one
+    /// number works in both directions where a white wash works in one.
+    private var insetTint: Color {
+        tones.gridTone.opacity(tones.isLight ? 0.10 : 0.14)
+    }
 
     /// TV read distance wants everything larger; iOS/macOS stay pixel-identical.
     private var s: CGFloat {
@@ -74,7 +90,7 @@ struct BoardsSheetContent: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 22 * s, weight: .semibold))
                         .padding(18 * s)
-                        .couchGlassInteractive(in: Circle())
+                        .couchInset(in: Circle(), tint: insetTint)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Strings.string("boards.close"))
@@ -92,8 +108,13 @@ struct BoardsSheetContent: View {
     /// rather than at the bottom of Settings where the live audit found it.
     private var freshBoardSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
+            // A section head, not a footnote. Every heading and every piece of
+            // metadata in this sheet asked for `caption` and got the same size
+            // twice, which is a list with no hierarchy at all; the ramp's new
+            // `label` rung is what a section head means, and it leaves `caption`
+            // free to be the tier below it.
             Text(Strings.string("boards.fresh.title"))
-                .font(CouchTypography.caption)
+                .font(CouchTypography.label)
                 .foregroundStyle(.secondary)
             // Three and three, borrowing the shelf's own split rather than a
             // new one, so the sheet groups the bands the way the home screen
@@ -116,7 +137,7 @@ struct BoardsSheetContent: View {
             // The board you are on is never destroyed by this: it stays in
             // the library, one row below, exactly where you left it.
             Text(Strings.string("boards.fresh.note"))
-                .font(.system(size: 11 * s, weight: .medium, design: .rounded))
+                .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
         }
     }
@@ -138,6 +159,13 @@ struct BoardsSheetContent: View {
     /// board. So the outline goes, its ink moves into the fill, and the label
     /// leads with a plus: the one mark no filter chip carries. Same ink budget,
     /// spent on saying "this adds something" instead of "this is selectable".
+    ///
+    /// The finding above was right and was fixed one layer too low: a local
+    /// `.background(accent.opacity(0.18), in: Capsule())` here left the three
+    /// *other* glass-in-glass sites in this file to each invent their own
+    /// recipe. The pixels are unchanged — this is the same 18% accent — but it
+    /// is now the ladder's `couchInset` rung saying it, so the next element
+    /// added to this sheet inherits the answer instead of re-deriving it.
     private func freshPill(_ difficulty: Difficulty) -> some View {
         Button {
             model.startFree(difficulty)
@@ -165,7 +193,7 @@ struct BoardsSheetContent: View {
             // 14, not 12: measured at 40pt in the sim, and the craft charter's
             // floor for a tap target is 44.
             .padding(.vertical, 14 * s)
-            .background(accent.opacity(0.18), in: Capsule())
+            .couchInset(in: Capsule(), tint: accent.opacity(0.18))
             .contentShape(.accessibility, Capsule())
         }
         .buttonStyle(.plain)
@@ -178,7 +206,7 @@ struct BoardsSheetContent: View {
     private var inProgressSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
             Text(Strings.string("boards.section.inProgress"))
-                .font(CouchTypography.caption)
+                .font(CouchTypography.label)
                 .foregroundStyle(.secondary)
             ForEach(model.partials) { entry in
                 partialRow(entry)
@@ -200,14 +228,23 @@ struct BoardsSheetContent: View {
                         Text(title(for: entry))
                             .font(CouchTypography.body)
                         Text("\(BoardProgressCaption.text(for: entry.game)) · \(SolveCardFacts.elapsedText(entry.game.timer.elapsed(at: Date())))")
-                            .font(.system(size: 11 * s, weight: .medium, design: .rounded))
+                            .font(CouchTypography.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                     Spacer(minLength: 8)
                 }
                 .padding(14 * s)
-                .couchGlassInteractive(in: RoundedRectangle(cornerRadius: 16 * s, style: .continuous))
+                // 28 − 12: the panel this row sits in is `Radius.sheet`, and a
+                // card one `Space.m` step inside it has to give that step back
+                // or the two curves stop being concentric. It is the same 16
+                // that was hand-written here, now with the derivation attached
+                // — and it is the radius the rest of the app calls `control`.
+                .couchInset(
+                    in: RoundedRectangle(
+                        cornerRadius: Radius.inner(Radius.sheet, inset: Space.m) * s,
+                        style: .continuous),
+                    tint: insetTint)
             }
             .buttonStyle(.plain)
 
@@ -225,7 +262,7 @@ struct BoardsSheetContent: View {
     private var playedSection: some View {
         VStack(alignment: .leading, spacing: 12 * s) {
             Text(Strings.string("boards.section.played"))
-                .font(CouchTypography.caption)
+                .font(CouchTypography.label)
                 .foregroundStyle(.secondary)
             ForEach(model.playedBoards) { entry in
                 playedRow(entry)
@@ -243,7 +280,7 @@ struct BoardsSheetContent: View {
                 Text(title(for: entry))
                     .font(CouchTypography.body)
                 Text(statusLine(for: entry))
-                    .font(.system(size: 11 * s, weight: .medium, design: .rounded))
+                    .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
             }
@@ -275,14 +312,18 @@ struct BoardsSheetContent: View {
            let debrief = model.debrief(for: id),
            let replay = model.replays.replay(for: id) {
             ZStack {
-                Color.black.opacity(0.45)
+                // The theme's own ground on a dark theme, not a flat black:
+                // scrimming Blueprint or Ember with black desaturates the one
+                // thing that made the theme a theme, and this sheet is the
+                // surface a player is looking *at* while it happens.
+                Scrim.overlay(for: tones)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { debriefBoard = nil }
                 DebriefCardContent(
                     debrief: debrief,
                     replay: replay,
-                    tones: model.prefs.theme.tones(for: colorScheme),
+                    tones: tones,
                     accent: accent,
                     onClose: { debriefBoard = nil }
                 )
@@ -298,8 +339,8 @@ struct BoardsSheetContent: View {
             Image(systemName: symbol)
                 .font(.system(size: 18 * s, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 44 * s, height: 44 * s)
-                .couchGlass(in: Circle())
+                .frame(width: Hit.min * s, height: Hit.min * s)
+                .couchInset(in: Circle(), tint: insetTint)
                 // Without this the AX frame collapses to the glyph's tight
                 // bounds (~18pt) — see GlassIconButton for the same fix.
                 .contentShape(.accessibility, Circle())

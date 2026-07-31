@@ -126,8 +126,16 @@ def screens():
         # The ring carries no SF Symbol of its own, hence no anchor.
         dict(name="game-rose", prefs=ninestate.PREFS_ERRORS_ON, taps=["FIRST_EMPTY"],
              anchor=None),
+        # Tapped by the gear, but **not anchored on it**. The sheet is a real
+        # `.sheet` with `.isModal` now, which is the point — the board's 81
+        # cells and its whole control bar used to stay in the VoiceOver tree
+        # behind it — and the consequence is that the gear that opened it is no
+        # longer reachable once it is open. Anchoring on the control you pressed
+        # only works while pressing it changes nothing. `clock` is the first row
+        # inside the sheet, so it says the sheet arrived rather than that the
+        # button still exists.
         dict(name="prefs", prefs=ninestate.PREFS_ERRORS_ON, taps=["gearshape"],
-             anchor="gearshape"),
+             anchor="clock"),
         # `chevron.left` gets us there; `calendar` — the Today card — is what
         # says we have arrived. The back button does not exist on the shelf.
         dict(name="home", prefs=ninestate.PREFS_ERRORS_ON, taps=["chevron.left"],
@@ -240,12 +248,50 @@ def is_status_bar(entry):
     return entry.get("region", {}).get("kind") == "Top"
 
 
+# The board's cell size, measured per tree rather than assumed. Populated by
+# `calibrate_board_cell` before any screen is normalized.
+_CELL_SIZE = [40.0]
+
+
+def calibrate_board_cell(data):
+    """Learn this build's board cell size from the tree itself.
+
+    **This was `width == 40 and height == 40`, and a layout change silently
+    blinded the whole lane.** The board used to be width-bound at 362pt on an
+    iPhone 17 Pro, which is a 40.2pt cell; when it grew to full width the cell
+    became ~44pt, `is_board_cell` matched nothing, and `first_empty_frame` exited
+    with "the frozen board has no empty cell to open the rose on" — a message
+    about the *fixture*, pointing at a file that had not changed. A hard-coded
+    geometry in a harness is a claim about the app that nothing keeps true.
+
+    Counting is what makes this safe. A tolerant rule ("a square button of
+    plausible size") would also match the five 44pt tool circles, which is
+    presumably why the constant was pinned in the first place. There is exactly
+    one square-button size that occurs 81 times, and that is the board.
+    """
+    import collections
+    squares = collections.Counter(
+        round(e["frame"]["width"], 1)
+        for e in data.get("entries", [])
+        if e.get("role") == "Button"
+        and abs(e["frame"]["width"] - e["frame"]["height"]) < 0.6
+    )
+    for size, count in squares.items():
+        if count == 81:
+            _CELL_SIZE[0] = size
+            return size
+    return None
+
+
 def is_board_cell(entry):
-    """The 81 synthetic cells. Their geometry is the AX lane's baseline, not
-    this one's — here they are asserted on directly under `rtl` and would
+    """One of the 81 synthetic cells. Their geometry is the AX lane's baseline,
+    not this one's — here they are asserted on directly under `rtl` and would
     otherwise be 81 lines of noise per file."""
-    return entry.get("role") == "Button" and entry["frame"]["width"] == 40 \
-        and entry["frame"]["height"] == 40
+    if entry.get("role") != "Button":
+        return False
+    frame = entry["frame"]
+    return abs(frame["width"] - _CELL_SIZE[0]) < 0.6 \
+        and abs(frame["height"] - _CELL_SIZE[0]) < 0.6
 
 
 def comparable(data):
@@ -724,6 +770,17 @@ def main():
             where = "%s/%s" % (mode, screen["name"])
             print("capturing %s…" % where)
             if mode == "en" and screen["name"] == "game-rose" and first_empty is None:
+                # Calibrate before the first tree is read for cells. The English
+                # `game` pass is the first screen captured, so its board is the
+                # measurement, and every later mode inherits it — the board does
+                # not change size between locales.
+                if calibrate_board_cell(trees[("en", "game")]) is None:
+                    sys.exit(
+                        "could not find 81 equally sized square buttons in the "
+                        "English game tree, so the board is not where this lane "
+                        "thinks it is. That is a real finding about the app or "
+                        "about `describe-ui`'s probe budget — not a fixture "
+                        "problem — and it must be read before it is recorded.")
                 first_empty = first_empty_frame(trees[("en", "game")])
             data = capture(udid, screen, mode, MODES[mode], first_empty)
             trees[(mode, screen["name"])] = data

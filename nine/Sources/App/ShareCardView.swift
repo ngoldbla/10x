@@ -114,22 +114,23 @@ struct SolvedGridThumb: View {
 
     var body: some View {
         Canvas { context, size in
-            let boxGap = size.width * 0.018
-            let cell = (size.width - boxGap * 2) / 9
-            let digitSize = cell * 0.62
+            let boxGap = size.width * BoardArt.cardGutter
+            let cell = BoardArt.cell(side: size.width, gutter: boxGap)
+            // `BoardType.entry`, not a local 0.62. The board sets a digit at
+            // 0.56 of its cell and this card was setting the same digit at
+            // 0.62, so the artefact a player exports and shows people was a
+            // visibly different object from the one they played on.
+            let digitSize = cell * BoardType.entry
 
             for index in 0..<81 {
                 let column = index % 9, row = index / 9
                 // Two gaps accumulate across the row, one after each of the
                 // first two boxes — so the boxes read without a single rule.
-                let box = CGRect(
-                    x: CGFloat(column) * cell + CGFloat(column / 3) * boxGap,
-                    y: CGFloat(row) * cell + CGFloat(row / 3) * boxGap,
-                    width: cell, height: cell
-                )
+                let box = BoardArt.cellRect(column: column, row: row, cell: cell, gutter: boxGap)
                 context.fill(
-                    Path(roundedRect: box.insetBy(dx: cell * 0.035, dy: cell * 0.035),
-                         cornerRadius: cell * 0.16),
+                    Path(roundedRect: box.insetBy(dx: cell * BoardArt.cellInset,
+                                                  dy: cell * BoardArt.cellInset),
+                         cornerRadius: cell * BoardArt.cellCorner),
                     with: .color(tones.gridTone.opacity(tones.isLight ? 0.07 : 0.10))
                 )
 
@@ -138,11 +139,17 @@ struct SolvedGridThumb: View {
                 // which is the part worth being proud of. Same rule as
                 // `BoardFingerprint`, which is what the shelf already taught
                 // this player to read.
+                //
+                // **The weights were inverted.** This drew givens `.medium` and
+                // entries `.semibold` while `BoardView` draws the opposite, so
+                // the app's own share card taught the reverse of the board's
+                // colour-and-weight code. `BoardType` owns the pair now, and
+                // both sites read it rather than restating it.
                 let isGiven = facts.givens[index]
                 var text = context.resolve(
                     Text("\(facts.digits[index])")
                         .font(.system(size: digitSize,
-                                      weight: isGiven ? .medium : .semibold,
+                                      weight: isGiven ? BoardType.givenWeight : BoardType.entryWeight,
                                       design: .rounded))
                 )
                 text.shading = .color(isGiven ? tones.digitTone.opacity(0.72) : accent)

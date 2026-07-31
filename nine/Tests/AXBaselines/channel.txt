@@ -4,12 +4,16 @@
 # Regenerate: nine/scripts/ax-snapshot.py --record
 
 [Content]
-  Button "Previous channel"  (20,146 44x44)
-  Heading "Thermo, page 2 of 3"  (171,152 60x33)
-  Button "Next channel"  (338,146 44x44)
-  Button "Thermo daily. One a day, per channel"  (38,228 169x129)
-  Button "Gentle, Thermo"  (38,414 75x96)
-  Button "Steady, Thermo"  (163,414 75x96)
-  Button "Sharp, Thermo"  (289,414 75x96)
+  Button "Previous channel"  (79,134 44x44)
+  Heading "Thermo, page 2 of 3"  (171,146 60x20)
+  Button "Next channel"  (279,134 44x44)
+  GenericElement ""  (182,186 39x7)
+  GenericElement ""  (0,205 402x28)
+  Button "Thermo daily. One a day, per channel"  (24,229 354x176)
+  Button "Gentle, Thermo"  (42,433 73x130)
+  Button "Steady, Thermo"  (165,433 73x130)
+  Button "Sharp, Thermo"  (287,433 73x130)
+  Heading "How to play"  (190,619 73x16)
+  StaticText "Digits rise from the bulb to the tip of this 4-cell thermometer, which puts a floor and a ceiling on every square along it."  (190,643 154x152)
 
-# 7 elements in 1 container
+# 11 elements in 1 container

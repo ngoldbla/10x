@@ -1,10 +1,86 @@
 // BoardView.swift — the 81-cell grid, drawn in a single Canvas on one glass
-// plane (PRD §4.2). Box borders are luminance steps, never hard lines.
-// Givens in rounded semibold, entries in the accent tint, errors get a coral
-// underline paired with a dot marker (colorblind-safe). Completion rolls a
-// luminance wave across the grid.
+// plane (PRD §4.2). Box borders are **rules**, not luminance steps: see the
+// note above step 2.4, which records the measurement that retired the wash.
+// Givens in rounded semibold, entries in the accent tint at regular, errors get
+// a coral underline paired with a coral cell rim (colorblind-safe). Completion
+// rolls a luminance wave across the grid.
 import SwiftUI
 import CouchKit
+
+/// What just happened to a cell, so the board can answer it visually.
+///
+/// The app has fired `haptics.playError()` since 1.0 with no visual partner —
+/// a buzz and a still frame. These three are the frames: a placement settles
+/// in, an erase settles out, and an error shakes. One enum rather than three
+/// booleans because they are mutually exclusive by construction: a cell cannot
+/// be placed and erased in the same instant.
+enum CellEventKind: Equatable, Sendable {
+    /// A digit landed in the cell.
+    case place
+    /// A digit (or the cell's notes) was cleared.
+    case erase
+    /// A digit landed and it was wrong.
+    case error
+}
+
+/// One grammar for every digit this board draws, **as fractions of one cell's
+/// side** rather than as point sizes.
+///
+/// **Every value here forwards to `BoardType` in `DesignTokens.swift`** — this
+/// is a naming shim, not a second scale. `BoardInk` rather than `BoardGlyph`,
+/// which is taken: `Sources/Shared`'s 81-cell presence constellation owns that
+/// name on every target.
+///
+/// It was briefly a hand-copy, because `DesignTokens.swift` was on the **app**
+/// target only while this file is *also* on the **watch** target's source list
+/// (`project.yml` — "the board is reused, the phone UI is not"), so naming
+/// `BoardType` here compiled on the phone and failed on the wrist. The tokens
+/// are now on the watch list too, and the copy is gone: a duplicated scale is a
+/// scale that drifts, and two hand-copies in this repo's own tests
+/// (`AppearancePaletteTests`' ground and `PrefsDowngradeTests`' defaults) had
+/// already gone stale without anything going red.
+///
+/// The arithmetic behind the numbers, since it is the whole reason they moved:
+/// `scale` is `size.width / 900` and `cell` is `size.width / 9`, so
+/// `cell == 100 * scale` *exactly* and the shipped `56 * scale` was already
+/// `0.56 * cell`. A `BoardType.entry` of 0.56 would therefore have been
+/// byte-identical to the size the audit measured as too small. The real
+/// reference is the *cap* ratio: SF Rounded's cap height is ≈0.72 em, so a 0.56
+/// cell point size puts the cap at 0.40 of the cell — the 40% the audit measured
+/// against a 50–55% band. 0.66 puts it at 0.475.
+enum BoardInk {
+    /// A committed digit — the player's own entry.
+    static let entry = BoardType.entry
+    /// A clue printed with the puzzle. Same size as an entry by design: a given
+    /// and an entry are the same *kind* of mark and differ by weight and tone,
+    /// never by size.
+    static let given = BoardType.given
+    /// The live-flick preview drawn before commit. Identical to `entry` so a
+    /// digit does not resize the instant it lands.
+    static let ghost = BoardType.ghost
+    /// A pencil mark — three across a cell with air.
+    static let note = BoardType.note
+    /// A pencil-mark preview. Same as `note`, same reason as `ghost`.
+    static let noteGhost = BoardType.noteGhost
+    /// A killer-cage sum in the corner of a cell. Was `15 * scale` = 0.15 cell,
+    /// which made load-bearing puzzle data *smaller than a pencil note*.
+    static let cageSum = BoardType.cageSum
+    /// The mini 3×3 keypad's pitch. Was 0.28, which left a dead margin all
+    /// round and made three marks read as stray digits rather than as a keypad.
+    static let notePitch = BoardType.notePitch
+
+    /// A given is one weight *step and a half* above an entry, not one:
+    /// `.semibold` against `.regular` is the smallest difference that still
+    /// reads at a glance. `.semibold` against `.medium` — what shipped — is
+    /// roughly a 4% stroke difference, invisible, which left the whole
+    /// given/entry hierarchy resting on hue alone.
+    static let givenWeight = BoardType.givenWeight
+    /// The player's own marks.
+    static let entryWeight = BoardType.entryWeight
+    /// Pencil marks. Medium rather than regular because at this size a regular
+    /// stroke disappears into the hairlines.
+    static let noteWeight = BoardType.noteWeight
+}
 
 // `CoachFocus` lives here rather than in `CoachCard.swift` because it is
 // board-render input, and PRD-6 puts this file on the watch target's source
@@ -268,6 +344,26 @@ struct BoardView: View {
     /// solved trophy stay readable without offering moves that would be
     /// refused. See BoardAccessibility.swift.
     var axActions = BoardAXActions()
+    /// Push the 3×3 rules past their resting weight — for a surface where the
+    /// board is small enough that the boxes are the only structure that
+    /// survives (a shelf thumbnail, a tutorial diagram).
+    ///
+    /// **Defaulted false, so every existing call site renders identically**;
+    /// `channelRules`' and `digitTint`'s pattern, and the reason nothing outside
+    /// this file changes.
+    var emphasiseBoxes: Bool = false
+    /// The last thing that happened to a cell, and when — the input to the
+    /// placement settle, the erase echo and the error shake (`CellEventKind`).
+    ///
+    /// A tuple rather than a struct because it is three scalars with no
+    /// behaviour, and `at` is the animation clock: the board reads
+    /// `now.timeIntervalSince(at)` rather than holding any state of its own, so
+    /// a caller that re-sends the same event with the same `Date` re-renders
+    /// the same frame and never restarts the animation.
+    ///
+    /// **Defaulted nil**, so tvOS, the watch, the tutorial and the first-run
+    /// boards are untouched until a caller opts in.
+    var lastEvent: (cell: Int, kind: CellEventKind, at: Date)? = nil
 
     /// A stored glyph as a `Path`, scaled into a `box`-sized square centred on
     /// `point` (PRD-31).
@@ -296,6 +392,13 @@ struct BoardView: View {
     /// Increase Contrast (PRD-22). SwiftUI surfaces the setting as
     /// `colorSchemeContrast`; there is no `accessibilityContrast` key.
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    /// Device pixels per point. The cell separators are the one mark on this
+    /// board fine enough that the difference between "1 point" and "1 device
+    /// pixel" is the difference between a line and a smear: a 1pt stroke on a
+    /// 3x screen covers three pixel rows, and because its centre falls on a
+    /// cell boundary that is never a whole number of pixels, it lands as four
+    /// subpixel-weighted rows of grey. See step 2.
+    @Environment(\.displayScale) private var displayScale
     /// The celebration has reached its resting state — nothing animates
     /// anymore, so the 60fps timeline can stop (tvOS and Reduce Motion; the
     /// iOS trophy keeps polling the gyro until the screen goes away).
@@ -304,6 +407,15 @@ struct BoardView: View {
     /// `FlickRoseView` blooms its petals with, so the bend arrives under the
     /// glass rather than before or after it.
     @State private var lensBloom: Double = 0
+    /// A `lastEvent` is still inside its animation window, so the timeline has
+    /// to run even though the board is not solved.
+    ///
+    /// This is state rather than a computed property because `TimelineView`'s
+    /// `paused:` is captured when `body` runs: a schedule that started running
+    /// keeps running until something re-evaluates `body`, and only a `@State`
+    /// flip does that. `settleWhenDone` solves the same problem for the
+    /// Afterglow and this is its twin.
+    @State private var eventLive = false
 
     /// How much bigger a digit reads through a petal.
     ///
@@ -312,10 +424,24 @@ struct BoardView: View {
     /// there is no lens and the petals are just transparent, and somewhere past
     /// about 1.6 the board starts *performing* under your thumb, which fails
     /// the idle-pixel test the moment you hold a rose open while thinking.
-    /// 1.34 is enough that a digit under a petal is legibly bent and not enough
-    /// to notice as an effect. Tune it here; the rim's compression is the other
-    /// half and lives in `rosePetalLens`.
-    static let lensMagnification: Double = 1.34
+    /// **Taken from 1.34 to 1.15**, and the shader's core clamp is the other
+    /// half of the same fix. At 1.34 the petals nearest the board's own digits
+    /// (6 and 9 in the shipped crop) smeared the ghosted glyphs underneath into
+    /// a double image, which reads as an artifact rather than as glass. At 1.15
+    /// the magnification is barely a magnification and the *rim compression* —
+    /// the meniscus, the thing that actually says "this is a lens" — is what
+    /// survives. Tune it here; the rim's half lives in `rosePetalLens`.
+    static let lensMagnification: Double = 1.15
+
+    // MARK: - Cell-event choreography (the visual partner to `playError`)
+
+    /// How long the timeline stays awake after a `lastEvent`. The longest of
+    /// the three animations plus a frame.
+    static let eventWindow: TimeInterval = 0.45
+    /// The placement settle, and its inverse for an erase.
+    static let settleDuration: TimeInterval = 0.22
+    /// Three decaying half-cycles of shake.
+    static let shakeDuration: TimeInterval = 0.45
 
     /// The theme decides the board's neutral tones; callers pass an accent
     /// already resolved for the theme's leaning.
@@ -328,7 +454,13 @@ struct BoardView: View {
     private var increased: Bool { colorSchemeContrast == .increased }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: solvedAt == nil || afterglowSettled)) { timeline in
+        TimelineView(
+            .animation(
+                minimumInterval: 1.0 / 60.0,
+                // Two independent reasons to run: the Afterglow, and a cell
+                // event still inside its window. Pausing needs *both* quiet.
+                paused: (solvedAt == nil || afterglowSettled) && !eventLive)
+        ) { timeline in
             ZStack {
                 plane
                 refracted(now: timeline.date)
@@ -336,9 +468,19 @@ struct BoardView: View {
         }
         .frame(width: side, height: side)
         .padding(inset)
-        .couchGlass(in: RoundedRectangle(cornerRadius: max(18, 36 * side / BoardMetrics.side), style: .continuous))
-        .opacity(roseOpen ? 0.82 : 1.0)
-        .animation(.couchFast, value: roseOpen)
+        // The lift, not just the material: `couchElevated`'s gradient rim gives
+        // the pane an edge to catch light on, and its shadow is a blurred fill
+        // of this very shape rather than `.shadow()` — CouchKit's `FocusHalo`
+        // recorded that `.shadow` silhouettes opaque geometry and a glass
+        // layer's alpha is not that (the tvOS black-rectangle artifact).
+        .couchGlassElevated(
+            in: RoundedRectangle(cornerRadius: cardRadius, style: .continuous),
+            isLight: isLight)
+        // No `.opacity(roseOpen ? 0.82 : 1.0)`. Over a near-black ground that
+        // was a three-level no-op — it cost a compositing pass and bought
+        // nothing — and the rose's real backdrop scrim belongs to the call
+        // site, where it can dim the whole screen rather than only the board.
+        //
         // PRD-19. The Canvas is one opaque drawing to VoiceOver, so the tree
         // is grafted on rather than derived: 81 synthetic children laid out on
         // `BoardMetrics`, never rendered. While the rose is open the board
@@ -358,6 +500,10 @@ struct BoardView: View {
         }
         .accessibilityHidden(roseOpen)
         .task(id: solvedAt) { await settleWhenDone() }
+        // `at` rather than the whole tuple: a tuple is not `Equatable`, and the
+        // timestamp is the only part that can identify one event from the next
+        // (two errors on the same cell are two events).
+        .task(id: lastEvent?.at) { await runEventWindow() }
         // The lens grows and shrinks with the petals, not instead of them.
         .onChange(of: roseLens) { _, lens in
             withAnimation(.couchFast) { lensBloom = lens == nil ? 0 : 1 }
@@ -373,8 +519,36 @@ struct BoardView: View {
     /// board. An opaque fill *inside* the Canvas makes alpha 1 everywhere, and
     /// the wave would wash the whole grid instead of lighting the digits.
     private var plane: some View {
-        RoundedRectangle(cornerRadius: 18 * side / BoardMetrics.side, style: .continuous)
+        RoundedRectangle(cornerRadius: planeRadius, style: .continuous)
             .fill(tones.plane)
+    }
+
+    /// The glass card's own corner.
+    ///
+    /// **The floor is 28, not 18** (`Radius.sheet` in `DesignTokens.swift`,
+    /// spelled as a literal here because that file is on the app target only
+    /// and this one compiles for the watch too). Every phone board falls
+    /// through to the floor — `36 * 381 / 900` is 15.2 — so 18 was not a floor
+    /// on a large board, it was *the* radius on the only board most players
+    /// ever see, and 18pt on a 381pt card is tight by iOS 26 standards.
+    private var cardRadius: CGFloat { max(28, 36 * side / BoardMetrics.side) }
+
+    /// The ground under the grid, and the shape the Canvas is clipped to.
+    ///
+    /// Derived from the card rather than invented: two rounded rectangles, one
+    /// inset inside the other, are only concentric when the inner radius is
+    /// `outer − inset` (`Radius.inner`). The old `18 * side / 900` was an
+    /// independent constant, so the plane's arc and the box washes' arc
+    /// (`6 * scale`) disagreed by ~5pt and the Canvas — never clipped — painted
+    /// the wash straight onto the glass in the gap. That is the bright L-shaped
+    /// notch in all four grid corners of the shipped dark frame.
+    ///
+    /// The second clamp is the watch: at `side ≈ 170` and `inset 3` the
+    /// concentric radius is 25pt against a 19pt cell, and the clip would eat
+    /// the corner cells whole. Half a cell is the most a corner can give up
+    /// without losing a cell.
+    private var planeRadius: CGFloat {
+        max(4, min(cardRadius - inset, side / 18))
     }
 
     /// The board's drawing, and the three shaders that bend it. All three apply
@@ -498,6 +672,97 @@ struct BoardView: View {
         afterglowSettled = true
     }
 
+    // MARK: - Cell events
+
+    /// Hold the timeline awake for one event, then let it pause again.
+    ///
+    /// Reduce Motion never opens the window at all: the three animations are
+    /// *only* animation — every one of them ends on the frame the board would
+    /// have drawn anyway — so collapsing them to instant is exactly right, and
+    /// it also means a Reduce Motion board never spins the 60fps timeline for
+    /// a digit placement. Same lock this file already puts on the petal lens.
+    private func runEventWindow() async {
+        guard let lastEvent, !reduceMotion else {
+            eventLive = false
+            return
+        }
+        let remaining = Self.eventWindow - Date().timeIntervalSince(lastEvent.at)
+        guard remaining > 0 else {
+            eventLive = false
+            return
+        }
+        eventLive = true
+        try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+        if Task.isCancelled { return }
+        eventLive = false
+    }
+
+    /// How a cell's glyphs are displaced this frame. Identity for every cell
+    /// but the one the event landed on, and identity everywhere under Reduce
+    /// Motion.
+    private struct CellMotion {
+        var scale: CGFloat = 1
+        var dx: CGFloat = 0
+        var isIdentity: Bool { scale == 1 && dx == 0 }
+    }
+
+    private func cellMotion(_ index: Int, now: Date, cell: CGFloat) -> CellMotion {
+        guard !reduceMotion, let lastEvent, lastEvent.cell == index else {
+            return CellMotion()
+        }
+        let t = now.timeIntervalSince(lastEvent.at)
+        guard t >= 0 else { return CellMotion() }
+
+        switch lastEvent.kind {
+        case .place, .erase:
+            guard t < Self.settleDuration else { return CellMotion() }
+            // Ease-out cubic: fast off the mark, still at the end. A settle
+            // that decelerates reads as something arriving; a linear one reads
+            // as something being dragged.
+            let eased = 1 - pow(1 - t / Self.settleDuration, 3.0)
+            // A placement lands slightly large and shrinks to true; an erase is
+            // its inverse, so whatever the cell holds *afterwards* — the pencil
+            // marks the digit was covering, usually — grows in rather than
+            // popping. When the cell ends up genuinely empty this frame is a
+            // no-op, which is correct: there is nothing to animate.
+            let from: CGFloat = lastEvent.kind == .place ? 1.18 : 0.72
+            return CellMotion(scale: from + (1 - from) * CGFloat(eased))
+        case .error:
+            guard t < Self.shakeDuration else { return CellMotion() }
+            let p = t / Self.shakeDuration
+            // `sin(p · 3π)` has zeros at 0, π, 2π and 3π — exactly three half
+            // cycles, ending on the true position rather than mid-swing. The
+            // amplitude decays linearly so the last shake is a twitch.
+            //
+            // 0.12 of a cell is ≈5pt at phone scale and scales with the board,
+            // which a flat 5pt would not: 5pt is a shove on a watch and
+            // invisible on a 900pt TV board.
+            let amplitude = cell * 0.12 * CGFloat(1 - p)
+            return CellMotion(dx: amplitude * CGFloat(sin(p * 3 * Double.pi)))
+        }
+    }
+
+    /// Draw `body` with `motion` applied about `centre` — a scale about the
+    /// glyph's own centre plus a horizontal offset. Straight through when the
+    /// motion is identity, which is every cell on almost every frame, so the
+    /// common path costs one comparison and no extra layer.
+    private func withMotion(
+        _ motion: CellMotion, about centre: CGPoint,
+        in context: inout GraphicsContext,
+        _ body: (inout GraphicsContext) -> Void
+    ) {
+        if motion.isIdentity {
+            body(&context)
+            return
+        }
+        context.drawLayer { layer in
+            layer.translateBy(x: centre.x + motion.dx, y: centre.y)
+            layer.scaleBy(x: motion.scale, y: motion.scale)
+            layer.translateBy(x: -centre.x, y: -centre.y)
+            body(&layer)
+        }
+    }
+
     private var originPoint: CGPoint {
         BoardMetrics.center(of: waveOrigin ?? 40, side: side)
     }
@@ -520,52 +785,91 @@ struct BoardView: View {
         let cell = size.width / 9
         let scale = size.width / BoardMetrics.side
 
-        // 1. Box luminance steps: alternating boxes get a slightly brighter
-        //    wash — the step itself reads as the border.
+        // 0. Clip to the plane.
         //
-        //    Under Increase Contrast both washes go to **zero** and step 2.4
-        //    draws the border the step was standing in for (PRD-22). The first
-        //    version deepened the step instead, on the reasoning that more
-        //    contrast between the boxes is more contrast — and the harness
-        //    measured every single Increase Contrast cell coming out *below*
-        //    its standard counterpart (Void 14.72 → 13.62, Paper's coral
-        //    5.06 → 4.43). A wash is a wash toward `gridTone`, which is the
-        //    ink's own end of the scale on a dark theme and the ground's on a
-        //    light one; either way it moves the ground toward the digits and
-        //    every ratio in the box falls. The setting that asks for more
-        //    contrast has to *remove* the wash, not thicken it.
-        let brightWash = increased ? 0.0 : (isLight ? 0.07 : 0.055)
-        let dimWash = increased ? 0.0 : (isLight ? 0.028 : 0.02)
-        for boxRow in 0..<3 {
-            for boxCol in 0..<3 {
-                let bright = (boxRow + boxCol) % 2 == 0
-                let rect = CGRect(
-                    x: CGFloat(boxCol) * 3 * cell,
-                    y: CGFloat(boxRow) * 3 * cell,
-                    width: 3 * cell,
-                    height: 3 * cell
-                )
-                context.fill(
-                    Path(roundedRect: rect, cornerRadius: 6 * scale),
-                    with: .color(gridTone.opacity(bright ? brightWash : dimWash))
-                )
+        //    The Canvas was never clipped, and the plane's arc and the box
+        //    washes' arc (`6 * scale`, 2.4pt against the plane's 7.2pt) did not
+        //    agree, so between the two curves the wash painted straight onto
+        //    the glass — a bright L-shaped notch in all four grid corners of
+        //    the shipped dark frame, which reads as a rendering bug rather than
+        //    as a design. Clipping here rather than with `.clipShape` in
+        //    `refracted` keeps the three `layerEffect`s sampling exactly the
+        //    pixels that survive, and costs no extra layer.
+        context.clip(
+            to: Path(roundedRect: CGRect(origin: .zero, size: size),
+                     cornerRadius: planeRadius, style: .continuous))
+
+        // 1. Peer band: the cursor's row, its column and its box.
+        //
+        //    Missing entirely until now, which is why the cursor read as a lone
+        //    rectangle with no explanation and every screenshot of the board
+        //    looked inert. Deliberately drawn **first**, under the grid rules
+        //    and under every other wash: it is the quietest statement on the
+        //    board and the skeleton has to stay on top of it.
+        //
+        //    Full cell rects, no inset and no corner radius — also deliberate.
+        //    Inset chips would read as twenty separate marks; edge-to-edge
+        //    rects fuse into one continuous crosshair band, which is the shape
+        //    of the claim being made. One `Path` and one `fill`, so the cells
+        //    where the row and the box overlap are not painted twice (non-zero
+        //    winding) and the box does not band against its own row.
+        //
+        //    `cursor` is guarded rather than trusted: the watch passes -1 for
+        //    "nothing selected" (`WatchBoardView`), and -1 through
+        //    `Sudoku.row` would light row 0 for no reason.
+        if solvedAt == nil, (0..<81).contains(cursor) {
+            let cursorRow = Sudoku.row(of: cursor)
+            let cursorCol = Sudoku.col(of: cursor)
+            let cursorBox = Sudoku.box(of: cursor)
+            var band = Path()
+            for index in 0..<81 where index != cursor {
+                guard Sudoku.row(of: index) == cursorRow
+                        || Sudoku.col(of: index) == cursorCol
+                        || Sudoku.box(of: index) == cursorBox else { continue }
+                band.addRect(BoardMetrics.rect(of: index, side: size.width))
             }
+            context.fill(band, with: .color(gridTone.opacity(isLight ? 0.06 : 0.05)))
         }
 
-        // 2. Hairline cell separators (soft, uniform).
+        // 2. Hairline cell separators, snapped to device pixels.
+        //
+        //    **A 1pt stroke is not a hairline on a 3x screen.** The cell pitch
+        //    is 40.33pt, so eight of the nine separators fall on a fractional
+        //    pixel; a 1pt-wide stroke centred there covers three pixel rows and
+        //    antialiases into a fourth, and the line arrives as a 4px smear of
+        //    grey instead of an edge. Snapping the centre to the *middle* of a
+        //    device pixel and stroking exactly one pixel wide is the fix, and
+        //    the half-pixel is the whole trick: `round(x·px)/px` lands the
+        //    stroke centre on a pixel *boundary*, which splits a one-pixel
+        //    stroke evenly across two rows and is the same smear at half the
+        //    width.
+        //
+        //    A third of the width at the same alpha would be a third of the
+        //    ink, so the alpha carries the difference: `base × min(px, 2.5)`
+        //    holds the perceived weight roughly constant (dark 0.05 → 0.125,
+        //    light 0.07 → 0.175 at 3x) and is an identity at `px == 1` (tvOS),
+        //    where a 1pt line already *was* one device pixel.
+        let px = max(1, displayScale)
+        func snapped(_ value: CGFloat) -> CGFloat {
+            ((value * px).rounded() + 0.5) / px
+        }
+        // `i % 3 != 0` is new: the two interior box boundaries used to get a
+        // hairline *and* (under Increase Contrast) a box rule stacked on the
+        // same pixel, which quietly added ink to the one line whose weight this
+        // whole step is trying to measure against.
         var lines = Path()
-        for i in 1..<9 {
-            let offset = CGFloat(i) * cell
+        for i in 1..<9 where i % 3 != 0 {
+            let offset = snapped(CGFloat(i) * cell)
             lines.move(to: CGPoint(x: offset, y: 0))
             lines.addLine(to: CGPoint(x: offset, y: size.height))
             lines.move(to: CGPoint(x: 0, y: offset))
             lines.addLine(to: CGPoint(x: size.width, y: offset))
         }
+        let hairBase = increased ? (isLight ? 0.20 : 0.16) : (isLight ? 0.07 : 0.05)
         context.stroke(
             lines,
-            with: .color(gridTone.opacity(
-                increased ? (isLight ? 0.20 : 0.16) : (isLight ? 0.07 : 0.05))),
-            lineWidth: 1)
+            with: .color(gridTone.opacity(hairBase * Double(min(px, 2.5)))),
+            lineWidth: 1 / px)
 
         // 2.2 Variant rules: killer cages and thermo tubes (PRD-24).
         //
@@ -577,22 +881,59 @@ struct BoardView: View {
         //     nothing may ever occlude a digit the player placed.
         if let channelRules { drawRules(channelRules, in: &context, cell: cell, scale: scale) }
 
-        // 2.4 Box borders, Increase Contrast only. The rest of the time these
-        //     are the luminance step above — a wash you read as an edge, which
-        //     is the calmer thing and the wrong thing for someone who has told
-        //     the system they need edges to be edges.
-        if increased {
-            var boxes = Path()
-            for i in 0...3 {
-                let offset = CGFloat(i) * 3 * cell
-                boxes.move(to: CGPoint(x: offset, y: 0))
-                boxes.addLine(to: CGPoint(x: offset, y: size.height))
-                boxes.move(to: CGPoint(x: 0, y: offset))
-                boxes.addLine(to: CGPoint(x: size.width, y: offset))
-            }
-            context.stroke(boxes, with: .color(tones.hairline),
-                           lineWidth: max(1.5, 2 * scale))
+        // 2.4 Box rules. **Always drawn now, and the alternating luminance wash
+        //     that used to stand in for them is gone.**
+        //
+        //     The board inverted its own semantic skeleton and the pixels said
+        //     so: sampled across y=1450 of the shipped frames, a cell hairline
+        //     stepped Δ11/255 in dark against the box boundary's Δ9, and in
+        //     light Δ17 against Δ11. The cell lines read as strong as the box
+        //     lines in dark and *stronger* in light — which tells the eye that
+        //     a sudoku is 81 equal cells rather than nine boxes of nine, i.e.
+        //     the opposite of the rule of the game.
+        //
+        //     Deleting the wash rather than deepening it is the lesson PRD-22
+        //     already recorded here, now unconditional. A wash is a wash
+        //     *toward `gridTone`*, which is the ink's end of the scale on a
+        //     dark theme and the ground's on a light one, so either way it
+        //     moves the ground toward the digits and every contrast ratio
+        //     inside the box falls — that is how the harness caught it under
+        //     Increase Contrast (Void 14.72 → 13.62, Paper's coral 5.06 →
+        //     4.43). A *line* costs nothing to a digit that is not on it, so
+        //     with the wash gone that regression disappears by construction and
+        //     `increased` only changes how loud the rule is.
+        //
+        //     0.42 of `tones.hairline` at 1.5–2pt is ~5× a cell hairline's ink
+        //     in dark and ~4.5× in light — past the 2.5× the eye needs to rank
+        //     two line weights, and short of the printed-grid look a solid
+        //     black rule would give. `emphasiseBoxes` is for a board drawn
+        //     small enough that the boxes are the only structure left.
+        let boxWidth = max(1.5, 2 * scale)
+        var boxes = Path()
+        for i in 1...2 {
+            let offset = snapped(CGFloat(i) * 3 * cell)
+            boxes.move(to: CGPoint(x: offset, y: 0))
+            boxes.addLine(to: CGPoint(x: offset, y: size.height))
+            boxes.move(to: CGPoint(x: 0, y: offset))
+            boxes.addLine(to: CGPoint(x: size.width, y: offset))
         }
+        // The outer boundary is a **rounded rect**, not the `i == 0` and
+        // `i == 3` lines it used to be. Straight rules laid along the board's
+        // own edge are cut by step 0's corner clip and survive as four
+        // disconnected crop marks with 14pt holes between them; this follows
+        // the same curve the clip does, inset half its own width so the whole
+        // stroke lands inside and reads at full weight, with the concentric
+        // radius that keeps it parallel to the plane rather than merely near it.
+        boxes.addPath(Path(
+            roundedRect: CGRect(origin: .zero, size: size)
+                .insetBy(dx: boxWidth / 2, dy: boxWidth / 2),
+            cornerRadius: max(1, planeRadius - boxWidth / 2),
+            style: .continuous))
+        context.stroke(
+            boxes,
+            with: .color(tones.hairline.opacity(
+                increased ? 1.0 : (emphasiseBoxes ? 0.62 : 0.42))),
+            lineWidth: boxWidth)
 
         // 2.5 Same-number highlight: an accent wash on every cell holding the
         //     digit; cells whose pencil notes contain it get a quiet accent
@@ -711,10 +1052,14 @@ struct BoardView: View {
 
         // 4. Digits, pencil marks, error markers.
         let wave = waveProgress(now: now)
+        // The mini keypad's pitch, shared by the notes, the handwritten notes
+        // and the pencil ghost so all three land in the same nine slots.
+        let notePitch = cell * BoardInk.notePitch
         for index in 0..<81 {
             let row = index / 9, col = index % 9
             let center = BoardMetrics.center(of: index, side: size.width)
             let digit = game.entry(at: index)
+            let motion = cellMotion(index, now: now, cell: cell)
 
             if digit != 0 {
                 let isGiven = game.isGiven(index)
@@ -747,40 +1092,72 @@ struct BoardView: View {
                 // L2 peek: everything that isn't the peeked kind recedes.
                 if let dimmedExcept, digit != dimmedExcept { color = color.opacity(0.16) }
 
-                context.draw(
-                    Text("\(digit)")
-                        .font(.system(size: 56 * scale, weight: isGiven ? .semibold : .medium, design: .rounded))
-                        .foregroundStyle(color),
-                    at: center
-                )
+                // The glyph, sized and weighted off `BoardInk` so the game
+                // board, the mini boards and the widget draw one alphabet.
+                // A given is `.semibold` against an entry's `.regular`, not
+                // `.medium`: at this size one weight step is a ~4% stroke
+                // difference, which is invisible, and it left the whole
+                // given/entry hierarchy resting on hue alone — nothing in this
+                // file reads `accessibilityDifferentiateWithoutColor`, so hue
+                // alone is the same as nothing for some players.
+                let glyph = Text("\(digit)")
+                    .font(.system(
+                        size: cell * (isGiven ? BoardInk.given : BoardInk.entry),
+                        weight: isGiven ? BoardInk.givenWeight : BoardInk.entryWeight,
+                        design: .rounded))
+                    .foregroundStyle(color)
+                withMotion(motion, about: center, in: &context) { layer in
+                    layer.draw(glyph, at: center)
+                }
 
                 if isError {
-                    // Coral underline…
+                    // Coral underline, on the glyph…
                     let underline = CGRect(
-                        x: center.x - cell * 0.24, y: center.y + cell * 0.30,
+                        x: center.x + motion.dx - cell * 0.24, y: center.y + cell * 0.30,
                         width: cell * 0.48,
                         height: increased ? max(3, 6 * scale) : max(2, 4 * scale)
                     )
                     context.fill(Path(roundedRect: underline, cornerRadius: 2 * scale), with: .color(tones.coral))
-                    // …paired with a dot marker so color is never the sole signal.
-                    let dot = CGRect(
-                        x: center.x + cell * 0.30, y: center.y - cell * 0.38,
-                        width: max(5, 10 * scale), height: max(5, 10 * scale)
-                    )
-                    context.fill(Path(ellipseIn: dot), with: .color(tones.coral))
+                    // …and a coral rim on the cell, which replaces the detached
+                    // 5pt disc that used to sit 4.8pt off the cell's top edge.
+                    // The disc was a third coral signal on one glyph and it read
+                    // as dust on the lens — a speck floating beside a digit,
+                    // attached to nothing. A rim is the same two channels the
+                    // dot was there for (hue *and* shape, which is all
+                    // Differentiate Without Colour asks) attached to the thing
+                    // that is actually wrong: the cell. It does not move with
+                    // the shake, because the cell does not move.
+                    let rect = CGRect(x: CGFloat(col) * cell, y: CGFloat(row) * cell,
+                                      width: cell, height: cell)
+                        .insetBy(dx: 3 * scale, dy: 3 * scale)
+                    context.stroke(
+                        Path(roundedRect: rect, cornerRadius: 12 * scale),
+                        with: .color(tones.coral.opacity(0.5)),
+                        lineWidth: max(1.5, 2 * scale))
                 }
             } else {
                 // Corner notes: a mini 3×3 keypad of pencil digits. A note of
                 // the highlighted digit goes bold accent; its cell already
                 // carries the border ring from step 2.5.
+                //
+                // **The pitch was the bug, not the glyph size.** A 0.22-cell
+                // mark on a 0.28-cell pitch left a dead margin most of a note
+                // wide all the way round the keypad, so three marks floated in
+                // the middle of the cell and read as stray digits rather than
+                // as candidates in slots. 0.33 pushes the outer ranks to the
+                // cell's inner corners — 0.33 + half a glyph is 0.46 of the
+                // cell, still inside the hairline — and the nine slots become
+                // legible as a grid even when only two are filled. The ink
+                // comes up with it (0.55 → 0.68): a note pushed out to the rim
+                // sits over less of the cell's own wash and needs the weight.
                 for mark in game.pencilDigits(at: index) {
                     let mc = CGFloat((mark - 1) % 3), mr = CGFloat((mark - 1) / 3)
                     let point = CGPoint(
-                        x: center.x + (mc - 1) * cell * 0.28,
-                        y: center.y + (mr - 1) * cell * 0.28
+                        x: center.x + (mc - 1) * notePitch,
+                        y: center.y + (mr - 1) * notePitch
                     )
                     let highlighted = solvedAt == nil && mark == highlightDigit
-                    var noteColor = highlighted ? accent : gridTone.opacity(0.55)
+                    var noteColor = highlighted ? accent : gridTone.opacity(0.68)
                     if let dimmedExcept, mark != dimmedExcept { noteColor = noteColor.opacity(0.16) }
                     // PRD-31: the player's own glyph if they have written this
                     // digit, the rounded typeface if they have not. Every note
@@ -789,34 +1166,71 @@ struct BoardView: View {
                     // room — because a board where three marks are handwritten
                     // and the rest are set looks like a bug rather than a
                     // signature.
-                    if let glyph = hand.glyph(for: mark) {
-                        // 0.30 of a cell, trimmed from 0.34 after looking at a
-                        // real board: a written glyph is a thin outline where
-                        // the typeface is a solid mass, so it needs to be a
-                        // little larger to read — but at 0.34 the note pitch
-                        // (0.28) is smaller than the glyph, and neighbouring
-                        // marks in the mini keypad start to touch.
-                        context.stroke(
-                            Self.inkPath(glyph, centredAt: point, box: cell * 0.30),
-                            with: .color(noteColor),
-                            style: StrokeStyle(lineWidth: max(1, (highlighted ? 2.6 : 1.9) * scale),
-                                               lineCap: .round, lineJoin: .round)
-                        )
+                    let ink: (inout GraphicsContext) -> Void
+                    if let handGlyph = hand.glyph(for: mark) {
+                        // 0.32 of a cell. A written glyph is a thin outline
+                        // where the typeface is a solid mass, so it needs to be
+                        // a little larger to read; the ceiling is the note
+                        // pitch, because a glyph wider than the pitch makes
+                        // neighbouring marks in the mini keypad touch. That
+                        // ceiling was 0.28 and capped this at 0.30; at a 0.33
+                        // pitch it can have the 0.32 it wanted.
+                        ink = { layer in
+                            layer.stroke(
+                                Self.inkPath(handGlyph, centredAt: point, box: cell * 0.32),
+                                with: .color(noteColor),
+                                style: StrokeStyle(lineWidth: max(1, (highlighted ? 2.6 : 1.9) * scale),
+                                                   lineCap: .round, lineJoin: .round)
+                            )
+                        }
                     } else {
-                        context.draw(
-                            Text("\(mark)")
-                                .font(.system(size: 22 * scale, weight: highlighted ? .bold : .medium, design: .rounded))
-                                .foregroundStyle(noteColor),
-                            at: point
-                        )
+                        let text = Text("\(mark)")
+                            .font(.system(size: cell * BoardInk.note,
+                                          weight: highlighted ? .bold : BoardInk.noteWeight,
+                                          design: .rounded))
+                            .foregroundStyle(noteColor)
+                        ink = { layer in layer.draw(text, at: point) }
                     }
+                    // The erase settle rides the notes, because the notes are
+                    // what an erase usually *reveals*.
+                    withMotion(motion, about: center, in: &context, ink)
                 }
+            }
+        }
+
+        // 4.5 Erase echo: a ring contracting out of the cell.
+        //
+        //     The inverse settle above animates whatever the cell holds
+        //     afterwards, and a cell cleared down to nothing holds nothing — so
+        //     on its own the loudest of the three events would be the one with
+        //     no frame. This is the frame: one quiet ring, gone in 0.22s,
+        //     drawn over the digits because it is the news.
+        if let lastEvent, lastEvent.kind == .erase, !reduceMotion,
+           solvedAt == nil, (0..<81).contains(lastEvent.cell) {
+            let t = now.timeIntervalSince(lastEvent.at)
+            if t >= 0, t < Self.settleDuration {
+                let p = CGFloat(t / Self.settleDuration)
+                let shrink = 2 * scale + p * cell * 0.34
+                let rect = BoardMetrics.rect(of: lastEvent.cell, side: size.width)
+                    .insetBy(dx: shrink, dy: shrink)
+                context.stroke(
+                    Path(roundedRect: rect, cornerRadius: 14 * scale),
+                    with: .color(gridTone.opacity(0.38 * Double(1 - p))),
+                    lineWidth: max(1.5, 2 * scale))
             }
         }
 
         // 5. Ghost preview: the rose's focused digit rendered in the cursor
         //    cell — accent-tinted and translucent, clearly a maybe, gone the
         //    moment the rose closes or the petal focus moves on.
+        //
+        //    **The ghost is the committed size, exactly.** It shipped at
+        //    `62 * scale` against a digit's `56 * scale` and `26 * scale`
+        //    against a note's `22 * scale`, so a digit *shrank 10%* — and a
+        //    note 18% — the instant you committed it. A preview whose job is
+        //    "this is what will happen" that then does something visibly
+        //    different is worse than no preview; the tint and the alpha are
+        //    what say "maybe", and they are enough.
         if let previewDigit, solvedAt == nil {
             let center = BoardMetrics.center(of: cursor, side: size.width)
             if previewPencil {
@@ -825,19 +1239,21 @@ struct BoardView: View {
                 // than the big ghost so the small glyph stays legible.
                 let mc = CGFloat((previewDigit - 1) % 3), mr = CGFloat((previewDigit - 1) / 3)
                 let point = CGPoint(
-                    x: center.x + (mc - 1) * cell * 0.28,
-                    y: center.y + (mr - 1) * cell * 0.28
+                    x: center.x + (mc - 1) * notePitch,
+                    y: center.y + (mr - 1) * notePitch
                 )
                 context.draw(
                     Text("\(previewDigit)")
-                        .font(.system(size: 26 * scale, weight: .medium, design: .rounded))
+                        .font(.system(size: cell * BoardInk.noteGhost,
+                                      weight: BoardInk.noteWeight, design: .rounded))
                         .foregroundStyle(accent.opacity(0.45)),
                     at: point
                 )
             } else {
                 context.draw(
                     Text("\(previewDigit)")
-                        .font(.system(size: 62 * scale, weight: .medium, design: .rounded))
+                        .font(.system(size: cell * BoardInk.ghost,
+                                      weight: BoardInk.entryWeight, design: .rounded))
                         .foregroundStyle(accent.opacity(0.35)),
                     at: center
                 )
@@ -922,18 +1338,34 @@ struct BoardView: View {
         // that is its top-left-most cell on every cage shape, deterministically.
         guard let anchor = cage.cells.first else { return }
         let row = Sudoku.row(of: anchor), col = Sudoku.col(of: anchor)
-        // Tighter than the pencil-note inset (`cell * 0.28`) so a sum and a note
-        // in slot 1 of the same cell do not collide. They still sit close, and a
-        // cage anchor is usually empty on a killer board — Sharp has no givens at
-        // all — so this is the cheap fix rather than relaying the notes.
+        // **`15 * scale` was 0.15 of a cell — 5.9pt on an iPhone, smaller than
+        // a pencil note.** A cage sum is not decoration: on a killer board it
+        // is the only thing that makes the cage solvable, and Channels ships to
+        // the phone and nowhere else, so the one platform it had to be legible
+        // on is the one it was smallest on. `BoardInk.cageSum` puts it at a
+        // note's size, which is the floor for anything a player has to read.
+        //
+        // Pushed into the cell's corner (0.13 rather than 0.19/0.17) and given
+        // a plate, the way every printed killer sudoku does it — the plate is
+        // what stops a sum and the notes it sits among from reading as one
+        // number, and it is what lets the sum be big enough to read without
+        // fighting the mini keypad for the same pixels.
         let point = CGPoint(
-            x: CGFloat(col) * cell + cell * 0.19,
-            y: CGFloat(row) * cell + cell * 0.17)
-        context.draw(
+            x: CGFloat(col) * cell + cell * 0.13,
+            y: CGFloat(row) * cell + cell * 0.13)
+        let sum = context.resolve(
             Text(verbatim: "\(cage.sum)")
-                .font(.system(size: 15 * scale, weight: .semibold, design: .rounded))
-                .foregroundStyle(digitTone.opacity(increased ? 0.95 : 0.72)),
-            at: point)
+                .font(.system(size: cell * BoardInk.cageSum, weight: .semibold, design: .rounded))
+                .foregroundStyle(digitTone.opacity(increased ? 0.95 : 0.72)))
+        let sumSize = sum.measure(in: CGSize(width: cell, height: cell))
+        let plate = CGRect(
+            x: point.x - sumSize.width / 2, y: point.y - sumSize.height / 2,
+            width: sumSize.width, height: sumSize.height
+        ).insetBy(dx: -2 * scale, dy: -1 * scale)
+        context.fill(
+            Path(roundedRect: plate, cornerRadius: 3 * scale),
+            with: .color(tones.background))
+        context.draw(sum, at: point)
     }
 
     /// A thermometer as a luminous glass tube: a bulb disc at the base and a

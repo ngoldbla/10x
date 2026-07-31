@@ -229,9 +229,36 @@ enum ThemeChoice: String, Codable, Sendable, CaseIterable {
         switch self {
         case .auto:
             return (resolved == .light ? ThemeChoice.light : .dark).tones(for: resolved)
+        // **Void's ground is no longer `CouchPalette.void`, and no longer pure
+        // black.** `.glassEffect` is a lens: it refracts and blurs what is
+        // behind it, and behind #000000 there is nothing to refract, so every
+        // pane of glass in the app collapsed to a flat tint. Measured on the
+        // shipped build: shelf cards 1.07:1 against their page, the board card
+        // 1.03:1, the six toolbar discs 1.08:1, the rose petals 1.026:1, the
+        // History stat cards 1.005:1 — all far under WCAG 1.4.11's 3:1 for a
+        // component boundary, and none of it fixable in the card, because the
+        // card was doing its job and the ground was giving it nothing to do it
+        // with.
+        //
+        // #0C0C0F is the smallest lift that gives the material something to
+        // bend while still reading as black in a dark room: 12/255 is one
+        // perceptual step off zero and this is still the darkest of the nine
+        // themes. The blue channel runs two levels warm of the other two for
+        // the same reason `CouchPalette.ink` does — a perfectly neutral
+        // near-black reads slightly green on OLED.
+        //
+        // `CouchPalette.void` itself is untouched: four sibling apps draw on it
+        // and CouchKit is additive-only. This is Nine's ground, so Nine writes
+        // the number, and `SharedPalette.darkGround` carries the same triple to
+        // the widget process.
+        //
+        // Every floor in `AppearancePaletteTests` survives the lift — givens
+        // 15.8:1 (floor 12), grid tone 19.7:1 (floor 10), coral 7.4:1 (floor
+        // 5.5) — and Blueprint is still the binding ground for all ten accents,
+        // which is what those floors were set against.
         case .dark:
             return ThemeTones(
-                background: CouchPalette.void,
+                background: Color(red: 0.047, green: 0.047, blue: 0.059),
                 gridTone: .white,
                 digitTone: CouchPalette.paper,
                 isLight: false

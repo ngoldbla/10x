@@ -49,8 +49,21 @@ enum AmbientSlot: String, Codable, Sendable, CaseIterable {
 }
 
 struct NinePrefs: Codable, Sendable, Equatable {
-    /// Off is the statement (PRD §3).
-    var showTimer = false
+    /// **On.** "Off is the statement" (PRD §3) was written about a screen that
+    /// had something else on it, and the shipped screen does not: with
+    /// `showTimer` off *and* `ambientSlot` off — the two possible occupants of
+    /// the free band — `TouchGameScreen.band()` resolves to
+    /// `Color.clear.frame(maxHeight: .infinity)` and a default install shows a
+    /// 362pt board floating in an 874pt phone with **342pt of literal nothing**:
+    /// no difficulty, no clock, no mistake count, no digits-remaining, no
+    /// keypad. Thirty-nine per cent of the game screen was void because two
+    /// defaults happened to agree.
+    ///
+    /// A calm app is one that does not shout, not one that shows no state. The
+    /// clock is the least anxious thing that band can hold — it counts up rather
+    /// than down, nothing is lost by it, and the row that turns it off is still
+    /// two taps away in Preferences.
+    var showTimer = true
     var errorHighlight = true
     var accent: AccentChoice = .glacier
     /// Tap a placed digit to light up every cell holding it, notes included.
@@ -63,6 +76,35 @@ struct NinePrefs: Codable, Sendable, Equatable {
     /// Launch straight back into a board in progress.
     var resumeOnLaunch = true
     /// iOS board position; an edge anchor frees one contiguous band for PiP.
+    ///
+    /// **`.center`, and it went `.center` → `.top` → `.center` for two
+    /// different correct reasons.**
+    ///
+    /// It was `.center` when the screen had no chrome but a board: that split
+    /// the free space into two half-height voids, neither tall enough to hold a
+    /// header *or* a keypad, which is how the game screen ended up 39% empty
+    /// while having nowhere to put anything. `.top` collected the whole
+    /// residual into one contiguous band so the header and the digit pad could
+    /// be built into it.
+    ///
+    /// They now exist, and they are *fixed rows* outside the bands — header
+    /// above the board, pad below it, toolbar at the bottom edge. So the bands
+    /// no longer hold anything; they are purely the leftover. Measured on a
+    /// 402×874pt phone that leftover is ~155pt, and `.top` puts all of it in one
+    /// hole between the pad and the toolbar, which reads as a mistake. `.center`
+    /// splits the same 155pt into two ~78pt margins above and below the
+    /// board-and-pad group, which reads as air. The board is what the screen is
+    /// about; air around it is the point.
+    ///
+    /// **Round 2 changed what the two margins are around, and `.center` is the
+    /// reason that was possible.** The pad used to be welded under the board,
+    /// so the lower margin fell *between the pad and the toolbar* — a hole in
+    /// the middle of the controls, which is where round 1's critics found it
+    /// ("~130pt between the pad and the toolbar and ~90pt below it"). The pad
+    /// and the toolbar are one docked bottom cluster now
+    /// (`TouchUI.bottomCluster`), so the same ~78pt lands above and below the
+    /// *board* and nowhere else. Nothing about this pref moved; what it splits
+    /// did.
     var boardAnchor: BoardAnchor = .center
     /// iOS ambient chip in the free band; off by default.
     var ambientSlot: AmbientSlot = .none
@@ -108,7 +150,22 @@ struct NinePrefs: Codable, Sendable, Equatable {
     /// theme) resets that one field, not the whole blob.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        showTimer = try c.decodeIfPresent(Bool.self, forKey: .showTimer) ?? false
+        // The fallbacks below track the memberwise defaults above — a decode
+        // fallback that disagrees with its own default is a field with two
+        // meanings.
+        //
+        // **What that does and does not migrate, measured rather than assumed.**
+        // Only `init(from:)` is custom here; `encode(to:)` is synthesised from
+        // `CodingKeys`, so *every* key is written on every save. A `??` therefore
+        // only fires for a key that is genuinely absent from the blob — a field
+        // added after the blob was written. `showTimer` and `boardAnchor` both
+        // shipped in 1.0, so an existing install has them on disk and keeps
+        // whatever it has; the two new defaults reach fresh installs and anyone
+        // whose blob was discarded. That is the honest scope, and it is the
+        // right one: silently flipping a row a player may have deliberately
+        // turned off is worse than the void this fixes. The Preferences row for
+        // each is two taps away in both directions.
+        showTimer = try c.decodeIfPresent(Bool.self, forKey: .showTimer) ?? true
         errorHighlight = try c.decodeIfPresent(Bool.self, forKey: .errorHighlight) ?? true
         accent = (try? c.decodeIfPresent(AccentChoice.self, forKey: .accent)) ?? .glacier
         numberHighlight = try c.decodeIfPresent(Bool.self, forKey: .numberHighlight) ?? true
@@ -156,6 +213,23 @@ final class AppModel {
     /// The cell of the most recent placement — at `finishSolve()` this is
     /// the winning cell by definition, and the Afterglow wave's origin.
     private(set) var lastPlacedCell: Int?
+    /// What just happened to a cell, and when — `BoardView.lastEvent`'s input,
+    /// and the visual partner to a haptic the app has fired since 1.0 with no
+    /// picture attached (`CellEventKind`).
+    ///
+    /// **In the model rather than in the view, because there are three views.**
+    /// `TouchUI`, `MacUI` and `GameScreen` all draw the same `BoardView` off the
+    /// same board, and a placement settle that only the phone knew about would
+    /// be a fourth spelling of "what a move does" — the failure `tapCell` /
+    /// `axActivate` is factored to avoid. Only the touch screen passes it
+    /// through today; the other two get it by adding one argument.
+    ///
+    /// A tuple, matching the parameter it feeds: three scalars with no
+    /// behaviour. `at` is the animation clock, so re-sending the same event
+    /// re-renders the same frame rather than restarting anything, and every
+    /// consumer is inside a 0.45s window — which is why a stale event surviving
+    /// into the next board is inert rather than a bug to guard.
+    private(set) var lastCellEvent: (cell: Int, kind: CellEventKind, at: Date)?
     /// A puzzle is being composed off-main (Sharp can take a few seconds).
     private(set) var composing: GameKind?
 
@@ -1632,6 +1706,7 @@ final class AppModel {
         self.kind = entry.kind
         self.solvedAt = nil
         self.lastPlacedCell = nil
+        self.lastCellEvent = nil
         self.screen = .game
         // PRD-27: a duel started before its board existed is adopted here,
         // because this is the single funnel every opening path goes through.
@@ -1904,6 +1979,13 @@ final class AppModel {
         guard g.place(digit, at: cell, autoNotes: autoNotes, elapsed: moveStamp(g)) else { return }
         game = g
         lastPlacedCell = cell
+        // The shake is gated on the error *highlight* pref for exactly the
+        // reason the error haptic is (`TouchUI.hapticsAfterPlacing`): a board
+        // that shakes at a digit the screen is not marking would leak, through
+        // motion, an answer the player asked not to be told.
+        lastCellEvent = (cell: cell,
+                         kind: prefs.errorHighlight && g.isError(at: cell) ? .error : .place,
+                         at: Date())
         if g.isSolved {
             finishSolve()
         } else {
@@ -1925,6 +2007,7 @@ final class AppModel {
         guard solvedAt == nil, var g = game else { return false }
         guard g.erase(at: cell, autoNotes: autoNotes, elapsed: moveStamp(g)) else { return false }
         game = g
+        lastCellEvent = (cell: cell, kind: .erase, at: Date())
         persistProgress()
         return true
     }

@@ -61,9 +61,22 @@ struct TwinBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6 * s) {
             HStack {
-                Text(title).font(CouchTypography.caption)
+                // `label`, not `caption`. This row title shipped as
+                // `CouchTypography.caption` back when `caption` *was* the 13pt
+                // footnote rung; wave 1 renamed that rung to `label` and gave
+                // `caption` to the 11pt tier below it, so leaving the spelling
+                // alone would have silently demoted every difficulty name in
+                // the History sheet by a step and put it level with its own
+                // secondary figures. `label` is the tier this line always meant.
+                Text(title).font(CouchTypography.label)
                 Spacer()
                 Text("\(bestLabel) · \(avgLabel)")
+                    // Stays a scaled literal rather than a ramp token: every
+                    // dimension in this file is multiplied by the sheet's own
+                    // `s` factor, and a semantic font cannot be multiplied.
+                    // Trading `s` for Dynamic Type here would need the whole
+                    // sheet to stop scaling, which is `HistorySheet`'s call and
+                    // not this file's.
                     .font(.system(size: 12 * s, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -97,20 +110,29 @@ struct Sparkline: View {
             let pt: (Int) -> CGPoint = { i in
                 CGPoint(x: CGFloat(i) * step, y: h * CGFloat(points[i]))
             }
-            ZStack {
-                Path { p in
-                    p.move(to: CGPoint(x: 0, y: h))
-                    for i in points.indices { p.addLine(to: pt(i)) }
-                    p.addLine(to: CGPoint(x: w, y: h))
-                    p.closeSubpath()
+            // Two points is the smallest thing that is a trend; below that the
+            // stroke path's `pt(0)` would index an empty array and trap. The
+            // only shipped caller (`HistorySheet.trendSection`) already guards
+            // `raw.count >= 2`, so this draws nothing new — it just means the
+            // guard is in the view that would crash rather than only in the one
+            // caller that currently remembers to hold it.
+            if points.count >= 2 {
+                ZStack {
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: h))
+                        for i in points.indices { p.addLine(to: pt(i)) }
+                        p.addLine(to: CGPoint(x: w, y: h))
+                        p.closeSubpath()
+                    }
+                    .fill(LinearGradient(colors: [accent.opacity(0.35), accent.opacity(0.02)],
+                                         startPoint: .top, endPoint: .bottom))
+                    Path { p in
+                        p.move(to: pt(0))
+                        for i in points.indices.dropFirst() { p.addLine(to: pt(i)) }
+                    }
+                    .stroke(accent,
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                 }
-                .fill(LinearGradient(colors: [accent.opacity(0.35), accent.opacity(0.02)],
-                                     startPoint: .top, endPoint: .bottom))
-                Path { p in
-                    p.move(to: pt(0))
-                    for i in points.indices.dropFirst() { p.addLine(to: pt(i)) }
-                }
-                .stroke(accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
             }
         }
     }

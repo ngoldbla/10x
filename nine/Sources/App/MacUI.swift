@@ -323,6 +323,11 @@ struct MacGameScreen: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    /// The board's own ink, so the rose's petal numerals are the same colour as
+    /// the digits they will become (PRD-22's `digitTone`). Computed here rather
+    /// than threaded, exactly as `accent` above is.
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
     private var isDesk: Bool { model.windowMode == .desk }
 
     var body: some View {
@@ -622,7 +627,8 @@ struct MacGameScreen: View {
                         // no indication which ones were on.
                         currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
                             ? nil : game.entry(at: cursor),
-                        notedDigits: Set(game.pencilDigits(at: cursor))
+                        notedDigits: Set(game.pencilDigits(at: cursor)),
+                        digitTone: tones.digitTone
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }

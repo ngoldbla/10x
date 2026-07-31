@@ -298,8 +298,17 @@ targets:
       # not. `Theme.swift` exists so this list can stop before `AppModel.swift`;
       # `Afterglow.metal` is deliberately absent, because watchOS has no
       # SwiftUI shaders and `BoardView` gates them out here.
+      #
+      # `DesignTokens.swift` is here for a specific reason: `BoardView` draws its
+      # digits from `BoardType`, and when this list stopped short of the tokens
+      # the board had to carry a hand-copy of them instead. A second copy of a
+      # scale is a scale that drifts — and two of those had already gone stale
+      # unnoticed in this repo's tests. The file is SwiftUI-only and its one
+      # non-token dependency (`Scrim.overlay(for: ThemeTones)`) resolves against
+      # `Theme.swift`, which is already on this list.
       - Sources/App/BoardView.swift
       - Sources/App/BoardAccessibility.swift
+      - Sources/App/DesignTokens.swift
       - Sources/App/Theme.swift
       - Assets.xcassets
     dependencies:

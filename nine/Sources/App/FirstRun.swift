@@ -38,6 +38,7 @@ struct FirstRunFlow: View {
     private enum Stage { case welcome, flick }
 
     @State private var stage: Stage
+    @Environment(\.colorScheme) private var colorScheme
 
     init(model: AppModel, accent: Color) {
         self.model = model
@@ -45,19 +46,30 @@ struct FirstRunFlow: View {
         _stage = State(initialValue: model.welcomeSeen ? .flick : .welcome)
     }
 
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            // Was a flat `black.opacity(0.55)`, which is the one scrim recipe
+            // that cannot be right on nine themes: a player who bought Nine and
+            // picked Blueprint or Ember spends their first thirty seconds
+            // looking at their theme *greyed out*, because black takes the hue
+            // away before it takes the luminance. `Scrim.overlay` scrims a dark
+            // ground with the ground itself — which dims the backdrop and
+            // pushes it behind the card at the same time — and keeps black for
+            // the light themes, where scrimming a bright ground with itself
+            // would brighten rather than dim.
+            Scrim.overlay(for: tones)
                 .ignoresSafeArea()
                 // Swallow taps: dismissal is Begin, Skip, or the flick itself.
                 // A stray tap must not cost a player the one welcome they get.
                 .onTapGesture { }
             switch stage {
             case .welcome:
-                WelcomeCard(accent: accent, onBegin: finishWelcome)
+                WelcomeCard(accent: accent, tones: tones, onBegin: finishWelcome)
                     .transition(.opacity)
             case .flick:
-                FirstFlickBeat(accent: accent, onFinish: finishBeat)
+                FirstFlickBeat(accent: accent, tones: tones, onFinish: finishBeat)
                     .transition(.opacity)
             }
         }
@@ -85,6 +97,7 @@ struct FirstRunFlow: View {
 /// "rate us" — there is nothing left to sell.
 private struct WelcomeCard: View {
     let accent: Color
+    let tones: ThemeTones
     let onBegin: @MainActor () -> Void
 
     /// What is actually in the box today. Adding a row here is a claim; it
@@ -105,7 +118,7 @@ private struct WelcomeCard: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            VStack(spacing: 8) {
+            VStack(spacing: Space.s) {
                 Text(Phrase.welcomeTitle)
                     .couchText(CouchTypography.title)
                 Text(Phrase.welcomeTagline)
@@ -143,20 +156,53 @@ private struct WelcomeCard: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // The app's very first primary action, and it shipped as neutral
+            // glass *inside* neutral glass: two `.regular` lenses stacked read
+            // as one slightly murkier pane, so the one button on the first
+            // screen had roughly the same presence as the card behind it. This
+            // is the rung the ladder keeps for the surface that outranks the
+            // others — a tint, not a second material.
             Button(action: onBegin) {
                 Text(Phrase.begin)
                     .font(CouchTypography.body)
-                    .padding(.horizontal, 44)
-                    .padding(.vertical, 12)
-                    .couchGlassInteractive(in: Capsule())
+                    // White on a dark ground; the theme's own deepened accent
+                    // on a light one. `AccentChoice.color(isLight:)` already
+                    // darkens every accent for paper, so on Camel or Paper the
+                    // label is the ink of the wash it sits in — white there
+                    // would be a 22% tint carrying white text on a bright
+                    // material, which is the one combination this capsule
+                    // cannot survive.
+                    .foregroundStyle(tones.isLight ? AnyShapeStyle(accent)
+                                                   : AnyShapeStyle(Color.white))
+                    // `hero` horizontally against `m` vertically: the widest
+                    // rung the scale has, which is what makes a capsule read as
+                    // a button rather than as a chip. The vertical 12 puts the
+                    // capsule at ~44 with a body label — `Hit.min` exactly, and
+                    // that is why it is not smaller.
+                    .padding(.horizontal, Space.hero)
+                    .padding(.vertical, Space.m)
+                    .couchGlassTinted(accent.opacity(0.22), in: Capsule())
                     .contentShape(.accessibility, Capsule())
             }
             .buttonStyle(.plain)
         }
-        .padding(26)
+        // Space.xxl / Space.xl, and identically to `FirstFlickBeat` below.
+        // These two cards are siblings a single tap apart — one replaces the
+        // other in the same ZStack — and they disagreed by 6pt inside and 4pt
+        // outside, which on a crossfade is a card that visibly resizes for no
+        // reason a player could name.
+        .padding(Space.xxl)
         .frame(maxWidth: 460)
-        .couchGlass(in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-        .padding(20)
+        // `Radius.sheet`, written the same way in both cards. The two of them
+        // were the app's only 32s — the exact species of unnamed radius the
+        // ladder exists to end — and a modal card over a scrim is a panel by
+        // every other measure in the app. Elevated, because a card floating on
+        // a scrim with no rim and no shadow is a rectangle *printed on* the
+        // scrim rather than a pane held above it.
+        .couchGlassElevated(
+            in: RoundedRectangle(cornerRadius: Radius.sheet, style: .continuous),
+            isLight: tones.isLight)
+        .padding(Space.xl)
     }
 }
 
@@ -168,6 +214,7 @@ private struct WelcomeCard: View {
 /// this is the version that takes about ten.
 private struct FirstFlickBeat: View {
     let accent: Color
+    let tones: ThemeTones
     let onFinish: @MainActor () -> Void
 
     @State private var game: NineGame?
@@ -186,16 +233,20 @@ private struct FirstFlickBeat: View {
 
     var body: some View {
         GeometryReader { geo in
-            VStack(spacing: 16) {
+            VStack(spacing: Space.l) {
                 header
                 instruction
                 boardArea(geo: geo)
                 footer
             }
-            .padding(20)
+            // The same two rungs the welcome card uses, in the same order. See
+            // `WelcomeCard.body`: these are siblings and they now measure alike.
+            .padding(Space.xxl)
             .frame(maxWidth: 560)
-            .couchGlass(in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-            .padding(16)
+            .couchGlassElevated(
+                in: RoundedRectangle(cornerRadius: Radius.sheet, style: .continuous),
+                isLight: tones.isLight)
+            .padding(Space.xl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task { await composeBoard() }
@@ -209,11 +260,13 @@ private struct FirstFlickBeat: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             // The escape hatch, in the first frame and every frame after it.
+            // `label`, not `caption`: the ramp's caption is the 11pt tier now,
+            // and the one way out of the first run is not an 11pt word.
             Button(Phrase.skip) { finish() }
-                .font(CouchTypography.caption)
+                .font(CouchTypography.label)
                 .foregroundStyle(.secondary)
                 .buttonStyle(.plain)
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: Hit.min, minHeight: Hit.min)
                 .contentShape(.accessibility, Rectangle())
         }
     }
@@ -247,8 +300,16 @@ private struct FirstFlickBeat: View {
             // is not. Measured on an 834pt iPad: a screen-derived side drew a
             // 649pt board inside a 520pt card, hanging 65pt off both edges and
             // over the instruction's last line.
-            let cardWidth = min(geo.size.width - 32, 560)
-            let side = max(200, min(cardWidth - 64, geo.size.height * 0.52))
+            //
+            // Both subtractions are now derived from the two paddings above
+            // rather than guessed at: the card is the screen less its outer
+            // margin on each side, and the board is the card less its interior
+            // padding on each side *and* the two insets `BoardView` adds back.
+            // The old `- 64` was 20pt of padding plus 24pt of slack, and it
+            // survived the padding moving to 28 only by overhanging it.
+            let cardWidth = min(geo.size.width - 2 * Space.xl, 560)
+            let side = max(200, min(cardWidth - 2 * (Space.xxl + inset),
+                                    geo.size.height * 0.52))
             let lens = rose.map { roseLens(side: side, inset: inset, rose: $0) }
             BoardView(
                 game: game,
@@ -282,7 +343,12 @@ private struct FirstFlickBeat: View {
                         onDigit: { commit(digit: $0) },
                         // Not modal here: Skip and the lesson share this card
                         // with the ring, and they have to stay reachable.
-                        isModal: false
+                        isModal: false,
+                        // The petals' numerals in the theme's own digit tone,
+                        // the same way the game screen passes it — without this
+                        // the first rose a player ever sees is the one rose in
+                        // the app drawn off-palette.
+                        digitTone: tones.digitTone
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -300,7 +366,11 @@ private struct FirstFlickBeat: View {
                 .transition(.opacity)
         } else {
             Text(Phrase.beatHint)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                // One of the 19 verbatim copies of this tier. It is the ramp's
+                // `caption` now, which means it also scales with Dynamic Type —
+                // a hard 11 was the smallest thing on the first screen and the
+                // one piece of type on it that ignored the size the player set.
+                .font(CouchTypography.caption)
                 .foregroundStyle(.tertiary)
         }
     }

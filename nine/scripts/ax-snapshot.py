@@ -203,6 +203,28 @@ def normalize(data, screen, runtime):
     for entry in data["entries"]:
         if entry.get("region", {}).get("kind") == "Top":
             continue  # clock, battery, Wi-Fi bars
+        # …and the same three again, geometrically, because the region test
+        # alone does not hold on a sheet.
+        #
+        # **This is why `prefs.txt` and `history.txt` used to rot by the
+        # minute.** With a sheet up, `describe-ui` files the status bar under
+        # the presenting container (`Group "dismiss popup"`) rather than under
+        # `Top`, so it survived the filter on exactly those two screens — and a
+        # verify run half an hour after its own recording drifted on nothing but
+        # `StaticText "3:27 PM"` → `"4:10 PM"`. Masking the text cannot fix it:
+        # the *frame* moves too (37x20 → 32x20), because a different time is a
+        # different string width.
+        #
+        # `simctl status_bar override --time 9:41` looked like the answer and is
+        # not: it repaints the bar, and the accessibility tree still reports the
+        # real clock. Measured, not assumed.
+        #
+        # 50pt because the status bar is the only thing that lives there — the
+        # top safe-area inset on every device this runs on is larger, so no app
+        # element can be wholly above it.
+        frame = entry.get("frame", {})
+        if frame.get("y", 999) + frame.get("height", 0) <= 50:
+            continue
         header = region_header(entry.get("region", {}))
         if header not in by_header:
             by_header[header] = []
@@ -298,7 +320,7 @@ def screens():
         # so this baseline is a structural fingerprint of the sheet, not a claim
         # that VoiceOver can reach the board behind it.
         dict(name="prefs", prefs=PREFS_ERRORS_ON, taps=["Settings"],
-             anchor="Resume on launch, On", probe=False),
+             anchor="Resume on launch", probe=False),
         # The shelf, with the frozen board's fingerprint and progress caption.
         #
         # **Scrolled to the bottom before it is read**, and PRD-25 is why: the
@@ -341,7 +363,14 @@ def screens():
         # covers more than it does.
         dict(name="history", prefs=PREFS_ERRORS_ON,
              taps=["Home", "SCROLL_BOTTOM", "History", "SCROLL_BOTTOM"],
-             anchor="Join the table", probe=False),
+             # **Not "Join the table".** That was the opted-out table's own
+             # invitation, and the AAA pass rebuilt this sheet's empty state:
+             # on a *compact* width the phone now shows the records copy below
+             # and the table invitation is not on the first frame at all, so
+             # the old anchor waits forever on a sheet that is already up. The
+             # regular-width panel still shows both.
+             anchor="Solve a board and it lands here \u2014 time, difficulty and points.",
+             probe=False),
     ]
 
 

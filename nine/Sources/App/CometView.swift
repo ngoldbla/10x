@@ -52,31 +52,30 @@ struct CometView: View {
     /// one can run for hours on a television.
     private func canvas(_ frame: CometFrame) -> some View {
         Canvas { context, size in
-            let boxGap = size.width * 0.018
-            let cell = (size.width - boxGap * 2) / 9
-            let digitSize = cell * 0.62
+            // Geometry from `BoardArt`, not from three copies of the same two
+            // ratios: this file and `SolvedGridThumb` between them carried the
+            // `0.018` gutter three times, the `cell * 0.16` corner three times
+            // and the `cell * 0.035` inset three times. The still and the loop
+            // have to be the same object, and the only way to guarantee that is
+            // for them to be laid out by the same code.
+            let boxGap = size.width * BoardArt.cardGutter
+            let cell = BoardArt.cell(side: size.width, gutter: boxGap)
+            let digitSize = cell * BoardType.entry
 
             func centre(_ index: Int) -> CGPoint {
-                let column = index % 9, row = index / 9
-                return CGPoint(
-                    x: CGFloat(column) * cell + CGFloat(column / 3) * boxGap + cell / 2,
-                    y: CGFloat(row) * cell + CGFloat(row / 3) * boxGap + cell / 2
-                )
+                BoardArt.centre(of: index, cell: cell, gutter: boxGap)
             }
 
             // 1 — the plane. Same wash and the same gap-read 3×3 structure as
             // `SolvedGridThumb`, so the still card and the loop are visibly the
             // same object.
             for index in 0..<81 {
-                let column = index % 9, row = index / 9
-                let box = CGRect(
-                    x: CGFloat(column) * cell + CGFloat(column / 3) * boxGap,
-                    y: CGFloat(row) * cell + CGFloat(row / 3) * boxGap,
-                    width: cell, height: cell
-                )
+                let box = BoardArt.cellRect(column: index % 9, row: index / 9,
+                                            cell: cell, gutter: boxGap)
                 context.fill(
-                    Path(roundedRect: box.insetBy(dx: cell * 0.035, dy: cell * 0.035),
-                         cornerRadius: cell * 0.16),
+                    Path(roundedRect: box.insetBy(dx: cell * BoardArt.cellInset,
+                                                  dy: cell * BoardArt.cellInset),
+                         cornerRadius: cell * BoardArt.cellCorner),
                     with: .color(tones.gridTone.opacity(tones.isLight ? 0.07 : 0.10))
                 )
             }
@@ -95,15 +94,12 @@ struct CometView: View {
             let tail = frame.isRetrograde ? Array(frame.tail.reversed()) : frame.tail
             for (rank, index) in tail.enumerated() {
                 let fade = 1 - Double(rank + 1) / Double(CometTimeline.tailLength + 1)
-                let column = index % 9, row = index / 9
-                let box = CGRect(
-                    x: CGFloat(column) * cell + CGFloat(column / 3) * boxGap,
-                    y: CGFloat(row) * cell + CGFloat(row / 3) * boxGap,
-                    width: cell, height: cell
-                )
+                let box = BoardArt.cellRect(column: index % 9, row: index / 9,
+                                            cell: cell, gutter: boxGap)
                 context.fill(
-                    Path(roundedRect: box.insetBy(dx: cell * 0.035, dy: cell * 0.035),
-                         cornerRadius: cell * 0.16),
+                    Path(roundedRect: box.insetBy(dx: cell * BoardArt.cellInset,
+                                                  dy: cell * BoardArt.cellInset),
+                         cornerRadius: cell * BoardArt.cellCorner),
                     with: .color(accent.opacity(fade * 0.30))
                 )
             }
@@ -112,12 +108,17 @@ struct CometView: View {
             // digit tone and the player's own in the accent: the same rule the
             // shelf's fingerprints already taught this player to read, so the
             // loop shows how much of the board was theirs while it fills.
+            //
+            // The weights come from `BoardType`, and they used to be **backwards**
+            // here: givens `.medium` under entries `.semibold`, which is the
+            // inverse of the board. A given is the printed skeleton and reads
+            // heavier; an entry is the player's addition and reads brighter.
             for index in 0..<81 where frame.entries[index] != 0 {
                 let isGiven = puzzle.indices.contains(index) && puzzle[index] != 0
                 var text = context.resolve(
                     Text("\(frame.entries[index])")
                         .font(.system(size: digitSize,
-                                      weight: isGiven ? .medium : .semibold,
+                                      weight: isGiven ? BoardType.givenWeight : BoardType.entryWeight,
                                       design: .rounded))
                 )
                 text.shading = .color(isGiven ? tones.digitTone.opacity(0.72) : accent)

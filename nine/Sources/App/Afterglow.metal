@@ -90,20 +90,30 @@ using namespace metal;
     float2 delta = position - petal;
     float t = dist / r;                    // 0 at the petal's centre, 1 at its rim
 
-    // A spherical lens. The core magnifies uniformly — sampling from a smaller
-    // neighbourhood is what magnification *is* — and the last fifth compresses,
-    // the way the meniscus of a real lens crushes the world into a ring at its
-    // edge. That compressed band is what makes glass read as glass rather than
-    // as a zoom.
+    // A spherical lens whose **core is now optically flat**, and only its rim
+    // bends. That is the second half of the fix that took
+    // `BoardView.lensMagnification` from 1.34 to 1.15: a uniformly magnifying
+    // core resamples the whole disc, so any board digit that happened to sit
+    // under petal 6 or 9 — the two nearest the grid on a phone — was smeared
+    // into a double image, which reads as an artifact rather than as glass.
     //
-    // The band is deliberately narrow and shallow. The first version ran
-    // `smoothstep(0.74, 1.0)` to 1.85 and the screenshot is why it does not:
-    // a board digit caught in a quarter-radius-wide band that steep smears into
-    // a double image, which reads as an artifact rather than as glass — and a
-    // board that draws attention to itself under your thumb is the one thing
-    // the idle-pixel test exists to stop.
+    // `core` holds the magnification at exactly 1.0 (identity sampling: the
+    // petal shows the board as it is) inside 0.75 of the radius and ramps it in
+    // only across the outer quarter, where the meniscus is already compressing
+    // and one more curve is indistinguishable from the glass. So what survives
+    // is the *rim compression* — the way a real lens crushes the world into a
+    // ring at its edge — which was always the part that said "glass" rather
+    // than "zoom".
+    //
+    // The rim band itself is deliberately narrow and shallow. The first version
+    // ran `smoothstep(0.74, 1.0)` to 1.85 and the screenshot is why it does
+    // not: a board digit caught in a quarter-radius-wide band that steep smears
+    // too, and a board that draws attention to itself under your thumb is the
+    // one thing the idle-pixel test exists to stop.
+    float core = smoothstep(0.75, 1.0, t);
+    float lens = mix(1.0, 1.0 / max(magnification, 0.001), core);
     float rim = smoothstep(0.80, 1.0, t);
-    float squeeze = mix(1.0, mix(1.0 / max(magnification, 0.001), 1.42, rim), ramp);
+    float squeeze = mix(1.0, mix(lens, 1.42, rim), ramp);
     half4 color = layer.sample(petal + delta * squeeze);
 
     // A thin specular arc just inside the rim, scaled by alpha so it rides the

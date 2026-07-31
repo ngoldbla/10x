@@ -84,7 +84,17 @@ final class AppearancePaletteTests: XCTestCase {
     /// their numbers live, because the raw constants were never the thing the
     /// board draws.
     static let darkThemes: [(name: String, background: RGB, gridTone: RGB, digitTone: RGB)] = [
-        ("dark",      (0.00, 0.00, 0.00), (1.00, 1.00, 1.00), (0.93, 0.90, 0.84)),
+        // Void's ground is **not** pure black and has not been since the AAA
+        // material work: `.glassEffect` is a refraction of what is behind it,
+        // and over #000000 there is nothing to refract, so every card in the
+        // app collapsed to a flat tint (shelf cards measured 1.07:1 against
+        // their own background). The lift to #0C0C0F is what lets the material
+        // read as a material. This table is a hand-copy of `Theme.swift` and is
+        // not source-parity-checked for backgrounds, so it went stale silently
+        // rather than going red — measured against the real ground the floors
+        // below all still hold with room: givens 15.8:1 (floor 12), grid tone
+        // 19.7:1 (floor 10), coral 7.4:1 (floor 5.5).
+        ("dark",      (0.047, 0.047, 0.059), (1.00, 1.00, 1.00), (0.93, 0.90, 0.84)),
         ("blueprint", (0.05, 0.14, 0.33), (0.75, 0.85, 1.00), (0.86, 0.92, 1.00)),
         ("forest",    (0.05, 0.13, 0.09), (0.80, 0.92, 0.84), (0.89, 0.94, 0.88)),
         ("ember",     (0.14, 0.05, 0.03), (0.98, 0.86, 0.78), (0.99, 0.91, 0.85)),

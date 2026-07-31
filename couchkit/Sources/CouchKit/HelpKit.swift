@@ -25,13 +25,63 @@ public struct LegendRow: Identifiable, Sendable {
 
 /// The legend list itself — embeddable in a prefs sheet or the HelpOverlay.
 public struct ControlLegend: View {
-    private let rows: [LegendRow]
-
-    public init(rows: [LegendRow]) {
-        self.rows = rows
+    /// How the three columns are measured.
+    ///
+    /// Additive: `.fixedColumns` is what every existing call site has always
+    /// rendered and stays the default, so Rabbit Ears, Darkroom, Blockhead and
+    /// Cartridge are byte-identical without touching a line.
+    public enum Arrangement: Sendable {
+        /// The shipped layout: a hard-coded gesture column.
+        ///
+        /// The width is `210 * CouchScale.chrome`, which is 115.5pt on a phone
+        /// against an action column that measured 201.4pt — so the gutter
+        /// between them ran from 20pt to 71pt across three rows depending on
+        /// how long each gesture's name happened to be, and a language with
+        /// longer verbs than English (German, measured) clips.
+        case fixedColumns
+        /// A real `Grid`: the gesture column is as wide as the widest gesture
+        /// and no wider, on every locale, and the action column starts at one
+        /// vertical. Also raises the action column off `.secondary`, which on a
+        /// light ground measured 4.35:1 — under AA for text this size.
+        case grid
     }
 
+    private let rows: [LegendRow]
+    private let arrangement: Arrangement
+
+    public init(rows: [LegendRow], arrangement: Arrangement = .fixedColumns) {
+        self.rows = rows
+        self.arrangement = arrangement
+    }
+
+    // The grid's own metrics. Not `CouchScale.chrome` multiples: a legend read
+    // across a room and a legend read inside a phone's settings sheet want
+    // different column widths, not one width times a constant, and on iOS
+    // these are chosen so the gesture column lands on the same vertical as a
+    // settings row's title.
+    #if os(tvOS)
+    private static let symbolColumn: CGFloat = 56
+    private static let columnGap: CGFloat = 24
+    private static let rowGap: CGFloat = 18
+    #else
+    private static let symbolColumn: CGFloat = 28
+    private static let columnGap: CGFloat = 12
+    private static let rowGap: CGFloat = 12
+    #endif
+
+    /// The action column's tone. `.primary` at 78% rather than `.secondary`,
+    /// which resolved to the same (161,161,161) / (98,98,97) as every other
+    /// quiet role on the surface hosting it.
+    private static let actionTone: Double = 0.78
+
     public var body: some View {
+        switch arrangement {
+        case .fixedColumns: fixedColumnsBody
+        case .grid: gridBody
+        }
+    }
+
+    private var fixedColumnsBody: some View {
         VStack(alignment: .leading, spacing: 22 * CouchScale.chrome) {
             ForEach(rows) { row in
                 HStack(spacing: 24 * CouchScale.chrome) {
@@ -47,6 +97,32 @@ public struct ControlLegend: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var gridBody: some View {
+        Grid(alignment: .leading,
+             horizontalSpacing: Self.columnGap,
+             verticalSpacing: Self.rowGap) {
+            ForEach(rows) { row in
+                GridRow {
+                    Image(systemName: row.symbol)
+                        .font(.system(size: 30 * CouchScale.chrome, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: Self.symbolColumn, alignment: .center)
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.center)
+                    Text(row.gesture)
+                        .couchText(CouchTypography.label)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .gridColumnAlignment(.leading)
+                    Text(row.action)
+                        .couchText(CouchTypography.label,
+                                   Color.primary.opacity(Self.actionTone))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .gridColumnAlignment(.leading)
                 }
             }
         }

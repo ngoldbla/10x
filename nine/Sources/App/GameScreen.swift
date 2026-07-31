@@ -83,6 +83,11 @@ struct GameScreen: View {
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
 
+    /// The board's own ink, so the rose's petal numerals are the same colour as
+    /// the digits they will become (PRD-22's `digitTone`). Computed here rather
+    /// than threaded, exactly as `accent` above is.
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
+
     var body: some View {
         Group {
             if model.padSession {
@@ -375,7 +380,8 @@ struct GameScreen: View {
                 state: rose,
                 accent: accent,
                 completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                showsFocusRing: true
+                showsFocusRing: true,
+                digitTone: tones.digitTone
             )
             .position(x: center.x + 28, y: center.y + 28)
         } else if !pad.shimmer.isEmpty {
@@ -384,7 +390,8 @@ struct GameScreen: View {
                 state: RoseState(pencil: false, shimmerDigits: pad.shimmer),
                 accent: accent,
                 completedDigits: [],
-                showsFocusRing: false
+                showsFocusRing: false,
+                digitTone: tones.digitTone
             )
             .position(x: center.x + 28, y: center.y + 28)
             .allowsHitTesting(false)
@@ -424,7 +431,8 @@ struct GameScreen: View {
                         state: rose,
                         accent: accent,
                         completedDigits: Set((1...9).filter { game.isDigitComplete($0) }),
-                        showsFocusRing: true
+                        showsFocusRing: true,
+                        digitTone: tones.digitTone
                     )
                     .position(
                         x: center.x + 28, // board padding inset
