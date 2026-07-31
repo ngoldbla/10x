@@ -57,7 +57,35 @@ final class GameCenter: NSObject {
         static let weekStreak = "com.couchsuite.nine.streak.seven"
         static let monthStreak = "com.couchsuite.nine.streak.thirty"
         static let speedSolve = "com.couchsuite.nine.swift"
+
+        /// PRD-28 §7 — the App Store Connect **game activity definition** a
+        /// sent board rides on.
+        ///
+        /// This is not a leaderboard and not an achievement, and it is not a
+        /// `GKChallenge` either: **every classic Game Center challenge API is
+        /// deprecated as of iOS/tvOS/macOS 26** and its replacement,
+        /// `GKChallengeDefinition`, is leaderboard-backed and carries no payload
+        /// at all. `GKGameActivity.properties` is the only flat `[String: String]`
+        /// GameKit will carry, which is why `ParlorInvite` has a property
+        /// dictionary envelope and why that envelope is a tested type.
+        ///
+        /// **Like the per-channel leaderboards, this record does not exist yet**
+        /// and creating it is a human gate of exactly the kind PRD-7 §5
+        /// describes. No entitlement is involved, so no `match` re-mint is
+        /// implied. Until it exists `loadGameActivityDefinitions` returns
+        /// nothing, `canSendBoard` stays false, and the action is *absent*
+        /// rather than broken — the same fire-and-forget failure mode that let
+        /// PRD-24 ship ahead of its portal work.
+        static let parlorActivity = "com.couchsuite.nine.parlor"
     }
+
+    /// A board somebody sent, waiting to be opened. Set from the Game Center
+    /// listener; `NineApp` hands it to the model.
+    @ObservationIgnored var onInvite: ((ParlorInvite) -> Void)?
+
+    /// Whether App Store Connect has the activity definition §7 needs. False
+    /// until proven otherwise, so the surface is absent by default.
+    private(set) var canSendBoard = false
 
     func authenticate() {
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, _ in
@@ -65,8 +93,56 @@ final class GameCenter: NSObject {
                 guard let self else { return }
                 if let viewController { Self.present(viewController) }
                 self.isAuthenticated = GKLocalPlayer.local.isAuthenticated
+                guard self.isAuthenticated else { return }
+                self.registerParlorListener()
+                await self.loadParlorDefinition()
             }
         }
+    }
+
+    // MARK: - Sending a board (PRD-28 §7)
+
+    /// The activity definition, loaded once per authentication, and the
+    /// listener that receives one. Both `AnyObject`, because their real types
+    /// are iOS 26 and a stored property cannot be `@available`.
+    @ObservationIgnored private var parlorDefinition: AnyObject?
+    @ObservationIgnored private var parlorListener: AnyObject?
+
+    private func registerParlorListener() {
+        guard #available(iOS 26.0, macOS 26.0, tvOS 26.0, *), parlorListener == nil else { return }
+        let listener = ParlorActivityListener { [weak self] invite in
+            self?.onInvite?(invite)
+        }
+        parlorListener = listener
+        GKLocalPlayer.local.register(listener)
+    }
+
+    private func loadParlorDefinition() async {
+        guard #available(iOS 26.0, macOS 26.0, tvOS 26.0, *) else { return }
+        let definitions = try? await GKGameActivityDefinition.loadGameActivityDefinitions(
+            IDs: [ID.parlorActivity])
+        guard let definition = definitions?.first else { return }
+        parlorDefinition = definition
+        canSendBoard = true
+    }
+
+    /// Start a game activity carrying this board and hand back the URL that
+    /// invites somebody to it, or nil when App Store Connect has no definition.
+    ///
+    /// The URL is shared through the ordinary share sheet rather than through a
+    /// Game Center compose controller, because the compose controllers are the
+    /// deprecated API and their replacement is a party invitation.
+    @available(iOS 26.0, macOS 26.0, tvOS 26.0, *)
+    func sendBoard(_ invite: ParlorInvite) -> URL? {
+        guard isAuthenticated, let definition = parlorDefinition as? GKGameActivityDefinition
+        else { return nil }
+        let activity = GKGameActivity(definition: definition)
+        // The seed, the band, the day and the wire version — eight bytes and
+        // two words. The board itself is a pure function of them, so nothing
+        // larger has to travel.
+        activity.properties = invite.properties
+        activity.start()
+        return activity.partyURL
     }
 
     /// Mirror one finished board into leaderboards + achievements.
@@ -165,6 +241,45 @@ final class GameCenter: NSObject {
             .rootViewController
     }
     #endif
+}
+
+/// PRD-28 §7's receiving half.
+///
+/// **Its own class rather than a conformance on `GameCenter`**, and the reason
+/// is a compiler rule rather than a design preference: every member of
+/// `GKGameActivityListener` is iOS 26, the deployment target is iOS 18, and
+/// Swift will not let a type whose availability is wider than a protocol
+/// requirement's witness it — *even when the requirement is optional*. A whole
+/// type marked `@available` is the shape that compiles, and it keeps the one
+/// iOS-26-only surface in this file visibly fenced.
+@available(iOS 26.0, macOS 26.0, tvOS 26.0, *)
+final class ParlorActivityListener: NSObject, GKLocalPlayerListener {
+    private let onInvite: @MainActor (ParlorInvite) -> Void
+
+    init(onInvite: @escaping @MainActor (ParlorInvite) -> Void) {
+        self.onInvite = onInvite
+    }
+
+    // `wantsToPlay:`, not `wantsToPlayGameActivity:` — the header's Objective-C
+    // selector is renamed by the framework's own API notes, and the Swift name
+    // is the shorter one.
+    func player(
+        _ player: GKPlayer,
+        wantsToPlay activity: GKGameActivity,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        // Decoded here, on GameKit's thread, so nothing but a value crosses to
+        // the main actor. A dictionary this build cannot read yields *no board*
+        // rather than a wrong one, and says so — `handled: false` lets GameKit
+        // fall back to its own affordance instead of leaving the sender's
+        // invitation looking accepted.
+        guard let invite = ParlorInvite(properties: activity.properties) else {
+            return completionHandler(false)
+        }
+        completionHandler(true)
+        let onInvite = self.onInvite
+        Task { @MainActor in onInvite(invite) }
+    }
 }
 
 #if os(iOS) || os(tvOS)
