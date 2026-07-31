@@ -188,4 +188,132 @@ import NineEngine
         #expect(result.headline == nil)
         #expect(!result.lines.contains { $0.contains("found") })
     }
+
+    // MARK: - PRD-27, the duel's credits
+
+    /// Player 0 owns moves 0…1, player 1 owns 2 onwards.
+    private func duelState() -> DuelState {
+        var s = DuelState(accents: ["glacier", "ember"], turnLength: .standard)
+        s.beginTurn(player: 0, firstMoveIndex: 0, startedAt: 0)
+        s.beginTurn(player: 1, firstMoveIndex: 2, startedAt: 90)
+        return s
+    }
+
+    private func duelDebrief(_ moves: [LoggedMove]) -> SolveDebrief {
+        let credits = DuelCredits(
+            state: duelState(), moves: moves, solution: Self.board.solution.cells
+        )
+        return SolveDebrief(
+            replay: replay(moves), analysis: ReplayAnalysis(placements: []),
+            duel: credits, names: ["Glacier", "Ember"]
+        )
+    }
+
+    /// A correct digit for each seat, taken from the frozen board's own
+    /// solution so "correct" means what the app means by it.
+    private func correctPlacements() -> [LoggedMove] {
+        let empties = (0..<81).filter { Self.board.puzzle.cells[$0] == 0 }.prefix(4)
+        return empties.enumerated().map { index, cell in
+            LoggedMove(kind: .place, cell: cell, digit: Self.board.solution.cells[cell],
+                       at: TimeInterval(index + 1))
+        }
+    }
+
+    /// The whole of "nil duel changes nothing", which every solo surface
+    /// depends on: iPhone, Mac, watch and widget all call the two-argument form.
+    @Test func aNilDuelLeavesEveryExistingLineExactlyWhereItWas() {
+        let moves = correctPlacements()
+        let plain = debrief(moves)
+        let explicit = SolveDebrief(
+            replay: replay(moves), analysis: ReplayAnalysis(placements: []),
+            duel: nil, names: []
+        )
+        #expect(plain.lines == explicit.lines)
+        #expect(plain.countsLine == explicit.countsLine)
+        #expect(plain.duelLines.isEmpty)
+    }
+
+    @Test func theDuelAddsAPlacedLineNamingBothPlayers() {
+        let result = duelDebrief(correctPlacements())
+        let placed = try! #require(result.duelLines.first)
+        #expect(placed.contains("Glacier"))
+        #expect(placed.contains("Ember"))
+        #expect(result.lines.contains(placed),
+                "duel lines go through `lines`, which is still the one place order is decided")
+    }
+
+    /// Each half carries exactly one count, so the plural works. A single
+    /// four-argument format string could not inflect at all.
+    @Test func theDuelCountsInflect() {
+        let empties = (0..<81).filter { Self.board.puzzle.cells[$0] == 0 }.prefix(3)
+        let moves = empties.enumerated().map { index, cell in
+            LoggedMove(kind: .place, cell: cell, digit: Self.board.solution.cells[cell],
+                       at: TimeInterval(index + 1))
+        }
+        // Player 0 takes moves 0–1 (two digits), player 1 takes move 2 (one).
+        let placed = try! #require(duelDebrief(moves).duelLines.first)
+        #expect(placed.contains("Glacier placed 2 digits"))
+        #expect(placed.contains("Ember placed 1 digit"))
+        #expect(!placed.contains("1 digits"))
+    }
+
+    @Test func theClearedLineIsAbsentWhenNobodyPlacedAWrongDigit() {
+        #expect(!duelDebrief(correctPlacements()).duelLines.contains { $0.contains("cleared") })
+    }
+
+    @Test func theClearedLineAppearsWhenSomebodyDid() {
+        let empty = try! #require((0..<81).first { Self.board.puzzle.cells[$0] == 0 })
+        let wrong = Self.board.solution.cells[empty] % 9 + 1
+        let moves = [LoggedMove(kind: .place, cell: empty, digit: wrong, at: 1)]
+        let cleared = duelDebrief(moves).duelLines.first { $0.contains("cleared") }
+        #expect(cleared?.contains("Glacier cleared 1 digit") == true, "got \(cleared ?? "nil")")
+        #expect(cleared?.contains("Ember cleared 0 digits") == true, "got \(cleared ?? "nil")")
+    }
+
+    @Test func theLastLineNamesWhoFinishedTheBoard() {
+        let last = duelDebrief(correctPlacements()).duelLines.last
+        #expect(last?.contains("Ember") == true, "got \(last ?? "nil")")
+        #expect(last?.contains("last digit") == true, "got \(last ?? "nil")")
+    }
+
+    /// Honest absence: three zeroes are worse than silence.
+    @Test func anEmptyDuelPrintsNothingRatherThanThreeZeroes() {
+        let empty = DuelCredits(
+            state: DuelState(accents: ["glacier", "ember"], turnLength: .brisk),
+            moves: [], solution: []
+        )
+        let result = SolveDebrief(
+            replay: replay(correctPlacements()), analysis: ReplayAnalysis(placements: []),
+            duel: empty, names: ["Glacier", "Ember"]
+        )
+        #expect(result.duelLines.isEmpty)
+    }
+
+    @Test func missingNamesDoNotTrap() {
+        let moves = correctPlacements()
+        let credits = DuelCredits(state: duelState(), moves: moves, solution: Self.board.solution.cells)
+        let result = SolveDebrief(
+            replay: replay(moves), analysis: ReplayAnalysis(placements: []),
+            duel: credits, names: []
+        )
+        #expect(!result.lines.isEmpty)
+    }
+
+    /// The duel does not gate on timing — attribution is a property of the
+    /// turn boundaries, and those are recorded whether or not the log carries
+    /// `at:`. Only the two timed facts depend on the clock.
+    @Test func anUntimedDuelStillCreditsBothHands() {
+        let empties = (0..<81).filter { Self.board.puzzle.cells[$0] == 0 }.prefix(4)
+        let moves = empties.map {
+            LoggedMove(kind: .place, cell: $0, digit: Self.board.solution.cells[$0])
+        }
+        let credits = DuelCredits(state: duelState(), moves: moves, solution: Self.board.solution.cells)
+        let result = SolveDebrief(
+            replay: replay(moves), analysis: ReplayAnalysis(placements: []),
+            duel: credits, names: ["Glacier", "Ember"]
+        )
+        #expect(!result.isTimed)
+        #expect(result.fastestRegion == nil)
+        #expect(!result.duelLines.isEmpty, "the clock gates the timing facts, not the attribution")
+    }
 }

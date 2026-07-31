@@ -55,10 +55,20 @@ public struct SolveDebrief: Equatable, Sendable {
     /// untimed" cannot be confused for one another.
     public let isTimed: Bool
 
+    /// PRD-27's contribution credits, or empty on every solo solve — which is
+    /// every solve on iPhone, Mac, watch and widget.
+    ///
+    /// Stored rather than computed because the players' names come from the App
+    /// layer (`AccentChoice.title`) and this type stays Linux-clean. Same seam
+    /// `Phrase.headline` already uses to name a technique without the Engine
+    /// knowing any words.
+    public let duelLines: [String]
+
     /// Every line, in order, skipping the ones that are not there. The one
-    /// place the card's order is decided.
+    /// place the card's order is decided — `DebriefCard` `ForEach`es this, so
+    /// the view needs no knowledge of duels at all.
     public var lines: [String] {
-        [headline, fastestRegion, longestCircled].compactMap { $0 }
+        [headline, fastestRegion, longestCircled].compactMap { $0 } + duelLines
     }
 
     /// The counts, as one line. Placements, corrections and notes are always
@@ -77,10 +87,21 @@ public struct SolveDebrief: Equatable, Sendable {
         .joined(separator: " · ")
     }
 
-    public init(replay: SolveReplay, analysis: ReplayAnalysis) {
+    public init(
+        replay: SolveReplay,
+        analysis: ReplayAnalysis,
+        duel: DuelCredits? = nil,
+        names: [String] = []
+    ) {
         let moves = replay.moves
         let timed = replay.isTimed
         isTimed = timed
+        // PRD-27 §10. Assigned before the `guard timed else` below, which is
+        // both a correctness requirement — every path out of this initialiser
+        // must have set it — and the right behaviour: a duel on an untimed log
+        // still credits both hands, because timing gates only the two timed
+        // facts and never the attribution.
+        duelLines = SolveDebrief.duelLines(duel, names: names)
         placements = moves.count(where: { $0.kind == .place })
         // `ReplayAnalysis` exposes no slip count of its own — see its header
         // on why an accuracy figure is deliberately not something it derives
@@ -107,6 +128,41 @@ public struct SolveDebrief: Equatable, Sendable {
         }
         fastestRegion = SolveDebrief.fastestBox(in: moves).map(Phrase.fastest)
         longestCircled = SolveDebrief.longestCircledCell(in: moves).map(Phrase.longest)
+    }
+
+    // MARK: - The duel's credits (PRD-27 §10)
+
+    /// The duel's lines, or none.
+    ///
+    /// Empty when there is no duel, and empty when the duel produced nothing —
+    /// a board abandoned before anyone placed a digit gets no lines rather than
+    /// three zeroes, which is `countsLine`'s own honest-absence rule.
+    ///
+    /// Each line is two finished translated halves joined by a translated
+    /// separator, rather than one four-argument format string. That is not a
+    /// style choice: a format string naming two counts cannot carry a plural,
+    /// because `xcstringstool` infers which argument the count is and can only
+    /// do that when the string names exactly one. PRD-20 measured what happens
+    /// when it guesses — it selects on the wrong number, inverted, in English.
+    static func duelLines(_ duel: DuelCredits?, names: [String]) -> [String] {
+        guard let duel, !duel.isEmpty else { return [] }
+        let a = names.indices.contains(0) ? names[0] : ""
+        let b = names.indices.contains(1) ? names[1] : ""
+
+        var lines = [Phrase.duelPair(
+            Phrase.duelPlaced(a, duel.placed[0]),
+            Phrase.duelPlaced(b, duel.placed[1])
+        )]
+        if duel.cleared.contains(where: { $0 > 0 }) {
+            lines.append(Phrase.duelPair(
+                Phrase.duelCleared(a, duel.cleared[0]),
+                Phrase.duelCleared(b, duel.cleared[1])
+            ))
+        }
+        if let last = duel.lastPlayer, names.indices.contains(last) {
+            lines.append(Phrase.duelLast(names[last]))
+        }
+        return lines
     }
 
     // MARK: - The two timed facts
@@ -195,6 +251,19 @@ public struct SolveDebrief: Equatable, Sendable {
         }
         static func longest(_ cell: Int) -> String {
             Phrasebook.current.string("debrief.longest", .text(BoardSpeech.cellLabel(cell)))
+        }
+        static func duelPlaced(_ name: String, _ count: Int) -> String {
+            Phrasebook.current.string("debrief.duel.placed", .text(name), .int(count))
+        }
+        static func duelCleared(_ name: String, _ count: Int) -> String {
+            Phrasebook.current.string("debrief.duel.cleared", .text(name), .int(count))
+        }
+        static func duelLast(_ name: String) -> String {
+            Phrasebook.current.string("debrief.duel.last", .text(name))
+        }
+        /// Punctuation and order only — both halves arrive already translated.
+        static func duelPair(_ a: String, _ b: String) -> String {
+            a + Phrasebook.current.string("debrief.duel.separator") + b
         }
     }
 }

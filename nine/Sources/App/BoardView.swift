@@ -225,6 +225,22 @@ struct BoardView: View {
     /// drawing: a cage and a thermometer are both "cells plus a number" on the
     /// wire and completely different marks on the board.
     var channelRules: ChannelRules? = nil
+    /// A per-cell tint for placed digits, or nil for one accent everywhere
+    /// (PRD-27 §6).
+    ///
+    /// **Nil by default, so every existing call site renders byte-identically**
+    /// — `channelRules`' pattern above, and the reason the watch board, the
+    /// tutorial boards, the first-run board, the school board and the
+    /// fingerprint need no change at all.
+    ///
+    /// A closure rather than a `[Int: Color]` because the caller already holds
+    /// the answer in a form it can share: `DuelCredits.owners` is built once per
+    /// board draw and closed over, where a dictionary parameter would be a
+    /// second copy of it made on every body evaluation.
+    ///
+    /// Givens are never tinted — a given belongs to the puzzle, not to a
+    /// player, and colouring one would claim a digit nobody placed.
+    var digitTint: ((Int) -> Color?)? = nil
     /// The player's own handwriting (PRD-31). Pencil marks are drawn from these
     /// glyphs when the digit has one and from the rounded typeface when it does
     /// not — so the board fills with the player's hand a digit at a time rather
@@ -702,7 +718,10 @@ struct BoardView: View {
 
             if digit != 0 {
                 let isGiven = game.isGiven(index)
-                var color = isGiven ? digitTone : accent
+                // PRD-27: a duel tints each player's digits. Deliberately above
+                // the three branches below — error, completion wave and pad
+                // peek all still override it, and their precedence is unchanged.
+                var color = isGiven ? digitTone : (digitTint?(index) ?? accent)
                 let isError = showErrors && game.isError(at: index)
                 if isError { color = tones.coral }
 
