@@ -286,7 +286,15 @@ public enum DuelHandoff {
     /// `Decision`. `boardSolved` can never produce a hand-off, because a
     /// hand-off card drawn over the Afterglow celebration is the one outcome
     /// that is definitely wrong.
+    ///
+    /// The four branches are ordered by rank, and the order is the rule:
+    /// finishing outranks everything, the untimed turn outranks the clock (§4.2
+    /// suspends the deadline, so an expired one means nothing), and only then is
+    /// `remaining` read at all. `nil` is "not begun", never "run out".
     public static func decide(_ input: Input) -> Decision {
-        .continue
+        if input.boardSolved { return .finish }
+        if input.isUntimed { return input.placementsThisTurn > 0 ? .handOff : .continue }
+        guard let remaining = input.remaining, remaining <= 0 else { return .continue }
+        return input.roseOpen ? .closeRoseThenHandOff : .handOff
     }
 }
