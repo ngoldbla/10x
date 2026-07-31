@@ -21129,6 +21129,72 @@
         }
       }
     },
+    "history.section.table": {
+      "comment": "Heading over the weekly league section of the History sheet: twenty players and how their week is going. \"Table\" as in a league table / standings, NOT a piece of furniture and NOT a grid of data. Capitalised as a name — it is what this feature is called.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tabelle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Table"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tabla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Classement"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Classifica"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "順位表"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "순위표"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Stand"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tabela"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "本周榜"
+          }
+        }
+      }
+    },
     "history.section.trend": {
       "comment": "Heading over a line chart of the last twenty solve times.",
       "extractionState": "manual",
@@ -32975,6 +33041,534 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "已完成"
+          }
+        }
+      }
+    },
+    "table.invitation": {
+      "comment": "The one-sentence explanation of the weekly league, shown where the league would be before the player has joined it. Two facts: the size, and the ranking rule — how many of the week's daily puzzles you finished matters first, and your total time only separates people who finished the same number. NOT a pitch and NOT an urge to join; a description. The semicolon may become a full stop.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Zwanzig Mitspielende, eine Woche. Zuerst zählen die Tage, an denen du fertig wirst; deine Zeit entscheidet nur bei Gleichstand."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twenty players, one week. The days you finish count first; your time breaks the tie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Veinte jugadores, una semana. Primero cuentan los días que terminas; tu tiempo solo desempata."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vingt joueurs, une semaine. Ce sont d'abord les jours terminés qui comptent ; votre temps ne fait que départager."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Venti giocatori, una settimana. Contano prima i giorni che completi; il tempo serve solo a sciogliere la parità."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "20人、1週間。まず終えた日数が効き、時間は同数のときだけ差になります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "스무 명, 한 주. 먼저 완료한 날수가 중요하고, 시간은 같을 때만 갈립니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Twintig spelers, één week. Eerst tellen de dagen die je afmaakt; je tijd is alleen de tiebreak."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vinte jogadores, uma semana. Primeiro contam os dias que você termina; seu tempo só desempata."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "二十人，一周。先看你完成的天数，用时只在天数相同时区分。"
+          }
+        }
+      }
+    },
+    "table.join": {
+      "comment": "The button that puts the player on the weekly league. A verb in the imperative. \"Table\" is a league table / standings, not furniture — it is the feature's name and matches `history.section.table`.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Der Tabelle beitreten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join the table"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Unirse a la tabla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rejoindre le classement"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Entra in classifica"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "順位表に参加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "순위표에 참가"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Meedoen aan de stand"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Entrar na tabela"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "加入本周榜"
+          }
+        }
+      }
+    },
+    "table.leave": {
+      "comment": "The button that takes the player off the weekly league. A verb in the imperative, and quiet — it sits below the standings as a plain text control, not a warning.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tabelle verlassen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave the table"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Salir de la tabla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Quitter le classement"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Esci dalla classifica"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "順位表から抜ける"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "순위표에서 나가기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Stand verlaten"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sair da tabela"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "退出本周榜"
+          }
+        }
+      }
+    },
+    "table.leave.note": {
+      "comment": "One line under the leave control, explaining exactly what leaving does: this device stops sending new results, and results already sent cannot be recalled — they expire when the week does. Do NOT translate as a promise to delete anything.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Beim Verlassen werden keine neuen Ergebnisse mehr gesendet. Bereits Gesendetes bleibt bis zum Ende der Woche."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leaving stops new scores. What has already gone up stays until the week ends."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Al salir dejan de enviarse resultados nuevos. Lo ya enviado permanece hasta que acabe la semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "En partant, plus aucun résultat n'est envoyé. Ce qui est déjà parti reste jusqu'à la fin de la semaine."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Uscendo non vengono più inviati nuovi risultati. Quello già inviato resta fino alla fine della settimana."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "抜けると新しい結果は送られません。すでに送った分は今週の終わりまで残ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나가면 새 기록은 전송되지 않습니다. 이미 올라간 기록은 이번 주가 끝날 때까지 남습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Als je vertrekt, worden er geen nieuwe resultaten meer verstuurd. Wat al verstuurd is, blijft staan tot het einde van de week."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ao sair, novos resultados deixam de ser enviados. O que já foi enviado permanece até o fim da semana."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "退出后不再上传新成绩。已经上传的成绩会保留到本周结束。"
+          }
+        }
+      }
+    },
+    "table.seat.label": {
+      "comment": "VoiceOver label for one row of the weekly standings, read as a single utterance. %1$@ is a player's Game Center display name; %2$lld is how many of the week's seven daily puzzles they finished (0-7); %3$@ is their total time already formatted as m:ss (\"12:04\"). The 7 is a constant — the week — so the noun \"days\" agrees with 7, not with %2$lld; if your language agrees with the first number instead, add the forms you need. The commas are the join; reorder the three facts if this language reads them another way. NO word for rank or position: the order of the rows is the standing and nothing says so out loud.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld von 7 Tagen, %3$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$lld of 7 days, %3$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld de 7 días, %3$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld jours sur 7, %3$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld giorni su 7, %3$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@、7日中%2$lld日、%3$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, 7일 중 %2$lld일, %3$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld van 7 dagen, %3$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@, %2$lld de 7 dias, %3$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@，7 天中 %2$lld 天，%3$@"
+          }
+        }
+      }
+    },
+    "table.seat.mine": {
+      "comment": "The same VoiceOver label as `table.seat.label` for the player's OWN row, where the name is replaced by a word meaning \"you\". %1$lld is how many of the week's seven daily puzzles they finished (0-7); %2$@ is their total time already formatted as m:ss. Keep the same shape and the same word as `table.you`.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Du, %1$lld von 7 Tagen, %2$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You, %1$lld of 7 days, %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tú, %1$lld de 7 días, %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vous, %1$lld jours sur 7, %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tu, %1$lld giorni su 7, %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなた、7日中%1$lld日、%2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나, 7일 중 %1$lld일, %2$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jij, %1$lld van 7 dagen, %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Você, %1$lld de 7 dias, %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你，7 天中 %1$lld 天，%2$@"
+          }
+        }
+      }
+    },
+    "table.waiting": {
+      "comment": "Shown in place of the standings when the player is on the weekly league but there is nothing to show yet — a week nobody has played, or a league that has not answered. A statement of absence, not an error and not an apology.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Diese Woche ist hier noch nichts."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing here yet this week."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Todavía no hay nada esta semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Rien ici pour l'instant cette semaine."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Questa settimana non c'è ancora nulla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "今週はまだ何もありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "이번 주에는 아직 아무것도 없습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Deze week nog niets."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ainda não há nada esta semana."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "本周还没有内容。"
+          }
+        }
+      }
+    },
+    "table.you": {
+      "comment": "How the player's own row is named in the weekly standings, in place of a display name. One word, capitalised, and the same word `table.seat.mine` opens with.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Du"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tú"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vous"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "あなた"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "나"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jij"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Você"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "你"
           }
         }
       }

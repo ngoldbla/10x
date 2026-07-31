@@ -4541,3 +4541,262 @@ accessibility tree rather than only against a unit test.
 - **The nine languages are machine-drafted and no human has read them** — the
   headline deferral standing since PRD-20. 117 new drafts, every one
   `needs_review`.
+
+## PRD-29 — the table that could not be a cohort, and the check that could not fire (2026-07-31)
+
+[PRD-29](PRD-29.md) is the last of the three "Together, Quietly" features: twenty
+people, one week, ranked by how many days you showed up first and how fast you
+were second. Opt-in, never notifies, no demotion shame, no server. It shipped on
+**four surfaces** (iPhone, iPad, Mac, Apple TV), which is the first Together
+feature that did — PRD-27, PRD-28 and PRD-24's shelf are all one-platform, and
+the reason this one is not is that nothing in it is a gesture.
+
+The design's two load-bearing sentences both survived contact. What did not
+survive was an assumption about the framework underneath them, and that turned
+out to be the feature.
+
+### Game Center cannot partition players, and that deleted the hard half
+
+The program plan asks for "20-person weekly tables". A league of that shape
+normally needs an authority: something that assigns you to table 47, remembers
+it, and moves you when the week ends. **GameKit has no such API and never has.**
+What `GKLeaderboard` has is `loadEntries(for:timeScope:range:)`, where `range` is
+a range of *absolute rank positions* (start ≥ 1, length ≤ 100, per the SDK
+header) and the first tuple element is always the local player's own entry, with
+its own rank.
+
+So a table is **a window on the recurring board, not a cohort in it** — two
+loads, one to learn where you are and one to ask for the twenty seats centred on
+it. That is a smaller thing than the plan described and a better one, because
+every negative the covenant wanted stops being a promise:
+
+- There is no Table 3 and no Table 4, so **there is nothing to be relegated
+  from**. "No demotion shame" became a sentence that cannot be spelled, because
+  the noun it needs does not exist.
+- A delta needs two observations and Nine keeps one. `DailyTable.Seat` has no
+  `rank` field — `DailyTableTests` reflects over its stored properties and fails
+  if one appears — and the whole persisted footprint of this PRD is **one
+  `Bool`** at `nine.table`. "You dropped four places" is not a message that was
+  refused; it is one no code path can construct.
+
+The CloudKit public-database pods the plan offered as a fallback "if GC
+granularity can't express tables" were therefore **not built**. A public database
+is a schema deploy, a quota, a moderation surface and an availability question,
+and the window is strictly smaller.
+
+### The ranking rule is one piece of arithmetic, and the clamp is the interesting part
+
+A leaderboard carries one `Int64`; "consistency first, time second" is two keys.
+
+```
+timeSpan = 1_000_000                                    // seconds, ~11.6 days
+score    = days * timeSpan + (timeSpan - clamp(seconds, 1, timeSpan))
+```
+
+Descending. More days beats fewer by a margin no speed can close; inside a day
+count the faster week wins. It is **invertible**, which is what lets every drawn
+row read both numbers off the entry — so `GKLeaderboard.Entry.context` stays 0,
+refused for `Strings.channel(_:)`'s reason: a second source for a number the
+score already determines is a second thing that can disagree, and the one that
+disagrees will be the one drawn.
+
+Three findings inside that one line:
+
+1. **The lower clamp is 1, not 0, and zero is reachable.** At `seconds == 0` the
+   second term equals `timeSpan` and the whole score equals `(days + 1) *
+   timeSpan` — one full day of consistency, manufactured by arithmetic. Untimed
+   solves record `seconds == 0` today. Two guards, not one: `tally` also drops a
+   day with no recorded time entirely, because a solve nobody timed is a solve
+   nobody can rank and clamping it to one second makes it the *best possible*
+   one.
+2. **Total seconds and average seconds induce the identical order**, so the
+   cheaper one is correct. Time only ever breaks a tie; a tie is an equal day
+   count; an equal day count is an equal denominator. `testSortingByScoreIsSorting\
+   ByDaysThenTime` sweeps the whole ladder rather than asserting the two ends.
+3. **A week's score only ever grows** — which is what makes "keep the best score
+   in the occurrence" the right App Store Connect setting, and why a dropped
+   submission costs nothing.
+
+Two defects were found by the tests before any of it ran on a device, and both
+were real: `week(fromScore: 0)` guarded `score > 0` and so failed to round-trip
+the one legal score of exactly zero, and the window's clamp put a
+past-the-end rank at the *top* of the board instead of the bottom.
+
+### The week is Monday, and it is the one place the player's calendar is overruled
+
+Day ordinal 0 is 2001-01-01, which was a Monday, so
+`weekStart = ordinal - ((ordinal % 7) + 7) % 7` is exact with no `Calendar`, no
+`Locale`, no `TimeZone` and no branch. (The floor-mod is load-bearing, not
+defensive: Swift's `%` keeps the sign of the dividend and pre-2001 ordinals are
+negative.)
+
+`Calendar.firstWeekday` is deliberately not consulted. A US player whose week
+starts on Sunday and a German player whose week starts on Monday, counting
+against one leaderboard occurrence, are two people playing different games and
+**neither of them can tell**. The week is a property of the league. The *day*
+boundary is still local midnight, because that is what defines a daily.
+
+### The anti-cheat check that cannot fire, said out loud
+
+`ReplayAudit` re-derives the proven grid with the shipped `BacktrackSolver` and
+re-walks the path with the shipped `ReplayWalk` — no new solving code, PRD-26's
+rule. Six findings, each with a test that constructs the input producing it,
+because PRD-24 shipped a band whose two knobs composed 200/200 and could never
+have rejected anything.
+
+**One of the six cannot fire on any caller that exists today.**
+`SolveReplay.pack` stores *unsigned* deltas, so a replay that came back through
+`unpack` is monotone by construction and `nonMonotoneTiming` is structurally
+satisfied. It is kept — the audit's subject is a `[LoggedMove]` and one can
+arrive from elsewhere, `ParlorFinish` already carries a packed log from another
+device — but the fact is in the PRD, in the doc comment and in the test's name
+rather than collecting a green tick it did not earn. There is a companion test
+that packs a deliberately backwards log and asserts the finding is **gone** on
+the way out, which is the claim run rather than asserted.
+
+The tolerance on `claimShorterThanLog` is derived rather than chosen:
+`pack` rounds each delta to a decisecond independently, so the reconstructed
+prefix sum can sit up to `0.05 × moves` above the truth. That bound is exact.
+Any other number would have been the `thermoBand` mistake again.
+
+And the limit, written into the spec rather than implied: **this runs on the
+player's own device against the player's own replay.** It is no defence against a
+patched binary and there is no server to move it to, which was the premise. What
+it catches is every non-adversarial way a wrong number arrives. A zen game that
+shipped a client-side check and called it anti-cheat would be lying twice.
+
+Two related rules that are gentler than they look:
+
+- **The absence of a replay is not a finding.** Widget solves, watch solves and
+  boards that arrived over CloudKit with their logs stripped mint no replay;
+  refusing those would make the league a feature of one code path rather than of
+  the game.
+- **An untrusted day is dropped, not the week.** Poisoning six honest days for one
+  unreadable record punishes a bug far more often than a person.
+
+### Three defects found only by driving it, and one only by an accessibility dump
+
+1. **The Join control reported a 36 pt accessibility frame** — under the craft
+   charter's 44 pt floor, and the *third* time this has shipped: PRD-24's tier
+   cards at 41 pt, PRD-28's shelf card at 33 pt. Both halves of the fix are
+   needed and neither is enough: `minHeight` is what actually makes the target 44
+   (padding around a 13 pt rounded font came to 36), and the accessibility shape
+   has to sit on the `Button` rather than inside its label, which is PRD-28's
+   finding verbatim. 36 → **116×44**.
+2. **The History sheet had no accessibility baseline at all**, so the new section
+   would have been invisible to the lane. Added as the seventh screen, captured
+   in the opted-out state — which is the default and the one every player meets.
+   The six existing baselines match with no re-record.
+3. **The constructed demo standing was unsorted**, dropping the local player into
+   the middle of a descending ladder regardless of their week. That reads exactly
+   like a real ordering bug, so the lane would have hidden one. The demo sorts by
+   `DailyTable.score` now — it is standing in for the server, which is the only
+   thing in this feature allowed to decide an order. `TableView` never re-orders
+   what it is handed and `TableSealTests` fails if it starts.
+
+### The end-to-end proof, on a device, against a real history blob
+
+The GameKit half cannot be run — see below — so the seeding trick from the
+populated-screenshot lane was used to put four of this week's dailies into
+`nine.history` in the simulator's container (412 + 388 + 505 + 297 s). The tree
+came back:
+
+```
+@35 #13  GenericElement  "Rosalind, 4 of 7 days, 12:57"  (28,685 336x16)
+@36 #14  GenericElement  "You, 4 of 7 days, 26:42"       (28,708 336x16)
+@37 #15  GenericElement  "Enzo, 3 of 7 days, 13:44"      (28,732 336x16)
+```
+
+1602 s is 26:42, and the seat is below a *faster* four-day week and above a
+*faster* three-day one — the lexicographic rule, measured on a device rather than
+only in a unit test, all the way from `nine.history` through `tally` and `score`
+to a VoiceOver utterance.
+
+### The seals, all five falsified before they were trusted
+
+PRD-28's lesson: a lane specified for a condition that can never arise measures
+its own absence and returns green. Each was broken deliberately, confirmed
+failing, and restored.
+
+- A notification API on a table surface (`GKNotificationBanner`) — fails.
+- A `rank` on the drawn surface — fails. **`DailyTable.swift` is deliberately not
+  in that list**, and the exclusion is the interesting half: it takes GameKit's
+  rank as an *input*, because converting a rank into a window is exactly what
+  makes the cohort disappear. What must not happen is a rank reaching a pixel.
+- The word "rank" inside a `table.*` catalog value — fails. A promise like this
+  really dies in the catalog: the code stays clean and a translator is handed
+  "Rank 4 of 20".
+- A **second** `showsCompletionBanner` — fails. Forbidding the API outright would
+  fail on unmodified code, because achievements legitimately set it; the seal is
+  a count of exactly one, and the hazard is that the API is already in the same
+  file the table submits from.
+- The demo standing outside `#if DEBUG` — fails.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| new persisted state | **one `Bool`** (`nine.table`, cloud-synced, off by default) |
+| the ranking rule, in lines of arithmetic | **1** |
+| audit cost | 22 tests in **0.66 s**, including generation; the audit itself is sub-millisecond |
+| `ReplayAudit` findings | 6, every one falsified; **1** cannot fire through the packed format, and says so |
+| new pure tests | 22 (`ReplayAuditTests`) + 27 (`DailyTableTests`) + 7 (`TableSealTests`) |
+| Join control AX frame | 36 → **116×44** (44 pt floor) |
+| Leave control AX frame | **127×44** |
+| AX baselines | **7**; the six existing match with **no re-record**, `history.txt` is new |
+| catalog | 545 → **554** keys; 9 new × 9 locales = **81** machine drafts, every one `needs_review` |
+| `CatalogTests` two-argument keys | 53 → **55**, and it is two halves of one utterance |
+| bare-literal offences | 0 new |
+| golden corpus | 56/56 after every commit · variant corpus 9/9 |
+| `swift test` | **620 XCTest + 206 swift-testing, 0 failures, 184 s** |
+| platform builds | iOS + tvOS + macOS green, plus a Release archive |
+
+### Not done, each with its reason
+
+- **No App Store Connect recurring-leaderboard record**, so `loadEntries` returns
+  nothing and **a real table has never been on a screen**. A human gate of exactly
+  the kind PRD-7 §5 describes, like PRD-24's per-channel boards and PRD-28's
+  activity definition. **No entitlement, so no `match` re-mint.** Submission and
+  loading are both fire-and-forget, so until the record exists the section shows
+  its honest nothing rather than an error. The record needs two settings code
+  cannot check: a **7-day recurrence starting on a Monday** so the occurrence and
+  `DailyTable.weekStart` agree, and **best-score-per-occurrence** rather than
+  most-recent — which is safe precisely because a week's score only ever grows.
+- **The GameKit half is therefore entirely unrun.** `submitTable`, `loadTable` and
+  `tableOccurrence` compile on three platforms and have never carried a message.
+  Everything below them is pure and tested; the drawing is driven against a
+  DEBUG-fenced constructed standing reached by `-table-demo`, the same position
+  PRD-28's loopback and PRD-31's Pencil recognizer shipped in.
+- **`tableOccurrence()` is written and never consulted.** It asks GameKit for the
+  occurrence's own `startDate` and `duration` so the local Monday can be
+  reconciled with the portal's; with no record to ask, wiring it to `tally` would
+  be a code path that has never returned anything. The local computation stands,
+  and the reconciliation is one call away when the record exists.
+- **No per-channel tables.** Classic dailies only. The per-channel leaderboards
+  from PRD-24 exist and still have no records.
+- **No friends table.** `GKLeaderboard.PlayerScope.friendsOnly` would work; a
+  second table is a second thing to compare yourself against, and the point of
+  one window is that there is one.
+- **No past weeks and no "your best table".** The one `Bool` is the whole
+  footprint, and this is the clause that keeps it that way — storing a past
+  standing is what would make a demotion computable.
+- **No watch surface.** The watch has no History sheet.
+- **No server-side audit**, and no client-side one worth calling anti-cheat
+  against a determined attacker. Said above, and said in the PRD.
+- **The table rows are 16 pt tall in the accessibility tree.** They are static
+  content rather than controls — the 44 pt floor is a rule about interactive
+  elements, and the recent-solves rows above them are the same height — but it is
+  a small target and it is recorded as a number rather than left to be
+  rediscovered.
+- **No contrast fixture for the table.** The harness seeds the frozen classic AX
+  fixture and measures the board; a row of accent marks over the sheet's glass is
+  a new cell it does not have. Same shape as PRD-28's dot row.
+- **Two of the nine languages have no register-neutral word for a standings
+  table.** `ja` and `ko` are drafted as 順位表 / 순위표 and `zh-Hans` as 本周榜,
+  all three of which name *rank* — the thing this PRD spent its whole design
+  removing from English. There is no better word; the covenant's negative turns
+  out to be partly a property of English. Recorded rather than papered over, and
+  it is the first item on the reviewer's list for those locales.
+- **The nine languages are machine-drafted and no human has read them** — the
+  headline deferral standing since PRD-20. 81 new drafts, every one
+  `needs_review`.

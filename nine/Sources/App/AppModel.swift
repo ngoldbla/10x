@@ -338,6 +338,147 @@ final class AppModel {
     private(set) var graceSeenDay: Int {
         didSet { graceSeenStore.wrappedValue = graceSeenDay }
     }
+    // MARK: - The table (PRD-29)
+
+    /// Whether this player has joined the weekly table. **Off by default**, and
+    /// the entire new persisted state this PRD adds.
+    ///
+    /// A bare `Bool` for `graceSeenDay`'s stated reason — the Bool *is* the whole
+    /// state, so a struct would add a tolerant decode with nothing to be tolerant
+    /// about, and `CouchStored` already falls back to the default when the value
+    /// fails to decode. Cloud-synced beside `nine.streak`: joining is a decision
+    /// the person made, not one each of their devices makes again.
+    ///
+    /// Nothing else is stored. No seat, no previous seat, no past week, no
+    /// standing — which is what makes "you dropped four places" a message no code
+    /// path in this app can construct (PRD-29 §2).
+    private(set) var joinsTable: Bool {
+        didSet { tableStore.wrappedValue = joinsTable }
+    }
+
+    /// Join the table, or leave it.
+    ///
+    /// Joining submits the week already played, so the section has something in
+    /// it before the next solve rather than after it. **Leaving submits nothing
+    /// and withdraws nothing**: there is no delete-my-score API in GameKit, the
+    /// occurrence ages out on its own, and the prefs row says so plainly rather
+    /// than implying an erasure this app cannot perform.
+    func setJoinsTable(_ joins: Bool) {
+        guard joins != joinsTable else { return }
+        joinsTable = joins
+        try? tableStore.flushNow()
+        if joins { submitTableWeek() }
+    }
+
+    /// This week's tally off the player's own history, audited.
+    ///
+    /// Derived on every read rather than cached, because it is a fold over at
+    /// most seven records and a cache is a second copy of a number that can go
+    /// stale — the shape `ChannelLedger.record` exists to avoid one layer down.
+    var tableWeek: DailyTable.Week {
+        DailyTable.tally(history, over: DailyTable.week(containing: todayOrdinal),
+                         trusting: { [self] day in trustsDaily(on: day) })
+    }
+
+    /// The twenty seats last loaded, or none.
+    ///
+    /// Held rather than fetched per redraw because a `View` body must not start
+    /// a network call, and empty on every failure because there is no error
+    /// surface: a table that could not be loaded is a section that draws its
+    /// honest nothing, which is the idiom the rest of the History sheet uses.
+    private(set) var tableSeats: [DailyTable.Seat] = []
+
+    /// Ask Game Center for the window. Called from the History sheet's `.task`,
+    /// keyed on the opt-in so joining or leaving re-runs it.
+    func refreshTable() async {
+        #if DEBUG
+        if CommandLine.arguments.contains(Self.tableDemoArgument) {
+            tableSeats = Self.demoTableSeats(mine: tableWeek)
+            return
+        }
+        #endif
+        #if os(iOS) || os(macOS) || os(tvOS)
+        guard joinsTable else { return tableSeats = [] }
+        tableSeats = await GameCenter.shared.loadTable()
+        #else
+        tableSeats = []
+        #endif
+    }
+
+    #if DEBUG
+    /// PRD-29's drawing lane, and the honest caveat this PRD is stuck with: the
+    /// App Store Connect recurring-leaderboard record does not exist, so
+    /// `loadEntries` returns nothing and a real table has never been on a
+    /// screen. Everything below the GameKit call is pure and tested; the drawing
+    /// is driven against this.
+    ///
+    /// The same arrangement as PRD-28's loopback transport and PRD-23's variant
+    /// channel — DEBUG-fenced, reachable only by a launch argument, and sealed
+    /// out of Release by `TableSealTests` — because a demo standing that
+    /// survived into a shipping build would be twenty invented people on a
+    /// leaderboard.
+    static let tableDemoArgument = "-table-demo"
+
+    /// Twenty seats, ordered the way the leaderboard would order them.
+    ///
+    /// **Sorted by `DailyTable.score`, and that is not cosmetic.** The first
+    /// version dropped the local player into the middle of a descending ladder
+    /// regardless of their week, and the result read as a table with one row in
+    /// the wrong place — which is precisely what a real ordering bug would look
+    /// like, so the lane would have hidden one. Sorting here is the demo standing
+    /// in for the server, which is the one thing in this whole feature that is
+    /// allowed to decide an order; `TableView` never re-orders what it is handed,
+    /// and `TableSealTests` fails if it starts.
+    ///
+    /// Deterministic: no `Date()`, no `Int.random`.
+    static func demoTableSeats(mine: DailyTable.Week) -> [DailyTable.Seat] {
+        let names = [
+            "Wren", "Halloran", "Sofia", "Idris", "Marta", "Bo", "Nkechi", "Teodor",
+            "June", "Amara", "Kit", "Rosalind", "Enzo", "Yusuf", "Delphine", "Otto",
+            "Ines", "Cyrus", "Petra",
+        ]
+        var seats = names.indices.map { rung in
+            // A plausible ladder: the day count falls in steps and the time
+            // climbs inside each step, which is exactly what the packed score
+            // orders by.
+            DailyTable.Seat(
+                id: "demo.\(rung)", name: names[rung],
+                week: DailyTable.Week(days: max(0, DailyTable.daysInWeek - rung / 3),
+                                      seconds: 260 + rung * 47),
+                isMe: false)
+        }
+        seats.append(DailyTable.Seat(id: "demo.me", name: "", week: mine, isMe: true))
+        return seats.sorted { DailyTable.score(of: $0.week) > DailyTable.score(of: $1.week) }
+    }
+    #endif
+
+    /// PRD-29 §5's gate, resolved from a day to a board to a replay.
+    ///
+    /// **The absence of a replay is not a finding**, and that is the deliberate
+    /// half. A replay is minted only on this app's own solve path, so every
+    /// widget solve, every watch solve and every board that arrived over CloudKit
+    /// with its log stripped has none; refusing those would make the league a
+    /// feature of one code path rather than of the game. What the audit gates is
+    /// a replay that exists and does not add up.
+    private func trustsDaily(on day: Int) -> Bool {
+        guard let entry = library.dailyEntry(day: day),
+              let replay = replays.replay(for: entry.id) else { return true }
+        return ReplayAudit.audit(replay).isClean
+    }
+
+    /// Send this week up, if the player asked to be on the table at all.
+    ///
+    /// Every guard is on this one line rather than scattered through the solve
+    /// path: opted in, non-empty, and Game Center will do the rest of the
+    /// refusing. An empty week is never submitted — a player who joined and has
+    /// not started is not a row anybody needs to see.
+    private func submitTableWeek() {
+        #if os(iOS) || os(macOS) || os(tvOS)
+        guard joinsTable else { return }
+        GameCenter.shared.submitTable(week: tableWeek)
+        #endif
+    }
+
     /// The full board library: the daily (one per day) plus unlimited free-play
     /// partials, solved boards retained for the "previously played" log.
     /// Local-only — iCloud KVS is 1 MB total and already carries the streak and
@@ -526,6 +667,11 @@ final class AppModel {
     /// the card is a thing said to the player once, not once per device.
     @ObservationIgnored private let graceSeenStore =
         CouchStored(wrappedValue: 0, "nine.graceSeen", cloudSynced: true)
+    /// PRD-29's opt-in, and the whole of what the table persists — see
+    /// `joinsTable`. A **new** key, so no shipped build has ever written it and
+    /// it needs no wire bridge, exactly as `nine.channels` did not.
+    @ObservationIgnored private let tableStore =
+        CouchStored(wrappedValue: false, "nine.table", cloudSynced: true)
 
     /// The CloudKit boundary (PRD-8). Nil when the store isn't created; when
     /// present but no iCloud account exists the app stays purely local — sync
@@ -709,6 +855,7 @@ final class AppModel {
         history = historyStore.wrappedValue
         channels = channelsStore.wrappedValue
         channelRules = channelRulesStore.wrappedValue
+        joinsTable = tableStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit
         // the affordance is budgeted in, and `AppModel` is built exactly once
@@ -2050,6 +2197,19 @@ final class AppModel {
             // record, and it is the one that would be public.
             GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
         }
+        // PRD-29. **After** the two branches above and outside both, because the
+        // table is a fold over `nine.history` rather than a mirror of this one
+        // record — the week is what goes up, not the solve. It is therefore also
+        // correct for it to run on a day whose daily was already counted: the
+        // score is idempotent, and re-submitting an unchanged week is a no-op on
+        // a board that keeps the best submission.
+        //
+        // Guarded by `joinsTable` inside `submitTableWeek`, not here, so there is
+        // exactly one place the opt-in is read on the solve path. A channel solve
+        // and a duel solve both reach this line and both contribute nothing:
+        // `DailyTable.tally` reads classic dailies out of `nine.history`, which
+        // neither of them writes.
+        submitTableWeek()
         #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)
@@ -2299,6 +2459,12 @@ final class AppModel {
         history.record(record)
         try? historyStore.flushNow()
         GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+        // A widget or watch solve is a daily solved on the day, so it counts for
+        // the table exactly like any other (PRD-29 §3.1). It carries no replay —
+        // `mintReplay` runs only on the app's own solve path — and `trustsDaily`
+        // reads that absence as trust rather than as suspicion, which is the
+        // clause that stops the league being a feature of one code path.
+        submitTableWeek()
     }
 
     /// Hand today's daily to the watch if this phone already has it composed.

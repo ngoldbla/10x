@@ -1,0 +1,31 @@
+# nine accessibility tree — screen: history
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+#
+# Regenerate: nine/scripts/ax-snapshot.py --record
+
+[Content]
+  Button "Gentle, Singles & scans"  (44,89 64x126)
+  Button "Steady, Pairs & box lines"  (169,89 64x126)
+  Button "Sharp, X-wings & deep logic"  (294,89 64x126)
+  StaticText "0"  (73,176 15x26)
+  StaticText "0"  (189,176 15x26)
+  StaticText "0"  (304,176 15x26)
+  StaticText "points"  (64,206 33x13)
+  StaticText "solved"  (179,206 35x13)
+  StaticText "best streak"  (282,206 59x13)
+  StaticText "Solve a board and it lands here — time, difficulty and points."  (28,256 301x31)
+  Button "Nocturne, Fewer clues, deeper logic"  (38,265 212x64)
+  Button "Game Center, Sign in via Settings to compete" [disabled]  (44,325 205x36)
+  StaticText "The Table"  (28,399 60x16)
+  Button "Tempest, Wings & swordfish"  (38,379 176x64)
+  StaticText "Twenty players, one week. The days you finish count first; your time breaks the tie."  (28,424 329x29)
+  Button "Join the table"  (28,463 116x44)
+  Button "Abyss, One digit, two colours"  (38,493 193x64)
+  StaticText "Tap outside to return"  (28,567 128x16)
+  Button "Play together, On a FaceTime call, everyone gets this board"  (38,607 326x64)
+[Bottom]
+  Button "Technique School"  (293,729 67x73)
+  Button "How to play"  (39,740 73x52)
+  Button "History"  (178,739 45x54)
+
+# 22 elements in 2 containers

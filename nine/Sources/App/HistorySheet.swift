@@ -76,6 +76,14 @@ struct HistorySheetContent: View {
 
                 gameCenterRow
 
+                // PRD-29, below the Game Center row because that is the door
+                // the table is behind, and above Recent because a week in
+                // progress outranks a log of finished boards. Always present,
+                // even opted out: the invitation IS the zero-state, and a
+                // feature you can only find in a settings list is a feature
+                // PRD-34 already caught this app hiding once.
+                TableSection(model: model, accent: accent, tones: tones, s: s)
+
                 if !model.history.records.isEmpty {
                     recentSolves
                 }
