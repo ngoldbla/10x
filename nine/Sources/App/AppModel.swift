@@ -1094,6 +1094,105 @@ final class AppModel {
         compose(kind: .free(difficulty), seed: .random(in: UInt64.min...UInt64.max), difficulty: difficulty)
     }
 
+    // MARK: - The Parlor (PRD-28)
+
+    /// The live parlor, or a session with no room in it — which is every board
+    /// on every surface that is not in a FaceTime call.
+    ///
+    /// A reference type rather than a value on the model, for `padReader`'s
+    /// reason: the transport is an external event source and the object it
+    /// calls back into has to be stable across re-renders.
+    @ObservationIgnored let parlor = ParlorSession()
+
+    /// The invite for the board on screen — what this device would send if
+    /// somebody asked for it. Nil for a variant board, which cannot travel: the
+    /// invite carries `(seed, difficulty)` and a killer board additionally needs
+    /// its rules, which is the same gap that stops one syncing (PRD-24).
+    var currentInvite: ParlorInvite? {
+        guard let entry = currentEntryID.flatMap({ library.entry(id: $0) }) else { return nil }
+        switch entry.kind {
+        case .daily(let day):
+            return ParlorInvite(
+                seed: DailySeed.seed(forDayOrdinal: day),
+                difficulty: entry.game.puzzle.difficulty,
+                day: day
+            )
+        case .free:
+            return ParlorInvite(
+                seed: entry.game.puzzle.seed, difficulty: entry.game.puzzle.difficulty, day: nil)
+        case .channel:
+            return nil
+        }
+    }
+
+    /// Today's daily, as an invite. What "play together" offers.
+    ///
+    /// `.steady` because the daily composes at steady — the one place in this
+    /// app where that constant is not read off a board is `finishSolve`'s
+    /// `default:` branch, and this is the second. Both would have to move
+    /// together, and the golden corpus is what would notice.
+    var todayInvite: ParlorInvite {
+        ParlorInvite(
+            seed: DailySeed.seed(forDayOrdinal: todayOrdinal),
+            difficulty: .steady,
+            day: todayOrdinal
+        )
+    }
+
+    /// Open the board an invite names, under §3's provenance guard.
+    ///
+    /// Today's daily routes through `openToday` rather than composing from the
+    /// invite's own seed, and that is the guard doing its second job: the daily
+    /// seed is a function of the day, so an invite claiming today with a
+    /// *different* seed is forged, and this opens the real one. Every other
+    /// invite — a past daily, tomorrow's, a free board — becomes a free board,
+    /// so no arriving message can ever spend a streak.
+    func openParlorInvite(_ invite: ParlorInvite) {
+        switch invite.opens(today: todayOrdinal) {
+        case .daily:
+            openToday()
+        case .free(let difficulty):
+            compose(kind: .free(difficulty), seed: invite.seed, difficulty: difficulty)
+        case .channel:
+            break   // unreachable: `opens(today:)` returns only the two above
+        }
+    }
+
+    /// How many cells this board has to fill, and how many are filled — the
+    /// only two numbers a parlor ever puts on the wire.
+    ///
+    /// The denominator is computed rather than sent because everyone composed
+    /// the same puzzle from the same seed, which is determinism paying for a
+    /// second thing after it has already paid for the board.
+    var parlorFillable: Int { game?.puzzle.puzzle.emptyCount ?? 0 }
+
+    #if DEBUG
+    /// `-parlor-demo`: a parlor with two ghosts in it.
+    ///
+    /// DEBUG only and sealed by `ParlorSealTests`, so Release cannot reach it —
+    /// the arrangement PRD-23 used to keep the variant channel out of shipping
+    /// builds. It exists because a FaceTime call cannot be placed between two
+    /// simulators and this machine's are slimmed with `messaging` disabled, so
+    /// without it every surface in this PRD would ship unseen.
+    func startLoopbackParlorIfRequested() {
+        guard CommandLine.arguments.contains("-parlor-demo"),
+              !parlor.isActive, game != nil else { return }
+        let transport = LoopbackParlorTransport(fillable: parlorFillable)
+        parlor.join(invite: todayInvite, fillable: parlorFillable, over: transport)
+        transport.start()
+        reportParlorPresence()
+    }
+    #endif
+
+    /// Tell the room where this board stands. Called from `persistProgress`, so
+    /// it fires on every change and self-throttles — `ParlorSession.report`
+    /// sends nothing when the numbers have not moved.
+    private func reportParlorPresence() {
+        guard parlor.isActive, let game else { return }
+        let filled = (0..<81).count(where: { game.entry(at: $0) != 0 && !game.isGiven($0) })
+        parlor.report(fill: filled, done: solvedAt != nil, fillable: parlorFillable)
+    }
+
     // MARK: - Pass the Remote (PRD-27)
 
     /// The duel this board belongs to, or nil — which is every board on every
@@ -1390,6 +1489,9 @@ final class AppModel {
         // PRD-27: a duel started before its board existed is adopted here,
         // because this is the single funnel every opening path goes through.
         adoptPendingDuelIfAny()
+        #if DEBUG
+        startLoopbackParlorIfRequested()
+        #endif
         #if os(macOS)
         // Which board this window is showing (PRD-33). Written here rather than in
         // each of the six callers, because this is the single funnel every one of
@@ -1821,6 +1923,12 @@ final class AppModel {
         // solve landing mid-hold (backgrounded, or under an overlay) can never
         // leave a stale hold to wedge the NEXT board started after this one.
         clockHolds.removeAll()
+        // PRD-28: the room hears "done" **before** `mintReplay` hands over the
+        // finish, and the order is load-bearing. `mayPublishFinish` asks whether
+        // every member is done — including this one — so a finish held before
+        // this line would sit in the session waiting for a message that has
+        // already been sent.
+        reportParlorPresence()
         // **A duel solve is nobody's solve** (PRD-27 §7). Two people filled that
         // board in, so every ledger that records *your* progress is skipped: the
         // classic streak, the classic history, the archive, the channel ledger
@@ -1968,6 +2076,12 @@ final class AppModel {
             isDaily: isDaily, solvedAt: solvedAt, seconds: seconds
         ) else { return }
 
+        // PRD-28 §4.1. **Held, not sent.** The room decides when this goes out,
+        // which is the instant it agrees everybody is done — so nobody's time
+        // is anybody's business a moment before that, including this device's
+        // own view of it.
+        parlor.hold(finish: ParlorFinish(seconds: Int(seconds), packed: replay.packed))
+
         var vault = replays
         vault.store(replay)
         vault.prune(to: Set(library.entries.map { $0.id.uuidString }))
@@ -2038,6 +2152,10 @@ final class AppModel {
         // Fires per move; WidgetBridge digest-gates the actual reloads.
         WidgetBridge.publish(from: self)
         #endif
+        // PRD-28: the same beat, and the same digest discipline one layer down
+        // — `ParlorSession.report` sends nothing when the two numbers have not
+        // moved, so a per-move call site is not a per-move message.
+        reportParlorPresence()
     }
 
     // MARK: - Cloud sync (PRD-8)
