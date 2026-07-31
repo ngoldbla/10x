@@ -235,6 +235,27 @@ struct RootView: View {
         }
         #if os(iOS)
         .onAppear { GameCenter.shared.authenticate() }
+        // PRD-28 §7. A board somebody sent arrives here, is refused or accepted
+        // by `ParlorInvite(properties:)` alone, and is *offered* rather than
+        // opened: yanking a player off the board in front of them because a
+        // friend's invitation landed is the least calm thing this app could do.
+        .onAppear {
+            GameCenter.shared.onInvite = { [model] invite in model.parlor.offer(invite) }
+        }
+        // PRD-28 §2. Every SharePlay session for the life of the process. The
+        // invite is the activity's whole payload, so the board is composed
+        // locally from eight bytes and a tier and no grid crosses the wire.
+        .task {
+            for await session in NineParlorActivity.sessions() {
+                let invite = session.activity.invite
+                model.openParlorInvite(invite)
+                model.parlor.join(
+                    invite: invite,
+                    fillable: model.parlorFillable,
+                    over: GroupParlorTransport(session: session)
+                )
+            }
+        }
         // Coming forward: merge any widget moves first (PRD-3 §4). Going
         // back: belt-and-braces publish so the Home Screen is fresh the
         // moment the app leaves it.

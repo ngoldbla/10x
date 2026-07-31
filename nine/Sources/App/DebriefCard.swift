@@ -22,6 +22,15 @@ struct DebriefCardContent: View {
     let replay: SolveReplay
     let tones: ThemeTones
     let accent: Color
+    /// PRD-28 §6. Nil on every solitary board, which is what keeps every other
+    /// surface — the archive, the Mac, the boards sheet — printing exactly what
+    /// it printed before. The same additive-optional shape PRD-27 used for
+    /// `SolveDebrief.duel`, and for the same reason.
+    ///
+    /// Its members' `finish` is nil until the room completed, so this card
+    /// cannot show a time early even when it is handed a room that is not
+    /// finished — the rule lives on `ParlorRoom`, not here.
+    var parlor: [ParlorRoom.Member] = []
     var onClose: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,6 +55,8 @@ struct DebriefCardContent: View {
                     .font(.system(size: 14, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
             }
+
+            ParlorCometsSection(members: parlor, tones: tones, accent: accent)
 
             closeButton
         }

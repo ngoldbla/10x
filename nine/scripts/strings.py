@@ -1209,6 +1209,27 @@ COMMENTS = {
     "debrief.empty": "Shown in place of the comet when this solve has no recorded move log to replay (an older board, or one solved on another device). A plain statement, not an apology or an error.",
     "debrief.open": "VoiceOver label for the control that pulls the debrief card up. Imperative verb plus the card's own heading — use exactly the words of debrief.title, so the control and the card it opens name the same thing.",
     "debrief.close": "VoiceOver label for the control that dismisses the debrief card. The exact opposite verb of debrief.open, with the same noun phrase from debrief.title.",
+    # PRD-28 — The Parlor: several people on a FaceTime call solving the SAME
+    # puzzle, each on their own device, each on their own board. Nobody sees
+    # anybody else's digits and nobody's time is shown until everybody has
+    # finished. NOTHING here is a score, a rank or a race: there is no winner,
+    # no "beat", no "fastest", no points. The participants are deliberately
+    # anonymous — the system does not tell the app who is on the call — so the
+    # words for other people must never be a name, a placeholder for a name, or
+    # a possessive that implies one.
+    "parlor.activity.title": "Title of the SharePlay activity, shown by the system in FaceTime when someone starts a shared game. Contains the app's name, which is never translated. Two or three words.",
+    "parlor.activity.subtitle": "One-line subtitle under parlor.activity.title in the system's SharePlay UI. Explains the whole feature: everyone gets the same puzzle but plays it separately on their own device. Not a slogan.",
+    "parlor.start.title": "Title of the shelf card that starts a shared game. Imperative verb phrase, warm and plain. \"Together\" means alongside other people, NOT on the same board.",
+    "parlor.start.caption": "One-line caption under parlor.start.title. States the condition (a FaceTime call is needed) and what happens (everyone gets this same puzzle). Plain statement, not a sales line.",
+    "parlor.dot.you": "VoiceOver label for the small dot representing the player's OWN progress in a row of dots, one per person on the call. Second person, one or two words.",
+    "parlor.dot.other": "VoiceOver label for the dot representing SOMEONE ELSE on the call. The app is not told who they are, so this must stay anonymous — no name, no placeholder for a name, no \"your friend\" (they may not be). Neutral and singular.",
+    "parlor.dot.progress": "VoiceOver value for a progress dot. %1$lld is how many squares that person has filled; %2$lld is how many the puzzle has to fill in total. A statement of progress, NOT of speed or rank. Both numbers are needed: the first alone means nothing.",
+    "parlor.dot.finished": "VoiceOver value for a progress dot once that person has completed their puzzle. One word. Deliberately says nothing about how long they took — no time is known to this device yet, and that is the point.",
+    "parlor.sideBySide": "Heading of the section shown after EVERYONE has finished, holding one small animated replay per person, laid out next to each other. Describes the arrangement, not a comparison — do NOT translate as \"versus\", \"head to head\" or anything competitive.",
+    "parlor.comet.you": "Caption under the player's OWN replay in the side-by-side section. %1$@ is a time already formatted as minutes and seconds (e.g. \"4:12\"). Second person, then a middle dot, then the time. A fact, not a result: nothing is ranked and there is no winner.",
+    "parlor.comet.other": "Caption under SOMEONE ELSE's replay in the side-by-side section. %1$@ is a time already formatted as minutes and seconds. Must match parlor.dot.other's anonymous wording — the app is not told who they are. A fact, not a result.",
+    "parlor.challenge": "Button that sends this exact puzzle to a friend through Game Center, for them to play whenever they like. \"This board\" is the puzzle itself. An imperative verb phrase; avoid any word meaning \"challenge\", \"beat\" or \"compete\".",
+    "parlor.invite.accepted": "Short confirmation shown when a puzzle sent by someone else has been opened, so the player knows this is the same puzzle their friend played rather than a fresh one. A statement of fact, three to five words.",
     "difficulty.tempest.explainer": "The longer explanation of the Tempest band. Names three techniques — translate each the same way as technique.swordfish.name, technique.skyscraper.name and technique.xyWing.name. \"The X-wing family, grown up\" means these are the bigger relatives of the X-Wing. Kept to the length of its siblings so the guide still fits one screen.",
     "difficulty.abyss.explainer": "The longer explanation of the Abyss band. Describes simple colouring — match technique.simpleColoring.name. \"Forced pairs\" are the two squares a digit must occupy one of. Kept to the length of its siblings so the guide still fits one screen.",
     # PRD-25 — Technique School. A list of lessons, never a task list: no

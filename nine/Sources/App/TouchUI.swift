@@ -558,7 +558,70 @@ struct TouchHomeView: View {
             ForEach(Difficulty.deepBands, id: \.self) { difficulty in
                 deepEndCard(difficulty)
             }
+            parlorCard
         }
+    }
+
+    /// PRD-28 §9. One card, the shape of a deep-end card, at the bottom of the
+    /// free-play block — where "another way to start a board" belongs, beside
+    /// the other ways to start one.
+    ///
+    /// It carries no dot, no roster and no state: a parlor that has not begun
+    /// is not a thing to look at, and the shelf is the calmest surface in the
+    /// app. When a friend has sent a board the caption is the only thing that
+    /// changes, and tapping opens theirs instead of today's.
+    private var parlorCard: some View {
+        let pending = model.parlor.pendingInvite
+        return TouchCard(action: {
+            let invite = pending ?? model.todayInvite
+            model.parlor.takePendingInvite()
+            Task {
+                // The board opens either way. On success the session loop in
+                // `NineApp` opens and joins it; on failure — no call, or the
+                // player declined the system sheet — this opens it alone.
+                if await ParlorSession.activate(invite) == false {
+                    model.openParlorInvite(invite)
+                }
+            }
+        }) {
+            HStack(spacing: 14) {
+                // **No `.contentShape(.accessibility, …)` on the glyph**, which
+                // was here first and cost the card its own frame: driving the
+                // AX lane measured this card at **64×64** — the icon alone —
+                // against 176–212 pt for its three siblings, because pinning an
+                // accessibility shape onto a child is what SwiftUI then derives
+                // the button's frame from. PRD-19's fix belongs on a *leaf*
+                // control; a card is not one.
+                Image(systemName: "shareplay")
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(accent)
+                    .frame(width: 64, height: 64)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ParlorPhrase.start)
+                        .font(CouchTypography.caption)
+                        .foregroundStyle(.primary)
+                    Text(pending == nil ? ParlorPhrase.startCaption : ParlorPhrase.inviteAccepted)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            // **On the card, not on the glyph.** Without it the AX lane measured
+            // this card at 298×**33** — the two text lines alone, with the SF
+            // Symbol contributing nothing, because SwiftUI derives an image-only
+            // element's frame from the symbol's tight glyph bounds
+            // (EXECUTING-A-PRD §4). 33 pt is under the craft charter's 44 pt
+            // floor, which is the same defect PRD-24's tier cards shipped at
+            // 41 pt and the same fix.
+            .contentShape(.accessibility, Rectangle())
+        }
+        .disabled(composeInFlight)
+        .accessibilityLabel(Strings.string(
+            "shelf.difficulty.label",
+            .text(ParlorPhrase.start),
+            .text(pending == nil ? ParlorPhrase.startCaption : ParlorPhrase.inviteAccepted)))
     }
 
     /// The full-width Nocturne card: same tap target, same MiniBoard, laid out
@@ -756,6 +819,8 @@ struct TouchGameScreen: View {
     /// feature whose whole discipline is that it waits and never asks: an
     /// error toast about a share nobody requested would be worse than silence.
     @State private var shareCard: ShareCardExport?
+    /// PRD-28 §7's party URL, once an activity has been started for this board.
+    @State private var sentBoard: SentBoard?
     /// PRD-31. The cell under the pointer or the hovering Pencil tip, drawn as
     /// the halo `BoardView` has had since PRD-4 and the Mac has been the only
     /// caller of. An iPad with a trackpad or a hovering Pencil is the same
@@ -1029,7 +1094,16 @@ struct TouchGameScreen: View {
             .overlay(alignment: .bottom) { tipView.padding(.bottom, insets.chip) }
             .overlay(alignment: .bottom) { completionChip.padding(.bottom, insets.completion) }
             .overlay(alignment: .bottom) { autoNotesChipView.padding(.bottom, insets.chip) }
-            .overlay(alignment: .top) { composingChip.padding(.top, insets.top) }
+            // PRD-28 §5's dot row, stacked with the composing chip rather than
+            // fighting it for the same inset. Both are top-of-board chrome and
+            // both can be up at once — a parlor board composes like any other.
+            .overlay(alignment: .top) {
+                VStack(spacing: 8) {
+                    composingChip
+                    parlorRow
+                }
+                .padding(.top, insets.top)
+            }
             // The debrief's twin at the drawer's other edge, in the same order
             // and for the same reason: the hint under the panel it advertises.
             .overlay(alignment: .bottom) {
@@ -1272,6 +1346,18 @@ struct TouchGameScreen: View {
         return bandHeight >= 100
     }
 
+    /// PRD-28 §5. Present only inside a parlor, and silent the rest of the time
+    /// — there is no empty state, because a row of nobody is not a thing to
+    /// draw. A solo room (`isShared == false`) draws nothing either: one dot,
+    /// yours, telling you what your own board already says.
+    @ViewBuilder
+    private var parlorRow: some View {
+        if let room = model.parlor.room, room.isShared, model.game != nil, rose == nil {
+            ParlorPresenceRow(room: room, accent: accent)
+                .transition(.opacity)
+        }
+    }
+
     /// While a replacement board is composed (New game in the sheet), the
     /// old board stays up — this chip is the only sign work is happening,
     /// so it matters on Sharp, which can take tens of seconds.
@@ -1367,6 +1453,7 @@ struct TouchGameScreen: View {
                     HStack(spacing: 10) {
                         GlassChip(completionText, systemImage: "checkmark")
                         shareButton(card)
+                        sendBoardButton
                         if case .free(let difficulty)? = model.kind {
                             Button {
                                 highlightedDigit = nil
@@ -1391,6 +1478,42 @@ struct TouchGameScreen: View {
             return Strings.string("game.completion.streak", .int(model.displayedStreak))
         }
         return Strings.string("status.solved")
+    }
+
+    // MARK: Send this board (PRD-28 §7)
+
+    /// The asynchronous half of the parlor: the board you just solved, sent to
+    /// somebody to play whenever they like.
+    ///
+    /// **Absent unless App Store Connect has the activity definition.** That
+    /// record does not exist yet and creating it is a human gate, so on every
+    /// build shipped before it lands this is simply not there — which is the
+    /// right failure mode for a social affordance and the same one PRD-24's
+    /// per-channel leaderboards ship with.
+    ///
+    /// A variant board has no invite (`currentInvite` is nil for `.channel`),
+    /// because the seed alone would hand the receiver a grid without its cages.
+    @ViewBuilder
+    private var sendBoardButton: some View {
+        if #available(iOS 26.0, *), GameCenter.shared.canSendBoard,
+           let invite = model.currentInvite {
+            Button {
+                sentBoard = GameCenter.shared.sendBoard(invite).map(SentBoard.init)
+            } label: {
+                GlassChip(ParlorPhrase.challenge, systemImage: "person.2")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ParlorPhrase.challenge)
+            // The party URL exists only once the activity has started, so it
+            // cannot be a `ShareLink`'s item the way the share card's PNG is —
+            // `ShareLink` needs its item before the tap. The system sheet is
+            // presented instead, which is also what makes this one tap rather
+            // than two.
+            .sheet(item: $sentBoard) { board in
+                SystemShareSheet(items: [board.url])
+                    .presentationDetents([.medium])
+            }
+        }
     }
 
     // MARK: Share (PRD-12)
@@ -1650,6 +1773,7 @@ struct TouchGameScreen: View {
                     replay: replay,
                     tones: model.prefs.theme.tones(for: colorScheme),
                     accent: accent,
+                    parlor: model.parlor.room?.members ?? [],
                     onClose: { closeDebrief() }
                 )
                 .padding(.horizontal, 10)
