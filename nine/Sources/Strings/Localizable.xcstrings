@@ -12489,6 +12489,522 @@
         }
       }
     },
+    "debrief.duel.cleared": {
+      "comment": "Debrief line after a two-player local game (PRD-27), shown only when at least one wrong digit was placed. %1$@ is a player's name (the name of their digit colour); %2$lld is how many of their digits were silently removed from the board during the game. VERB, past tense, NEUTRAL: the digits were cleared away. Avoid any word meaning \"mistake\", \"failure\" or \"wrong\" — this whole feature exists so that nobody is told off in front of the other player. PLURAL on %2$lld.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ hat %2$lld Ziffer entfernt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ hat %2$lld Ziffern entfernt"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$@ cleared %2$lld digit"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$@ cleared %2$lld digits"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ retiró %2$lld dígitos"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ retiró %2$lld dígito"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ retiró %2$lld dígitos"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a retiré %2$lld chiffres"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a retiré %2$lld chiffre"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a retiré %2$lld chiffres"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha rimosso %2$lld cifre"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha rimosso %2$lld cifra"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha rimosso %2$lld cifre"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ の数字 %2$lld 個を消去"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@, 숫자 %2$lld개 지움"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ verwijderde %2$lld cijfer"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ verwijderde %2$lld cijfers"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ removeu %2$lld dígitos"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ removeu %2$lld dígito"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ removeu %2$lld dígitos"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ 清除 %2$lld 个数字"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "debrief.duel.last": {
+      "comment": "Debrief line after a two-player local game (PRD-27). %1$@ is a player's name (the name of their digit colour). A statement of fact about who completed the puzzle, NOT a declaration that they won — nothing in this app declares a winner. Full sentence, ends with a full stop.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ hat die letzte Ziffer gesetzt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ placed the last digit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ colocó el último dígito."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ a placé le dernier chiffre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ ha inserito l'ultima cifra."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ が最後の数字を記入しました。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@이(가) 마지막 숫자를 놓았습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ plaatste het laatste cijfer."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ colocou o último dígito."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@ 填入了最后一个数字。"
+          }
+        }
+      }
+    },
+    "debrief.duel.placed": {
+      "comment": "Debrief line after a two-player local game where people take turns on one device (PRD-27). %1$@ is a player's name, which is the name of the colour their digits are drawn in (\"Glacier\", \"Ember\"); %2$lld is how many correct digits they placed. Two of these are joined by debrief.duel.separator to make one line naming both players. A RECORD, NOT A SCORE — do not translate as a competitive result or add any word meaning \"won\", \"beat\" or \"points\". PLURAL on %2$lld.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ hat %2$lld Ziffer gesetzt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ hat %2$lld Ziffern gesetzt"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$@ placed %2$lld digit"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$@ placed %2$lld digits"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocó %2$lld dígitos"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocó %2$lld dígito"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocó %2$lld dígitos"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a placé %2$lld chiffres"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a placé %2$lld chiffre"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ a placé %2$lld chiffres"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha inserito %2$lld cifre"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha inserito %2$lld cifra"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ ha inserito %2$lld cifre"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ が %2$lld 個の数字を記入"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@, 숫자 %2$lld개 놓음"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ plaatste %2$lld cijfer"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ plaatste %2$lld cijfers"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "many": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocou %2$lld dígitos"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocou %2$lld dígito"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ colocou %2$lld dígitos"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%1$@ 填入 %2$lld 个数字"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "debrief.duel.separator": {
+      "comment": "Joins the two halves of a two-player debrief line — \"Glacier placed 24\" and \"Ember placed 21\" — into one line. Punctuation and order only, no words of its own: a space, a middle dot and a space in English. Both halves are already-translated strings, so this carries separation and nothing else. Same job as board.cell.ruleSeparator.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · "
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": " · "
+          }
+        }
+      }
+    },
     "debrief.empty": {
       "comment": "Shown in place of the comet when this solve has no recorded move log to replay (an older board, or one solved on another device). A plain statement, not an apology or an error.",
       "extractionState": "manual",
