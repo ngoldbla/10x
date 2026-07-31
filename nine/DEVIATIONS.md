@@ -4335,3 +4335,209 @@ daily and breaks every shared channel seed. `VariantCorpusTests` freezes 9 seeds
   strain the proof covenant until the verifier can gate arbitrary rules. `.arrow`
   remains the case `VariantConstraint`'s tolerant decode was written for and stays
   unwritten — it is now also the case two refusal paths are tested against.
+
+## PRD-28 — the parlor that could not be a challenge, and the suite that was already red (2026-07-30)
+
+The Parlor is N devices solving the same seeded board with a soft dot each, no
+times until everybody finishes, and then the comets side by side. The design
+survived contact; two of its load-bearing sentences did not, and both were
+falsified by reading the SDK rather than by running anything.
+
+### `main` was red before this branch touched it
+
+`DuelHandoff.decide` — the whole of PRD-27 §4.1's rule about when a turn ends —
+shipped in 2cf608c as `{ .continue }`, and `DuelHandoffTests` failed **7 of 8**
+on a clean checkout of `main`. Nothing about that is visible from the outside: a
+duel simply never hands off, on the two surfaces PRD-27 also has no UI for yet.
+
+It is fixed here as a precondition rather than as a favour, because "swift test
+green" is the first gate in EXECUTING-A-PRD §5 and a PRD cannot claim it on top
+of a red suite. The rule restored is four branches ordered by rank — finish
+outranks everything, the untimed turn outranks the clock, and `nil remaining` is
+"not begun" rather than "run out" — which is what the eight tests were already
+describing. **PRD-27 has no DEVIATIONS section and no row in the status table**,
+and its two surfaces (the shelf card and the hand-off card) do not exist; that is
+recorded here because the next person to open PRD-27 should know what they are
+picking up.
+
+### The Game Center half could not be built the way the program plan describes
+
+> "Game Center challenges wrap the same primitive async: 'beat my Thursday
+> daily' sends a seed." — PROGRAM-2.0.md:95
+
+**Every classic Game Center challenge API is deprecated as of iOS 26 / tvOS 26 /
+macOS 26.** `GKChallenge`, `GKScoreChallenge`, `GKAchievementChallenge` and all
+six `challengeComposeController` overloads are `API_DEPRECATED_WITH_REPLACEMENT`
+in the 26.x SDKs. The replacement, `GKChallengeDefinition`, is defined in App
+Store Connect, is backed by a leaderboard, and **carries no payload at all** —
+there is no field on it a seed could ride in. A challenge in the sense the plan
+meant cannot be sent.
+
+What replaces it is `GKGameActivity`, also new in 26, which has
+`properties: [String: String]` and a `partyURL`. That is the *only* payload
+GameKit will now carry, and it is a flat string dictionary — which is why
+`ParlorInvite` has **two envelopes and one meaning**: `Codable` for SharePlay's
+messenger, `[String: String]` for GameKit. The property-dictionary codec is a
+first-class tested type rather than an implementation detail, because it is the
+thing that makes "the same primitive" true in code instead of in a sentence.
+
+### Strictness on the property dictionary was written, then measured against the API and reverted
+
+The first codec refused any key it had not written, on the "a key this build
+does not know may change the board" argument, and there is a test asserting it.
+`GKGameActivityDefinition.defaultProperties` is what killed it: App Store Connect
+merges its own keys into every activity, so a dictionary containing something we
+did not write is the **normal** case, not an attack. A strict codec would have
+refused every real invite, and it would have done so only on a device, only
+after the ASC record existed, and only for the people it shipped to.
+
+The version is the guard instead, which is the entire job of a wire version: a
+future build that adds a rules key must bump `nine.v`, and a receiver refuses
+anything above its own. The test that used to assert strictness now asserts the
+opposite and says why in its name.
+
+### SharePlay will not tell an app who is on the call
+
+`GroupActivities.Participant` is `{ let id: UUID }` and nothing else — no display
+name, no handle, no avatar. So a dot **cannot** be labelled with a person, and
+"ambient presence only" turns out to be the only presence the framework can
+support. VoiceOver hears "You" and "Someone else" by ordinal because there is no
+identity to speak, and the row's order is by opaque id for the same reason.
+
+That is a happy collision rather than a compromise, and it is worth naming: the
+covenant's constraint and the framework's privacy model wanted the same feature.
+
+### Group Activities *is* a portal capability, and this is the fourth entitlement that can break the suite
+
+Checked rather than assumed, and the check is the one PRD-30 established:
+Xcode's `DVTPortalCachedPortalCapabilities.json` carries `GROUP_ACTIVITIES` with
+`profileKey = com.apple.developer.group-session`. PRD-30 asked the same question
+about ActivityKit and got a **no**; this is the *yes*.
+
+> **The capability must be POSTed to the bundle ID and `match --force` must
+> re-mint the iOS profile before this PR merges.** CI runs
+> `match(readonly: true)` and cannot mint anything. App groups (PRD-3), Game
+> Center and CloudKit (PRD-8) each broke the whole suite's TestFlight run this
+> exact way.
+
+The entitlement is on `Nine-iOS.entitlements` only, because §9 ships this on iOS
+only, which scopes the re-mint to one profile instead of three.
+
+### The negative is sealed twice, and the seal was falsified before it was trusted
+
+"No times until everyone finishes" is a negative, and negatives erode without
+anything going red. Two seals, because PRD-30's lesson was that one is not
+enough:
+
+- **The wire.** `ParlorPresence` is `{ fill, done }` and has no time field, no
+  name, no cell and no digit. `ParlorTests` reflects over the *encoded JSON keys*
+  and over the type's `Mirror`, so a property added but not encoded — a time held
+  in memory on the receiving side, one `encode` from the wire — fails too.
+- **The surface.** `ParlorSealTests` greps the three parlor files for
+  `style: .timer`, `timerInterval`, `TimelineView`, `Date()` and `.now`, and for
+  any sort by seconds. `Text(_:style: .timer)` needed no field in PRD-30's
+  payload at all, which is precisely why the payload seal alone is not a seal.
+
+Between them sits the thing that makes both cheap: **`ParlorRoom.Member.finish`
+is nil until the room completes.** A view is not handed the number, so it cannot
+draw it — the rule is on the type rather than in a discipline, and
+`testAFinishIsInvisibleUntilTheRoomCompletes` is the whole PRD in one test.
+
+The clock seal was **falsified before being trusted**: adding `let stamp = Date()`
+to `ParlorPresenceRow` made it fail with the right message, and removing it made
+it pass again. PRD-20's truncation rule is why that step exists — a lane
+specified for a condition that can never arise measures its own absence and
+returns green.
+
+### Two accessibility defects on one card, both found only by driving
+
+The shelf card went through `ax-snapshot.py` three times:
+
+1. With `.contentShape(.accessibility, Rectangle())` on the SF Symbol — copied
+   from PRD-19's 44 pt fix — the card reported **64×64**, the icon alone, against
+   176–212 pt for its three siblings. Pinning an accessibility shape onto a
+   *child* is what SwiftUI then derives the button's frame from. PRD-19's fix
+   belongs on a leaf control; a card is not one.
+2. With the line removed, the card reported **298×33** — the two text lines, with
+   the symbol contributing nothing, because SwiftUI derives an image-only
+   element's frame from the glyph's tight bounds. 33 pt is under the craft
+   charter's 44 pt floor: the same defect PRD-24's tier cards shipped at 41 pt.
+3. With the shape on the **card**: 326×64, and the tree matches its siblings.
+
+Neither state was visible in a screenshot, in a build, or in 200-odd unit tests.
+
+### Driven, and honestly only halfway
+
+A FaceTime call cannot be placed between two simulators, and this machine's
+simulators are slimmed with the `messaging` category disabled, so **no real group
+session has ever existed on this lane**. The design pushes as much as possible
+out of that shadow — the invite, both envelopes, the provenance guard, the
+roster, the reveal and the ordering are all pure and test in microseconds — and
+the rest is driven through a `LoopbackParlorTransport` with two synthetic
+participants, reached only by `-parlor-demo`, DEBUG-fenced and sealed.
+
+What that actually showed, on an iPhone 17 Pro:
+
+```
+@6  GenericElement  "You"           (165,81 18x18)   value: "4 of 53 filled"
+@7  GenericElement  "Someone else"  (192,81 18x18)   value: "Finished"
+@8  GenericElement  "Someone else"  (219,81 18x18)   value: "Finished"
+```
+
+Two participants finished, one not, and **no time anywhere on the screen or in
+the tree** — the claim this PRD is built around, verified against a real
+accessibility tree rather than only against a unit test.
+
+### Numbers
+
+| thing | measured |
+|---|---|
+| the whole protocol, in fields | invite 3 + a version · presence **2** · finish 2 |
+| new pure tests | 26 (`ParlorTests`) + 4 (`ParlorSealTests`) |
+| golden corpus | 56/56 · variant corpus 9/9 |
+| AX baselines | 6; **five match with no re-record**, `home.txt` re-recorded for the new card |
+| card AX frame | 64×64 → 298×33 → **326×64** (44 pt floor) |
+| catalog | 532 → **545** keys; 13 new × 9 locales = **117** machine drafts, every one `needs_review` |
+| bare-literal offences | 0 new |
+| `CatalogTests` two-argument keys | 52 → **53**, and it is one key (`parlor.dot.progress`) |
+| `swift test` | **564 XCTest + 206 swift-testing, 0 failures, 196 s** |
+| platform builds | iOS + tvOS + macOS green, plus a Release archive |
+| new persisted state | **none** — there is no `nine.parlor` |
+
+### Not done, each with its reason
+
+- **No `GKGameActivityDefinition` record in App Store Connect**, so the "Send
+  this board" chip does not appear on any build shipped today. A human gate of
+  exactly the kind PRD-7 §5 describes, like PRD-24's per-channel leaderboards and
+  PRD-26's schema deploy. **No entitlement, so no `match` re-mint** — unlike §8's,
+  which is one. The whole path is therefore also **unverified**: nothing about
+  issuing or receiving an activity has ever run.
+- **The Group Activities entitlement is a merge blocker** and the profile has not
+  been re-minted. This PR cannot land until it is.
+- **No real SharePlay session has ever run.** See above. The live transport
+  compiles on three platforms and has never carried a message.
+- **The side-by-side comets have never been on a screen.** They need a completed
+  room, which needs the local player to finish too, and the loopback's ghosts
+  cannot solve the local board. The reveal rule is pinned by
+  `testAFinishIsInvisibleUntilTheRoomCompletes` and the section is pinned by
+  nothing but a compile — the same position PRD-31's Pencil recognizer shipped in
+  and named.
+- **No tvOS, macOS or watch parlor.** tvOS can join a group session but cannot
+  place a FaceTime call, and a Mac parlor is a different design rather than a
+  translation. Same shape as PRD-24's tvOS channel page, PRD-26's Mac debrief and
+  PRD-27's iPhone duel.
+- **No variant channels in a parlor.** The invite carries `(seed, difficulty)`;
+  a killer or thermo board additionally needs its rules, which is the same gap
+  that stops a variant board syncing (PRD-24). `currentInvite` returns nil for
+  `.channel` rather than sending a grid without its cages.
+- **No shared board, no chat, no reactions, no nudge.** Design, not phase one — a
+  shared grid is the product that needs conflict resolution, and a nudge is a
+  notification by another name.
+- **No persistence at all.** No `nine.parlor`, no roster history, no "your last
+  parlor". A parlor is a live session; its boards are ordinary library boards.
+- **The dot row is iOS-only chrome and has no contrast fixture.** The harness
+  seeds the frozen classic AX fixture and measures the board; a glass capsule of
+  accent-tinted discs over the shelf's ground is a new cell it does not have.
+- **The nine languages are machine-drafted and no human has read them** — the
+  headline deferral standing since PRD-20. 117 new drafts, every one
+  `needs_review`.
