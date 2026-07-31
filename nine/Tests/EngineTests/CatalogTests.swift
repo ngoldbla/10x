@@ -843,9 +843,14 @@ final class CatalogTests: XCTestCase {
         // name, a cage sum, a tube length.
         // 50 → 52 for PRD-27's two duel credit lines, each carrying a player's
         // name and a count.
-        XCTAssertEqual(keysCarryingTwoOrMore, 52, """
+        //
+        // 52 → 53 for PRD-28, and it is one key: `parlor.dot.progress`
+        // ("%1$lld of %2$lld filled" — cells filled and cells to fill). The
+        // twelve others the PRD added carry one index or none, including both
+        // comet captions, which take a formatted time and nothing else.
+        XCTAssertEqual(keysCarryingTwoOrMore, 53, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 52 this test was calibrated against. That is fine and the \
+            not the 53 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \
