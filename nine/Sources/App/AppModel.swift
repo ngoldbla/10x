@@ -261,6 +261,10 @@ final class AppModel {
     private(set) var replays: ReplayVault {
         didSet { replaysStore.wrappedValue = replays }
     }
+    /// PRD-27's duels, keyed by board.
+    private(set) var duels: DuelLedger {
+        didSet { duelsStore.wrappedValue = duels }
+    }
     /// PRD-31's handwriting: one accepted glyph per digit, the specimen every
     /// pencil mark on the board is drawn with.
     ///
@@ -450,6 +454,18 @@ final class AppModel {
     /// `NineLibrary` zone, beside the board it belongs to.
     @ObservationIgnored private let replaysStore =
         CouchStored(wrappedValue: ReplayVault(), "nine.replays")
+    /// PRD-27's duel attribution: which seat placed which digit, as a list of
+    /// turn boundaries into each board's move log.
+    ///
+    /// Its own blob, and a **sibling top-level key** rather than a field on
+    /// `LibraryEntry` — EXECUTING-A-PRD §2's rule satisfied structurally, since
+    /// an older build never reads or writes this key and so can never erase it
+    /// on its next autosave. Local-only, like `nine.replays` and for the same
+    /// reason plus one more: a duel is a couch, not a cloud, and carrying
+    /// attribution across devices would need a CloudKit record type and a
+    /// production schema deploy (PRD-27 §12).
+    @ObservationIgnored private let duelsStore =
+        CouchStored(wrappedValue: DuelLedger(), "nine.duel")
     /// PRD-31's handwriting specimens. Cloud-synced for `coachProgress`'s
     /// reason: your hand is yours, not the device's.
     @ObservationIgnored private let handStore =
@@ -687,6 +703,7 @@ final class AppModel {
         coach = coachStore.wrappedValue
         coachProgress = coachProgressStore.wrappedValue
         replays = replaysStore.wrappedValue
+        duels = duelsStore.wrappedValue
         hand = handStore.wrappedValue
         archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
@@ -1077,6 +1094,102 @@ final class AppModel {
         compose(kind: .free(difficulty), seed: .random(in: UInt64.min...UInt64.max), difficulty: difficulty)
     }
 
+    // MARK: - Pass the Remote (PRD-27)
+
+    /// The duel this board belongs to, or nil — which is every board on every
+    /// surface but the Apple TV and the drafting table.
+    var duelState: DuelState? {
+        guard let id = currentEntryID else { return nil }
+        return duels[id]
+    }
+
+    var isDuel: Bool { duelState != nil }
+
+    /// Park a duel until its board exists.
+    ///
+    /// `startFree` composes on a detached task, so `currentEntryID` is seconds
+    /// away when `startDuel` returns. Session-scoped and deliberately not
+    /// persisted: a duel that never got a board is not a duel.
+    @ObservationIgnored private var pendingDuel: DuelState?
+
+    /// Start a two-player board.
+    ///
+    /// **Always a fresh free board and never the daily.** Two people on a sofa
+    /// cannot spend the streak of whoever owns the device, and the way that is
+    /// guaranteed is that there is no door from here to `.daily` at all
+    /// (PRD-27 §7).
+    func startDuel(difficulty: Difficulty, turnLength: DuelTurnLength, isLight: Bool) {
+        pendingDuel = DuelState(
+            accent: prefs.accent.rawValue, isLight: isLight, turnLength: turnLength
+        )
+        startFree(difficulty)
+    }
+
+    /// Adopt a parked duel once its entry exists. Called from `startEntry`,
+    /// which is the single funnel every board-opening path goes through.
+    private func adoptPendingDuelIfAny() {
+        guard let pending = pendingDuel, let id = currentEntryID else { return }
+        pendingDuel = nil
+        var ledger = duels
+        ledger.set(pending, for: id)
+        duels = ledger
+    }
+
+    /// Open a turn for `player`.
+    ///
+    /// The caller has already applied the quiet correction, and that ordering is
+    /// load-bearing: an erase logged *after* this index is taken lands inside the
+    /// incoming player's range and is credited to the wrong hand (PRD-27 §5).
+    func recordDuelTurn(player: Int, startedAt: TimeInterval) {
+        guard let id = currentEntryID, var state = duels[id] else { return }
+        state.beginTurn(
+            player: player, firstMoveIndex: game?.moveLog.count ?? 0, startedAt: startedAt
+        )
+        var ledger = duels
+        ledger.set(state, for: id)
+        duels = ledger
+    }
+
+    /// Erase every wrong digit on the board, silently. Returns how many.
+    ///
+    /// Through `NineGame.erase`, so each correction is an ordinary logged move
+    /// inside the outgoing player's range rather than a mutation nothing can
+    /// see or replay. No haptic, no toast, no announcement, and no coral before
+    /// or after — the whole point is that nobody is told off in front of the
+    /// other player (PRD-27 §5).
+    @discardableResult
+    func clearDuelErrors() -> Int {
+        guard var g = game else { return 0 }
+        let wrong = g.errorCells
+        guard !wrong.isEmpty else { return 0 }
+        let stamp = moveStamp(g)
+        var cleared = 0
+        for cell in wrong where g.erase(at: cell, autoNotes: false, elapsed: stamp) {
+            cleared += 1
+        }
+        guard cleared > 0 else { return 0 }
+        game = g
+        persistProgress()
+        return cleared
+    }
+
+    /// The debrief's credits for a board, or nil if it was not a duel.
+    func duelCredits(for boardID: UUID) -> DuelCredits? {
+        guard let state = duels[boardID], let entry = library.entry(id: boardID) else { return nil }
+        // The replay's log where there is one, the live entry's otherwise —
+        // the same two-source rule `debrief(for:)` already follows, and the
+        // reason a board solved before its replay was minted still credits.
+        let moves = replays.replay(for: boardID)?.moves ?? entry.game.moveLog
+        return DuelCredits(state: state, moves: moves, solution: entry.game.puzzle.solution.cells)
+    }
+
+    /// The two players' names — their tints' names, which cost nothing to
+    /// translate because `AccentChoice.title` already goes through the catalog.
+    func duelNames(for boardID: UUID) -> [String] {
+        guard let state = duels[boardID] else { return [] }
+        return state.accents.map { AccentChoice(rawValue: $0)?.title ?? "" }
+    }
+
     // MARK: - Starting channel games (PRD-24)
 
     /// Open a channel's daily: resume today's in-progress board, or compose it.
@@ -1227,6 +1340,13 @@ final class AppModel {
             replays = vault
             try? replaysStore.flushNow()
         }
+        // …and its duel, through the same door and for the same reason.
+        var duelLedger = duels
+        duelLedger.remove(id)
+        if duelLedger != duels {
+            duels = duelLedger
+            try? duelsStore.flushNow()
+        }
         #if os(iOS)
         if wasTodayDaily { WidgetBridge.clearDailyBoard(today: todayOrdinal) }
         WidgetBridge.publish(from: self)
@@ -1267,6 +1387,9 @@ final class AppModel {
         self.solvedAt = nil
         self.lastPlacedCell = nil
         self.screen = .game
+        // PRD-27: a duel started before its board existed is adopted here,
+        // because this is the single funnel every opening path goes through.
+        adoptPendingDuelIfAny()
         #if os(macOS)
         // Which board this window is showing (PRD-33). Written here rather than in
         // each of the six callers, because this is the single funnel every one of
@@ -1698,8 +1821,18 @@ final class AppModel {
         // solve landing mid-hold (backgrounded, or under an overlay) can never
         // leave a stale hold to wedge the NEXT board started after this one.
         clockHolds.removeAll()
+        // **A duel solve is nobody's solve** (PRD-27 §7). Two people filled that
+        // board in, so every ledger that records *your* progress is skipped: the
+        // classic streak, the classic history, the archive, the channel ledger
+        // and every Game Center submission.
+        //
+        // What still happens is everything that belongs to the *board* rather
+        // than to a player — the library marks it solved and the replay is
+        // minted, because a duel has a comet and a debrief and that is the whole
+        // of §10.
+        let isDuel = self.isDuel
         var isDaily = false
-        if case .daily(let day)? = kind {
+        if !isDuel, case .daily(let day)? = kind {
             isDaily = true
             // A past-day solve must never rewrite streak state (PRD-14 §2).
             // The guard lives in the Engine because the one-argument form
@@ -1726,7 +1859,7 @@ final class AppModel {
         // channel's own streak is what its points are scored against.
         var channelSlot: Channel.Ledgered?
         var channelDay: Int?
-        if case .channel(let c, _, let day)? = kind, let slot = c.ledgered {
+        if !isDuel, case .channel(let c, _, let day)? = kind, let slot = c.ledgered {
             channelSlot = slot
             channelDay = day
             isDaily = day != nil
@@ -1774,7 +1907,7 @@ final class AppModel {
             }
             channels = ledger
             try? channelsStore.flushNow()
-        } else {
+        } else if !isDuel {
             history.record(record)
             try? historyStore.flushNow()
         }
@@ -1803,7 +1936,10 @@ final class AppModel {
             GameCenter.shared.reportSolve(
                 record: record, history: state.history, streak: state.streak,
                 channel: channelSlot)
-        } else {
+        } else if !isDuel {
+            // A duel reports nothing. A leaderboard entry naming one Apple ID
+            // for a board two people filled in is the same untruth as a history
+            // record, and it is the one that would be public.
             GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
         }
         #endif
@@ -1839,6 +1975,16 @@ final class AppModel {
         try? replaysStore.flushNow()
         cloudStore?.push(replay)
 
+        // PRD-27's duels prune on the same beat and against the same live set,
+        // because a duel board is a library board and the two blobs therefore
+        // have identical lifetimes.
+        var duelLedger = duels
+        duelLedger.prune(to: Set(library.entries.map(\.id)))
+        if duelLedger != duels {
+            duels = duelLedger
+            try? duelsStore.flushNow()
+        }
+
         // **A technique you found on your own board is a technique you have
         // met** (PRD-26 §3.4). This is the only writer, it sets a bool, and it
         // feeds `hasMet` — so PRD-25's one line in the stats drawer got truer
@@ -1868,7 +2014,12 @@ final class AppModel {
                 puzzle: puzzle,
                 solution: entry.game.puzzle.solution.cells,
                 moves: replay.moves
-            )
+            ),
+            // PRD-27 §10. Nil on every solo board, which is what keeps every
+            // other surface — the archive, the Mac, the boards sheet — printing
+            // exactly what it printed before.
+            duel: duelCredits(for: boardID),
+            names: duelNames(for: boardID)
         )
     }
 
