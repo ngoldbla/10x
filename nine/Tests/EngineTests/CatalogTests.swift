@@ -848,9 +848,16 @@ final class CatalogTests: XCTestCase {
         // ("%1$lld of %2$lld filled" — cells filled and cells to fill). The
         // twelve others the PRD added carry one index or none, including both
         // comet captions, which take a formatted time and nothing else.
-        XCTAssertEqual(keysCarryingTwoOrMore, 53, """
+        //
+        // 53 → 55 for PRD-29, and it is the two halves of one utterance:
+        // `table.seat.label` (a display name, a day count and a formatted time —
+        // the PRD's only three-argument key) and `table.seat.mine`, which is the
+        // same sentence with the name replaced by a word meaning "you" and so
+        // carries two. The seven others the PRD added take no argument at all:
+        // a heading, an invitation, two verbs, two notes and one pronoun.
+        XCTAssertEqual(keysCarryingTwoOrMore, 55, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 53 this test was calibrated against. That is fine and the \
+            not the 55 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

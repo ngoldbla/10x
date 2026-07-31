@@ -328,6 +328,20 @@ def screens():
         # a live dump disagreed.
         dict(name="channel", prefs=PREFS_ERRORS_ON, taps=["Home", "Next channel"],
              anchor="Thermo, page 2 of 3", probe=False),
+        # The History sheet, for PRD-29's table (`TableView.swift`). Its own
+        # baseline for the reason `channel` has one: no existing screen can see
+        # this surface, and a baseline that cannot see a surface will not catch
+        # it regressing.
+        #
+        # Captured in the **opted-out** state, which is the default and therefore
+        # the one every player meets: the invitation and the control that changes
+        # it. The twenty seats need a Game Center session and an App Store Connect
+        # record that does not exist, so what a baseline could pin there today is
+        # nothing — see PRD-29 §10, which says so rather than implying the lane
+        # covers more than it does.
+        dict(name="history", prefs=PREFS_ERRORS_ON,
+             taps=["Home", "SCROLL_BOTTOM", "History", "SCROLL_BOTTOM"],
+             anchor="Join the table", probe=False),
     ]
 
 

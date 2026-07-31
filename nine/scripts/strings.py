@@ -1552,6 +1552,7 @@ COMMENTS = {
     "history.section.heat": "Heading over a grid of one square per day for the last twelve weeks, shaded by how much was solved that day.",
     "history.section.avgVsBest": "Heading over a chart comparing each difficulty's average solve time with its fastest. \"vs.\" is an abbreviation — spell it out if this language has no equivalent.",
     "history.section.trend": "Heading over a line chart of the last twenty solve times.",
+    "history.section.table": "Heading over the weekly league section of the History sheet: twenty players and how their week is going. \"Table\" as in a league table / standings, NOT a piece of furniture and NOT a grid of data. Capitalised as a name — it is what this feature is called.",
     "history.trend.faster": "Shown beside the trend heading when recent solves are quicker than older ones. The triangle is a downward arrow and stays as the glyph.",
     "history.gameCenter.title": "The row that opens Apple's Game Center dashboard. A product name — use Apple's own name for it in this language.",
     "history.gameCenter.in": "Subtitle of the Game Center row when the player is signed in: what is behind it. Both are Game Center's own terms.",
@@ -1645,6 +1646,21 @@ COMMENTS = {
     "widget.board.cta": "The whole content of the playable widget before the app has published a board for today: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
     "widget.streak.ready": "The Lock Screen INLINE accessory when the run is at zero and today's board is untouched. Shares one short line with the system clock, so it is the tightest string in the app — about 20 characters. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
     "widget.streak.inline": "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
+
+    # --- PRD-29: the weekly table. The whole register of this block is
+    # "a fact about your week", never "a position against other people":
+    # nothing here may gain a word meaning rank, place, level, division,
+    # promotion or relegation, in any language. There is no cohort to be
+    # moved between — the twenty rows are a window on one global board — so
+    # such a word would name something that does not exist.
+    "table.invitation": "The one-sentence explanation of the weekly league, shown where the league would be before the player has joined it. Two facts: the size, and the ranking rule — how many of the week's daily puzzles you finished matters first, and your total time only separates people who finished the same number. NOT a pitch and NOT an urge to join; a description. The semicolon may become a full stop.",
+    "table.join": "The button that puts the player on the weekly league. A verb in the imperative. \"Table\" is a league table / standings, not furniture — it is the feature's name and matches `history.section.table`.",
+    "table.leave": "The button that takes the player off the weekly league. A verb in the imperative, and quiet — it sits below the standings as a plain text control, not a warning.",
+    "table.leave.note": "One line under the leave control, explaining exactly what leaving does: this device stops sending new results, and results already sent cannot be recalled — they expire when the week does. Do NOT translate as a promise to delete anything.",
+    "table.seat.label": "VoiceOver label for one row of the weekly standings, read as a single utterance. %1$@ is a player's Game Center display name; %2$lld is how many of the week's seven daily puzzles they finished (0-7); %3$@ is their total time already formatted as m:ss (\"12:04\"). The 7 is a constant — the week — so the noun \"days\" agrees with 7, not with %2$lld; if your language agrees with the first number instead, add the forms you need. The commas are the join; reorder the three facts if this language reads them another way. NO word for rank or position: the order of the rows is the standing and nothing says so out loud.",
+    "table.seat.mine": "The same VoiceOver label as `table.seat.label` for the player's OWN row, where the name is replaced by a word meaning \"you\". %1$lld is how many of the week's seven daily puzzles they finished (0-7); %2$@ is their total time already formatted as m:ss. Keep the same shape and the same word as `table.you`.",
+    "table.waiting": "Shown in place of the standings when the player is on the weekly league but there is nothing to show yet — a week nobody has played, or a league that has not answered. A statement of absence, not an error and not an apology.",
+    "table.you": "How the player's own row is named in the weekly standings, in place of a display name. One word, capitalised, and the same word `table.seat.mine` opens with.",
 }
 
 
