@@ -129,7 +129,10 @@ struct ParlorCometsSection: View {
         if comets.count > 1 {
             VStack(alignment: .leading, spacing: 8) {
                 Text(ParlorPhrase.sideBySide)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    // The section head is a rung above its captions rather than
+                    // a hand-set 14pt that happened to land near one — and on
+                    // the TV the ramp is couch-sized, which a literal never was.
+                    .font(CouchTypography.label)
                     .foregroundStyle(.secondary)
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(comets) { member in
@@ -155,16 +158,43 @@ struct ParlorCometsSection: View {
                     )
                 } else {
                     // An untimed or stripped log has no comet and says so with a
-                    // blank plane rather than with an apology — PRD-26's rule
+                    // quiet plane rather than with an apology — PRD-26's rule
                     // that a missing timing line is simply absent.
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(tones.gridTone.opacity(tones.isLight ? 0.07 : 0.10))
+                    //
+                    // It used to be a bare `RoundedRectangle.fill(gridTone…)`,
+                    // and beside a live comet at the same size that is not "no
+                    // moves yet", it is *a picture that failed to load*. The
+                    // fix is the material ladder rather than a darker grey: an
+                    // inset is a named region **of** the surface it sits on
+                    // (`.identity` glass plus a wash), so it reads as a slot
+                    // that was left empty on purpose. The dotted ring is the
+                    // one mark that says "nothing here" without saying "error"
+                    // — the theme's own tone, one step up in opacity from the
+                    // plane it sits on, and a single `heading` rung so it is
+                    // legible in a 150pt column without ever competing with the
+                    // comet drawn beside it.
+                    ZStack {
+                        Color.clear
+                            .couchInset(
+                                in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous),
+                                tint: tones.gridTone.opacity(tones.isLight ? 0.07 : 0.10))
+                        Image(systemName: "circle.dotted")
+                            .font(CouchTypography.heading)
+                            .foregroundStyle(tones.gridTone.opacity(tones.isLight ? 0.28 : 0.34))
+                            // The column speaks as one element with the caption
+                            // as its words; a symbol description in front of it
+                            // would be VoiceOver reading out the absence.
+                            .accessibilityHidden(true)
+                    }
                 }
             }
             .aspectRatio(1, contentMode: .fit)
 
             Text(ParlorPhrase.cometCaption(member))
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                // The caption is a clock, and a row of clocks that do not share
+                // a column of digits is a row that jitters as the times differ.
+                .font(CouchTypography.caption)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: 150)

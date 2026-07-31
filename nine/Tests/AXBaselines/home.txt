@@ -4,16 +4,17 @@
 # Regenerate: nine/scripts/ax-snapshot.py --record
 
 [Content]
-  Button "Gentle, Singles & scans"  (44,89 64x126)
-  Button "Steady, Pairs & box lines"  (169,89 64x126)
-  Button "Sharp, X-wings & deep logic"  (294,89 64x126)
-  Button "Nocturne, Fewer clues, deeper logic"  (38,265 212x64)
-  Button "Tempest, Wings & swordfish"  (38,379 176x64)
-  Button "Abyss, One digit, two colours"  (38,493 193x64)
-  Button "Play together, On a FaceTime call, everyone gets this board"  (38,607 326x64)
-[Bottom]
-  Button "Technique School"  (293,729 67x73)
-  Button "How to play"  (39,740 73x52)
-  Button "History"  (178,739 45x54)
+  Button "Previous channel" [disabled]  (79,134 44x44)
+  Heading "Classic, page 1 of 3"  (173,146 56x20)
+  Button "Next channel"  (279,134 44x44)
+  GenericElement ""  (182,186 39x7)
+  GenericElement ""  (0,205 402x28)
+  Button "Nocturne, Fewer clues, deeper logic"  (24,186 354x110)
+  Button "Tempest, Wings & swordfish"  (24,302 354x110)
+  Button "Abyss, One digit, two colours"  (24,418 354x110)
+  Button "Play together, On a FaceTime call, everyone gets this board"  (42,564 318x64)
+  Button "How to play"  (24,674 110x112)
+  Button "History"  (146,674 110x112)
+  Button "Technique School"  (268,674 110x112)
 
-# 10 elements in 2 containers
+# 12 elements in 1 container

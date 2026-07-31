@@ -21,13 +21,21 @@
 // including the comment stripper — the prose in these files discusses ranks and
 // banners at length, on purpose, and must not be able to fail the test that
 // forbids them, or to mask a real one.
+// **In `SharedTests` rather than `EngineTests`, and that is the whole of a
+// build fix.** The vocabulary clause below reads `EnglishPhrases.table`, which
+// is a `NineShared` symbol, and `NineEngineTests` depends on `NineEngine`
+// alone — so as long as this file sat next to the engine's tests the SwiftPM
+// lane could not compile at all. `swift test` has been red since PRD-29 landed;
+// the CI run on that PR failed and the branch merged anyway. `NineSharedTests`
+// already depends on both modules, so moving the file is the entire repair and
+// no manifest changes.
 import XCTest
 @testable import NineShared
 
 final class TableSealTests: XCTestCase {
 
     static let nineRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // EngineTests
+        .deletingLastPathComponent()   // SharedTests
         .deletingLastPathComponent()   // Tests
         .deletingLastPathComponent()   // nine
 

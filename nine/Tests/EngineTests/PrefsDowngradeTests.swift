@@ -46,8 +46,18 @@ final class PrefsDowngradeTests: XCTestCase {
     /// shape are copied from `AppModel.swift`. `boardAnchor` and `ambientSlot`
     /// are modelled as `String` rather than as their own enums: PRD-16 does not
     /// touch them, and what matters here is only that they survive intact.
+    ///
+    /// **The defaults are the *current* build's.** One struct models both
+    /// builds, so the two enum case lists are what vary and the defaults are
+    /// not — which is sound because the only test a default can reach is
+    /// `testNewBuildReadsA1xBlobWithMissingKeys`, and that one models the new
+    /// build by construction. `showTimer` and `boardAnchor` are copied down
+    /// from `AppModel.swift` here for that reason: the AAA layout work moved
+    /// both, and a mirror whose header claims to be a copy while holding the
+    /// previous values is worse than no mirror, because it keeps asserting a
+    /// default the app no longer has.
     struct Prefs<Theme: Codable, Accent: Codable>: Codable {
-        var showTimer = false
+        var showTimer = true
         var errorHighlight = true
         var accent: Accent
         var numberHighlight = true
@@ -73,7 +83,7 @@ final class PrefsDowngradeTests: XCTestCase {
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
-            showTimer = try c.decodeIfPresent(Bool.self, forKey: .showTimer) ?? false
+            showTimer = try c.decodeIfPresent(Bool.self, forKey: .showTimer) ?? true
             errorHighlight = try c.decodeIfPresent(Bool.self, forKey: .errorHighlight) ?? true
             accent = (try? c.decodeIfPresent(Accent.self, forKey: .accent)) ?? Self.defaultAccent
             numberHighlight = try c.decodeIfPresent(Bool.self, forKey: .numberHighlight) ?? true

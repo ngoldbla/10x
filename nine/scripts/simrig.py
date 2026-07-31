@@ -88,8 +88,38 @@ def prepare_simulator(runtime, name, device_type, erase=True, appearance="light"
     # rewrite colours (harmless to the tree, but it also re-renders the board).
     if appearance:
         run(["xcrun", "simctl", "ui", udid, "appearance", appearance], check=False)
+    pin_status_bar(udid)
     warm_up_bridge(udid)
     return udid
+
+
+def pin_status_bar(udid):
+    """Freeze the clock, the carrier and the meters at their demo values.
+
+    **Every lane that records a baseline records the status bar with it**, and
+    an unpinned clock makes those baselines rot by the minute. Measured: a
+    verify run half an hour after its own recording drifted two screens on
+    nothing but `StaticText "3:27 PM"` → `"4:10 PM"` — and the *frame* moved with
+    the text (36x20 → 35x20, 37x20 → 32x20), because a different time is a
+    different string width. So this is not something the AX lane's `mask()` can
+    absorb: masking hides the characters and leaves the geometry drifting.
+
+    9:41 is Apple's own demo time, which also makes the visual lane's frames
+    look like the marketing shots they are meant to be judged against.
+
+    Applied in `simrig` rather than in any one harness because all four lanes —
+    the AX tree, the composited-contrast matrix, the localization baselines and
+    the shotlist — boot through this function and all four record the bar.
+    """
+    run(["xcrun", "simctl", "status_bar", udid, "override",
+         "--time", "9:41",
+         "--dataNetwork", "wifi",
+         "--wifiMode", "active",
+         "--wifiBars", "3",
+         "--cellularMode", "active",
+         "--cellularBars", "4",
+         "--batteryState", "charged",
+         "--batteryLevel", "100"], check=False)
 
 
 def warm_up_bridge(udid, timeout=300.0):

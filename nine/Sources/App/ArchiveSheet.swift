@@ -54,10 +54,10 @@ struct ArchiveSheetContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: Space.xl) {
             header
             pager
-            VStack(spacing: 2) {
+            VStack(spacing: Space.hair) {
                 weekdayHeader
                 grid
             }
@@ -79,7 +79,7 @@ struct ArchiveSheetContent: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: Hit.min, height: Hit.min)
                     // SwiftUI derives an image button's AX frame from the
                     // symbol's tight glyph bounds, not the frame around it
                     // (PRD-19). Without this the target measures ~15pt.
@@ -91,7 +91,7 @@ struct ArchiveSheetContent: View {
     }
 
     private var pager: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Space.s) {
             pagerButton(Phrase.previousMonth, "chevron.left",
                         by: -1, enabled: month > ArchiveCalendar.floor)
             Text(ArchiveCalendar.title(for: month))
@@ -111,18 +111,26 @@ struct ArchiveSheetContent: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+                // Disabled is a *tone*, not a dimmer. A 17pt semibold glyph
+                // held at `.opacity(0.2)` measures 1.24:1 on a near-black
+                // ground — that is not "unavailable", that is gone — and the
+                // two other disabled sites in the app used 0.25, so the state
+                // did not even mean one thing. `.tertiary` is the system's own
+                // name for it, it survives Increase Contrast, and it leaves
+                // opacity for what opacity is good at: dimming a whole
+                // container at once.
+                .foregroundStyle(enabled ? AnyShapeStyle(.secondary)
+                                         : AnyShapeStyle(.tertiary))
+                .frame(width: Hit.min, height: Hit.min)
                 .contentShape(.accessibility, Circle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.2)
         .accessibilityLabel(label)
     }
 
     private var weekdayHeader: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: Space.hair) {
             ForEach(
                 Array(ArchiveCalendar.weekdayInitials(firstWeekday: firstWeekday).enumerated()),
                 id: \.offset
@@ -130,7 +138,7 @@ struct ArchiveSheetContent: View {
                 Text(initial)
                     .font(CouchTypography.caption)
                     .foregroundStyle(.tertiary)
-                    .frame(width: 44, height: 22)
+                    .frame(width: Hit.min, height: 22)
             }
         }
         // Decoration: every cell already announces its own full date, so a row
@@ -152,12 +160,12 @@ struct ArchiveSheetContent: View {
             if case .daily(let day) = entry.kind { return day }
             return nil
         })
-        return VStack(spacing: 2) {
+        return VStack(spacing: Space.hair) {
             ForEach(
                 Array(ArchiveCalendar.grid(for: month, firstWeekday: firstWeekday).enumerated()),
                 id: \.offset
             ) { _, row in
-                HStack(spacing: 2) {
+                HStack(spacing: Space.hair) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, ordinal in
                         if let ordinal {
                             ArchiveDayCell(
@@ -172,7 +180,7 @@ struct ArchiveSheetContent: View {
                                 action: { open(ordinal) }
                             )
                         } else {
-                            Color.clear.frame(width: 44, height: 44)
+                            Color.clear.frame(width: Hit.min, height: Hit.min)
                         }
                     }
                 }
@@ -239,7 +247,7 @@ private struct ArchiveDayCell: View {
                 background
                 mark
             }
-            .frame(width: 44, height: 44)
+            .frame(width: Hit.min, height: Hit.min)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -250,12 +258,23 @@ private struct ArchiveDayCell: View {
     }
 
     /// Position, not progress: where this day sits relative to now.
+    ///
+    /// The radius was a magic 11 — the cell's side × 0.25, which is a ratio
+    /// nothing else in the app uses — and it sat 1pt off `Radius.tile`, the
+    /// rung that means exactly "a tile inside a card". Two sheets disagreeing
+    /// by a point about how round the product is reads as a mistake rather than
+    /// as a decision, so the day cell joins the ladder.
+    ///
+    /// The today fill is unchanged at 28% accent, but it is `couchInset` now
+    /// rather than a bare `fill`: this grid is inside a `GlassSheet`, and the
+    /// inset rung keeps the cell inside the enclosing glass container (so it
+    /// still merges with its neighbours) while contributing no second lens.
     @ViewBuilder
     private var background: some View {
-        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         switch state.position {
         case .today:
-            shape.fill(accent.opacity(0.28))
+            Color.clear.couchInset(in: shape, tint: accent.opacity(0.28))
         case .past, .future, .beforeLaunch:
             if state.progress == .inProgress {
                 // A ring, not a fill: a partial is an invitation, not a state
@@ -280,7 +299,14 @@ private struct ArchiveDayCell: View {
             // A date, drawn as a numeral — `ArchiveCalendar` owns every word
             // in this grid and this is the one thing in it that is not one.
             Text(verbatim: "\(ArchiveCalendar.dayNumber(forDayOrdinal: ordinal))")
-                .font(CouchTypography.caption)
+                // `label`, not `caption`: the ramp's `caption` is the 11pt tier
+                // now (it used to be 13pt semibold), and a date is not
+                // metadata in a calendar — it is the cell's whole content, and
+                // the only thing distinguishing 31 cells from each other.
+                // Tabular, so a column of days is a column rather than a
+                // ragged one point off centre at every 1.
+                .font(CouchTypography.label)
+                .monospacedDigit()
                 .foregroundStyle(state.isPlayable ? .secondary : .tertiary)
         }
     }

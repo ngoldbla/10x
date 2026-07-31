@@ -173,6 +173,20 @@ struct RootView: View {
         // materials and secondary text follow — both platforms.
         .preferredColorScheme(model.prefs.theme.colorScheme)
         .environment(\.nineTheme, model.prefs.theme)
+        // The player's accent, planted as the environment tint (PRD-35).
+        //
+        // Nine has offered ten accents since 1.0 and `.tint` appeared exactly
+        // once in the whole tree — on the watch — so every system control in the
+        // app (toggles, steppers, pickers, the sheet's own affordances) was
+        // rendering in the stock system blue while the board beside it was
+        // Orchid. Planting it here is also what makes `GlassChip`'s new `.hero`
+        // emphasis resolve to *this* app's accent without CouchKit having to
+        // know Nine's palette.
+        //
+        // Resolved for the theme's leaning, not the system's, for the reason
+        // `SharedPalette.resolve` exists: Camel is a light theme on a phone in
+        // dark mode, and the vivid accent on Camel is PRD-22's 3.36:1.
+        .tint(accent)
         // Hand the model to App Intents (PRD-33). `@Dependency` in an intent
         // resolves through this, and a `@MainActor` class is implicitly
         // `Sendable`, which is what `AppDependencyManager` requires.
@@ -365,42 +379,303 @@ struct RootView: View {
     }
 }
 
-/// The resting background: each theme's flat backdrop. Void (true black)
-/// remains the dark default; Paper, Camel, Blueprint and Forest tint the
-/// whole plane so glass and shadows still have something to catch.
+/// Where the light comes from.
+///
+/// **One key light, named once, shared by the ground and by the breath.**
+/// `.glassEffect` is a lens, and a lens with nothing behind it draws nothing:
+/// over `VoidBackground`'s old single flat fill of pure black, every pane of
+/// glass in the app collapsed to a tint (shelf cards 1.07:1 against their page,
+/// the board card 1.03:1, the rose petals 1.026:1 — see `ThemeChoice.dark`). A
+/// ground that is uniform is the same problem one level up: even lifted off
+/// black, a *flat* ground gives the material the same value everywhere, so the
+/// glass still has no gradient to bend and no edge to catch.
+///
+/// So the ground is lit, from an off-centre **key** near the top-trailing
+/// corner. Off-centre because a centred light is the one arrangement that
+/// produces a symmetric — and therefore invisible — falloff on a rectangular
+/// screen, and near the top because that is where every physical light a person
+/// has ever looked at a screen under happens to be.
+///
+/// Round 2 added a **fill** and a **mottle** beneath it. That is not a second
+/// sun — a room has one light and several bounces — and the reason is in the
+/// round-2 section below: a single source produces a plane with one slope, and
+/// a lens displacing a single slope produces the same slope back. See
+/// `counterAnchor`.
+private enum GroundLight {
+    /// Just inside the top-trailing corner. Not *at* the corner: a source
+    /// exactly on the corner puts its brightest pixel where nothing is drawn.
+    static let anchor = UnitPoint(x: 0.88, y: 0.08)
+
+    /// The falloff radius for a surface of this size. Slightly under the
+    /// diagonal, so the opposite corner is genuinely unlit rather than merely
+    /// dimmer — that difference is the whole gradient.
+    static func radius(for size: CGSize) -> CGFloat {
+        max(max(size.width, size.height) * 0.92, 1)
+    }
+
+    /// The static peak, before the breath is added. Light grounds get less
+    /// because white on paper is an operation with nowhere to go — their plane
+    /// is shaped by the diagonal's dark end instead.
+    static func peak(isLight: Bool) -> Double { isLight ? 0.06 : 0.09 }
+
+    // MARK: Round 2 — a second source, a hue split, and a vignette
+    //
+    // **One light is not enough to refract.** A single source plus a diagonal
+    // gives the plane a monotonic ramp: brightest at one corner, darkest at the
+    // opposite one, and *linear in between*. A lens bends a gradient by
+    // displacing it, and displacing a linear ramp yields another linear ramp —
+    // which is exactly why fourteen critics looked at correctly-called
+    // `.glassEffect` and wrote "the glass refracts nothing". The eye reads
+    // refraction from **inflections**: places where the field's slope changes,
+    // so the displaced version is visibly *not* the background behind it.
+    //
+    // Three additions, none of which is readable as content:
+    //
+    //   • a **counter-light** at the opposite corner — larger, fainter, and
+    //     *cool* where the primary is warm, so the field has two slopes meeting
+    //     in the middle and glass edges pick up a hue shift as well as a
+    //     luminance one. A hue shift is the single most legible refraction cue
+    //     there is; it is why a real bevel shows colour at its edge.
+    //   • a **mottle**: one more low, wide, off-axis source that keeps the two
+    //     slopes from meeting in a straight line. This is the "large-scale
+    //     noise" of the brief, done deterministically — real noise would mean a
+    //     `ShaderLibrary` pass on the one layer in the app that should cost
+    //     nothing, and three radials already break the plane's symmetry, which
+    //     is the only property the noise was wanted for.
+    //   • a **vignette**, drawn *under* all three so the corners fall away and
+    //     the sources still read. It is also the luminance budget: the two new
+    //     sources add roughly what the vignette takes back, which is what keeps
+    //     the composited board where `Tests/ContrastBaselines` measured it.
+    //
+    // The two colours are barely colours. `warm` is 1.000/0.972/0.925 and
+    // `cool` is 0.804/0.870/1.000 — at the alphas below they move the ground by
+    // one or two levels per channel. That is the correct amount: enough for the
+    // material's edge sampling to find, far too little to see as a tint.
+
+    /// The counter-light, diagonally opposite `anchor` and near the bottom
+    /// leading corner. Not *at* it, for the same reason `anchor` is not at its
+    /// own corner.
+    static let counterAnchor = UnitPoint(x: 0.10, y: 0.90)
+
+    /// Wider than the primary — 1.35× the long edge rather than 0.92× — because
+    /// a second source that falls off as fast as the first reads as a second
+    /// lamp. A bounce fills the room instead.
+    static func counterRadius(for size: CGSize) -> CGFloat {
+        max(max(size.width, size.height) * 1.35, 1)
+    }
+
+    /// Lower than the primary at both leanings: this is the fill, not the key.
+    static func counterPeak(isLight: Bool) -> Double { isLight ? 0.05 : 0.055 }
+
+    /// The third inflection, mid-plane and off both axes.
+    static let mottleAnchor = UnitPoint(x: 0.30, y: 0.46)
+
+    static func mottleRadius(for size: CGSize) -> CGFloat {
+        max(max(size.width, size.height) * 0.55, 1)
+    }
+
+    static func mottlePeak(isLight: Bool) -> Double { isLight ? 0.022 : 0.026 }
+
+    /// How dark the corners fall. Dark grounds can afford four times what paper
+    /// can: on `#0C0C0F` a 13% black corner is still above zero, while on paper
+    /// anything past ~5% starts reading as a photographic effect.
+    static func vignette(isLight: Bool) -> Double { isLight ? 0.05 : 0.13 }
+
+    /// The vignette's clear radius. Under the long edge, so the corners sit
+    /// past the final stop and hold its colour — a vignette that only reaches
+    /// full strength *outside* the frame is a vignette nobody can see.
+    static func vignetteRadius(for size: CGSize) -> CGFloat {
+        max(max(size.width, size.height) * 0.78, 1)
+    }
+
+    /// The key light's colour. Every light a person reads under is warm; a pure
+    /// white key is the tell of a UI that was specified rather than lit.
+    static let warm = Color(red: 1.000, green: 0.972, blue: 0.925)
+
+    /// The fill's colour on a dark ground: sky, which is what a cool bounce is.
+    static let cool = Color(red: 0.804, green: 0.870, blue: 1.000)
+
+    /// The fill's colour on a light ground. On paper an *added* light does
+    /// nothing — the same argument `BreathingVoid` makes for inverting its
+    /// breath — so the counter-source becomes a cool shade instead of a cool
+    /// glow, and the hue split survives the inversion.
+    static let coolShade = Color(red: 0.498, green: 0.549, blue: 0.659)
+
+    /// The mottle's colour on a light ground: the warm counterpart of
+    /// `coolShade`, so the mid-plane inflection leans the opposite way from the
+    /// corner fill on paper exactly as it does on Void.
+    static let warmShade = Color(red: 0.702, green: 0.643, blue: 0.565)
+}
+
+/// The resting background: each theme's backdrop, **lit**.
+///
+/// Six layers, and every one of them is a contrast or a refraction fix rather
+/// than a decoration:
+///
+/// 1. The theme's ground (Void is now #0C0C0F rather than #000000 — the lift
+///    that gives the material something to refract at all).
+/// 2. A diagonal `LinearGradient`: +5.5% white at `.topLeading`, −4% black at
+///    `.bottomTrailing`. On a dark theme that is roughly a 2× luminance range
+///    across the plane, which is what makes a card's own edge visible against
+///    the page *wherever* on the page it happens to sit.
+/// 3. A **vignette**, under the sources rather than over them, so the corners
+///    fall away without eating the key light that sits near one of them.
+/// 4. The off-centre `RadialGradient` key light, now warm.
+/// 5. A wider, fainter, **cool counter-light** at the opposite corner.
+/// 6. A mid-plane **mottle** so the two slopes do not meet along a straight
+///    line.
+///
+/// Layers 3–6 are round 2's answer to the one blocker ten of fourteen critics
+/// wrote independently — "the glass refracts nothing". `GroundLight`'s comment
+/// carries the argument: a lens displaces the field behind it, so a field with
+/// a single slope refracts to a field with a single slope and the material
+/// disappears. What survives displacement is an *inflection*, and layers 5 and
+/// 6 exist to put two of them on the plane. Nothing here is visible as content;
+/// the whole stack moves the ground by a handful of levels.
+///
+/// Every gradient passes through explicit zero-alpha stops of its own colour
+/// rather than through `.clear`. `Color.clear` is black at zero alpha, and
+/// SwiftUI interpolates gradient stops in unpremultiplied space, so a
+/// `white → .clear` ramp travels through a grey haze on the way down. At these
+/// opacities that is a one-or-two-level muddiness, which is exactly the scale
+/// the whole change is operating at.
 struct VoidBackground: View {
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        theme.tones(for: colorScheme).background
-            .ignoresSafeArea()
+        let tones = theme.tones(for: colorScheme)
+        let isLight = tones.isLight
+        // On paper an added light is an operation with nowhere to go, so the
+        // fill and the mottle invert to shades — the same inversion
+        // `BreathingVoid` makes, for the same reason.
+        let fill = isLight ? GroundLight.coolShade : GroundLight.cool
+        let mottle = isLight ? GroundLight.warmShade : GroundLight.warm
+        GeometryReader { geo in
+            ZStack {
+                tones.background
+                LinearGradient(
+                    stops: [
+                        // On a light ground the bright end has almost nowhere to
+                        // go — paper is already 240/255 — so a light theme's
+                        // gradient is carried by its dark end instead, and the
+                        // two stops are deliberately asymmetric.
+                        .init(color: .white.opacity(isLight ? 0.06 : 0.055), location: 0),
+                        .init(color: .white.opacity(0), location: 0.45),
+                        .init(color: .black.opacity(0), location: 0.55),
+                        .init(color: .black.opacity(isLight ? 0.07 : 0.040), location: 1),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                // 3 — the vignette. Deliberately below the three sources: a
+                // vignette on top would darken the key light's own corner,
+                // which is the one place the plane is supposed to be brightest.
+                RadialGradient(
+                    stops: [
+                        .init(color: .black.opacity(0), location: 0.42),
+                        .init(
+                            color: .black.opacity(GroundLight.vignette(isLight: isLight)),
+                            location: 1),
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: GroundLight.vignetteRadius(for: geo.size)
+                )
+                // 4 — the key.
+                RadialGradient(
+                    stops: [
+                        .init(
+                            color: GroundLight.warm
+                                .opacity(GroundLight.peak(isLight: isLight)),
+                            location: 0),
+                        .init(color: GroundLight.warm.opacity(0), location: 1),
+                    ],
+                    center: GroundLight.anchor,
+                    startRadius: 0,
+                    endRadius: GroundLight.radius(for: geo.size)
+                )
+                // 5 — the fill, opposite and cool.
+                RadialGradient(
+                    stops: [
+                        .init(
+                            color: fill.opacity(GroundLight.counterPeak(isLight: isLight)),
+                            location: 0),
+                        .init(color: fill.opacity(0), location: 1),
+                    ],
+                    center: GroundLight.counterAnchor,
+                    startRadius: 0,
+                    endRadius: GroundLight.counterRadius(for: geo.size)
+                )
+                // 6 — the mottle.
+                RadialGradient(
+                    stops: [
+                        .init(
+                            color: mottle.opacity(GroundLight.mottlePeak(isLight: isLight)),
+                            location: 0),
+                        .init(color: mottle.opacity(0), location: 1),
+                    ],
+                    center: GroundLight.mottleAnchor,
+                    startRadius: 0,
+                    endRadius: GroundLight.mottleRadius(for: geo.size)
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 
-/// The almost-subliminal background luminance breath (PRD §6): 8%–10% peak
-/// luminance on a 60-second period, so long sessions never feel static.
-/// On light-leaning themes the breath inverts — a whisper of shadow
-/// instead of light.
+/// The almost-subliminal background luminance breath (PRD §6): a 60-second
+/// period, so long sessions never feel static.
+///
+/// **It used to be unmeasurable.** The shipped version peaked at
+/// `white × 0.045` and spread it over a fixed 1600pt radius from screen centre,
+/// which after falloff put **3/255** on the plane — a breath nobody could see
+/// on any display, animating every half-second for the life of the session.
+///
+/// Two changes, and the second is the design one. Its amplitude is now large
+/// enough to read (0 → 0.045 *on top of* the ground's static 0.09, so the
+/// source swings between 9% and 13.5%), and it modulates
+/// `GroundLight` — the same anchor, the same falloff — instead of being a second
+/// light in the middle of the screen. A room does not have two suns. What
+/// breathes is the one light the ground already has.
 struct BreathingVoid: View {
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.5)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            let breath = 0.09 + 0.01 * sin(t * 2 * .pi / 60)
-            RadialGradient(
-                colors: [
-                    theme.tones(for: colorScheme).isLight
-                        ? Color.black.opacity(breath * 0.25)
-                        : Color.white.opacity(breath * 0.5),
-                    .clear,
-                ],
-                center: .center,
-                startRadius: 0,
-                endRadius: 1600
-            )
+        let isLight = theme.tones(for: colorScheme).isLight
+        // The breath modulates the *key*, so it has to be the key's colour. It
+        // was pure white, which meant the one moving light on the plane pulsed
+        // very slightly cooler than the light it was modulating — a hue
+        // wobble at 60-second period, which is the least useful animation in
+        // the app. On paper it stays a shadow, per the inversion below.
+        let breathColor = isLight ? Color.black : GroundLight.warm
+        GeometryReader { geo in
+            TimelineView(.animation(minimumInterval: 0.5)) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                // 0…1, one cycle a minute, starting at the trough so a launch
+                // screenshot is never caught at an untypical peak.
+                let breath = 0.5 - 0.5 * cos(t * 2 * .pi / 60)
+                // On light-leaning themes the breath inverts: a whisper of
+                // shadow rather than of light, because adding white to paper is
+                // an operation with nowhere to go.
+                let tip = isLight ? 0.030 : 0.045
+                RadialGradient(
+                    stops: [
+                        .init(
+                            color: breathColor.opacity(breath * tip),
+                            location: 0),
+                        .init(
+                            color: breathColor.opacity(0),
+                            location: 1),
+                    ],
+                    center: GroundLight.anchor,
+                    startRadius: 0,
+                    endRadius: GroundLight.radius(for: geo.size)
+                )
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)

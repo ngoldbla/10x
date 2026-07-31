@@ -23,6 +23,10 @@ struct TouchHomeView: View {
     @State private var showSchool = false
     @State private var showBoards = false
     @State private var showArchive = false
+    /// Preferences, from the shelf. Until now the *only* door to them was the
+    /// gear in the game screen's control bar, so a player who had not started a
+    /// board could not reach their own theme, accent or timer pref at all.
+    @State private var showPrefs = false
     /// The variants teaser's answer, swapped in place of its own subtitle so
     /// the shelf never grows a floating chip nobody asked for.
     @Environment(\.colorScheme) private var colorScheme
@@ -34,6 +38,10 @@ struct TouchHomeView: View {
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    /// The ground the shelf's chrome has to agree with — the bar's fade, the
+    /// hero card's ink, the scrims.
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
 
     /// Either half of the first run is still owed (PRD-34 + PRD-18).
     private var showsFirstRun: Bool { !model.welcomeSeen || !model.helpSeen }
@@ -52,25 +60,55 @@ struct TouchHomeView: View {
     var body: some View {
         ZStack {
             GeometryReader { geo in
+                // PRD-31, retuned in round 2. The shelf used to ask
+                // `BoardCompositionRules.resolve` — the *game screen's*
+                // question — and so drew one 560pt ribbon down the middle of an
+                // 834pt iPad in portrait with 137pt of dead ground on each
+                // side, which two critics reported independently as "a phone
+                // layout stretched". A portrait iPad genuinely cannot seat a
+                // 360pt stats rail beside a full board, and just as genuinely
+                // can seat two columns of cards. `resolveShelf` is that second
+                // question; `theTableIsAlwaysAlsoAShelfPair` pins that the two
+                // can still never disagree in the direction that would matter.
+                let shelf = BoardCompositionRules.resolveShelf(
+                    width: Double(geo.size.width), height: Double(geo.size.height))
                 ScrollView {
-                    // PRD-31. On a window wide enough for the drafting table,
-                    // the shelf splits rather than sitting as a 560pt ribbon in
-                    // the middle of 800pt of nothing. The split is decided by
-                    // the *same* function the game screen uses — one answer to
-                    // "is this a regular-width window", so the two screens can
-                    // never disagree about whether a window is one, and Stage
-                    // Manager gets the composition right on both at once.
-                    if BoardCompositionRules
-                        .resolve(width: Double(geo.size.width),
-                                 height: Double(geo.size.height)).table != nil {
-                        shelfPair
+                    if let pair = shelf.pair {
+                        shelfPair(pair)
                     } else {
                         shelfColumn
                     }
                 }
+                // The last card cleared the home indicator by nothing at all:
+                // measured on `iphone-light-home.png`, the bottom bar printed
+                // straight across the Tempest row's subtitle. The scroll edge
+                // fades the pixels; only a content inset moves them.
+                .contentMargins(.bottom, Space.hero, for: .scrollContent)
+                // The status bar used to sit on bare card fill: measured on
+                // `iphone-dark-home-bottom.png`, the Continue card's 28/255 fill
+                // ran to y = 0 and its white "Continue" glyph read at 244/255
+                // directly behind the 8:52 clock. `scrollEdgeEffect`,
+                // `safeAreaInset` and `contentMargins` returned zero hits across
+                // the whole iOS layer. Both edges: the bottom one is what keeps
+                // the last card from colliding with the home indicator.
+                .nineSoftScrollEdges()
+                // The wordmark and the pager come out of the scrolling content
+                // and become a bar that is always there. They were the first two
+                // rows of a `VStack` — so on the second screenful of a long
+                // shelf there was nothing on screen naming the app or saying
+                // which channel page you were on.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    shelfBar(width: CGFloat(shelf.contentWidth))
+                }
                 // Above the `ScrollView`'s own content and simultaneous with it, so
                 // the shelf still scrolls vertically and the six cards still take
                 // taps. See `pageTurnGesture` for the three traps.
+                //
+                // **After `safeAreaInset`, not before.** A modifier applied to
+                // the inset view's parent covers the inset content too, and the
+                // pager rail is the one surface where a sideways stroke is most
+                // obviously a page turn — attached to the `ScrollView` itself it
+                // would have stopped working the moment the rail moved out of it.
                 .simultaneousGesture(pageTurnGesture)
             }
             // The scrim swallows touches, but a hit-test is not the whole
@@ -91,6 +129,7 @@ struct TouchHomeView: View {
         .animation(.couchFast, value: model.helpSeen)
         .animation(.couchFast, value: model.pendingGraceDay)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
+        .overlay { GlassSheet(isPresented: $showPrefs) { PrefsSheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
         .overlay {
             GlassSheet(isPresented: $showArchive) {
@@ -116,24 +155,107 @@ struct TouchHomeView: View {
     }
 
     /// The phone's shelf. Classic's page is unchanged below the pager rail.
+    ///
+    /// The eight slabs it used to be are now three named groups — what you have
+    /// (grace · today · continue · boards), what you could start (the free-play
+    /// section and the parlor), and the ways to learn — with `Space.xxl` between
+    /// groups and `Space.xl` inside one, so the eye is told where a section ends
+    /// by the layout instead of having to read every card to find out.
+    ///
+    /// **The rhythm is two rungs and only two**, which it was not: the audit
+    /// measured ~45pt between the three mode cards, ~85pt before "Play
+    /// together" and then ~40pt before the utility row — a gap *between* groups
+    /// that was tighter than the gap *inside* one, so the bottom trio read as
+    /// attached to the card above it. `Space.l` inside a group, `Space.xxl`
+    /// between groups, nothing else.
     private var shelfColumn: some View {
-        VStack(spacing: 20) {
-            header
-            ChannelPagerRail(model: model, accent: accent)
+        VStack(spacing: Space.xxl) {
             if let ledgered = model.channel.ledgered {
                 ChannelShelfContent(model: model, channel: ledgered, accent: accent)
             } else {
-                graceCard
-                todayCard
-                continueCard
+                VStack(spacing: Space.l) {
+                    graceCard
+                    todayCard
+                    continueCard
+                }
                 boardsSection
-                freePlayRow
+                freePlaySection
+                parlorCard
                 learnRow
             }
         }
-        .padding(20)
-        .frame(maxWidth: 560)
-        .frame(maxWidth: .infinity) // center the column on iPad
+        .padding(CGFloat(BoardCompositionRules.shelfOuterPadding))
+        .frame(maxWidth: CGFloat(BoardCompositionRules.shelfColumnWidth))
+        .frame(maxWidth: .infinity) // center the column on a window with room
+    }
+
+    /// The persistent top bar: the wordmark, the streak and points, the two
+    /// utilities, and the channel pager under them.
+    ///
+    /// It is a `safeAreaInset` rather than the first rows of the scrolling
+    /// column, which is what lets its glass run *under* the status bar — the
+    /// background ignores the top safe area while the content does not, so the
+    /// clock has a blurred plane to sit on and the shelf scrolls beneath it.
+    ///
+    /// **Two things about it were the round-1 blocker, reported on four
+    /// separate frames, and both were the background.**
+    ///
+    ///  * `couchGlassOverContent(in: Rectangle())` painted an L1 plate whose
+    ///    bottom edge is a razor-straight full-bleed line across the whole
+    ///    window — measured on `iphone-dark-home-bottom.png` bisecting the
+    ///    Gentle/Steady/Sharp titles and orphaning their subtitles below it.
+    ///    That plate was also drawn *on top of* the `.scrollEdgeEffectStyle`
+    ///    that is already applied two modifiers up, so the system's own fade
+    ///    was covered by a hard-terminated rectangle. `couchGlassBar` is the
+    ///    rung for a bar over live content: a specular top rim and no hard
+    ///    bottom edge.
+    ///  * There was nothing between the bar and the content, so a section head
+    ///    scrolling under it read *through* it — the "two large titles at once,
+    ///    ghosted Play behind Nine" finding. The tail below is the progressive
+    ///    fade Weather and Fitness use: the ground's own colour at half
+    ///    strength, dissolving to nothing over `Space.xxl`, drawn *past* the
+    ///    bar's own bounds so the boundary has a gradient instead of an edge.
+    ///
+    /// The width is the *shelf's* width, not 1080. The bar clamped to one
+    /// number and the cards to another, which is two of the "three competing
+    /// alignment origins in the top 300pt" the audit measured; now the wordmark
+    /// and the first card share one leading margin by construction.
+    private func shelfBar(width: CGFloat) -> some View {
+        VStack(spacing: Space.m) {
+            header
+            ChannelPagerRail(model: model, accent: accent)
+        }
+        .padding(.horizontal, CGFloat(BoardCompositionRules.shelfOuterPadding))
+        .padding(.bottom, Space.m)
+        .frame(maxWidth: width)
+        .frame(maxWidth: .infinity)
+        .background {
+            Color.clear
+                // The bar's *plane* reaches the top of the display; its content
+                // does not. Without this the material starts below the status
+                // bar and the clock is back on bare card fill, which is the
+                // whole defect this bar exists to fix.
+                .couchGlassBar(in: Rectangle(), isLight: tones.isLight)
+                .ignoresSafeArea(edges: .top)
+                .overlay(alignment: .bottom) { shelfBarTail }
+        }
+    }
+
+    /// The bar's dissolve. Deliberately the theme's own ground rather than
+    /// black: on Blueprint or Ember a black tail is a bruise, and the whole
+    /// point of the mark is that the eye should not be able to find where the
+    /// bar stops.
+    private var shelfBarTail: some View {
+        LinearGradient(
+            colors: [tones.background.opacity(0.55), tones.background.opacity(0)],
+            startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: Space.xxl)
+        // Below the bar's own bounds, not inside them — inside, it would be a
+        // second plate on the plate it is supposed to be softening.
+        .offset(y: Space.xxl)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: The page-turn (PRD-24)
@@ -186,8 +308,9 @@ struct TouchHomeView: View {
     /// ways to learn. So the eye goes left for "where was I" and right for
     /// "what now", which is the same question order the phone asks by scrolling.
     ///
-    /// The header spans both, because a wordmark that sat in one column would
-    /// read as that column's title.
+    /// The header used to span both, because a wordmark that sat in one column
+    /// would read as that column's title; it is now the floating `shelfBar`
+    /// above both, which says the same thing permanently.
     /// **`fixedSize(vertical:)` on each column is load-bearing, and driving the
     /// iPad is what found that.** `todayCard` carries `minHeight: 130` with no
     /// maximum, which makes it flexible *upward* — it accepts any height it is
@@ -197,10 +320,16 @@ struct TouchHomeView: View {
     /// concrete height, `VStack` divides the surplus between the card and the
     /// trailing `Spacer`, and Today inflates to half the screen. A latent
     /// property of shipped code that only a second column could expose.
-    private var shelfPair: some View {
-        VStack(spacing: 20) {
-            header
-            ChannelPagerRail(model: model, accent: accent)
+    ///
+    /// **Round 2 measures the columns rather than dividing the window.** Both
+    /// columns took `maxWidth: .infinity` inside a 1080pt clamp, which is fine
+    /// at 1194pt and wrong at 2560: an external display drew two 500pt-plus
+    /// bands of card. `ShelfPair` hands over the width it decided on, and
+    /// `testTheShelfPairFitsAndStopsGrowing` sweeps every window for it.
+    private func shelfPair(_ pair: ShelfPair) -> some View {
+        let column = CGFloat(pair.columnWidth)
+        let gutter = CGFloat(pair.gutter)
+        return VStack(spacing: gutter) {
             if let ledgered = model.channel.ledgered {
                 // A channel page is one column's worth of cards, so in the
                 // two-column composition it takes the leading column and the
@@ -208,35 +337,37 @@ struct TouchHomeView: View {
                 // and belong on every page. `fixedSize(vertical:)` on both for
                 // PRD-31's reason: Today carries `minHeight` with no maximum and
                 // inflates to half the screen without it.
-                HStack(alignment: .top, spacing: 20) {
+                HStack(alignment: .top, spacing: gutter) {
                     ChannelShelfContent(model: model, channel: ledgered, accent: accent)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .top)
-                    VStack(spacing: 20) { learnRow }
+                        .frame(width: column, alignment: .top)
+                    VStack(spacing: Space.xxl) { learnRow }
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        .frame(width: column, alignment: .top)
                 }
             } else {
-                HStack(alignment: .top, spacing: 20) {
-                    VStack(spacing: 20) {
-                        graceCard
-                        todayCard
-                        continueCard
+                HStack(alignment: .top, spacing: gutter) {
+                    VStack(spacing: Space.xxl) {
+                        VStack(spacing: Space.l) {
+                            graceCard
+                            todayCard
+                            continueCard
+                        }
                         boardsSection
                     }
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    VStack(spacing: 20) {
-                        freePlayRow
+                    .frame(width: column, alignment: .top)
+                    VStack(spacing: Space.xxl) {
+                        freePlaySection
+                        parlorCard
                         learnRow
                     }
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .top)
+                    .frame(width: column, alignment: .top)
                 }
             }
         }
-        .padding(24)
-        .frame(maxWidth: 1080)
+        .padding(CGFloat(pair.outerPadding))
         .frame(maxWidth: .infinity)
     }
 
@@ -265,8 +396,49 @@ struct TouchHomeView: View {
                     StreakChip(days: model.displayedStreak, held: model.streakHeld)
                 }
             }
+            // The utilities. Every other door to these was inside something
+            // else: the archive hid behind a 20pt glyph in the Today card's
+            // corner, and Preferences existed only in the *game* screen's
+            // control bar — so a player who had not opened a board could not
+            // reach their own theme or accent at all. Two 44pt discs in the one
+            // bar that is always on screen.
+            //
+            // **They are one capsule now, and three separate findings said so.**
+            // *"The calendar and gear circles intersect by ~10pt, so both
+            // outlines cut through each other and form a lens shape between
+            // them"*; *"tangent with ~1pt of air; the two ambient shadows fuse
+            // into a single grey smear"*; *"the discs are DARKER than the bar
+            // they sit in, so they read as punched holes rather than raised
+            // controls"*. All three are the same mistake: two standalone
+            // `.regular` discs, each with its own rim and its own shadow,
+            // 4pt apart on a bar that is itself glass. The fix is the one the
+            // game toolbar already took in round 2 — one capsule of bar
+            // material with both tools *inset* into it (`inBar: true` drops each
+            // disc's own pane and its shadow), at the 12pt gutter that stops
+            // rings touching. Which is also, as the finding says, how iOS 26
+            // groups toolbar glass.
+            CouchGlassContainer(spacing: Space.m) {
+                HStack(spacing: Space.m) {
+                    GlassIconButton(symbol: "calendar",
+                                    label: Strings.string("archive.title"),
+                                    inBar: true) {
+                        showArchive = true
+                    }
+                    // The hint travels with the label — the archive's AX
+                    // identity moved off the Today card, it did not evaporate.
+                    .accessibilityHint(Strings.string("shelf.archive.hint"))
+                    GlassIconButton(symbol: "gearshape",
+                                    label: Strings.string("game.control.settings"),
+                                    inBar: true) {
+                        showPrefs = true
+                    }
+                }
+                .padding(.horizontal, Space.s)
+                .padding(.vertical, Space.xs)
+                .couchGlassBar(in: Capsule(), isLight: tones.isLight)
+            }
         }
-        .padding(.top, 8)
+        .padding(.top, Rhythm.dock)
     }
 
     // MARK: Learn + records
@@ -274,39 +446,46 @@ struct TouchHomeView: View {
     /// Three across, matching the free-play row above it. School joins the
     /// tutorial and the records rather than hiding inside the tutorial: it is
     /// a place a player returns to, and the tutorial is a thing you do once.
+    ///
+    /// **The three tiles are one row now, and they were not.** Measured on a
+    /// 402pt phone the cards came out 104.7 / 106.0 / 110.0 pt tall with tops at
+    /// 712.3 / 711.7 / 709.7 — neither edge aligned, on three cards that are
+    /// deliberately identical. Nothing in the layout said so: the glyphs were
+    /// sized only by `.font`, so each tile's height was set by its own SF
+    /// Symbol's tight bounds (a trophy is taller than a question mark), and the
+    /// one two-line title added a line the others did not reserve. An explicit
+    /// glyph box and a reserved second text line make the row's geometry the
+    /// layout's decision instead of the typeface's.
     private var learnRow: some View {
-        HStack(spacing: 14) {
-            TouchCard(action: { showTutorial = true }) {
-                VStack(spacing: 10) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(Strings.string("tutorial.title"))
-                        .font(CouchTypography.caption)
-                }
-                .frame(maxWidth: .infinity, minHeight: 74)
+        HStack(spacing: Space.m) {
+            learnTile("questionmark.circle", Strings.string("tutorial.title")) {
+                showTutorial = true
             }
-            TouchCard(action: { showHistory = true }) {
-                VStack(spacing: 10) {
-                    Image(systemName: "trophy")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(Strings.string("history.title"))
-                        .font(CouchTypography.caption)
-                }
-                .frame(maxWidth: .infinity, minHeight: 74)
+            learnTile("trophy", Strings.string("history.title")) { showHistory = true }
+            learnTile("graduationcap", Strings.string("school.title")) { showSchool = true }
+        }
+    }
+
+    private func learnTile(
+        _ symbol: String, _ title: String, action: @escaping @MainActor () -> Void
+    ) -> some View {
+        TouchCard(action: action, radius: Radius.card) {
+            VStack(spacing: Space.s) {
+                Image(systemName: symbol)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    // The box, not the glyph: 30×26 is the widest and tallest of
+                    // the three at 24pt, so every tile now starts its title on
+                    // the same baseline.
+                    .frame(width: 30, height: 26)
+                Text(title)
+                    .font(CouchTypography.caption)
+                    .multilineTextAlignment(.center)
+                    // Reserved, so the two one-line titles hold the space the
+                    // two-line one takes and all three cards end level.
+                    .lineLimit(2, reservesSpace: true)
             }
-            TouchCard(action: { showSchool = true }) {
-                VStack(spacing: 10) {
-                    Image(systemName: "graduationcap")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(Strings.string("school.title"))
-                        .font(CouchTypography.caption)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, minHeight: 74)
-            }
+            .frame(maxWidth: .infinity, minHeight: 66)
         }
     }
 
@@ -346,7 +525,10 @@ struct TouchHomeView: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .couchGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                // `Radius.sheet`, the same rung as the full-width cards it sits
+                // above — this card is one of them in every way but its type.
+                .couchGlass(in: RoundedRectangle(cornerRadius: Radius.sheet,
+                                                 style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
@@ -358,50 +540,161 @@ struct TouchHomeView: View {
 
     // MARK: Today
 
+    /// The front door's one primary action, and now visibly one.
+    ///
+    /// Three things made it a peer of the seven slabs under it rather than the
+    /// thing you came here to press:
+    ///
+    ///  * **It was the same glass as everything else.** It is `.regular` **with
+    ///    the player's accent in it** now — CouchKit's L3 rung exists for "the
+    ///    one surface on screen that outranks the others", and if the daily is
+    ///    not that surface then nothing is.
+    ///  * **It stated a status where a button states a verb.** `todayStatus` was
+    ///    inert grey text — "One a day", "Continue · 64%" — so the card said
+    ///    what it *is* and never what pressing it *does*. The verb now rides a
+    ///    filled accent capsule, which is also the only filled shape on the
+    ///    shelf: Begin, Continue, Solved, Composing.
+    ///  * **It had a hole in the middle.** Title 36 + 8 + date 16 + status 20 is
+    ///    80pt of content inside a `minHeight: 130`, so `Spacer(minLength: 12)`
+    ///    resolved to a **50pt void** down the centre of the primary call to
+    ///    action. The minimum is gone and the card is the height of what is in
+    ///    it. The `.padding(.trailing, 44)` went with it — it reserved a 62pt
+    ///    dead gutter down 166pt of card for a 20pt glyph that has moved to the
+    ///    permanent bar, where the archive is reachable from every page instead
+    ///    of only from this card's corner.
+    /// How much accent goes *into* Today's glass.
+    ///
+    /// Not 1.0, and the first build at 1.0 is the argument: `.regular.tint()`
+    /// takes the colour's own alpha, so a full-strength accent stops being a
+    /// tinted material and becomes a flat opaque slab — the card lost every
+    /// trace of glass, became the loudest thing on the screen by a wide margin,
+    /// and swallowed the filled accent capsule sitting on it, so the one verb
+    /// on the shelf read as plain text on blue. A tint is supposed to say
+    /// "this one is primary", not "this one is a system alert".
+    ///
+    /// At this weight the glass still refracts the ground behind it, the hue is
+    /// unmistakable next to seven untinted siblings, and the capsule — the only
+    /// *filled* accent shape on the shelf — reads as a step above the card it
+    /// sits on rather than as a hole in it.
+    private static let todayTint = 0.28
+
+    /// Where the light on the hero card is coming from.
+    ///
+    /// **The card was reported as "a flat, desaturated navy ramp fenced by a
+    /// hard 1px blue stroke" — a bordered web panel, not lit glass.** A tint is
+    /// a filter, and a filter applied evenly across 300×130pt has no gradient in
+    /// it at all, so the one primary surface on the shelf had less luminance
+    /// structure than the untinted cards beside it. This is the lamp: a radial
+    /// anchored near the verb capsule (the thing the eye is going to), bright
+    /// where the action is and gone by the opposite corner.
+    ///
+    /// Deliberately **not** `.blendMode(.plusLighter)`, which is what a lamp
+    /// like this wants and what a `.background` cannot safely have: a blend mode
+    /// composites against the whole backdrop group, so on a glass card it
+    /// reaches past the card and lights the page behind it. A plain white
+    /// radial inside the card's own clip is the version that stays where it is
+    /// put.
+    private var todayHighlight: some View {
+        RadialGradient(
+            colors: [.white.opacity(tones.isLight ? 0.28 : 0.16), .white.opacity(0)],
+            center: UnitPoint(x: 0.84, y: 0.12),
+            startRadius: 0,
+            endRadius: 260
+        )
+        .allowsHitTesting(false)
+    }
+
     private var todayCard: some View {
-        TouchCard(action: { model.openToday() }) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(Strings.string("shelf.today.title"))
-                    .couchText(CouchTypography.title)
-                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                todayStatus
+        TouchCard(action: { model.openToday() },
+                  radius: Radius.sheet,
+                  tint: accent.opacity(Self.todayTint)) {
+            HStack(alignment: .top, spacing: Space.l) {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Text(Strings.string("shelf.today.title"))
+                        .couchText(CouchTypography.title)
+                    Text(Date.now.formatted(date: .abbreviated, time: .omitted))
+                        .couchText(CouchTypography.caption, .secondary)
+                    todayStatus
+                }
+                Spacer(minLength: Space.s)
+                todayVerb
             }
-            // Room for the archive glyph, so a long status line never runs
-            // under it.
-            .padding(.trailing, 44)
-            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            // `padding(-18)` cancels `TouchCard`'s own 18pt inset so the lamp
+            // reaches the card's edges, and the clip is the card's own corner —
+            // without both, the gradient is still bright where its frame stops
+            // and draws the hard rectangle it exists to replace.
+            //
+            // **Clip first, then expand.** The other order clips at the
+            // *content's* bounds and throws the 36pt the negative padding just
+            // bought away, which is the whole point of the pair; a modifier's
+            // frame is its child's, and here the child has to be the expanded
+            // one.
+            .background {
+                todayHighlight
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sheet,
+                                                style: .continuous))
+                    .padding(-18)
+            }
         }
         // Composing the daily is its own state on this card, so only a *foreign*
         // compose disables it.
         .disabled(composeInFlight && !isComposingDaily)
-        // PRD-14. An **overlay on** the card, never a button **inside** it: a
-        // Button nested in `TouchCard`'s Button is merged by SwiftUI, and the
-        // merge takes the inner frame — measured live, the Today card's own
-        // accessibility element collapsed from 89×129 to the glyph's 44×44 and
-        // the archive button disappeared from the tree entirely. Nothing on
-        // screen changes when that happens, which is exactly the failure
-        // EXECUTING-A-PRD §4 exists for. As an overlay the two are siblings.
-        //
-        // (The Continue card's discard ✕ is nested and has the same defect —
-        // its own element is absent from `home.txt` too. Out of scope here, and
-        // recorded in DEVIATIONS.)
-        .overlay(alignment: .topTrailing) {
-            Button { showArchive = true } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(.accessibility, Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Strings.string("archive.title"))
-            .accessibilityHint(Strings.string("shelf.archive.hint"))
-            .padding(.trailing, 8)
-            .padding(.top, 8)
+    }
+
+    /// The filled capsule: what pressing this card will do, in a word.
+    ///
+    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
+    /// and a Button nested in `TouchCard`'s Button is merged by SwiftUI, which
+    /// takes the inner frame with it (PRD-14 measured the Today card's own
+    /// accessibility element collapsing from 89×129 to a 44×44 glyph). It is
+    /// hidden from VoiceOver because the card's own label already carries the
+    /// same words.
+    ///
+    /// **It was blue on blue and it was the weakest contrast on the screen.**
+    /// The pill filled with `accent` while the card behind it is `accent` at
+    /// 0.28 through glass — the same hue a few steps apart — so the shelf's only
+    /// primary action had less separation from its own background than any
+    /// caption on the page. The pill is now the ground's *opposite*: paper-white
+    /// on a dark theme with the accent as ink, and the deepened accent with
+    /// white ink on a light one, which is the direction that has a 4.5:1 answer
+    /// on both.
+    ///
+    /// The silhouette changed with it. A `Capsule` inside a `Radius.sheet` card
+    /// with 18pt of inset is a 15pt curve where the concentric answer is 10, so
+    /// the pill read as pasted on rather than as nested. `Radius.inner` is that
+    /// arithmetic, and it is the same call the mini-boards two cards down make.
+    @ViewBuilder
+    private var todayVerb: some View {
+        if let text = todayVerbText {
+            let shape = RoundedRectangle(
+                cornerRadius: Radius.inner(Radius.sheet, inset: 18), style: .continuous)
+            Text(text)
+                .font(CouchTypography.label)
+                .foregroundStyle(verbInk)
+                .lineLimit(1)
+                .padding(.horizontal, Space.l)
+                .padding(.vertical, Space.s)
+                .background(verbFill, in: shape)
+                .accessibilityHidden(true)
         }
+    }
+
+    /// The pill's fill: the loudest legible shape the ground allows.
+    private var verbFill: Color { tones.isLight ? accent : .white }
+
+    /// …and its ink, which is the fill's opposite rather than `.primary` —
+    /// `.primary` is white on a dark theme, and this pill is white there.
+    private var verbInk: Color { tones.isLight ? .white : accent }
+
+    /// Nil in the two states that are not an action. A capsule reading "Solved"
+    /// beside a status line reading "Solved" is not emphasis, it is an echo —
+    /// and a filled accent shape is the loudest thing on the shelf, which it
+    /// should not spend on a board there is nothing left to do to.
+    private var todayVerbText: String? {
+        if isComposingDaily || model.todaySolved { return nil }
+        if model.savedDaily != nil { return Strings.string("shelf.continue.title") }
+        return Strings.string("firstrun.begin")
     }
 
     @ViewBuilder
@@ -418,10 +711,16 @@ struct TouchHomeView: View {
                 // and "64%" is where the urgency lives — the fingerprint says
                 // "there is a board here" without saying how much you owe it.
                 if !model.focus.hidesDaily {
-                    Text(Strings.string("shelf.today.continueProgress",
-                                        .text(BoardProgressCaption.text(for: daily))))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
+                    // The bare progress, not `shelf.today.continueProgress`'s
+                    // "Continue · 64%": the verb capsule two inches to the right
+                    // now says Continue, and a card that says it twice reads as
+                    // a template that was filled in by two different people.
+                    Text(BoardProgressCaption.text(for: daily))
+                        .couchText(CouchTypography.caption, .secondary)
+                        // A percentage that ticks while you watch it, in
+                        // proportional figures, re-measures its own line on
+                        // every change.
+                        .monospacedDigit()
                 }
             }
         } else {
@@ -434,18 +733,18 @@ struct TouchHomeView: View {
     @ViewBuilder
     private var continueCard: some View {
         if let (game, difficulty) = model.savedFree {
-            TouchCard(action: { model.continueSaved() }) {
-                HStack(spacing: 16) {
+            TouchCard(action: { model.continueSaved() }, radius: Radius.sheet) {
+                HStack(spacing: Space.l) {
                     BoardFingerprint(game: game, accent: accent, side: 44)
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: Space.xs) {
                         Text(Strings.string("shelf.continue.title"))
-                            .font(CouchTypography.body)
+                            .couchText(CouchTypography.body)
                         Text(Phrase.continueCaption(
                             difficulty: Strings.difficulty(difficulty),
                             progress: BoardProgressCaption.text(for: game),
                             others: model.extraPartialCount))
-                            .font(CouchTypography.caption)
-                            .foregroundStyle(.secondary)
+                            .couchText(CouchTypography.caption, .secondary)
+                            .monospacedDigit()
                     }
                     Spacer()
                     // Abandon the board: frees the slot so a fresh difficulty
@@ -484,29 +783,25 @@ struct TouchHomeView: View {
     @ViewBuilder
     private var boardsSection: some View {
         if !extraPartials.isEmpty || !model.playedBoards.isEmpty {
-            VStack(spacing: 10) {
-                HStack {
-                    Text(Strings.string("boards.title"))
-                        .font(CouchTypography.body)
-                    Spacer()
+            VStack(spacing: Space.s) {
+                sectionHeader(Strings.string("boards.title")) {
                     Button { showBoards = true } label: {
                         Text(Strings.string("shelf.boards.seeAll"))
-                            .font(CouchTypography.caption)
-                            .foregroundStyle(accent)
+                            .couchText(CouchTypography.caption, accent)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Strings.string("shelf.boards.seeAllLabel"))
                 }
                 ForEach(extraPartials.prefix(3)) { entry in
-                    TouchCard(action: { model.resumeEntry(id: entry.id) }) {
-                        HStack(spacing: 14) {
+                    TouchCard(action: { model.resumeEntry(id: entry.id) },
+                              radius: Radius.card) {
+                        HStack(spacing: Space.m) {
                             BoardFingerprint(game: entry.game, accent: accent, side: 34)
                             Text(boardTitle(entry))
                                 .font(CouchTypography.caption)
                             Spacer()
                             Text(BoardProgressCaption.text(for: entry.game))
-                                .font(CouchTypography.caption)
-                                .foregroundStyle(.secondary)
+                                .couchText(CouchTypography.caption, .secondary)
                                 .monospacedDigit()
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -514,6 +809,36 @@ struct TouchHomeView: View {
                 }
             }
         }
+    }
+
+    /// A section head, so a group of cards reads as a group.
+    ///
+    /// This *is* the Boards header, generalised rather than restyled — it was
+    /// the shelf's only one, so every other block simply began and eight cards
+    /// arrived as one undifferentiated list. Same rung, same weight: a new
+    /// heading that looked different from the shipped one would say the two
+    /// sections were different kinds of thing.
+    private func sectionHeader(_ title: String) -> some View {
+        sectionHeader(title) { EmptyView() }
+    }
+
+    private func sectionHeader<Trailing: View>(
+        _ title: String, @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        HStack {
+            // `heading`, not `body`: the ramp's `.title3` semibold rung is what
+            // a section head is for, and at `body` the head sat at the same
+            // size and weight as the card titles underneath it — which is the
+            // "sectioning is half-applied" finding, half of it. (The other half
+            // is that the free-play block's deep bands want a head of their
+            // own; there is no catalog row for one, so it is in `crossFileNeeds`
+            // rather than invented here.)
+            Text(title)
+                .couchText(CouchTypography.heading)
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, Space.xs)
     }
 
     private func boardTitle(_ entry: LibraryEntry) -> String {
@@ -542,6 +867,25 @@ struct TouchHomeView: View {
 
     // MARK: Free play
 
+    /// The free-play block, under a name.
+    ///
+    /// `parlorCard` used to be the last row of this stack, which made "Play
+    /// together" read as a seventh difficulty — a band between Nocturne and
+    /// nothing. It is a different *kind* of thing (a way to start a board with
+    /// somebody, at any difficulty), so it now sits outside the section it was
+    /// visually a member of.
+    private var freePlaySection: some View {
+        // `Space.s` head-to-content, `Space.l` between the cards, `Space.xxl`
+        // between this section and the next — the two-step scale, with the
+        // head deliberately closer to what it names than the rows are to each
+        // other. The shipped rhythm had the head at 8 and the rows at 12,
+        // which is a step too small to read as a step.
+        VStack(spacing: Space.s) {
+            sectionHeader(Strings.string("prefs.section.play"))
+            freePlayRow
+        }
+    }
+
     private var freePlayRow: some View {
         // Three across, then the deep end on its own lines (PRD-17 §3, widened
         // by PRD-25). Not a hierarchy — a fourth column on a 393pt iPhone
@@ -549,8 +893,8 @@ struct TouchHomeView: View {
         // truncates all four rather than just the new one. Full width is what
         // lets a deep band keep the same blurb the three above it get, and it
         // is why three of them stack rather than becoming a second row.
-        VStack(spacing: 14) {
-            HStack(spacing: 14) {
+        VStack(spacing: Space.l) {
+            HStack(spacing: Space.m) {
                 ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                     difficultyCard(difficulty)
                 }
@@ -558,7 +902,6 @@ struct TouchHomeView: View {
             ForEach(Difficulty.deepBands, id: \.self) { difficulty in
                 deepEndCard(difficulty)
             }
-            parlorCard
         }
     }
 
@@ -583,8 +926,8 @@ struct TouchHomeView: View {
                     model.openParlorInvite(invite)
                 }
             }
-        }) {
-            HStack(spacing: 14) {
+        }, radius: Radius.sheet) {
+            HStack(spacing: Space.m) {
                 // **No `.contentShape(.accessibility, …)` on the glyph**, which
                 // was here first and cost the card its own frame: driving the
                 // AX lane measured this card at **64×64** — the icon alone —
@@ -592,17 +935,31 @@ struct TouchHomeView: View {
                 // accessibility shape onto a child is what SwiftUI then derives
                 // the button's frame from. PRD-19's fix belongs on a *leaf*
                 // control; a card is not one.
+                // **A tile, not a loose glyph.** The audit found the icon
+                // "optically unanchored, sitting low-left with its optical
+                // centre well below the title baseline": a bare SF Symbol in a
+                // 64pt box centres on the *glyph's* tight bounds, and
+                // `shareplay` is a wide, short mark, so it floated in the box
+                // while the two mini-boards on the cards above it filled theirs
+                // edge to edge. Giving it the same 64pt inset surface those
+                // boards have makes the three left-hand columns one column.
                 Image(systemName: "shareplay")
                     .font(.system(size: 26, weight: .regular))
                     .foregroundStyle(accent)
                     .frame(width: 64, height: 64)
-                VStack(alignment: .leading, spacing: 4) {
+                    .couchInset(
+                        in: RoundedRectangle(
+                            cornerRadius: Radius.inner(Radius.sheet, inset: 18),
+                            style: .continuous),
+                        tint: accent.opacity(0.14))
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    // `body`, not `caption`. A card title set at the same rung
+                    // as its own blurb has no hierarchy inside it, and all three
+                    // card families shipped that way.
                     Text(ParlorPhrase.start)
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.primary)
+                        .couchText(CouchTypography.body)
                     Text(pending == nil ? ParlorPhrase.startCaption : ParlorPhrase.inviteAccepted)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .couchText(CouchTypography.caption, .secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
@@ -628,26 +985,25 @@ struct TouchHomeView: View {
     /// along the row instead of down a column. No lock, no badge, no price —
     /// it is a peer of the three above it and reads like one.
     private func deepEndCard(_ difficulty: Difficulty) -> some View {
-        TouchCard(action: { model.startFree(difficulty) }) {
-            HStack(spacing: 14) {
-                MiniBoard(difficulty: difficulty, accent: accent)
+        TouchCard(action: { model.startFree(difficulty) }, radius: Radius.sheet) {
+            HStack(spacing: Space.m) {
+                MiniBoard(difficulty: difficulty, accent: accent,
+                          corner: Radius.inner(Radius.sheet, inset: 18))
                     .frame(width: 64, height: 64)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Space.xs) {
                     Label {
                         Text(Strings.difficulty(difficulty))
                     } icon: {
                         if let glyph = difficulty.glyph { Image(systemName: glyph) }
                     }
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.primary)
+                    .couchText(CouchTypography.body)
                     // The composing caption replaces the blurb rather than
                     // stacking under it: a card that grows a line mid-compose
                     // shoves the rest of the shelf down while the player watches.
                     Text(model.composing == .free(difficulty)
                          ? (difficulty.composeCaption ?? Strings.string("status.composing"))
                          : difficulty.blurb)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .couchText(CouchTypography.caption, .secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
@@ -661,19 +1017,21 @@ struct TouchHomeView: View {
     }
 
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
-        TouchCard(action: { model.startFree(difficulty) }) {
-            VStack(spacing: 10) {
-                MiniBoard(difficulty: difficulty, accent: accent)
+        TouchCard(action: { model.startFree(difficulty) }, radius: Radius.card) {
+            VStack(spacing: Space.s) {
+                // Concentric with the card it is dropped into: a 22pt corner
+                // with 18pt of padding wants `Radius.inner`, not the 24pt
+                // default `MiniBoard` carries for a card that is no longer 24.
+                MiniBoard(difficulty: difficulty, accent: accent,
+                          corner: Radius.inner(Radius.card, inset: 18))
                     .frame(width: 64, height: 64)
                 if model.composing == .free(difficulty) {
                     statusLabel(Strings.string("status.composing"), symbol: "sparkles")
                 } else {
                     Text(Strings.difficulty(difficulty))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.primary)
+                        .couchText(CouchTypography.body)
                     Text(difficulty.blurb)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .couchText(CouchTypography.caption, .secondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -717,24 +1075,96 @@ struct TouchHomeView: View {
 /// and everybody feels.
 struct TouchCard<Content: View>: View {
     let action: @MainActor () -> Void
+    /// The card's own corner.
+    ///
+    /// **One radius across a 111pt → 362pt size range is not one radius**, it is
+    /// 22% of a small tile and 6.6% of the hero — two different shapes wearing
+    /// the same number. Callers pick a rung from `Radius`: `card` (22) for the
+    /// tiles and the tracker rows, `sheet` (28) for Today, Continue and the
+    /// full-width bands. Defaulted, so `ChannelShelf`'s three call sites and
+    /// every other existing one compile and render exactly as they did.
+    var radius: CGFloat = 24
+    /// The one surface on screen that outranks the others gets the player's
+    /// accent *in* its glass (CouchKit's L3 rung). Nil is the shipped
+    /// `.regular.interactive()` treatment, which is what every card but Today
+    /// still wants: a shelf where everything is primary has no primary.
+    var tint: Color? = nil
     @ViewBuilder let content: Content
 
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         Button(action: action) {
             content
                 .padding(18)
-                .couchGlassInteractive(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .modifier(TouchCardSurface(shape: shape, tint: tint,
+                                           isLight: theme.tones(for: colorScheme).isLight))
         }
         .buttonStyle(TouchCardStyle())
     }
 }
 
+/// The card's material and its lift, factored out only because the tinted and
+/// untinted rungs are two different modifiers and a `some View` body cannot
+/// return both from an `if` without one.
+private struct TouchCardSurface: ViewModifier {
+    let shape: RoundedRectangle
+    let tint: Color?
+    let isLight: Bool
+
+    func body(content: Content) -> some View {
+        Group {
+            if let tint {
+                content.couchGlassTinted(tint, in: shape)
+            } else {
+                content.couchGlassInteractive(in: shape)
+            }
+        }
+        // **The `.clipShape` that used to be here is gone.** `glassEffect(in:)`
+        // already clips to the shape it is given, so the second clip was
+        // redundant — and it was not free: a clip is a mask, and a mask cuts off
+        // the elevation shadow, which is why every card on this shelf sat flush
+        // against the page with no edge for the material to catch.
+        .couchElevated(in: shape, isLight: isLight)
+    }
+}
+
 struct TouchCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.couchFast, value: configuration.isPressed)
+        CardBody(configuration: configuration)
+    }
+
+    /// A nested `View`, and that is the whole trick.
+    ///
+    /// `ButtonStyle.makeBody` is not a `View` body, so `@Environment` declared
+    /// on the style itself is never updated — which is why this style read
+    /// `isPressed` and nothing else while **four card families** call
+    /// `.disabled(composeInFlight)`. During a Nocturne compose (p99 ~34s on a
+    /// phone, DEVIATIONS) five cards therefore looked completely alive and ate
+    /// every tap: exactly the failure the doc comment on `composeInFlight`
+    /// promises is fixed. Dimmed *and* desaturated, because a dim card on a
+    /// dark ground is a weak signal on its own and the accent is the loudest
+    /// thing on the shelf.
+    /// **Not named `Body`**, and internal rather than `private`. `ButtonStyle`
+    /// declares `associatedtype Body: View`, so a nested type called `Body` is
+    /// taken as that witness and collides with `makeBody`'s opaque return;
+    /// and an opaque return type may not be less accessible than the
+    /// requirement it satisfies, which rules out `private`. Nesting is what
+    /// keeps it namespaced.
+    struct CardBody: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+                .opacity(isEnabled ? 1 : 0.4)
+                .saturation(isEnabled ? 1 : 0)
+                .animation(.couchFast, value: configuration.isPressed)
+                .animation(.couchFast, value: isEnabled)
+        }
     }
 }
 
@@ -787,6 +1217,11 @@ struct TouchGameScreen: View {
     /// The one chip auto notes shows when it fills a board.
     @State private var autoNotesChip: String?
     @State private var chipDismissal: Task<Void, Never>?
+    /// The digit an in-flight flick is currently aimed at, drawn as a ghost in
+    /// the header (W2B's `TouchRose.onLiveFocus`). Nil the instant the stroke
+    /// becomes unclassifiable or the finger lifts — a preview that lingered
+    /// after the commit would be describing a stroke that is over.
+    @State private var liveFlickDigit: Int?
     /// Same-number highlight: the digit currently lit across the board.
     /// Sticky on purpose — it survives placements so you can chase one
     /// number around the grid; tapping a cell of the same digit clears it.
@@ -821,6 +1256,10 @@ struct TouchGameScreen: View {
     @State private var shareCard: ShareCardExport?
     /// PRD-28 §7's party URL, once an activity has been started for this board.
     @State private var sentBoard: SentBoard?
+    /// The Afterglow has had its 2.4s and the completion chip may land. Real
+    /// state, so the chip's `.transition` has a change to animate — see
+    /// `completionChip`.
+    @State private var afterglowSettled = false
     /// PRD-31. The cell under the pointer or the hovering Pencil tip, drawn as
     /// the halo `BoardView` has had since PRD-4 and the Mac has been the only
     /// caller of. An iPad with a trackpad or a hovering Pencil is the same
@@ -841,6 +1280,10 @@ struct TouchGameScreen: View {
 
     /// The accent resolved for the theme's leaning (themes pin the scheme).
     private var accent: Color { model.prefs.accent.color(isLight: colorScheme == .light) }
+
+    /// The board's palette, for the chrome that has to agree with it — the
+    /// header's error coral, the pad's digit tone, the rose's backdrop.
+    private var tones: ThemeTones { model.prefs.theme.tones(for: colorScheme) }
 
     /// Is one of the four surfaces that cover the board up right now (Task 4;
     /// user-confirmed set)? Drives the `.sheet` clock hold from one place
@@ -918,6 +1361,28 @@ struct TouchGameScreen: View {
             haptics.playSolveScore()
             if !reduceMotion { motion.start() }
         }
+        // The completion chip's gate. Shaped exactly like `BoardView`'s
+        // `runEventWindow`, and for the reason recorded on `renderShareCard`:
+        // `Task.sleep` returns *immediately* when a task is cancelled, so a
+        // sleep whose only outcome is a flag can strand that flag forever if
+        // anything re-runs the task mid-wait. Recomputing the remaining time
+        // from `solvedAt` on every run means a cancelled wait is repaired by
+        // the next one instead of losing the chip.
+        .task(id: model.solvedAt) {
+            guard let solvedAt = model.solvedAt else {
+                afterglowSettled = false
+                return
+            }
+            let remaining = Self.afterglowHold - Date().timeIntervalSince(solvedAt)
+            guard remaining > 0 else {
+                withAnimation(.couchFast) { afterglowSettled = true }
+                return
+            }
+            afterglowSettled = false
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            withAnimation(.couchFast) { afterglowSettled = true }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 if model.solvedAt != nil, !reduceMotion { motion.start() }
@@ -971,41 +1436,163 @@ struct TouchGameScreen: View {
         var top: CGFloat
         var debriefGrabber: CGFloat
 
-        static func column(controlsAtBottom: Bool) -> ChromeInsets {
-            ChromeInsets(chip: controlsAtBottom ? 84 : 20,
-                         completion: controlsAtBottom ? 128 : 64,
-                         top: controlsAtBottom ? 12 : 64,
-                         debriefGrabber: controlsAtBottom ? 108 : 44)
+        /// **The bottom insets are measured now, not tabulated.**
+        ///
+        /// They used to be four literals per fork — 150 / 196 / 174 — chosen
+        /// against a bottom cluster that was always a 58pt key row plus a 60pt
+        /// bar. Round 3 makes the pad the elastic member of the composition (it
+        /// is what absorbs the height a square board cannot use, and it ranges
+        /// from an 82pt one-row tray to a 308pt 3×3 block), so a literal that
+        /// clears the cluster on an iPhone 17 Pro prints straight across the
+        /// keys on a Pro Max. The caller measures the cluster and every bottom
+        /// inset is that number plus a rung.
+        ///
+        /// The top still forks at the toolbar, and for the reason it always
+        /// did: the header occupies 8…52, so 64 clears it, and a control bar
+        /// parked above the board adds its own 68.
+        static func column(controlsAtBottom: Bool, cluster: CGFloat) -> ChromeInsets {
+            ChromeInsets(chip: cluster + Space.s,
+                         completion: cluster + Space.hero + Space.s,
+                         top: controlsAtBottom
+                            ? 64
+                            : 64 + CGFloat(BoardCompositionRules.columnToolbarBlock),
+                         debriefGrabber: cluster + Space.xxl)
         }
 
+        /// The table's board is its own column, so the only chrome any of this
+        /// has to dodge is the outer padding.
         static let table = ChromeInsets(chip: 20, completion: 64, top: 12, debriefGrabber: 44)
     }
 
-    /// The phone's stack, unchanged: bands around the board, a horizontal
-    /// control bar at one edge, and a stats drawer you find by pulling down.
+    /// The phone's stack: a permanent header, the board, a nine-key digit pad,
+    /// a flexible band and the control bar — plus the stats drawer you find by
+    /// pulling down.
+    ///
+    /// **What used to be here was a board and two empty bands.** Measured on a
+    /// 402×874 phone the board card ran y≈227→613, leaving 168pt above it and
+    /// 174 below — 342 of 874 points, roughly 137,500pt² of a 351,000pt² canvas
+    /// showing nothing at all, because the bands' only two possible occupants (a
+    /// timer chip and an ambient chip) both ship off. Meanwhile the difficulty
+    /// appeared nowhere on this screen, the mistake count only inside a drawer
+    /// reached by an unhinted pull-down, and there was no persistent digit entry
+    /// anywhere in the frame: the rose exists solely as an overlay that is there
+    /// while `rose != nil`.
+    ///
+    /// So the free space is now the screen's chrome rather than its absence.
+    /// The header and the pad are unconditional rows rather than band occupants
+    /// — `band(_:)` collapses whichever edge the board is anchored to, and a
+    /// header that vanished on `boardAnchor == .top` (the default since wave 1)
+    /// would be a header nobody has.
+    ///
+    /// **The pad has moved out from under the board and into the bottom
+    /// cluster, which reverses a decision this comment used to defend.**
+    ///
+    /// What it said was: *"the pad sits directly under the board, above the
+    /// flexible band — put the band between them and the surplus opens up
+    /// inside the composition"*. That reasoning is sound and the frame it
+    /// produced was still wrong, because it only moved the hole. With the pad
+    /// welded to the board, `boardAnchor == .center` split the residual into a
+    /// gap above the board **and** a gap between the pad and the toolbar, and
+    /// then the toolbar itself floated clear of the home indicator: three
+    /// unequal voids, reported on the phone as "three unrelated islands" and on
+    /// the iPad as "~130pt between the pad and the toolbar and ~90pt below it".
+    ///
+    /// A screen has one bottom edge. The pad and the toolbar are now one
+    /// cluster with a single `Rhythm.cluster` gap inside it, docked to the
+    /// bottom safe area.
+    ///
+    /// **And round 3 stops giving the chrome parking spaces.** Two blind panels
+    /// measured the frame this comment used to describe and reported the same
+    /// two blockers on it: *"~200pt dead band between board and keypad; board
+    /// undersized for the canvas"* and *"the glass is a flat gray fill — nothing
+    /// refracts"*. Those are one defect. A lens has nothing to show over a void,
+    /// and Nine was putting its bars over 200pt of empty ground and then asking
+    /// the material to perform.
+    ///
+    /// Three changes, and they only work together:
+    ///
+    ///  * **The board takes the width.** `boardInset` went 12 → 8 and the height
+    ///    term stopped charging the column's left-and-right gutters against its
+    ///    height, so the grid is 370 of a 402pt phone rather than 362 — and,
+    ///    more to the point, the board card's ring stopped reading as a bezel.
+    ///  * **The chrome sits *on* the board.** The header capsule and the bottom
+    ///    cluster each reach `columnChromeOverlap` (12pt) onto the plane —
+    ///    8 of ring and 4 of a row's dead margin, so nothing legible is ever
+    ///    covered — which is what finally puts a card rim, a grid rule and two
+    ///    cell fills behind every pane of glass on this screen.
+    ///  * **The digit pad spends the surplus.** A square board cannot use the
+    ///    height a 9:19.5 canvas has spare; the pad deepens until the residual is
+    ///    gone. On a 402×781 safe area that is a 3×3 block of 113×84 keys and
+    ///    **zero** points of dead band, against 37×58 keys and ~170 before.
+    ///    `DraftingTableTests.testNoPhoneLeavesADeadBandBiggerThanTheRhythmCeiling`
+    ///    pins it on five phones rather than on the one someone opened.
+    ///
+    /// The two flexible bands stay, because `boardAnchor` is a preference and a
+    /// pref that silently stops doing anything is worse than one that does
+    /// little. On a phone they resolve to nothing; on an iPad in portrait, where
+    /// a square board genuinely cannot spend the height, they are what centres
+    /// the board between the two docked clusters — which is exactly the escape
+    /// `Rhythm`'s own rule names.
     private func boardColumn(side: CGFloat, in size: CGSize) -> some View {
         let controlsAtBottom = model.prefs.controlsAtBottom
         let inset = CGFloat(BoardCompositionRules.boardInset)
-        let freeSpace = size.height - (side + 2 * inset + 16) - 76
+        let plane = side + 2 * inset
+        let overlap = CGFloat(BoardCompositionRules.columnChromeOverlap)
+        // The pad's share, and the shape it takes with it.
+        let budget = BoardCompositionRules.columnPadBudget(
+            height: Double(size.height), plane: Double(plane))
+        let rows = BoardCompositionRules.padRows(planeWidth: Double(plane), budget: budget)
+        let keyHeight = CGFloat(BoardCompositionRules.padKeyHeight(
+            planeWidth: Double(plane), budget: budget))
+        let padHeight = CGFloat(BoardCompositionRules.padHeight(
+            planeWidth: Double(plane), budget: budget))
+        // What the bottom cluster occupies, for the chips that have to clear it
+        // and for the pull-up that must not start inside it.
+        let cluster = padHeight + (controlsAtBottom
+            ? Space.l + CGFloat(BoardCompositionRules.columnToolbarBlock)
+            : Rhythm.dock)
+        // Whatever the pad could not use. Zero on every phone; on an iPad in
+        // portrait it is the air the board is centred in.
+        let freeSpace = max(0, size.height - plane - padHeight
+                            - CGFloat(BoardCompositionRules.columnChromeFixed))
         return chromed(
-            VStack(spacing: 12) {
-                if controlsAtBottom {
-                    band(.top, freeSpace: freeSpace)
-                    boardArea(side: side, inset: inset)
-                    band(.bottom, freeSpace: freeSpace)
-                    controlBar
-                } else {
-                    controlBar
-                    band(.top, freeSpace: freeSpace)
-                    boardArea(side: side, inset: inset)
-                    band(.bottom, freeSpace: freeSpace)
+            // `spacing: 0`, and every gap below is explicit — because two of
+            // them are *negative*. A `VStack` cannot be told to overlap; it can
+            // only be handed children whose frames already do.
+            VStack(spacing: 0) {
+                // The header is the one piece of chrome that does *not* recede
+                // under an open rose: it is carrying the live-flick ghost, and
+                // dimming the preview the player is steering by would be the
+                // scrim undoing the feature it was added beside.
+                //
+                // `zIndex`, because a `VStack` paints in declaration order and
+                // the board is declared after this — without it the capsule
+                // would be the thing being overlapped rather than the thing
+                // doing the overlapping.
+                gameHeader
+                    .padding(.bottom, -overlap)
+                    .zIndex(2)
+                if !controlsAtBottom {
+                    controlBar.opacity(chromeDim).zIndex(2)
                 }
+                band(.top, freeSpace: freeSpace)
+                boardArea(side: side, inset: inset)
+                band(.bottom, freeSpace: freeSpace)
+                bottomCluster(planeWidth: plane,
+                              columns: BoardCompositionRules.padColumns(rows: rows),
+                              keyHeight: keyHeight,
+                              controlsAtBottom: controlsAtBottom)
+                    .padding(.top, -overlap)
+                    .zIndex(2)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, CGFloat(BoardCompositionRules.columnHorizontalPadding) / 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity),
-            insets: .column(controlsAtBottom: controlsAtBottom),
+            insets: .column(controlsAtBottom: controlsAtBottom, cluster: cluster),
             revealHeight: size.height,
-            controlBarReserve: controlsAtBottom ? Self.controlBarReserve : 0
+            // The pull-up may not begin inside the bottom cluster, and the
+            // cluster is no longer a fixed height — see `controlBarReserve`,
+            // which survives as the floor rather than as the answer.
+            controlBarReserve: max(Self.controlBarReserve, cluster)
         )
         // The grabber sits *under* the drawer it advertises, so the panel
         // slides over it rather than the hairline floating on the glass.
@@ -1042,6 +1629,48 @@ struct TouchGameScreen: View {
         }
     }
 
+    /// The column's one bottom edge: entry, then tools, and nothing between
+    /// them but a single spacing rung.
+    ///
+    /// **The pad is exactly as wide as the board's glass plane**, which is the
+    /// cheapest structural fix available for the "stretched full-width ribbon
+    /// of squat pills" the iPad audit reported. On a 402pt phone the plane is
+    /// 386 and the keys land at 37×58 — the shipped shape, unmoved. On an 834pt
+    /// iPad the plane is 818, the keys land at 85 wide, and the height follows
+    /// the width up to a square: 85×84 keys in a cluster that lines up with the
+    /// grid above it instead of running past it to both screen edges.
+    ///
+    /// One `CouchGlassContainer` around both, so the tray and the toolbar are
+    /// in the same glass system and merge as one pane. They were two separate
+    /// material treatments a `Space.m` apart — a rounded tray with keys in it,
+    /// and five bare stroked circles on the page — which the phone audit called
+    /// "the single most non-native element in the frame".
+    ///
+    /// **The tray is `padTrayInset` narrower than the board's plane on each
+    /// side**, and that is what makes the 12pt overlap above it read as one
+    /// surface lying on another rather than as two slabs butted together: the
+    /// board's bottom corners come out past the tray on both sides, so the eye
+    /// can see which object is in front.
+    private func bottomCluster(
+        planeWidth: CGFloat, columns: Int, keyHeight: CGFloat, controlsAtBottom: Bool
+    ) -> some View {
+        CouchGlassContainer(spacing: Space.m) {
+            VStack(spacing: Rhythm.cluster) {
+                digitPad(
+                    planeWidth: planeWidth
+                        - 2 * CGFloat(BoardCompositionRules.padTrayInset),
+                    columns: columns,
+                    keyHeight: keyHeight
+                )
+                .opacity(chromeDim)
+                if controlsAtBottom { controlBar.opacity(chromeDim) }
+            }
+        }
+        // The toolbar carries its own dock to the safe area; without it at the
+        // bottom the pad would be the thing sitting on the home indicator.
+        .padding(.bottom, controlsAtBottom ? 0 : Rhythm.dock)
+    }
+
     /// PRD-31's drafting table: controls in a column at the leading edge, the
     /// board centre stage, the stats as a rail that is simply *there*.
     ///
@@ -1076,6 +1705,13 @@ struct TouchGameScreen: View {
         }
         .padding(padding)
     }
+
+    /// How wide a digit key gets in the table's rail.
+    ///
+    /// Three across at the rail's 360pt, less its 16pt padding and two 12pt
+    /// gutters, is (360 − 32 − 24) / 3 ≈ **101pt**, which the audit's "roughly
+    /// 84×84 at 12pt gutters" is asking for and slightly better than.
+    private static let railPadColumns = 3
 
     /// Everything that floats over the board, in whichever composition is up.
     ///
@@ -1147,25 +1783,51 @@ struct TouchGameScreen: View {
     /// of its budget teaching people that the drawer exists; at this width the
     /// geometry says it instead, for free and permanently, which is the whole
     /// argument for the composition.
+    ///
+    /// **Round 2 gave the rail the two things the landscape frame was missing
+    /// and took away the one it had twice.**
+    ///
+    ///  * *The readouts.* The drafting table had no header at all — no
+    ///    difficulty, no mistake count, no squares-left — because those live in
+    ///    `gameHeader`, which only the column draws. The rail carries
+    ///    `railHeader` now, so the iPad knows what board it is on.
+    ///  * *Entry.* There was no digit pad on this composition. The audit's
+    ///    blocker was that ~35% of the landscape canvas was empty black below
+    ///    the rail, with the fix stated exactly: *"fill the right column with
+    ///    the 1-9 entry pad (with per-digit remaining counts, which the dashed
+    ///    rings are already trying to convey)"*. Same `DigitPadRow`, three
+    ///    across.
+    ///  * *The second clock.* `timerChip` sat here **and** `StatsDrawerContent`
+    ///    draws a `time` tile, so the elapsed time was on screen twice — and
+    ///    the chip was the one that clipped, rendering "0:2" with a half-cut
+    ///    "4" past its own edge. The chip is gone; the promoted, tabular clock
+    ///    in `railHeader` is the one that stays. (The stats tile is
+    ///    `StatsDrawer.swift`'s to retire — see `crossFileNeeds`.)
     private func statsRail(width: CGFloat) -> some View {
-        VStack(spacing: 14) {
-            // The chips the phone parks in its free bands have no bands here,
-            // and the rail is where they belong: the timer is already one of
-            // the drawer's own tiles, and the ambient slot is ambient.
+        let shape = RoundedRectangle(cornerRadius: Radius.sheet, style: .continuous)
+        return VStack(spacing: Space.l) {
+            railHeader
+            digitPad(columns: Self.railPadColumns, keyHeight: 84)
+            StatsDrawerContent(model: model)
+            // The chip the phone parks in its free bands has no band here, and
+            // the rail is where it belongs. Last rather than first: it is the
+            // one thing in this column that is not about the board.
             if model.prefs.ambientSlot != .none, model.composing == nil {
                 AmbientSlotView(model: model)
             }
-            timerChip
-            StatsDrawerContent(model: model)
         }
-        .padding(16)
+        .padding(Space.l)
         // **As tall as it has to be, and no taller.** The first version was a
         // full-height slab, and driving an 11" iPad showed what that is: 200 pt
         // of stats above 700 pt of empty glass, which reads as a panel that
         // failed to load rather than as a rail. A drawer is the height of what
         // is in it; leaving it open should not change that.
         .frame(width: width, alignment: .top)
-        .couchGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        // `couchGlassElevated`, not `couchGlass`: on a near-black ground a pane
+        // with no rim and no shadow has no boundary, which is the whole of the
+        // "flat opaque fill plus a hairline, not a material" finding. The rim
+        // is what tells the eye where the rail stops and the board field starts.
+        .couchGlassElevated(in: shape, isLight: tones.isLight)
         // One container, so Switch Control's group scan treats the rail as a
         // place rather than as fourteen loose elements between the board and
         // the edge of the screen (PRD-19's grouping rule).
@@ -1174,30 +1836,57 @@ struct TouchGameScreen: View {
 
     // MARK: Chrome
 
-    /// Six buttons now (PRD-11 added the lightbulb and the wand), which is two
-    /// past what PROGRAM-2.0's anti-bloat constitution allows — a deliberate
-    /// override, recorded in DEVIATIONS.md.
+    /// Five tools, centred, in one glass group.
     ///
-    /// It cost the timer its seat. The rule turns out not to be only an
-    /// aesthetic one: six 44pt targets are 264pt, the timer chip measures ~82,
-    /// and with gaps and padding the row wanted ~422pt — wider than any iPhone,
-    /// and measured clipping `Settings` 20pt off a 375pt SE *and* 2pt off a
-    /// 393pt iPhone 17. Shrinking the targets was never an option (the craft
-    /// charter's 44pt floor), so the timer moved to the free band, which PRD-2
-    /// sized for exactly this kind of ambient chrome. The bar is now controls
-    /// only, and 6×44 + 5×6 + padding = 322pt fits the smallest phone with
-    /// 53pt to spare.
+    /// Six buttons (PRD-11 added the lightbulb and the wand) is two past what
+    /// PROGRAM-2.0's anti-bloat constitution allows — a deliberate override,
+    /// recorded in DEVIATIONS.md — and it cost the timer its seat here: six 44pt
+    /// targets are 264pt, the timer chip measures ~82, and with gaps the row
+    /// wanted ~422pt, measured clipping `Settings` 20pt off a 375pt SE. The
+    /// timer is in the header now, where a game's primary readout belongs.
+    ///
+    /// **Two things about this row were wrong and both were arrangement.**
+    /// `HStack { home; Spacer(); …five tools }` put the tool group's optical
+    /// centre 65pt right of the screen's, with an 86pt hole beside a bare back
+    /// chevron — a row that is neither centred nor edge-to-edge reads as a
+    /// layout that gave up. And Home does not belong in a *tool* group at all:
+    /// iOS puts back top-left, so it went to the header, beside the name of the
+    /// board it leaves. What is left is five peers, centred, wrapped in a
+    /// `CouchGlassContainer` so they participate in one glass system instead of
+    /// reading as six isolated pebbles measured at 1.08:1 against the page.
+    ///
+    /// **Round 2: it is a bar, and it was five circles.** Every frame in the
+    /// audit that showed this row said the same thing — "five detached circles
+    /// with no bar", "bare stroked circles floating on black is the single most
+    /// non-native element in the frame", "their stroke rings visually kiss".
+    /// Five glass discs sitting loose on the page is not a toolbar; it is five
+    /// objects that happen to be adjacent.
+    ///
+    /// The row is now one capsule of bar material with the five tools *inset*
+    /// into it (`GlassIconButton(inBar: true)` drops each disc's own `.regular`
+    /// pane, because `.regular` inside `.regular` is the glass-on-glass mistake
+    /// CouchKit's L4 rung exists to end). The gutter goes from `Space.xs` to
+    /// `Space.m`, which is the 12pt that stops the rings touching.
     private var controlBar: some View {
-        HStack(spacing: 6) {
-            homeButton
-            Spacer()
-            hintButton
-            pencilButton
-            autoNotesButton
-            undoButton
-            settingsButton
+        // Container spacing > the row's own gap, so adjacent discs are inside
+        // each other's merge distance and the group flows as one pane.
+        CouchGlassContainer(spacing: Space.m) {
+            HStack(spacing: Space.m) {
+                hintButton
+                pencilButton
+                autoNotesButton
+                undoButton
+                settingsButton
+            }
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s)
+            .couchGlassBar(in: Capsule(), isLight: tones.isLight)
         }
-        .padding(model.prefs.controlsAtBottom ? .bottom : .top, 8)
+        .frame(maxWidth: .infinity)
+        // `Rhythm.dock` — the same 8 it always was, said in the token that
+        // `BoardCompositionRules.columnToolbarBlock` (44 + 2·`Space.s` + this)
+        // is made of, so the two cannot drift apart by a point.
+        .padding(model.prefs.controlsAtBottom ? .bottom : .top, Rhythm.dock)
         .padding(.horizontal, 6)
     }
 
@@ -1209,24 +1898,61 @@ struct TouchGameScreen: View {
     /// already sweeps. Same buttons, same labels, same 44pt targets — so
     /// VoiceOver, Voice Control and Full Keyboard Access all read a control
     /// column exactly as they read the bar.
+    ///
+    /// **Round 2 gives the five a container, exactly as the bar got one.** The
+    /// landscape audit: *"six naked circular buttons float unbounded on the
+    /// left edge… the chevron is ~800px from the cluster with no container
+    /// tying either to the board"*. Home stays where it is — separated, which
+    /// is the navigation slot — and the five tools become one vertical capsule
+    /// of bar material at a 12pt rhythm.
     private var controlColumn: some View {
-        VStack(spacing: 10) {
-            homeButton
-            Spacer(minLength: 12)
-            hintButton
-            pencilButton
-            autoNotesButton
-            undoButton
-            settingsButton
+        VStack(spacing: Space.m) {
+            homeButton(seated: true)
+            Spacer(minLength: Space.m)
+            CouchGlassContainer(spacing: Space.m) {
+                VStack(spacing: Space.m) {
+                    hintButton
+                    pencilButton
+                    autoNotesButton
+                    undoButton
+                    settingsButton
+                }
+                .padding(.vertical, Space.m)
+                .padding(.horizontal, Space.s)
+                .couchGlassBar(in: Capsule(), isLight: tones.isLight)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Space.xs)
     }
 
     // The six, factored so the bar and the column cannot come to disagree
     // about what a control does — the failure mode a second copy invites.
+    //
+    // `inBar: true` on all six is not a style flag, it is the L4 rung: every
+    // one of them is drawn *inside* a glass bar now (the toolbar capsule, the
+    // control column's capsule, or the game header's), and a `.regular` disc
+    // nested in a `.regular` bar is two lenses stacked, which reads as one
+    // murkier surface rather than as a control on a bar.
 
-    private var homeButton: some View {
-        GlassIconButton(symbol: "chevron.left", label: Strings.string("game.control.home")) {
+    /// Back, and whether it wears a seat.
+    ///
+    /// **In the header it does not, and that is a reported blocker rather than a
+    /// preference.** The finding was *"a nested circular back chip inside the
+    /// capsule — button-in-a-button, radii not concentric"*, and it is right: a
+    /// tinted disc drawn inside a glass bar is a second shape claiming to be a
+    /// control on a surface that is already one. iOS puts back at the top-left
+    /// as a bare chevron. The 44pt target, the label and the accessibility hit
+    /// shape are all untouched; only the disc under the glyph is gone.
+    ///
+    /// The drafting table keeps its seat, because there the chevron is *not*
+    /// inside a bar — it stands alone at the top of the control column, and an
+    /// unseated glyph floating on the edge of an iPad is the "six naked circular
+    /// buttons" finding coming back one button at a time.
+    private func homeButton(seated: Bool) -> some View {
+        GlassIconButton(symbol: "chevron.left",
+                        label: Strings.string("game.control.home"),
+                        inBar: true,
+                        seated: seated) {
             haptics.stop()
             motion.stop()
             model.goHome()
@@ -1238,7 +1964,8 @@ struct TouchGameScreen: View {
             symbol: "lightbulb",
             label: Strings.string("game.control.hint"),
             active: coachAdvice != nil,
-            accent: accent
+            accent: accent,
+            inBar: true
         ) {
             toggleCoach()
         }
@@ -1249,7 +1976,8 @@ struct TouchGameScreen: View {
             symbol: "pencil",
             label: Strings.string("game.control.pencil"),
             active: pencilMode,
-            accent: accent
+            accent: accent,
+            inBar: true
         ) {
             pencilMode.toggle()
             pencilEverToggled = true
@@ -1257,20 +1985,41 @@ struct TouchGameScreen: View {
         }
     }
 
+    /// **Not `wand.and.stars`.** At the row's 17pt its three sparkles render at
+    /// roughly 2pt each and mush at 3×, and it sat two slots from `lightbulb` —
+    /// so a first-timer met two magic buttons and no way to tell which one gives
+    /// answers away. A filled corner of a 3×3 grid says "marks in the squares",
+    /// which is what the wand actually does.
     private var autoNotesButton: some View {
         GlassIconButton(
-            symbol: "wand.and.stars",
+            symbol: "square.grid.3x3.topleft.filled",
             label: Strings.string("game.control.autoNotes"),
             active: model.autoNotes,
-            accent: accent
+            accent: accent,
+            inBar: true
         ) {
             toggleAutoNotes()
         }
     }
 
+    /// **Undo is the one tool with a real off state, and it had none.** Both
+    /// panels wrote the same finding — *"add a disabled state for undo when the
+    /// stack is empty"* — and it is not decoration: a control that looks
+    /// pressable and does nothing is the cheapest possible way to make an app
+    /// feel broken, and this one looks pressable on the first move of every
+    /// board. `AppModel.canUndo` has existed since PRD-4 with no caller on this
+    /// screen; `.disabled` routes it through `TouchCardStyle`'s own dim-and-
+    /// desaturate, which is the same treatment four card families already use,
+    /// and VoiceOver says "dimmed" for free.
+    ///
+    /// The DEBUG long-press rig goes quiet with it on a board with no moves yet;
+    /// `--debug-fill` at launch is the route that still works there, and is what
+    /// the tvOS build has always used.
     private var undoButton: some View {
         GlassIconButton(symbol: "arrow.uturn.backward",
-                        label: Strings.string("game.control.undo")) { performUndo() }
+                        label: Strings.string("game.control.undo"),
+                        inBar: true) { performUndo() }
+            .disabled(!model.canUndo)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 1.2).onEnded { _ in
                     #if DEBUG
@@ -1286,15 +2035,24 @@ struct TouchGameScreen: View {
 
     private var settingsButton: some View {
         GlassIconButton(symbol: "gearshape",
-                        label: Strings.string("game.control.settings")) { showPrefs = true }
+                        label: Strings.string("game.control.settings"),
+                        inBar: true) { showPrefs = true }
             .keyboardShortcut(",", modifiers: .command)
     }
 
     /// One of the two flexible bands around the board (PRD-2). The band on
-    /// the anchored edge collapses — a zero-height element rather than
-    /// nothing, so the VStack's 12pt spacing stays symmetric — and all free
-    /// space collects in the other band, where a system PiP window can park.
-    /// The board anchors to screen edges; the control bar never moves.
+    /// the anchored edge collapses and all free space collects in the other one,
+    /// where a system PiP window can park. The board anchors to screen edges;
+    /// the control bar never moves.
+    ///
+    /// **Round 3 leaves these bands with almost nothing to hold on a phone**,
+    /// and that is the point rather than a side effect: the height a square
+    /// board cannot use now goes to the digit pad, so `freeSpace` resolves to 0
+    /// on every iPhone. They still exist because `boardAnchor` is a preference,
+    /// and because an iPad in portrait genuinely does have height that nothing
+    /// but air can spend — there, centring the board between two docked clusters
+    /// is the "flexible spacer doing deliberate compositional work" that
+    /// `Rhythm`'s own ceiling rule names as its one exception.
     @ViewBuilder
     private func band(_ edge: VerticalEdge, freeSpace: CGFloat) -> some View {
         let anchor = model.prefs.boardAnchor
@@ -1307,8 +2065,15 @@ struct TouchGameScreen: View {
                     // The coach card parks in this same band, so the band's
                     // own chrome stands down while it is up rather than
                     // showing through the glass behind it.
-                    HStack(spacing: 10) {
-                        if edge == chromeEdge, coachAdvice == nil { timerChip }
+                    //
+                    // **No clock chip here any more.** It was a 13pt
+                    // `.secondary` chip parked in an empty band — the primary
+                    // readout of a timed game, set as a footnote, in the one
+                    // place on screen that nothing else claimed. It is the
+                    // header's centre column now, in both compositions: the
+                    // drafting table grew a `railHeader` in round 2 and the
+                    // chip it used to carry is deleted.
+                    HStack(spacing: Space.s) {
                         if showAmbient(in: edge, freeSpace: freeSpace) {
                             AmbientSlotView(model: model)
                         }
@@ -1316,6 +2081,302 @@ struct TouchGameScreen: View {
                 }
         }
     }
+
+    // MARK: The header (the readouts that were nowhere)
+
+    /// Difficulty, clock, mistakes and squares left — the four things a sudoku
+    /// player looks up, on screen permanently.
+    ///
+    /// Every one of them was missing or buried. `difficulty` appeared nowhere in
+    /// this screen at all; `errorCount` rendered only inside `StatsDrawer`,
+    /// behind a pull-down whose only hint is a 3pt capsule at 0.35 opacity that
+    /// retires after three sessions; the clock was a footnote chip in a band.
+    ///
+    /// A `ZStack`, not an `HStack` with two spacers: the clock is centred on the
+    /// *screen* rather than in whatever room the flanking groups leave, so it
+    /// does not slide sideways when the mistake count appears or the difficulty
+    /// name changes length. Its height is pinned so that swapping it for the
+    /// live-flick ghost cannot move the board.
+    ///
+    /// **Round 2 gave it a material and a ramp, and it had neither.** Two
+    /// findings, both about this row:
+    ///
+    ///  * *"Top bar has no material, no hairline, no scroll-edge treatment…
+    ///    the chevron is a bubble and the counters are naked text at unequal
+    ///    optical margins."* One glass bar around the whole row, with the
+    ///    chevron inset into it rather than sitting on it as a second pane, is
+    ///    the "unify the vocabulary: either every item is a glass capsule or
+    ///    none is" half of the fix. A capsule and not a full-bleed plate,
+    ///    because a plate's bottom edge is the hard seam this round exists to
+    ///    delete — a floating bar has no edge to be hard.
+    ///  * *"Header type ramp is flat — four peers, no primary."* The difficulty
+    ///    drops a rung to `caption`, the clock stays the single `numeral`
+    ///    anchor, and the two counters bind their glyph to their number at
+    ///    `Space.hair` instead of `Space.xs` so each icon+number reads as one
+    ///    unit rather than as four floating things at one size.
+    private var gameHeader: some View {
+        ZStack {
+            headerCentre
+            HStack(spacing: Space.s) {
+                homeButton(seated: false)
+                headerDifficulty
+                Spacer(minLength: Space.s)
+                headerMistakes
+                headerRemaining
+            }
+        }
+        .frame(height: Hit.min)
+        .padding(.horizontal, Space.s)
+        .couchGlassBar(in: Capsule(), isLight: tones.isLight)
+        // The capsule is inset from the board's plane on both sides, so the
+        // board comes out past it at the top corners and the 12pt overlap below
+        // reads as a bar lying *on* the board rather than as a butt joint.
+        .padding(.horizontal, Space.s)
+        // `Rhythm.dock`, and it was `Space.xs`. A docked cluster's gap to the
+        // safe area is a named rung now, and `columnHeaderBlock` (52 = this 8
+        // plus the 44pt capsule) is the arithmetic the board's height term is
+        // made of — so a 4 here would be a 4pt lie in `DraftingTable`.
+        .padding(.top, Rhythm.dock)
+        // One element per group for Switch Control's scan, and the same rule
+        // PRD-19 puts on the stats rail: a header is a place, not five loose
+        // readouts between the back button and the edge of the screen.
+        .accessibilityElement(children: .contain)
+    }
+
+    /// The drafting table's header, which is the same four readouts without the
+    /// back chevron — the table's Home lives at the top of the control column,
+    /// where "out of here" belongs on a screen whose navigation is a column.
+    ///
+    /// Two lines rather than one because the rail is 360pt wide and a single row
+    /// would squeeze the difficulty against the counters; and no bar material,
+    /// because unlike the column's header this one is already *inside* a glass
+    /// panel and a second pane in there is the nesting L4 exists to end.
+    private var railHeader: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            headerDifficulty
+            HStack(spacing: Space.s) {
+                headerCentre
+                Spacer(minLength: Space.s)
+                headerMistakes
+                headerRemaining
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+
+    /// The clock — or, while a flick is in flight, the digit it is aimed at.
+    ///
+    /// The rose blooms *on* the cell it writes into and covers it, so a player
+    /// mid-stroke cannot see the ghost `BoardView` is drawing under the petals.
+    /// W2B's `onLiveFocus` hands the digit out for exactly this: the header is
+    /// the one place on screen the rose never occludes.
+    @ViewBuilder
+    private var headerCentre: some View {
+        if let liveFlickDigit {
+            Text("\(liveFlickDigit)")
+                .font(.system(size: 30, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(accent)
+                .transition(.opacity)
+                // The board is where this digit is about to land, and VoiceOver
+                // is not flicking — it commits through the actions rotor.
+                .accessibilityHidden(true)
+        } else {
+            headerClock
+        }
+    }
+
+    @ViewBuilder
+    private var headerClock: some View {
+        if model.prefs.showTimer, let game = model.game {
+            if let solvedAt = model.solvedAt {
+                // Stopped. A 1Hz timeline that redraws the same string would
+                // only be competing with the Afterglow for frames.
+                clockText(game, at: solvedAt)
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    clockText(game, at: timeline.date)
+                }
+            }
+        }
+    }
+
+    private func clockText(_ game: NineGame, at date: Date) -> some View {
+        let elapsed = SolveCardFacts.elapsedText(game.timer.elapsed(at: date))
+        // Label *and* value, not label alone: `accessibilityLabel` on a `Text`
+        // replaces what it speaks, so naming this "time" without the value
+        // would leave a VoiceOver player with a clock that never says a time.
+        return Text(elapsed)
+            // `numeral` is the ramp's tabular-figures rung — `.headline`
+            // semibold rounded, which is the 17pt the audit asked for and
+            // scales with Dynamic Type, and `.primary` because this is the
+            // readout the screen is about. `couchText(_:)` sets that foreground
+            // itself; chaining one after it would be dead code.
+            .couchText(CouchTypography.numeral)
+            .contentTransition(.numericText())
+            .accessibilityLabel(Strings.string("board.stats.time"))
+            .accessibilityValue(elapsed)
+    }
+
+    /// `caption`, a rung below the counters and two below the clock.
+    ///
+    /// It was `label` — the same rung the mistake count and the squares-left
+    /// count are set at — so "Steady", "0:07", the red "1" and the "49" were
+    /// four peers at one size, and the audit's finding was that the eye has to
+    /// read the *icons* to work out which number is which. What this board is
+    /// does not change while you play it; the numbers do.
+    @ViewBuilder
+    private var headerDifficulty: some View {
+        if let title = boardKindTitle {
+            Text(title)
+                .couchText(CouchTypography.caption, .secondary)
+                .lineLimit(1)
+        }
+    }
+
+    /// What this board is: its difficulty, or its channel and tier, or the fact
+    /// that it is a daily. Assembled from the same keys the shelf's own
+    /// `boardTitle` uses, minus the date — the archive chip already says which
+    /// day an archive board is.
+    private var boardKindTitle: String? {
+        switch model.kind {
+        case .daily: return Strings.string("shelf.today.title")
+        case .free(let difficulty): return Strings.difficulty(difficulty)
+        case .channel(let channel, let tier, _):
+            return Strings.string("shelf.channel.free",
+                                  .text(Strings.channel(channel)),
+                                  .text(Strings.variantTier(tier)))
+        case nil: return nil
+        }
+    }
+
+    /// Wrong digits placed on this board, in the board's own error colour.
+    ///
+    /// Absent at zero rather than showing "0", which is the same honest-absence
+    /// idiom the stats drawer's own error tile uses: a board nobody has slipped
+    /// on should not carry a mistake counter at all.
+    @ViewBuilder
+    private var headerMistakes: some View {
+        if let game = model.game, model.prefs.errorHighlight, game.errorCount > 0 {
+            headerReadout("xmark.circle", "\(game.errorCount)",
+                          tint: AnyShapeStyle(tones.coral))
+                .accessibilityLabel(Strings.string("board.stats.errors"))
+                .accessibilityValue("\(game.errorCount)")
+                .transition(.opacity)
+        }
+    }
+
+    /// Squares still empty. The same arithmetic the digit pad's counts are made
+    /// of, summed — so the two can never disagree about how much board is left.
+    @ViewBuilder
+    private var headerRemaining: some View {
+        if let game = model.game, model.solvedAt == nil {
+            let left = digitsRemaining(game).reduce(0, +)
+            headerReadout("square.grid.3x3", "\(left)",
+                          tint: AnyShapeStyle(HierarchicalShapeStyle.secondary))
+                .accessibilityLabel(Strings.string("presence.remaining", .int(left)))
+        }
+    }
+
+    /// `Space.hair`, not `Space.xs`: a glyph and the number it counts are one
+    /// unit, and at 4pt they read as two. The optical-separator rung is exactly
+    /// the "touching, but not one thing" gap this wants.
+    private func headerReadout(
+        _ symbol: String, _ value: String, tint: AnyShapeStyle
+    ) -> some View {
+        HStack(spacing: Space.hair) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+            Text(value)
+                .font(CouchTypography.label)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .foregroundStyle(tint)
+        .accessibilityElement(children: .ignore)
+    }
+
+    // MARK: The digit pad (the entry that was nowhere)
+
+    /// Nine keys, each carrying how many of that digit are still unplaced.
+    ///
+    /// **There was no persistent digit entry anywhere in this frame.** The rose
+    /// is an `.overlay` that exists only while `rose != nil`, so a player who
+    /// has not yet discovered that tapping a cell blooms a ring has no visible
+    /// way to enter a number at all — on a screen whose entire purpose is
+    /// entering numbers. The rose stays exactly as it is and remains the fast
+    /// path; this is the discoverable one, and it is also the only surface that
+    /// answers "how many 7s are left" without opening anything.
+    ///
+    /// Both routes end in the same `commit(digit:)`, so pencil mode, the erase
+    /// rim, the haptics and the tip budget cannot come to disagree.
+    ///
+    /// **The shape is entirely the caller's**, and the callers want different
+    /// ones. The drafting table's rail asks for three across at 84pt tall, which
+    /// is what turns a 360pt column of empty glass into the entry surface the
+    /// landscape frame did not have at all. The column asks for whatever shape
+    /// closes its composition — nine across on an iPad in portrait, 5 + 4 on a
+    /// short phone, and a 3×3 block on a tall one, resolved by
+    /// `BoardCompositionRules.padRows` off the height the board could not use.
+    ///
+    /// **The 3×3 case is the one worth naming.** This file's own header says the
+    /// rose commits by "the same 3×3 keypad mapping as tvOS", and the board is
+    /// made of 3×3 boxes; until round 3 the one surface that could have taught
+    /// either was a nine-across ribbon of 37×58 slivers that taught neither. The
+    /// discoverable grammar and the fast one now have the same geometry.
+    @ViewBuilder
+    private func digitPad(
+        planeWidth: CGFloat? = nil, columns: Int = 9, keyHeight: CGFloat
+    ) -> some View {
+        if let game = model.game {
+            DigitPadRow(
+                remaining: digitsRemaining(game),
+                pencil: pencilMode,
+                tint: accent,
+                tones: tones,
+                columns: columns,
+                keyHeight: keyHeight,
+                maxWidth: planeWidth,
+                onDigit: { commit(digit: $0) }
+            )
+            // A solved board takes no input — `AppModel.place` refuses it — and
+            // the pull-up debrief wants this whole region as a drag surface.
+            // Dimmed rather than removed: taking a 68pt row out of the stack on
+            // the winning placement would shove the board mid-Afterglow.
+            .disabled(model.solvedAt != nil)
+            .opacity(model.solvedAt != nil ? 0.35 : 1)
+        }
+    }
+
+    // **`padKeyHeight` has moved and changed its question.** It used to derive a
+    // key's height from its own width, which is the right rule for a row that
+    // has already been told how wide it is and the wrong one for a pad that is
+    // now the composition's shock absorber. It is
+    // `BoardCompositionRules.padKeyHeight(planeWidth:budget:)`, it takes the
+    // height the board could not use, and `DraftingTableTests` sweeps it.
+
+    /// How many of each digit 1…9 are still to be placed, index 0 = digit 1.
+    /// The same expression `StatsDrawerContent` feeds its ring row.
+    private func digitsRemaining(_ game: NineGame) -> [Int] {
+        (1...9).map { max(0, 9 - game.count(of: $0)) }
+    }
+
+    /// The rose's backdrop, for everything that is not the board.
+    ///
+    /// The scrim itself lives inside `boardArea`'s overlay, because that is the
+    /// only place it can be *under* the petals and over the grid — and the grid
+    /// is where the bug was. But a screen whose board dims while its pad and
+    /// toolbar stay at full strength reads as a bug of its own, so those recede
+    /// by roughly the same amount. The header is exempt: it is showing the
+    /// live-flick ghost, and dimming that would be the backdrop undoing the
+    /// feature it landed beside.
+    ///
+    /// It is one `.opacity` rather than a fourth scrim view: the surrounding
+    /// pixels are the theme's ground, and dimming chrome *toward* the ground is
+    /// what a scrim over it would have done anyway, without the compositing pass
+    /// or the hit-testing question.
+    private var chromeDim: Double { rose == nil ? 1 : 0.45 }
 
     /// The band the optional chrome lives in: opposite the anchor, and
     /// opposite the control bar on a centered board, so turning a chip on is
@@ -1343,7 +2404,15 @@ struct TouchGameScreen: View {
         if model.archiveDay != nil, chromeEdge == .top { return false }
         // Centered boards split the free space between both bands.
         let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
-        return bandHeight >= 100
+        // **`Hit.min`, and it was 100.** The threshold was measured against a
+        // composition with 170pt bands in it; round 3 spends that height on the
+        // board and the pad, so a 100pt gate would have quietly turned an opt-in
+        // preference into a no-op on every phone. A `GlassChip` is ~32pt tall
+        // and the touch floor is the honest question — *is there room for it* —
+        // rather than a number left over from a layout that no longer exists.
+        // On a phone the answer is now usually no, which is the deliberate
+        // trade: the ambient chip lived in the void this round deleted.
+        return bandHeight >= Hit.min
     }
 
     /// PRD-28 §5. Present only inside a parlor, and silent the rest of the time
@@ -1384,14 +2453,14 @@ struct TouchGameScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var timerChip: some View {
-        if model.prefs.showTimer, let game = model.game, model.solvedAt == nil {
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                GlassChip(SolveCardFacts.elapsedText(game.timer.elapsed(at: timeline.date)), systemImage: "clock")
-            }
-        }
-    }
+    // **`timerChip` is gone, and its absence is the fix.** It was the drafting
+    // table rail's only caller, sitting directly above a `StatsDrawerContent`
+    // that draws a `time` tile of its own — so the landscape frame showed the
+    // elapsed time twice, and the chip was the copy that clipped: measured
+    // rendering "0:2" with a smeared, half-cut "4" past its own edge, because a
+    // `GlassChip` sizes to proportional figures and a clock re-measures every
+    // second. The promoted, tabular clock in `railHeader` is the one that
+    // stays.
 
     @ViewBuilder
     private var toastView: some View {
@@ -1434,44 +2503,55 @@ struct TouchGameScreen: View {
     /// the solved chip is joined by an "Another" that starts a fresh board at
     /// the difficulty you just finished. Free-play boards only; the daily is
     /// one a day, and offering "another" one would be a lie.
+    ///
+    /// **The wait is a `.task`, not a `TimelineView`.** It was a
+    /// `TimelineView(.periodic(from: solvedAt, by: 0.5))` whose body carried
+    /// `if timeline.date.timeIntervalSince(solvedAt) > 2.4`, which is a
+    /// *re-evaluation* rather than a state change — so the `.transition` on it
+    /// had nothing to animate from and the chip that announces the end of a
+    /// twenty-minute solve simply appeared. One `@State` flipped inside
+    /// `withAnimation` gives the same 2.4s gate an actual transition, and stops
+    /// a 2Hz timeline running for the whole time the solved board is on screen.
+    ///
+    /// The chip is `.hero` now: it reported that solve in the same grey 13pt
+    /// footnote as the undo toast.
     @ViewBuilder
     private var completionChip: some View {
-        if let solvedAt = model.solvedAt {
+        if model.solvedAt != nil, afterglowSettled {
             // Read the card **here**, in the body, and pass it in. Read inside
-            // the closure instead and it is always nil: `TimelineView`'s
-            // content closure escapes, so it captures a copy of this view
-            // struct whose `@State` is a snapshot from when the closure was
-            // made — and this one is made before the render lands, 70 ms after
-            // the solve. Driving the app found it: the renderer logged
-            // "assigned, shareCard=set" once and every subsequent evaluation of
-            // the button logged "shareCard=nil", 30 times running, with the PNG
-            // sitting on disk the whole time. Nothing about it is visible to a
-            // green test suite or to a code reading.
+            // an escaping closure instead and it is always nil: the closure
+            // captures a copy of this view struct whose `@State` is a snapshot
+            // from when the closure was made — and this one is made before the
+            // render lands, 70 ms after the solve. Driving the app found it: the
+            // renderer logged "assigned, shareCard=set" once and every
+            // subsequent evaluation of the button logged "shareCard=nil", 30
+            // times running, with the PNG sitting on disk the whole time.
             let card = shareCard
-            TimelineView(.periodic(from: solvedAt, by: 0.5)) { timeline in
-                if timeline.date.timeIntervalSince(solvedAt) > 2.4 {
-                    HStack(spacing: 10) {
-                        GlassChip(completionText, systemImage: "checkmark")
-                        shareButton(card)
-                        sendBoardButton
-                        if case .free(let difficulty)? = model.kind {
-                            Button {
-                                highlightedDigit = nil
-                                model.startFree(difficulty)
-                            } label: {
-                                GlassChip(Strings.string("game.another.title"),
-                                          systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(Strings.string(
-                                "game.another.label", .text(Strings.difficulty(difficulty))))
-                        }
+            HStack(spacing: Space.s) {
+                GlassChip(completionText, systemImage: "checkmark",
+                          emphasis: .heroTint(accent))
+                shareButton(card)
+                sendBoardButton
+                if case .free(let difficulty)? = model.kind {
+                    Button {
+                        highlightedDigit = nil
+                        model.startFree(difficulty)
+                    } label: {
+                        GlassChip(Strings.string("game.another.title"),
+                                  systemImage: "arrow.clockwise")
                     }
-                    .transition(.opacity)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Strings.string(
+                        "game.another.label", .text(Strings.difficulty(difficulty))))
                 }
             }
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
+
+    /// How long the Afterglow owns the screen. The chip waits it out rather
+    /// than landing on top of the luminance wave.
+    private static let afterglowHold: TimeInterval = 2.4
 
     private var completionText: String {
         if case .daily? = model.kind, model.displayedStreak > 0 {
@@ -1868,7 +2948,14 @@ struct TouchGameScreen: View {
                 afterglowTilt: { motion.tilt(at: $0) },
                 side: side,
                 inset: inset,
-                axActions: axActions
+                axActions: axActions,
+                // W2B wrote the placement settle, the erase echo and the error
+                // shake and nothing fed them — three animations, all dead code,
+                // because `lastEvent` had no caller. `AppModel` sets it beside
+                // the move it describes, so the picture and the haptic fire off
+                // the same event rather than off two guesses at it. Identity
+                // under Reduce Motion, inside `BoardView`.
+                lastEvent: model.lastCellEvent
             )
             .contentShape(Rectangle())
             .onTapGesture { location in
@@ -1932,11 +3019,31 @@ struct TouchGameScreen: View {
             }
             .overlay {
                 if let rose, let lens, model.solvedAt == nil {
-                    // Scrim: any touch beside the rose cancels it — and blocks
-                    // board taps from landing under an open rose.
-                    Color.black.opacity(0.001)
+                    // **The backdrop, at last.** This was
+                    // `Color.black.opacity(0.001)` — a hit-test shim, three
+                    // levels of nothing — and `BoardView`'s own
+                    // `.opacity(roseOpen ? 0.82 : 1.0)` was a 3-RGB-level no-op
+                    // over the ground, so the board under the petals was
+                    // effectively undimmed. What that costs is not subtlety, it
+                    // is *false information*: the accent cursor ring and a coral
+                    // error mark refract up through petals 2 and 3 and fabricate
+                    // "selected" and "error" states the rose never rendered.
+                    //
+                    // Clipped to the board card's own corner rather than drawn
+                    // as a rectangle: the overlay's frame is the padded plane, so
+                    // a square scrim would print four hard corners onto the
+                    // ground around a rounded card. The radius is `BoardView`'s
+                    // `cardRadius`, restated — that property is private and the
+                    // file is on the watch target, so this is the same
+                    // deliberate second copy `BoardInk` is.
+                    RoundedRectangle(cornerRadius: max(28, 36 * side / BoardMetrics.side),
+                                     style: .continuous)
+                        .fill(tones.isLight ? Color.white.opacity(0.38)
+                                            : Color.black.opacity(0.34))
+                        // The whole plane still cancels, corners included.
                         .contentShape(Rectangle())
                         .onTapGesture { closeRose() }
+                        .transition(.opacity)
                     TouchRose(
                         state: rose,
                         accent: accent,
@@ -1947,7 +3054,15 @@ struct TouchGameScreen: View {
                         // on one — so "filled" is the only guard this needs.
                         currentDigit: game.isGiven(cursor) || game.entry(at: cursor) == 0
                             ? nil : game.entry(at: cursor),
-                        notedDigits: Set(game.pencilDigits(at: cursor))
+                        notedDigits: Set(game.pencilDigits(at: cursor)),
+                        // The petals' numerals in the theme's own digit tone,
+                        // so a rose over Blueprint stops being off-palette.
+                        digitTone: tones.digitTone,
+                        // The rose covers the cell it writes into; the header
+                        // shows what the stroke is currently aimed at.
+                        onLiveFocus: { digit in
+                            withAnimation(.couchFast) { liveFlickDigit = digit }
+                        }
                     )
                     .position(x: lens.viewCentre.x, y: lens.viewCentre.y)
                 }
@@ -2221,11 +3336,27 @@ struct TouchGameScreen: View {
     private func closeRose() {
         withAnimation(.couchFast) { rose = nil }
         hoverDigit = nil
+        // The ghost describes a stroke, and there is no stroke once the ring is
+        // gone. `onLiveFocus(nil)` fires on lift as well, so this is the
+        // belt-and-braces half for the paths that close the rose without one —
+        // Esc, a cursor move, the coach, going home.
+        liveFlickDigit = nil
     }
 
+    /// One digit, committed — from a petal, from a pad key, or from the
+    /// keyboard's own path.
+    ///
+    /// **The rose is no longer the precondition, only a source of one.** This
+    /// opened `guard let state = rose else { return }`, so routing the digit pad
+    /// through it — which is what stops the two entry grammars drifting — would
+    /// have made every pad key a silent no-op. Where the rose is open its
+    /// `pencil` still decides, exactly as before; where it is not, the rule is
+    /// the one `openRose` would have applied at this cell, so a pad key in
+    /// pencil mode notes and a pad key on a filled cell writes.
     private func commit(digit: Int) {
-        guard let state = rose else { return }
-        if state.pencil {
+        guard let game = model.game, model.solvedAt == nil else { return }
+        let pencil = rose?.pencil ?? (pencilMode && game.entry(at: cursor) == 0)
+        if pencil {
             model.togglePencil(digit, at: cursor)
         } else if model.game?.entry(at: cursor) == digit {
             // The rose opened on a cell that already holds this digit — its
@@ -2414,7 +3545,9 @@ struct TouchGameScreen: View {
     @ViewBuilder
     private var autoNotesChipView: some View {
         if let autoNotesChip {
-            GlassChip(autoNotesChip, systemImage: "wand.and.stars")
+            // The same glyph the button now wears — a feature whose chip and
+            // whose control show different symbols is two features.
+            GlassChip(autoNotesChip, systemImage: "square.grid.3x3.topleft.filled")
                 .transition(.opacity)
         }
     }
@@ -2558,22 +3691,81 @@ struct GlassIconButton: View {
     let label: String
     var active = false
     var accent: Color = .white
+    /// This button is drawn **inside** a glass bar (the game toolbar, the
+    /// drafting table's control column, the game header's capsule).
+    ///
+    /// Defaulted false, so every call site that predates round 2 renders exactly
+    /// what it rendered — the shelf's calendar and gear are still standalone
+    /// discs on the page, which is correct: they sit on the shelf bar's own
+    /// material and are the only two controls there.
+    ///
+    /// Inside a bar it matters, and it is the L4 rung again: a `.regular` disc
+    /// nested in a `.regular` bar is two lenses stacked, which reads as one
+    /// murkier surface. Worse, each disc was carrying its own drop shadow — five
+    /// shadows *inside* a toolbar, which is a shadow cast onto the thing casting
+    /// it. In a bar the disc is shape and tint and nothing else, and the state
+    /// ring is what does the talking.
+    var inBar = false
+    /// Whether this button draws a seat under its glyph at all.
+    ///
+    /// Defaulted true, so every call site that predates round 3 is unchanged.
+    /// The one caller that passes false is the game header's back chevron, and
+    /// the finding it answers is *"a nested circular back chip inside the
+    /// capsule — button-in-a-button, radii not concentric"*. An unseated button
+    /// is still a 44pt target with a 44pt accessibility shape and a label; it
+    /// simply stops claiming to be a second surface on a surface.
+    ///
+    /// Only meaningful with `inBar` — outside a bar the seat *is* the button.
+    var seated = true
     let action: @MainActor () -> Void
+
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isLight: Bool { theme.tones(for: colorScheme).isLight }
+
+    /// An active tool inside a bar gets a tinted seat, not just a ring — the
+    /// audit asked for "a tinted glass state so the toolbar shows state, not
+    /// just five identical shapes". Low alpha on purpose: at full strength a
+    /// tint stops being a material and becomes a flat slab, which is the same
+    /// lesson `todayTint` records.
+    private var seatTint: Color {
+        if active { return accent.opacity(0.24) }
+        // An unseated button still lights up when it is the active mode — a
+        // pencil that cannot show it is on would be a worse bug than a chip in
+        // a bar — it simply has no resting shape.
+        guard seated else { return .clear }
+        return .white.opacity(isLight ? 0.14 : 0.07)
+    }
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .semibold))
+                // One symbol weight for the whole row: the discs are peers, and
+                // a monochrome rendering keeps a multicolour SF Symbol from
+                // being the loudest thing in a group of five.
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(active ? AnyShapeStyle(accent) : AnyShapeStyle(.secondary))
-                .frame(width: 44, height: 44)
+                .frame(width: Hit.min, height: Hit.min)
                 // Non-interactive glass: the Button + TouchCardStyle press-scale
                 // already gives feedback. Interactive Liquid Glass ran its own
                 // touch handling that competed with the Button's tap recognizer,
                 // making Home/pencil/undo/gear unresponsive (mirrors the working
                 // macOS chip pattern). At rest the two variants look identical.
-                .couchGlass(in: Circle())
+                //
+                // **Nothing below changes what this Button's label *is*** — the
+                // rim and the shadow are `.overlay`/`.background` on the same
+                // image, not a new interactive layer — so the unresponsiveness
+                // that comment records cannot come back through them.
+                .modifier(GlassIconSeat(inBar: inBar, isLight: isLight, tint: seatTint))
                 .overlay {
                     Circle().strokeBorder(accent.opacity(active ? 0.8 : 0), lineWidth: 2)
+                        // The ring used to pop on and off. Toggling pencil is
+                        // the most-used control on the bar and its only feedback
+                        // was a hard cut.
+                        .animation(.couchFast, value: active)
+                        .allowsHitTesting(false)
                 }
                 // PRD-19 / craft charter: without this, SwiftUI derives the
                 // accessibility frame from the SF Symbol's tight glyph bounds,
@@ -2590,6 +3782,207 @@ struct GlassIconButton: View {
         // it is inert with no pointer attached, so the phone is unchanged.
         .hoverEffect()
         .accessibilityLabel(label)
+    }
+}
+
+/// A `GlassIconButton`'s surface, factored out for the reason `TouchCardSurface`
+/// is: the two rungs are two different modifier chains and a `some View` body
+/// cannot return both from an `if` without one.
+private struct GlassIconSeat: ViewModifier {
+    let inBar: Bool
+    let isLight: Bool
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        if inBar {
+            // Shape and tint, no second pane and no shadow. The bar around it
+            // is the material; this is a region of it.
+            content.couchInset(in: Circle(), tint: tint)
+        } else {
+            content
+                .couchGlass(in: Circle())
+                // The measurement that made these discs look unfinished: 1.08:1
+                // against the page on dark and 1.13:1 on light. A glass pane
+                // with no rim has no edge for a light source to catch, so six
+                // of them read as smudges rather than as controls. Under the
+                // active ring, so a lit tool still shows its accent cleanly.
+                .background {
+                    Circle()
+                        .fill(.black.opacity(isLight ? 0.10 : 0.42))
+                        .blur(radius: 8)
+                        .offset(y: 3)
+                        .allowsHitTesting(false)
+                }
+                .overlay {
+                    Circle().strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(isLight ? 0.6 : 0.22),
+                                     .white.opacity(isLight ? 0.15 : 0.06)],
+                            startPoint: .top, endPoint: .bottom),
+                        lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+        }
+    }
+}
+
+/// Nine keys under the board, each carrying how many of that digit are left.
+///
+/// **On a phone the keys are not square, and that is arithmetic.**
+/// Nine 44pt targets plus eight gaps need 396 + 48 = 444pt; a 402pt phone leaves
+/// this row 386 once the column's 8pt gutters are taken, and 338 once the tray's
+/// own 12pt padding and the eight 4pt gaps are. So the keys take the width they
+/// are given — ≈ 36.7 —
+/// and buy the touch floor back in the other axis at 58pt tall. That is the
+/// standard shape of a nine-across numeric row on a phone and the only one that
+/// does not force a second row; the rose remains the full-size grammar, and
+/// every digit is also a first-class VoiceOver action on the cell itself
+/// (PRD-19), so nothing here is the sole route to a digit.
+///
+/// `couchInset` rather than `couchGlass`: the keys sit inside a tray that is
+/// already glass, and `.regular` nested in `.regular` is the glass-on-glass
+/// mistake CouchKit's L4 rung exists to end.
+///
+/// **Round 2 makes the shape the caller's and the tray a card rather than a
+/// ribbon.** Three findings, all about the same component:
+///
+///  * *"Number pad is a stretched full-width ribbon of squat pills."* On an
+///    iPad the row ran edge to edge at 100×78, which is not a keypad, it is a
+///    ribbon. `maxWidth` ties the tray to the board plane's width and
+///    `keyHeight` follows the key's own width up to square, so the same nine
+///    keys are 37×58 on a phone and 85×84 on an iPad.
+///  * *"~26pt tray around ~10pt keys reads as pasted-on."* The tray was
+///    `Radius.control` (16) with `Space.s` (8) padding, which makes the
+///    concentric answer 8 — correct, and both curves too tight for a surface
+///    that is now the width of the board. The tray is `Radius.card` at
+///    `Space.m`, and the key follows it by the same `Radius.inner` call, so
+///    the relationship holds at either size instead of the numbers holding.
+///  * *"11pt near-invisible count subscripts… a digit at 0 remaining needs a
+///    visibly dimmed/struck state."* The count is a filled pip now — the
+///    audit's own suggestion, and the one that survives sunlight — and an
+///    exhausted key loses the pip entirely rather than printing a "0" nobody
+///    can read.
+private struct DigitPadRow: View {
+    /// Index 0 is the digit 1.
+    let remaining: [Int]
+    let pencil: Bool
+    let tint: Color
+    let tones: ThemeTones
+    /// Nine across for the column, three across for the drafting table's rail.
+    /// Anything that does not divide nine simply leaves a short last row.
+    var columns: Int = 9
+    var keyHeight: CGFloat = 58
+    /// The tray's clamp. Nil is the shipped elastic behaviour.
+    var maxWidth: CGFloat? = nil
+    let onDigit: @MainActor (Int) -> Void
+
+    private var rows: [[Int]] {
+        stride(from: 0, to: 9, by: max(1, columns)).map { start in
+            Array((start + 1)...min(start + max(1, columns), 9))
+        }
+    }
+
+    var body: some View {
+        let tray = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        CouchGlassContainer(spacing: Space.s) {
+            VStack(spacing: Space.xs) {
+                ForEach(rows, id: \.first) { row in
+                    HStack(spacing: Space.xs) {
+                        ForEach(row, id: \.self) { digit in
+                            key(digit, left: remaining[digit - 1])
+                        }
+                    }
+                }
+            }
+            .padding(Space.m)
+            .couchGlass(in: tray)
+            .couchElevated(in: tray, isLight: tones.isLight)
+        }
+        .frame(maxWidth: maxWidth ?? .infinity)
+        .frame(maxWidth: .infinity)
+        // One place for Switch Control's group scan, exactly as the stats rail
+        // is — nine keys are a keypad, not nine loose controls under a board.
+        .accessibilityElement(children: .contain)
+    }
+
+    private func key(_ digit: Int, left: Int) -> some View {
+        Button { onDigit(digit) } label: {
+            VStack(spacing: Space.hair) {
+                Text("\(digit)")
+                    .font(.system(size: keyHeight >= 72 ? 34 : 22,
+                                  weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    // In pencil mode the pad writes notes, so it says so in the
+                    // same accent the rose's note petals use — a mode you can
+                    // only discover by pressing a key is not a mode.
+                    .foregroundStyle(pencil ? tint : tones.digitTone)
+                countPip(left)
+            }
+            .frame(maxWidth: .infinity, minHeight: keyHeight)
+            // Concentric with the tray, derived rather than declared: a 22pt
+            // corner with 12pt of padding wants a 10pt inner corner. Stated as
+            // the arithmetic so that retuning the tray retunes the keycap.
+            .couchInset(in: RoundedRectangle(
+                cornerRadius: Radius.inner(Radius.card, inset: Space.m),
+                style: .continuous),
+                        tint: tones.gridTone.opacity(0.10))
+            // The whole key, for Switch Control and Voice Control — without it
+            // SwiftUI derives the frame from the numeral's glyph bounds, which
+            // is the 9×15pt defect PRD-19 recorded on the Home chevron.
+            .contentShape(.accessibility, Rectangle())
+        }
+        .buttonStyle(TouchCardStyle())
+        // Every one of this digit is placed. Dimmed, never disabled: nine on the
+        // board can still include a wrong one, and a key you cannot press is a
+        // key you cannot correct with.
+        .opacity(left == 0 ? 0.3 : 1)
+        .animation(.couchFast, value: left)
+        .accessibilityLabel(left == 0
+                            ? Strings.string("board.stats.digitDone", .int(digit))
+                            : Strings.string("board.stats.digitLeft",
+                                             .int(digit), .int(left)))
+    }
+
+    /// How many of this digit are left, as a filled pip rather than a 10pt grey
+    /// numeral. The numeral measured near-invisible outdoors; a pip carries its
+    /// own ground, so the count survives the sun and reads at thumbnail size.
+    ///
+    /// Nothing at all when the digit is exhausted: the key is already at 0.3
+    /// opacity, and a "0" in a pip is a count that has to be read to learn that
+    /// there is nothing to count.
+    @ViewBuilder
+    private func countPip(_ left: Int) -> some View {
+        if left > 0 {
+            Text("\(left)")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .foregroundStyle(tones.digitTone.opacity(0.85))
+                .padding(.horizontal, Space.xs)
+                .padding(.vertical, 1)
+                .background(tones.gridTone.opacity(0.18), in: Capsule())
+        } else {
+            // A zero-height placeholder, so an exhausted key is the same height
+            // as its neighbours and the row does not re-measure as the board
+            // fills. `Color.clear` alone would take the flexible height.
+            Color.clear.frame(height: 0)
+        }
+    }
+}
+
+private extension View {
+    /// iOS 26's soft scroll-edge effect on both edges, and nothing at all below
+    /// it — the deployment target is 18.0 and this is the whole of the
+    /// `#available` dance, in one place, so no call site has to carry it.
+    @ViewBuilder
+    func nineSoftScrollEdges() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            self
+        }
     }
 }
 

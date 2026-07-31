@@ -103,13 +103,22 @@ public enum SharedPalette {
         }
     }
 
-    /// `CouchPalette.void` / `CouchPalette.paper`, written out because CouchKit
-    /// is a SwiftUI package and this file may not import it.
-    static let void = PaletteRGB(0, 0, 0)
+    /// Void's ground. **Not `CouchPalette.void` and not pure black** — see the
+    /// comment above `case .dark` in `Theme.swift` for why: `.glassEffect` has
+    /// nothing to refract over #000000, so the app's every glass card measured
+    /// between 1.005:1 and 1.08:1 against the page it floated on. #0C0C0F is the
+    /// smallest lift that gives the material something to bend.
+    ///
+    /// It matters here and not only in the App layer because the widget process
+    /// draws this ground too, and a Home Screen tile that is pure black beside
+    /// an app that is not is a visible seam.
+    static let darkGround = PaletteRGB(0.047, 0.047, 0.059)
+    /// `CouchPalette.paper`, written out because CouchKit is a SwiftUI package
+    /// and this file may not import it.
     static let couchPaper = PaletteRGB(0.93, 0.9, 0.84)
 
     public static let themes: [String: ThemeGround] = [
-        "dark": ThemeGround(background: void, digit: couchPaper, isLight: false),
+        "dark": ThemeGround(background: darkGround, digit: couchPaper, isLight: false),
         "light": ThemeGround(
             background: PaletteRGB(0.94, 0.93, 0.90),
             digit: PaletteRGB(0.17, 0.16, 0.14),

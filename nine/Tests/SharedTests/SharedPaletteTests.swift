@@ -167,9 +167,11 @@ final class SharedPaletteTests: XCTestCase {
         for name in expected {
             let ground = try XCTUnwrap(SharedPalette.themes[name])
             guard let block = Self.tonesBlock(for: name, in: source) else {
-                // `dark` names CouchPalette constants rather than literals, so it
-                // is pinned by the dedicated test below instead.
-                XCTAssertEqual(name, "dark", "no tones block parsed for \(name)")
+                // Every theme now writes its ground as a literal — Void stopped
+                // naming `CouchPalette.void` when the glass needed a ground to
+                // lens — so a theme whose block will not parse is a real
+                // failure, not the one carve-out it used to be.
+                XCTFail("no tones block parsed for \(name) — `tones(for:)`'s shape changed")
                 continue
             }
             if let background = Self.labelledColor("background:", in: block) {
@@ -183,29 +185,73 @@ final class SharedPaletteTests: XCTestCase {
         }
     }
 
-    /// Void is the only theme whose tones are CouchKit constants rather than
-    /// literals, so it is checked against CouchKit's source instead.
-    func testVoidTracksCouchPalette() throws {
-        let couch = try String(
+    private static func couchUISource() throws -> String {
+        try String(
             contentsOf: Self.nineRoot
                 .deletingLastPathComponent()   // repo root
                 .appendingPathComponent("couchkit/Sources/CouchKit/CouchUI.swift"),
             encoding: .utf8
         )
+    }
+
+    /// Void's *ink* is still a CouchKit constant (`CouchPalette.paper`), so it is
+    /// checked against CouchKit's source rather than against a literal. Its
+    /// ground is not — see the test below.
+    func testVoidsInkTracksCouchPalette() throws {
+        let couch = try Self.couchUISource()
         let dark = try XCTUnwrap(SharedPalette.themes["dark"])
-        for (needle, expected) in [
-            ("static let void", dark.background), ("static let paper", dark.digit),
+        let line = try XCTUnwrap(
+            couch.split(separator: "\n").first { $0.contains("static let paper") },
+            "CouchPalette has no `static let paper` — this test is reading nothing"
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(Self.colorComponents(in: String(line))), dark.digit,
+            "static let paper"
+        )
+    }
+
+    /// **The ground the glass lenses.** Void used to *be* `CouchPalette.void`,
+    /// which is pure black, and `.glassEffect` over pure black produces no
+    /// material at all — the app's every glass card measured between 1.005:1 and
+    /// 1.08:1 against the page it floated on, because there was nothing behind
+    /// the lens to bend. The fix is a ground, not a card.
+    ///
+    /// Two halves, and both of them are the point:
+    ///
+    /// 1. Nine's dark ground is off pure black in every channel. A future
+    ///    "simplification" back to `CouchPalette.void` takes all of that away
+    ///    again and nothing else in the suite would notice.
+    /// 2. `CouchPalette.void` is **still** (0, 0, 0). Four sibling apps draw on
+    ///    it and CouchKit is additive-only, so the lift had to happen in Nine's
+    ///    theme rather than in the shared constant. This is the assertion that
+    ///    stops someone "fixing" it in the wrong file.
+    func testVoidsGroundIsLiftedOffPureBlackWithoutMovingCouchPalette() throws {
+        let dark = try XCTUnwrap(SharedPalette.themes["dark"])
+        for (channel, value) in [
+            ("red", dark.background.red),
+            ("green", dark.background.green),
+            ("blue", dark.background.blue),
         ] {
-            let line = try XCTUnwrap(
-                couch.split(separator: "\n").first { $0.contains(needle) },
-                "CouchPalette has no `\(needle)` — this test is reading nothing"
+            // >= 10/255: the acceptance floor for "sampling the background away
+            // from any card does not return black".
+            XCTAssertGreaterThanOrEqual(
+                value, 10.0 / 255.0,
+                "Void's \(channel) channel is back on the floor — glass has nothing to refract"
             )
-            XCTAssertEqual(Self.labelledColor("red:", in: String(line)) != nil, true)
-            XCTAssertEqual(
-                try XCTUnwrap(Self.colorComponents(in: String(line))), expected,
-                needle
-            )
+            // …and still unmistakably a dark theme.
+            XCTAssertLessThan(value, 0.10, "Void's \(channel) channel is no longer dark")
         }
+
+        let couch = try Self.couchUISource()
+        let line = try XCTUnwrap(
+            couch.split(separator: "\n").first { $0.contains("static let void") },
+            "CouchPalette has no `static let void` — this test is reading nothing"
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(Self.colorComponents(in: String(line))), PaletteRGB(0, 0, 0),
+            "CouchPalette.void moved. It is shared with four tvOS apps and is "
+                + "additive-only; lift Nine's ground in `ThemeChoice.dark` instead."
+        )
     }
 
     private static func tonesBlock(for theme: String, in source: String) -> String? {

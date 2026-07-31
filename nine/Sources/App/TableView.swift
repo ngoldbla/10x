@@ -24,6 +24,24 @@
 //     and drawing it turns a window back into a position in a hierarchy.
 //   * No notification, ever. `TableSealTests` greps this file for the four APIs
 //     that could make one.
+//
+// **Round 2 added a surface under the standings and nothing else.** The blind
+// panel's complaint about this sheet was material, not information: *"flat
+// opaque fill plus a hairline, not a material"*, and the twenty seats were not
+// even that — they were type on bare glass. They are one `historyInset` card
+// now, so the section has an edge that catches light, and your own row carries a
+// tinted band rather than only a colour change on two glyphs. Every refusal
+// above survives it: the card is not a podium, the band is not a rank, and
+// nothing about it can be read as a position in a hierarchy.
+//
+// **Round 3 changed nothing here on purpose.** Every finding that touches this
+// section is a property of `historyInset` and `HistoryMetrics` — the card is
+// lighter than the sheet on paper now rather than darker, its corner is derived
+// from the sheet's own radius and padding, and a light ground gets an ambient
+// shadow instead of an outline stroke — so all three arrive through the two
+// helpers this file already reads. A local override would have been a fourth
+// opinion about a surface that finally has one. The only edit is the note on the
+// band's radius below, which those changes made exact.
 #if os(iOS) || os(macOS) || os(tvOS)
 import SwiftUI
 import CouchKit
@@ -111,15 +129,22 @@ struct TableSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10 * s) {
-            Text(Strings.string("history.section.table"))
-                .font(CouchTypography.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Space.m * s) {
+            // The sheet's one section-label treatment, shared with
+            // `HistorySheet` rather than re-typeset here. "The Table" and the
+            // sentence under it both used to sample rgb(98,98,98) one point
+            // apart, so the header read as the first line of the invitation.
+            HistorySectionHeader(text: Strings.string("history.section.table"), s: s)
 
             switch face {
             case .invitation:
                 note(Strings.string("table.invitation"))
-                control(Strings.string("table.join")) { model.setJoinsTable(true) }
+                // The one accented control in the sheet: this is the door into
+                // PRD-29 and it shipped as bare text on bare glass, measuring
+                // 220 interior against a 221 exterior.
+                control(Strings.string("table.join"), accented: true) {
+                    model.setJoinsTable(true)
+                }
             case .signedOut:
                 note(Strings.string("history.gameCenter.out"))
                 leaveControl
@@ -127,9 +152,23 @@ struct TableSection: View {
                 note(Strings.string("table.waiting"))
                 leaveControl
             case .seats(let seats):
-                VStack(alignment: .leading, spacing: 8 * s) {
+                // **The standings are a card, like everything else in this
+                // sheet.** Twenty rows of unbacked text sitting directly on the
+                // panel was the one place in History where a *list* had no
+                // surface under it, while the three stat tiles beside it, the
+                // Game Center row above it and the join pill below it were all
+                // cards. `historyInset` gives it the same L4 rung, the same
+                // `childRadius`, the same themed hairline and — round 2 — the
+                // same specular rim, so the section has a top edge that catches
+                // the light and a bottom lip that does not.
+                VStack(alignment: .leading, spacing: Space.xs * s) {
                     ForEach(seats) { seat in row(seat) }
                 }
+                .padding(.vertical, Space.s * s)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .historyInset(tones,
+                              radius: HistoryMetrics.childRadius * s,
+                              hairline: HistoryMetrics.hairlineWidth * s)
                 // One container so Switch Control's group scan treats the
                 // standings as a group and steps into it, rather than putting
                 // twenty rows in the sheet's top-level scan (PRD-19 §Switch
@@ -145,9 +184,9 @@ struct TableSection: View {
 
     private func row(_ seat: DailyTable.Seat) -> some View {
         let elapsed = SolveCardFacts.elapsedText(TimeInterval(seat.week.seconds))
-        return HStack(spacing: 10 * s) {
+        return HStack(spacing: Space.s * s) {
             WeekMarks(days: seat.week.days, accent: seat.isMe ? accent : accent.opacity(0.55),
-                      track: tones.gridTone.opacity(0.10), s: s)
+                      track: HistoryMetrics.track(tones), s: s)
             Text(seat.isMe ? Strings.string("table.you") : seat.name)
                 .font(.system(size: 13 * s,
                               weight: seat.isMe ? .semibold : .medium, design: .rounded))
@@ -160,6 +199,30 @@ struct TableSection: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, Space.m * s)
+        .padding(.vertical, Space.s * s)
+        // Your own row, and only your own row, wears a wash.
+        //
+        // A **fill, not a second material** — `couchInset` inside `couchInset`
+        // is the nesting this sheet's header exists to forbid, and a tint is all
+        // the emphasis a row needs when it is already the only accented name in
+        // the column. Inset from the card's edges by a chip's radius so its
+        // corners sit inside the card's own, rather than running full-bleed and
+        // squaring off where the card curves away.
+        //
+        // Round 3 made that inset exact rather than merely sensible.
+        // `HistoryMetrics.childRadius` is 16 now — `Radius.inner(38, inset: 22)`,
+        // derived from the sheet a phone actually gets — and this band sits
+        // `Space.s` (8) inside it at `Radius.chip` (8). `Radius.inner(16,
+        // inset: 8)` is 8, so the band's corner is concentric with the card's by
+        // arithmetic instead of by eye.
+        .background {
+            if seat.isMe {
+                RoundedRectangle(cornerRadius: Radius.chip * s, style: .continuous)
+                    .fill(HistoryMetrics.accentFill(accent, tones))
+                    .padding(.horizontal, Space.s * s)
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             seat.isMe
@@ -170,10 +233,16 @@ struct TableSection: View {
 
     // MARK: Chrome
 
+    /// Body copy — an invitation, a caveat, the honest nothing.
+    ///
+    /// 15pt regular in the sheet's own ink, not 12pt `.secondary`. This is the
+    /// prose a player is meant to *read*, and it shipped a rung below the label
+    /// above it and in the same colour, which is how a surface ends up typeset
+    /// entirely in one grey.
     private func note(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12 * s, weight: .medium, design: .rounded))
-            .foregroundStyle(.secondary)
+            .font(HistoryMetrics.bodyFont(s))
+            .foregroundStyle(HistoryMetrics.bodyInk)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -181,14 +250,17 @@ struct TableSection: View {
     /// delete-my-score call, so what has gone up stays until the occurrence ages
     /// out. Saying that in one line is cheaper than a player discovering it.
     private var leaveControl: some View {
-        VStack(alignment: .leading, spacing: 4 * s) {
+        VStack(alignment: .leading, spacing: Space.s * s) {
             control(Strings.string("table.leave")) { model.setJoinsTable(false) }
             note(Strings.string("table.leave.note"))
         }
     }
 
+    /// `HistoryMetrics.childRadius`, not 14. Every child of the sheet's panel
+    /// draws the same corner now — three near-but-not-equal radii (16 / 16 / 14)
+    /// is the shape of two files guessing separately.
     private var controlShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 14 * s, style: .continuous)
+        RoundedRectangle(cornerRadius: HistoryMetrics.childRadius * s, style: .continuous)
     }
 
     /// The 44 pt floor, twice, because neither half is enough on its own and
@@ -201,14 +273,30 @@ struct TableSection: View {
     /// the rule it landed is that pinning a shape onto a child is what SwiftUI
     /// then derives the whole element's frame from. PRD-24's tier cards shipped
     /// at 41 pt for the same reason; this is the third time.
-    private func control(_ title: String, action: @escaping () -> Void) -> some View {
+    ///
+    /// **`couchInset`, never `couchGlassInteractive`.** This control is drawn
+    /// inside `GlassSheet`'s own `.couchGlass` panel, and asking for `.regular`
+    /// again there is the glass-in-glass mistake wave 1 measured across twelve
+    /// sites: the join pill sampled 220 interior against 221 exterior — a $4.99
+    /// app's primary action rendered as a bare hyperlink. L4 gives it shape and
+    /// tint and no second lens; `accented` is what makes the one control that
+    /// outranks the others look like it.
+    private func control(
+        _ title: String, accented: Bool = false, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13 * s, weight: .semibold, design: .rounded))
                 .foregroundStyle(accent)
-                .padding(.horizontal, 16 * s)
-                .frame(minHeight: 44 * s)
-                .couchGlassInteractive(in: controlShape)
+                .padding(.horizontal, Space.l * s)
+                .frame(minHeight: HistoryMetrics.control * s)
+                .historyInset(
+                    tones,
+                    radius: HistoryMetrics.childRadius * s,
+                    fill: accented ? HistoryMetrics.accentFill(accent, tones) : nil,
+                    rim: accented ? HistoryMetrics.accentRim(accent) : nil,
+                    hairline: HistoryMetrics.hairlineWidth * s,
+                    interactive: true)
         }
         .buttonStyle(.plain)
         .contentShape(.accessibility, controlShape)

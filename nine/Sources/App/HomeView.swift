@@ -521,34 +521,85 @@ private struct ShelfCard<Content: View>: View {
 
 #endif
 
-/// A difficulty preview: a 9×9 field of dots whose density grows with the
-/// difficulty. Deterministic (CouchHash), so the shelf never flickers.
-/// Shared by the TV shelf and the touch home.
+/// A difficulty preview: a 9×9 board whose *picture* is the band's ruleset.
+/// Deterministic (CouchHash), so the shelf never flickers. Shared by the TV
+/// shelf, the touch home, the Mac shelf and the tutorial's difficulty guide.
+///
+/// **Three things this used to get wrong, all of them measured.**
+///
+/// 1. There was no box gutter: dots sat at `x * cell + cell * 0.3` on a
+///    perfectly uniform lattice, so at 64 pt the tile was a QR-code fragment
+///    rather than a sudoku. Two seams per axis is the whole difference, and it
+///    costs one multiply per dot (`BoardArt.cellRect`).
+/// 2. Nocturne, Tempest and Abyss were **one picture repeated three times** —
+///    density 0.84 for all three, only the noise seed differing. Measured off
+///    the shipped dark frame they came out at 12.5% / 12.3% / 11.3% ink and
+///    6.5–10/255 mean absolute difference from one another: three cards a buyer
+///    knows least about, stacked in a column, showing the same swatch. Density
+///    genuinely stops carrying information above Sharp, so above Sharp the
+///    *ruleset* is what is drawn — a void field, an X-wing, a two-colour
+///    split — and each one matches the sentence printed beside it.
+/// 3. Every band drew in `accent.opacity(0.85)`, so difficulty — the one axis a
+///    sudoku shelf exists to communicate — carried no colour at all. The tint
+///    now ramps from a desaturated accent at Gentle to the theme's coral at the
+///    deep end, so the column reads as temperature before a word is read.
 struct MiniBoard: View {
     let difficulty: Difficulty
     let accent: Color
+    /// The art's own corner, concentric with the card it is dropped into.
+    /// `TouchCard` is a 24 pt radius with 18 pt of padding, so the default is
+    /// `Radius.inner` of those two — 6. A caller in a differently-curved card
+    /// passes its own; nobody has to, which is why it is defaulted.
+    var corner: CGFloat = Radius.inner(24, inset: 18)
 
-    private var density: Double {
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+
+    /// What the preview draws, with the one number that shapes it. One switch
+    /// rather than a `pattern` and a `density` keyed on the same enum, because
+    /// only one combination of the two is ever legal and two switches is two
+    /// things to keep in step.
+    private enum Pattern {
+        /// A field whose density *is* the difficulty. The three-across row.
+        case field(Double)
+        /// A sparse field with whole boxes left empty — "fewer clues".
+        case voids(Double)
+        /// Both diagonals lit over a dim field: the X-wing the band is named
+        /// for. The argument is the density of the field behind it.
+        case wing(Double)
+        /// One field split by box parity into two colours — "colouring".
+        case split(Double)
+    }
+
+    private var pattern: Pattern {
         switch difficulty {
-        case .gentle: return 0.30
-        case .steady: return 0.48
-        case .sharp: return 0.68
-        // Above Sharp, but not saturated: at 1.0 the field stops reading as a
-        // board and starts reading as a solid square, which loses the one thing
-        // the preview is for. 0.84 is the last step that still shows holes.
-        // Above Sharp the scale stops carrying information: 0.84 is the last
-        // step that still shows holes, so Tempest and Abyss share it rather
-        // than climbing into a solid square. What separates the three previews
-        // is the *pattern*, below — which is honest, because their clue counts
-        // genuinely are alike (median 28 givens for both new bands).
-        case .nocturne, .tempest, .abyss: return 0.84
+        // The three shipped densities, unchanged: these three cards are the
+        // pixels they have always been apart from the gutter.
+        case .gentle: return .field(0.30)
+        case .steady: return .field(0.48)
+        case .sharp: return .field(0.68)
+        // "Fewer clues, deeper logic." Dense where it is dense, and three of
+        // the nine boxes empty — a picture of a board dug past where a scan
+        // will reach, rather than a slightly darker swatch.
+        case .nocturne: return .voids(0.72)
+        // "Wings & swordfish." The figure is the technique.
+        case .tempest: return .wing(0.26)
+        // "One digit, two colours." Literally that.
+        case .abyss: return .split(0.58)
         }
     }
 
+    /// The boxes Nocturne leaves empty: top-right, centre, bottom-left. An
+    /// anti-diagonal of three voids, which is a composition rather than a
+    /// scatter, and reads at 64 pt.
+    private static let voidBoxes: Set<Int> = [2, 4, 6]
+
     /// The noise seed. Constant at 0x91 for the four bands that shipped before
     /// PRD-25, so their previews are the pixels they have always been; the two
-    /// new ones are offset so three equally-dense deep-end cards are not three
-    /// copies of one picture.
+    /// new ones stay offset. Unchanged — the shelf must not flicker, and a
+    /// reseed would repaint four cards for nothing.
     private var seed: UInt64 {
         switch difficulty {
         case .gentle, .steady, .sharp, .nocturne: return 0x91
@@ -557,23 +608,94 @@ struct MiniBoard: View {
         }
     }
 
+    /// Where the band sits on one signed ramp. Negative desaturates the accent
+    /// toward the theme's own digit tone (a quiet, cool mark); positive warms it
+    /// toward `ThemeTones.coral`. Sharp is the pivot and is the accent exactly,
+    /// so the colour a player picked is still the colour of the hardest band
+    /// they are likely to play daily.
+    private var warmth: Double {
+        switch difficulty {
+        case .gentle: return -0.42
+        case .steady: return -0.20
+        case .sharp: return 0
+        case .nocturne: return 0.22
+        case .tempest: return 0.44
+        // Abyss's own dots are `accent` and `coral` side by side, so its
+        // *average* temperature is the warmest of the six without this being
+        // read at all. The value is unused by `.split`.
+        case .abyss: return 0.44
+        }
+    }
+
+    private var tint: Color {
+        if warmth < 0 { return accent.mix(with: tones.digitTone, by: -warmth) }
+        if warmth > 0 { return accent.mix(with: tones.coral, by: warmth) }
+        return accent
+    }
+
     var body: some View {
         Canvas { context, size in
-            let cell = size.width / 9
+            let gutter = size.width * BoardArt.thumbGutter
+            let cell = BoardArt.cell(side: size.width, gutter: gutter)
             let seed = self.seed
+            let pattern = self.pattern
+            let tint = self.tint
+
+            /// The dot for one cell, `scale` of the cell across, centred in it.
+            /// A function returning a rect rather than one that draws, so
+            /// nothing captures the Canvas's `inout` context.
+            func dot(_ column: Int, _ row: Int, _ scale: CGFloat) -> CGRect {
+                let frame = BoardArt.cellRect(column: column, row: row, cell: cell, gutter: gutter)
+                let d = cell * scale
+                return CGRect(x: frame.midX - d / 2, y: frame.midY - d / 2, width: d, height: d)
+            }
+
+            // The two box rules, under the dots. The gutter alone carries the
+            // structure at 34 pt (`BoardFingerprint`); at 64 pt and up there is
+            // room for a hairline in the seam, and it is what turns "the dots
+            // are unevenly spaced" into "that is a sudoku".
+            BoardArt.strokeBoxRules(
+                in: context, side: size.width, cell: cell, gutter: gutter,
+                color: tint.opacity(0.25), lineWidth: 1
+            )
+
             for y in 0..<9 {
                 for x in 0..<9 {
-                    guard CouchHash.noise(x, y, seed: seed) < density else { continue }
-                    let rect = CGRect(
-                        x: CGFloat(x) * cell + cell * 0.3,
-                        y: CGFloat(y) * cell + cell * 0.3,
-                        width: cell * 0.4,
-                        height: cell * 0.4
-                    )
-                    context.fill(Path(ellipseIn: rect), with: .color(accent.opacity(0.85)))
+                    let noise = CouchHash.noise(x, y, seed: seed)
+                    switch pattern {
+                    case .field(let density):
+                        guard noise < density else { continue }
+                        context.fill(Path(ellipseIn: dot(x, y, 0.4)),
+                                     with: .color(tint.opacity(0.85)))
+                    case .voids(let density):
+                        let box = (y / 3) * 3 + (x / 3)
+                        guard !Self.voidBoxes.contains(box), noise < density else { continue }
+                        context.fill(Path(ellipseIn: dot(x, y, 0.4)),
+                                     with: .color(tint.opacity(0.85)))
+                    case .wing(let density):
+                        if x == y || x + y == 8 {
+                            // The wing itself is drawn a quarter larger than a
+                            // field dot, so the X is a figure and the noise
+                            // behind it is ground rather than competition.
+                            context.fill(Path(ellipseIn: dot(x, y, 0.5)),
+                                         with: .color(tint.opacity(0.92)))
+                        } else if noise < density {
+                            context.fill(Path(ellipseIn: dot(x, y, 0.34)),
+                                         with: .color(tint.opacity(0.28)))
+                        }
+                    case .split(let density):
+                        guard noise < density else { continue }
+                        // Split by box parity, so the two colours land on the
+                        // same 3×3 structure the seams already draw — five
+                        // boxes one colour, four the other.
+                        let warm = ((x / 3) + (y / 3)) % 2 == 1
+                        context.fill(Path(ellipseIn: dot(x, y, 0.4)),
+                                     with: .color((warm ? tones.coral : accent).opacity(0.85)))
+                    }
                 }
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .allowsHitTesting(false)
     }
 }
