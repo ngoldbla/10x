@@ -8,18 +8,16 @@
 	     entitlements stay byte-identical. -->
 	<key>com.apple.developer.game-center</key>
 	<true/>
-	<!-- SharePlay (PRD-28 §8). **This is a merge blocker.** Group Activities is
-	     a real portal capability — Xcode's own
-	     DVTPortalCachedPortalCapabilities.json carries it as GROUP_ACTIVITIES
-	     with exactly this profile key — so per EXECUTING-A-PRD §6 the
-	     capability must be POSTed to the bundle ID and `match --force` must
-	     re-mint the iOS profile BEFORE this merges. CI runs
-	     match(readonly: true) and cannot mint anything.
+	<!-- SharePlay (PRD-28 §8). Group Activities is a portal capability that the
+	     public App Store Connect API cannot enable (GROUP_ACTIVITIES is absent
+	     from its CapabilityType enum), so it was turned on in the developer
+	     portal and the iOS AppStore profile was re-minted with `match --force`
+	     (now in couch-suite-certificates). CI runs match(readonly: true) and
+	     just installs that profile.
 
 	     iOS only, because PRD-28 §9 ships the parlor on iPhone and iPad only:
 	     tvOS can join a group session but cannot place a FaceTime call, and the
-	     Mac's parlor is a different design. That scopes the re-mint to one
-	     profile instead of three. -->
+	     Mac's parlor is a different design. That scopes the profile to one. -->
 	<key>com.apple.developer.group-session</key>
 	<true/>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
