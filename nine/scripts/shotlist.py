@@ -164,7 +164,7 @@ def scroll_to_bottom(udid, size, swipes=3):
         time.sleep(0.6)
 
 
-def verify_tap_space(udid):
+def verify_tap_space(udid, fb_size, landscape=False):
     """Prove that a tap lands where the accessibility tree says it will.
 
     `sim-use tap` acts in the device's fixed framebuffer space; `describe-ui`
@@ -188,7 +188,20 @@ def verify_tap_space(udid):
     effect happened. If it did not, the tap space is mirrored — turn the device
     half a turn and try once more.
     """
-    for attempt in range(2):
+    # Portrait keeps the original behaviour exactly: assume the tap space is the
+    # tree's own, and if that fails the device really is upside down — which a
+    # coordinate flip must NOT paper over, because the *screenshots* would be
+    # upside down too. There the physical half-turn is the fix.
+    #
+    # Landscape is a different failure and needs a different remedy. There the
+    # framebuffer stays portrait while the app does not, so the two spaces are a
+    # quarter turn apart — an error no half-turn can cancel, which is why this
+    # preflight used to exhaust both attempts and refuse the run. Which of the
+    # two landscapes it is cannot be predicted, so both are tried and whichever
+    # actually lands is registered.
+    candidates = ["cw", "ccw"] if landscape else ["identity", "identity"]
+    for attempt, space in enumerate(candidates):
+        simrig.set_tap_space(udid, space, fb_size)
         simrig.relaunch(udid, BUNDLE_ID, ninestate.quiet_blobs(PREFS_ON))
         data = simrig.wait_for(udid, "Row 1, column 1")
         entry = next((e for e in data["entries"] if e.get("label") == "Settings"), None)
@@ -201,18 +214,23 @@ def verify_tap_space(udid):
             probe = simrig.describe(udid, tolerate=True) or {"entries": []}
             if any(e.get("label") == "Resume on launch" for e in probe["entries"]):
                 simrig.run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False)
+                print("  taps land: tap space %r" % space)
                 return
             time.sleep(0.5)
-        if attempt == 0:
+        if attempt == 0 and not landscape:
             print("  taps are not landing where the tree says — turning the device "
                   "half a turn and retrying")
             rotate_half_turn(udid)
+        elif attempt == 0:
+            print("  taps are not landing where the tree says — trying the other "
+                  "landscape's tap space")
     sys.exit(
         "taps do not land where the accessibility tree reports, in either of the "
-        "two orientations tried. Every screenshot from this run would be of the "
+        "two %s tried. Every screenshot from this run would be of the "
         "wrong taps, so nothing is captured. Check the simulator is not in a "
         "landscape or upside-down orientation, and that Simulator.app has "
         "Accessibility permission for synthetic clicks."
+        % ("tap spaces" if landscape else "orientations")
     )
 
 
@@ -520,10 +538,12 @@ def main():
         # Correcting to upright portrait costs one screenshot when it is already
         # right, and it is the difference between a harness and a rumour.
         rotate_device(udid, spec["sim_name"], landscape=bool(args.landscape))
-        verify_tap_space(udid)
-        size = point_size(udid, spec["scale"])
-        if args.landscape:
-            size = (size[1], size[0])  # the framebuffer stayed portrait; the app did not
+        # Measured before the preflight, not after: the preflight needs the
+        # framebuffer's own size to convert a logical point into a tap, and the
+        # framebuffer stays portrait even when the app is landscape.
+        fb_size = point_size(udid, spec["scale"])
+        verify_tap_space(udid, fb_size, landscape=bool(args.landscape))
+        size = (fb_size[1], fb_size[0]) if args.landscape else fb_size
         for appearance in appearances:
             run(["xcrun", "simctl", "ui", udid, "appearance", appearance], check=False)
             for scene in scenes:

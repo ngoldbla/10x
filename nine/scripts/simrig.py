@@ -244,6 +244,53 @@ def wait_for(udid, label, timeout=40.0, hint_for_missing_board=True):
     )
 
 
+# ------------------------------------------------------- where a tap lands
+#
+# `describe-ui` reports frames in the app's *logical* space; `sim-use tap` acts
+# in the device's *framebuffer* space. Upright portrait is the one orientation
+# where those two coincide, and every other one silently lands taps somewhere
+# else — the cursor moves, the board reacts, and the surface under test never
+# appears. It mimics a product bug perfectly and has already cost one full
+# false regression hunt.
+#
+# Measured on a landscape iPad (framebuffer stays portrait, 834x1210pt): the
+# Settings gear at logical (46, 760) is at framebuffer (760, 1164), and
+# 1210 - 46 = 1164. So `x` and `y` swap and one of them is flipped — which one
+# depends on *which* landscape, and neither `simctl` nor the accessibility tree
+# can tell the two apart. So they are not predicted here; the caller probes and
+# registers whichever one actually works.
+#
+# `identity` is the default and nothing that does not opt in changes behaviour.
+TAP_SPACES = {
+    "identity": lambda x, y, fw, fh: (x, y),
+    "half":     lambda x, y, fw, fh: (fw - x, fh - y),
+    "cw":       lambda x, y, fw, fh: (y, fh - x),
+    "ccw":      lambda x, y, fw, fh: (fw - y, x),
+}
+
+_TAP_SPACE = {}
+
+
+def set_tap_space(udid, name, frame_size):
+    """Register how logical points map to framebuffer points for this device.
+
+    `frame_size` is the framebuffer in *points* and stays portrait even when the
+    app is landscape, which is exactly why it has to be passed rather than
+    inferred from the tree. Deliberately kept dumb: this module states in its
+    own docstring that nothing in it knows what is being measured, so it cannot
+    run the probe that decides which space is right — it only applies the
+    answer. The harness owns the probe; this owns the arithmetic.
+    """
+    if name not in TAP_SPACES:
+        sys.exit("unknown tap space %r — expected one of %s"
+                 % (name, ", ".join(TAP_SPACES)))
+    _TAP_SPACE[udid] = (name, frame_size)
+
+
+def tap_space(udid):
+    return _TAP_SPACE.get(udid, ("identity", None))[0]
+
+
 def tap(udid, data, label):
     """Tap the centre of `label`'s frame, using the tree we already hold.
 
@@ -258,10 +305,14 @@ def tap(udid, data, label):
     if entry is None:
         sys.exit("cannot tap %r — not in the tree" % label)
     frame = entry["frame"]
+    x = frame["x"] + frame["width"] / 2
+    y = frame["y"] + frame["height"] / 2
+    name, size = _TAP_SPACE.get(udid, ("identity", None))
+    if name != "identity":
+        x, y = TAP_SPACES[name](x, y, size[0], size[1])
     run([
         "sim-use", "tap", "--device", udid,
-        "-x", str(int(frame["x"] + frame["width"] / 2)),
-        "-y", str(int(frame["y"] + frame["height"] / 2)),
+        "-x", str(int(x)), "-y", str(int(y)),
     ])
 
 

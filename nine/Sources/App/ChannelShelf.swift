@@ -45,20 +45,61 @@ struct ChannelShelfContent: View {
     let channel: Channel.Ledgered
     let accent: Color
 
-    /// `TouchCard`'s corner and its padding, restated once here rather than
-    /// eleven times.
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The ground everything on this page is measured against — the card fills,
+    /// the rims, the band tones, the action pill's ink.
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
+
+    /// **How wide this page has actually been given, in points.**
+    ///
+    /// Not a device check and not a size class: the same view is handed 560pt on
+    /// a phone, ~383pt inside `TouchHomeView.shelfPair`'s leading column, and
+    /// the full measure when a caller lets it span. A layout that asks "am I on
+    /// an iPad" gets all three of those wrong; one that asks "how much room is
+    /// there" gets all three right, and reflows the instant the answer changes.
+    ///
+    /// Zero until the first layout pass, which resolves to the narrow
+    /// composition — the phone's — so the first frame is never the wide one
+    /// collapsing.
+    @State private var measuredWidth: CGFloat = 0
+
+    /// **The area rule, in one number.** `Rhythm.maxEmptyFraction` says no more
+    /// than 28% of a screen may be bare ground, and the panel measured this page
+    /// at 37–50% on iPad because it was a phone column pinned to the leading
+    /// rail of a 1668pt canvas. A column stops being a column and becomes a
+    /// stretched phone somewhere, and the app already knows where: two
+    /// `shelfMinimumColumn`s and the gutter between them is the width at which
+    /// `BoardCompositionRules` itself starts splitting. Reused rather than
+    /// re-guessed, so the shelf and its channel page can never disagree about
+    /// what "wide" means.
+    private static let wideThreshold = CGFloat(
+        BoardCompositionRules.shelfMinimumColumn * 2 + BoardCompositionRules.shelfGutter)
+
+    private var isWide: Bool { measuredWidth >= Self.wideThreshold }
+
+    /// `TouchCard`'s padding, restated once here rather than eleven times.
     ///
     /// The card chrome on this page is `TouchCard`'s (`TouchUI.swift`), which
-    /// hard-codes a 24pt continuous radius and 18pt of padding. Two surfaces
-    /// here are *not* buttons — the stats slice and the primer — and have to
-    /// draw that chrome themselves; a third (the accessibility content shape on
-    /// a tier card) has to match its silhouette. When `TouchCard` grows a
-    /// `radius:` parameter these become the argument rather than a copy.
-    private static let cardRadius: CGFloat = 24
+    /// hard-codes 18pt of padding. Two surfaces here are *not* buttons — the
+    /// stats slice and the primer — and have to draw that chrome themselves;
+    /// several others need it to derive a concentric inner radius.
     private static let cardPadding: CGFloat = 18
 
-    private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Self.cardRadius, style: .continuous)
+    /// **Every corner on this page is a rung of `Radius` now, and they are
+    /// Classic's rungs.** They were one number — `TouchCard`'s 24pt default,
+    /// used for the hero, the tiles, the tracker rows and the two panels alike —
+    /// which is 22% of a 111pt tile and 6.6% of the hero: two different shapes
+    /// wearing one radius, and neither of them the one the page next door draws.
+    /// `TouchUI` picks `sheet` for full-width bands and `card` for tiles; so
+    /// does this, because the whole thesis of the page-turn is that a player
+    /// finds the same shelf with different rules on it.
+    private static let heroRadius = Radius.sheet
+    private static let tileRadius = Radius.card
+
+    private var panelShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous)
     }
 
     /// A compose is running, so `AppModel.composeChannel` will refuse another.
@@ -91,13 +132,100 @@ struct ChannelShelfContent: View {
         return false
     }
 
+    /// **Two compositions of the same five surfaces, chosen by measure.**
+    ///
+    /// Narrow is the phone's and is unchanged in order and in rhythm — the
+    /// panel confirmed `iphone-dark-channel` and `iphone-light-channel` as
+    /// improvements from the round before, and a page that wins from the
+    /// disfavoured slot does not get rearranged for sport. What changed inside
+    /// it is material and hierarchy, not sequence.
+    ///
+    /// Wide is the answer to the headline defect: *"the content column is
+    /// pinned to x=48–813 and stops at y=1540 of 2420"*. Today becomes a hero
+    /// across the whole measure, the three tiers become three real columns
+    /// across the whole measure, and the tail splits — what you have on the
+    /// left, what the ruleset is on the right — so the page terminates at one
+    /// baseline instead of dying two-thirds of the way up a rail. Every surface
+    /// also grows: `Rhythm`'s own instruction is that where slack exists you
+    /// spend it on the content, so the hero gets 90pt, the tier art goes 64 →
+    /// 96 and the primer's excerpt 132 → 190. An iPad frame is not a phone
+    /// frame with more air in it.
     var body: some View {
-        VStack(spacing: Space.xl) {
+        VStack(spacing: isWide ? Space.xxl : Space.xl) {
             todayCard
-            statsSlice
-            boardsSection
-            tierRow
-            channelPrimer
+            if isWide {
+                tierRow
+                wideTail
+            } else {
+                statsSlice
+                boardsSection
+                tierRow
+                channelPrimer
+            }
+        }
+        // Width only — reading height here would make the measurement depend on
+        // the layout it decides, which is the shape that oscillates.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { measuredWidth = $0 }
+    }
+
+    /// The wide layout's third band: two columns that both carry weight.
+    ///
+    /// The split is by *availability*, not by kind, because on this page the two
+    /// halves are mutually exclusive by construction — the primer retires at the
+    /// exact moment the stats slice arrives (`channelPrimer`'s own rule), so a
+    /// naive "stats left, primer right" pair is guaranteed to leave one side
+    /// empty on every single frame. Whichever of the two the channel has earned
+    /// takes the leading column; the boards you are in the middle of take the
+    /// trailing one; and when there are none, the survivor spans the measure
+    /// rather than sitting in half of it beside nothing.
+    @ViewBuilder
+    private var wideTail: some View {
+        HStack(alignment: .top, spacing: Space.xl) {
+            VStack(spacing: Space.xl) {
+                if showsPrimer { channelPrimer } else { statsSlice }
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            if showsBoards {
+                boardsSection
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+        }
+    }
+
+    /// The primer is owed exactly while the channel has never been solved on.
+    /// Hoisted out of `channelPrimer` so the wide layout can ask the question
+    /// before it decides where to put the answer.
+    private var showsPrimer: Bool { model.history(on: channel).records.isEmpty }
+
+    private var showsBoards: Bool { !model.partials(on: channel).isEmpty }
+
+    // MARK: The page's own chrome
+
+    /// The material a **non-button** surface on this page draws for itself.
+    ///
+    /// It shipped as a bare `couchGlass` — the material and nothing else — and a
+    /// material with no fill on a ground that composites to (19,19,19) is the
+    /// panel's *"cards sit 3 RGB levels above the background, so depth is
+    /// carried entirely by a soft shadow and nothing refracts"* verbatim, on
+    /// both appearances and both devices.
+    ///
+    /// This is `Elevation`'s own recipe for a `card` standing on `ground`, in
+    /// order: the lens, then the rung's fill **on** it, then the rim and the
+    /// lift. `Elevation.fill(.card,…)` is a solved value rather than a taste —
+    /// 55.6 against a track's 42.6 — and it is the *theme's* hue, not white, so
+    /// a Blueprint panel is a blue panel and Camel's is warm. The rim comes from
+    /// `couchElevated`, which draws the two-sided bevel (bright at topLeading,
+    /// genuinely dark at bottomTrailing) that is the difference between a pane
+    /// of glass and a rectangle with a stroke on it.
+    private struct PanelSurface: ViewModifier {
+        let shape: RoundedRectangle
+        let tones: ThemeTones
+
+        func body(content: Content) -> some View {
+            content
+                .background(Elevation.fill(.card, on: tones), in: shape)
+                .couchGlass(in: shape)
+                .couchElevated(in: shape, isLight: tones.isLight)
         }
     }
 
@@ -128,16 +256,25 @@ struct ChannelShelfContent: View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: Space.s) {
                 Text(Strings.string("channel.stats.title"))
-                    .couchText(CouchTypography.label, .secondary)
+                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
                     .accessibilityAddTraits(.isHeader)
                 ForEach(rows, id: \.0) { tier, count, best in
                     HStack(spacing: Space.s) {
-                        Text(Strings.variantTier(tier)).couchText(CouchTypography.label)
+                        // The tier's own hue, which is the same hue its tile
+                        // wears twenty points below this row. A stats table that
+                        // repeats the ladder in one grey is a table the eye has
+                        // to read rather than scan.
+                        Text(Strings.variantTier(tier))
+                            .couchText(CouchTypography.label,
+                                       tier.wireDifficulty.bandTone(isLight: tones.isLight))
                         Spacer()
+                        // `data` outranks its own container (`Elevation`): the
+                        // number is the reason the card exists, so it is the one
+                        // thing on it drawn at full ink.
                         Text(Strings.string(
                             "channel.stats.row",
                             .int(count), .text(SolveCardFacts.elapsedText(best))))
-                            .couchText(CouchTypography.label, .secondary)
+                            .couchText(CouchTypography.label, Ink.label(on: tones))
                             .monospacedDigit()
                     }
                     // One utterance per row — a tier name followed by an orphaned
@@ -151,7 +288,7 @@ struct ChannelShelfContent: View {
             }
             .padding(Self.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .couchGlass(in: cardShape)
+            .modifier(PanelSurface(shape: panelShape, tones: tones))
         }
     }
 
@@ -167,20 +304,43 @@ struct ChannelShelfContent: View {
     /// type on information the reader had just been given and left the card with
     /// no line saying what it was *for*. The ramp now runs
     /// title / heading / label / caption with a distinct role on each rung.
+    /// **The tint that makes this the page's one primary surface.**
+    ///
+    /// Classic's number (`TouchHomeView.todayTint`), and the channel page had no
+    /// equivalent at all: every card on it was the same untinted glass, which is
+    /// why the panel could write *"nothing on the screen looks tappable and the
+    /// primary action is invisible"* about a screen whose whole top third is one
+    /// enormous button. A shelf where everything is primary has no primary; a
+    /// shelf where *nothing* is has no entrance.
+    private static let heroTint = 0.28
+
     private var todayCard: some View {
-        TouchCard(action: { model.openChannelToday(channel) }) {
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(Strings.string("shelf.today.title"))
-                    .couchText(CouchTypography.title)
-                // Classic's date line, which this card dropped. Same formatter,
-                // same rung, same position under the title.
-                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                    .couchText(CouchTypography.caption, .secondary)
-                Text(Strings.channelBlurb(channel.channel))
-                    .couchText(CouchTypography.heading, .secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        TouchCard(action: { model.openChannelToday(channel) },
+                  radius: Self.heroRadius,
+                  tint: accent.opacity(Self.heroTint)) {
+            HStack(alignment: .top, spacing: Space.l) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text(Strings.string("shelf.today.title"))
+                        .couchText(CouchTypography.title)
+                    // Classic's date line, which this card dropped. Same formatter,
+                    // same rung, same position under the title.
+                    Text(Date.now.formatted(date: .abbreviated, time: .omitted))
+                        .couchText(CouchTypography.caption, Ink.secondary(on: tones))
+                    Text(Strings.channelBlurb(channel.channel))
+                        .couchText(CouchTypography.heading, Ink.secondary(on: tones))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Space.s)
+                    todayStatus
+                }
+                // **What used to be the dead half of the card.** The panel
+                // measured it: *"the hero card runs full width but all four text
+                // rows stop near the 55% mark, leaving a large empty plate to the
+                // right of 'Tubes that only rise'"* — 45% of the one surface on
+                // the page that has to sell it. Classic's Today card has carried
+                // a verb in that slot since PRD-14; this one never did, which is
+                // both the void and the missing affordance in one omission.
                 Spacer(minLength: Space.s)
-                todayStatus
+                todayVerb
             }
             // Matches Classic's Today card exactly. `minHeight` with no maximum is
             // the shape PRD-31 found inflating to half the screen in a second
@@ -191,13 +351,101 @@ struct ChannelShelfContent: View {
             // line is gone because the card now has enough in it to fill 130:
             // a date, a subtitle at `heading`, and a 34pt picture in *every*
             // status — not just the resumable one.
-            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: isWide ? 220 : 130, alignment: .topLeading)
+            // The lamp, and it is `TouchHomeView.todayHighlight`'s: a tint is a
+            // filter and a filter applied evenly across 300×130pt has no
+            // gradient in it, so the tinted card would otherwise have *less*
+            // luminance structure than the plain ones beside it. Anchored near
+            // the verb, because that is where the eye is going.
+            //
+            // Clip first, then expand: the other order clips at the content's
+            // bounds and throws away the 36pt the negative padding just bought.
+            .background {
+                RadialGradient(
+                    colors: [.white.opacity(tones.isLight ? 0.28 : 0.16), .white.opacity(0)],
+                    center: UnitPoint(x: 0.84, y: 0.12),
+                    startRadius: 0,
+                    endRadius: 260
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous))
+                .padding(-Self.cardPadding)
+                .allowsHitTesting(false)
+            }
         }
         .disabled(composeInFlight && !isComposingThisDaily)
         .accessibilityLabel(Strings.string(
             "channel.today.label",
             .text(Strings.channel(channel.channel)),
             .text(todayStatusText)))
+    }
+
+    /// The filled pill: what pressing this card will do, in a word.
+    ///
+    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
+    /// and a `Button` nested in `TouchCard`'s is merged by SwiftUI, which takes
+    /// the inner frame with it (PRD-14 measured Classic's own Today element
+    /// collapsing from 89×129 to a 44×44 glyph). Hidden from VoiceOver because
+    /// the card's label already carries the same words.
+    ///
+    /// **The one place on this page that deliberately does not adopt a wave-1
+    /// token, and the repo's own measurement is why.**
+    ///
+    /// `AccentChoice.actionFill` is the new token for a filled primary action,
+    /// and on a dark theme it resolves to the vivid accent at full chroma —
+    /// which is the *same value* `accent` already carries here. That token was
+    /// written for a button standing on a neutral card (the tutorial's "Try it",
+    /// measured at `#4A79A8` and read as disabled), and this pill does not:
+    /// it sits on a hero tinted `accent.opacity(0.28)`. `TouchHomeView.verbFill`
+    /// has a paragraph recording exactly what happens then — *"the pill filled
+    /// with `accent` while the card behind it is `accent` at 0.28 — the same hue
+    /// a few steps apart — so the shelf's only primary action had less
+    /// separation from its own background than any caption on the page."*
+    ///
+    /// So the pill is the ground's *opposite*, which is Classic's answer and has
+    /// a 4.5:1 solution on both leanings: paper-white with accent ink on a dark
+    /// theme, deepened accent with white ink on paper. Taking the token here
+    /// would re-ship a defect this app has already found and fixed once, and
+    /// would drift the two Today cards apart on the one page whose thesis is
+    /// that they are the same card.
+    ///
+    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
+    /// and a `Button` nested in `TouchCard`'s is merged by SwiftUI, which takes
+    /// the inner frame with it (PRD-14 measured Classic's own Today element
+    /// collapsing from 89×129 to a 44×44 glyph). Hidden from VoiceOver because
+    /// the card's label already carries the same words.
+    ///
+    /// The silhouette is `Radius.inner` of the hero's corner and `TouchCard`'s
+    /// inset, not a `Capsule`: a capsule inside a 28pt card with 18pt of padding
+    /// is a 15pt curve where the concentric answer is 10, and it reads as pasted
+    /// on rather than as nested.
+    @ViewBuilder
+    private var todayVerb: some View {
+        if let text = todayVerbText {
+            let shape = RoundedRectangle(
+                cornerRadius: Radius.inner(Self.heroRadius, inset: Self.cardPadding),
+                style: .continuous)
+            Text(text)
+                .font(CouchTypography.label)
+                .foregroundStyle(tones.isLight ? Color.white : accent)
+                .lineLimit(1)
+                .padding(.horizontal, Space.l)
+                .frame(minHeight: Hit.min)
+                .background(tones.isLight ? accent : Color.white, in: shape)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Nil in the two states that are not an action. A pill reading "Solved"
+    /// beside a status line reading "Solved" is not emphasis, it is an echo —
+    /// and a filled accent shape is the loudest thing on the shelf, which it
+    /// must not spend on a board there is nothing left to do to.
+    ///
+    /// Both keys are Classic's, so the two pages cannot drift and no catalog row
+    /// is owed: `firstrun.begin` ("Begin") and `shelf.continue.title`.
+    private var todayVerbText: String? {
+        if isComposingThisDaily || model.todaySolved(on: channel) { return nil }
+        if model.savedDaily(on: channel) != nil { return Strings.string("shelf.continue.title") }
+        return Strings.string("firstrun.begin")
     }
 
     @ViewBuilder
@@ -208,11 +456,11 @@ struct ChannelShelfContent: View {
             statusLabel("status.solved", symbol: "checkmark.circle.fill")
         } else if let entry = model.savedDaily(on: channel) {
             HStack(spacing: Space.m) {
-                BoardFingerprint(game: entry.game, accent: accent, side: 34)
+                BoardFingerprint(game: entry.game, accent: accent, side: statusArtSide)
                 Text(Strings.string(
                     "shelf.today.continueProgress",
                     .text(BoardProgressCaption.text(for: entry.game))))
-                    .couchText(CouchTypography.label, .secondary)
+                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
             }
         } else {
             // "One a day, per channel" rather than Classic's "One a day": the
@@ -225,12 +473,17 @@ struct ChannelShelfContent: View {
             // state of the four with no picture in it at all — a sun glyph that
             // said nothing about thermometers or cages.
             HStack(spacing: Space.m) {
-                ChannelMotif(channel: channel, side: 34)
+                ChannelMotif(channel: channel, side: statusArtSide)
                 Text(Strings.string("channel.today.oneADay"))
-                    .couchText(CouchTypography.label, .secondary)
+                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
             }
         }
     }
+
+    /// The picture in the status row. 34pt is the fingerprint's own size on the
+    /// phone and on Classic's card; on a hero that is 220pt tall it is a stamp
+    /// in a field, so it grows with the card rather than floating in it.
+    private var statusArtSide: CGFloat { isWide ? 56 : 34 }
 
     /// The same sentence the card's accessibility label folds in, so VoiceOver
     /// hears one utterance rather than a title and an orphaned status.
@@ -247,21 +500,28 @@ struct ChannelShelfContent: View {
 
     /// A glyph and a sentence, secondary throughout.
     ///
-    /// **The whole row is `.secondary`, including the glyph**, which is what
+    /// **The whole row is secondary, including the glyph**, which is what
     /// `TouchHomeView.statusLabel` does. This one tinted its symbol `accent`,
     /// and on a shelf whose thesis is that the two pages behave identically a
     /// coloured checkmark on one page and a grey one on the other is visible
-    /// drift. The `Text` resolves its own `.secondary` through
-    /// `couchText(_:_:)` because the outer `foregroundStyle` cannot reach
-    /// inside it (that is this file's whole colour bug); the outer one is what
-    /// colours the `Image`.
+    /// drift. The `Text` resolves its own foreground through `couchText(_:_:)`
+    /// because the outer `foregroundStyle` cannot reach inside it (that is this
+    /// file's whole colour bug); the outer one is what colours the `Image`.
+    ///
+    /// **`Ink.secondary(on:)` rather than SwiftUI's `.secondary`, and the glyph
+    /// is deliberately *not* `Ink.glyph`.** The token's rule is that a symbol
+    /// which is a control's **only** content goes to full strength; this symbol
+    /// has a sentence beside it saying the same thing, so it is decoration on a
+    /// label and takes the label's weight. What `Ink` buys here is the theme's
+    /// own hue and a measured value (0.72 of `digitTone` on dark, 0.68 on
+    /// paper) instead of the platform's untinted grey.
     private func statusLabel(_ key: String, symbol: String) -> some View {
         HStack(spacing: Space.s) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
-            Text(Strings.string(key)).couchText(CouchTypography.label, .secondary)
+            Text(Strings.string(key)).couchText(CouchTypography.label, Ink.secondary(on: tones))
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Ink.secondary(on: tones))
     }
 
     // MARK: This channel's boards
@@ -275,7 +535,7 @@ struct ChannelShelfContent: View {
         if !partials.isEmpty {
             VStack(alignment: .leading, spacing: Space.s + 2) {
                 Text(Strings.string("boards.title"))
-                    .couchText(CouchTypography.label, .secondary)
+                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
                     .accessibilityAddTraits(.isHeader)
                 ForEach(partials.prefix(3)) { entry in
                     boardRow(entry)
@@ -287,7 +547,11 @@ struct ChannelShelfContent: View {
 
     private func boardRow(_ entry: LibraryEntry) -> some View {
         let playable = model.channelRules.rules(for: entry.id)?.isPlayable ?? false
-        return TouchCard(action: { model.openChannelBoard(entry.id) }) {
+        // A tracker row is a `card` on the ground, so it takes the card rung's
+        // corner — Classic's tracker rows do the same, and this one was drawing
+        // `TouchCard`'s 24pt default beside them.
+        return TouchCard(action: { model.openChannelBoard(entry.id) },
+                         radius: Self.tileRadius) {
             HStack(spacing: Space.m) {
                 BoardFingerprint(game: entry.game, accent: accent, side: 34)
                 VStack(alignment: .leading, spacing: Space.hair) {
@@ -299,7 +563,7 @@ struct ChannelShelfContent: View {
                     Text(playable
                             ? BoardProgressCaption.text(for: entry.game)
                             : Strings.string("channel.unavailable"))
-                        .couchText(CouchTypography.label, .secondary)
+                        .couchText(CouchTypography.label, Ink.secondary(on: tones))
                 }
                 Spacer()
             }
@@ -328,62 +592,124 @@ struct ChannelShelfContent: View {
     /// around — a `MiniBoard` at the same 64pt Classic uses says the same thing
     /// about density and says it in the app's own material.
     ///
-    /// `spacing: 14` and `spacing: 10` are Classic's numbers, off the 4pt grid
-    /// and kept anyway: this row has to be the same object as the one on the
-    /// page next door, and a 2pt disagreement between two rows a swipe apart is
-    /// exactly the kind of drift the page-turn makes visible.
+    /// `spacing: 14` and `spacing: 10` were Classic's numbers, off the 4pt grid
+    /// and kept anyway because this row has to be the same object as the one on
+    /// the page next door. Classic's row is on the scale now (`Space.m` /
+    /// `Space.s`), so this one follows it there.
+    ///
+    /// **The three tiles carried no colour at all**, which is the defect a blind
+    /// panel wrote twice on this page: *"Gentle / Steady / Sharp are three
+    /// identical grey tiles"*, *"the only saturated pixels in the frame are the
+    /// blue page dot and the pencil-mark dots"*. Difficulty is the axis the row
+    /// exists to communicate and it was being carried entirely by dot density in
+    /// a 64pt thumbnail — which is both illegible at that size and, until round
+    /// 4 inverted it, backwards.
+    ///
+    /// Three carriers now, all of them `Difficulty.bandTone`, and the label is
+    /// deliberately **not** one of them: a coloured label on a card tinted the
+    /// same colour is the blue-on-blue mistake `TouchHomeView.todayVerb` carries
+    /// a whole paragraph about. Instead the hue arrives as (1) the tile's own
+    /// glass tint at 0.14 — the parlor card's existing weight — (2) the
+    /// `MiniBoard`'s dots, and (3) a lit top edge, so a tier is identifiable
+    /// from across the room and the name is still full-strength ink.
     private var tierRow: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Space.m) {
             ForEach(VariantTier.allCases, id: \.self) { tier in
-                TouchCard(action: { model.startChannelFree(channel, tier: tier) }) {
-                    VStack(spacing: 10) {
-                        // `MiniBoard`'s default corner is `Radius.inner(24,
-                        // inset: 18)` — concentric with `TouchCard` exactly as
-                        // it stands. If `TouchCard` ever takes a radius and this
-                        // row passes 20, this call has to pass
-                        // `Radius.inner(20, inset: 18)` with it.
-                        MiniBoard(difficulty: tier.wireDifficulty, accent: accent)
-                            .frame(width: 64, height: 64)
-                        if isComposing(tier) {
-                            // The composing caption replaces the name and the
-                            // blurb rather than stacking under them — Classic's
-                            // rule, for Classic's reason: a card that grows a
-                            // line mid-compose shoves the rest of the shelf
-                            // down while the player watches.
-                            statusLabel("status.composing", symbol: "sparkles")
-                        } else {
-                            Text(Strings.variantTier(tier))
-                                .couchText(CouchTypography.label)
-                                .multilineTextAlignment(.center)
-                            Text(tier.blurb)
-                                .couchText(CouchTypography.caption, .secondary)
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 124)
-                    // **The accessibility frame is the card, not the glyph.**
-                    // Without this the first `channel.txt` baseline recorded
-                    // `Gentle, Thermo (55,439 41x48)` — 41pt wide, under the
-                    // charter's 44pt floor — because SwiftUI derives the frame
-                    // from the tight content bounds when the content is only a
-                    // symbol and a caption. The 64pt `MiniBoard` now forces the
-                    // width the way it does on Classic's cards, so this is
-                    // belt-and-braces rather than the fix it was; it stays
-                    // because the composing branch has no `MiniBoard` sibling
-                    // wide enough to hold the frame open on its own.
-                    // Invisible in a screenshot, since the card *looks* full-width;
-                    // `ax-snapshot.py` is the only thing that disagrees
-                    // (EXECUTING-A-PRD §4).
-                    .contentShape(.accessibility, cardShape)
-                }
-                .disabled(composeInFlight)
-                .accessibilityLabel(Strings.string(
-                    "shelf.difficulty.label",
-                    .text(Strings.variantTier(tier)),
-                    .text(Strings.channel(channel.channel))))
+                tierCard(tier)
             }
         }
+    }
+
+    /// The band's tint through the tile's glass. `TouchHomeView.parlorCard`'s
+    /// number: enough to say which of six this is against the untinted cards
+    /// around it, far short of the flood fill `Difficulty.bandTone`'s own note
+    /// rules out ("six saturated cards in a column is a paint chart").
+    private static let tierTint = 0.14
+
+    /// The tile's art. 64pt is Classic's, and on the wide composition the three
+    /// tiles are ~250pt columns rather than ~110pt ones — a 64pt picture in a
+    /// 250pt card is the 58% internal void this row was rebuilt to end, one
+    /// size class up.
+    private var tierArtSide: CGFloat { isWide ? 96 : 64 }
+
+    private func tierCard(_ tier: VariantTier) -> some View {
+        let band = tier.wireDifficulty
+        let tone = band.bandTone(isLight: tones.isLight)
+        let shape = RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous)
+        return TouchCard(action: { model.startChannelFree(channel, tier: tier) },
+                         radius: Self.tileRadius,
+                         tint: tone.opacity(Self.tierTint)) {
+            VStack(spacing: Space.s) {
+                // Concentric with the card it is dropped into: a 22pt corner
+                // with 18pt of padding wants `Radius.inner`, not the 24/18
+                // default `MiniBoard` carries. This is the line the old comment
+                // here promised would be needed the moment the row stopped
+                // taking `TouchCard`'s default radius, and it now is.
+                MiniBoard(difficulty: band, accent: accent,
+                          corner: Radius.inner(Self.tileRadius, inset: Self.cardPadding))
+                    .frame(width: tierArtSide, height: tierArtSide)
+                if isComposing(tier) {
+                    // The composing caption replaces the name and the
+                    // blurb rather than stacking under them — Classic's
+                    // rule, for Classic's reason: a card that grows a
+                    // line mid-compose shoves the rest of the shelf
+                    // down while the player watches.
+                    statusLabel("status.composing", symbol: "sparkles")
+                } else {
+                    Text(Strings.variantTier(tier))
+                        .couchText(CouchTypography.label, Ink.label(on: tones))
+                        .multilineTextAlignment(.center)
+                    Text(tier.blurb)
+                        .couchText(CouchTypography.caption, Ink.secondary(on: tones))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: isWide ? 190 : 124)
+            .background { bandEdge(tone) }
+            // **The accessibility frame is the card, not the glyph.**
+            // Without this the first `channel.txt` baseline recorded
+            // `Gentle, Thermo (55,439 41x48)` — 41pt wide, under the
+            // charter's 44pt floor — because SwiftUI derives the frame
+            // from the tight content bounds when the content is only a
+            // symbol and a caption. The 64pt `MiniBoard` now forces the
+            // width the way it does on Classic's cards, so this is
+            // belt-and-braces rather than the fix it was; it stays
+            // because the composing branch has no `MiniBoard` sibling
+            // wide enough to hold the frame open on its own.
+            // Invisible in a screenshot, since the card *looks* full-width;
+            // `ax-snapshot.py` is the only thing that disagrees
+            // (EXECUTING-A-PRD §4).
+            .contentShape(.accessibility, shape)
+        }
+        .disabled(composeInFlight)
+        .accessibilityLabel(Strings.string(
+            "shelf.difficulty.label",
+            .text(Strings.variantTier(tier)),
+            .text(Strings.channel(channel.channel))))
+    }
+
+    /// The lit top edge of a tier tile, in the band's own hue.
+    ///
+    /// A physical mark rather than a badge: light lands on the top arc of a
+    /// coloured slab and is gone by the time the surface has turned two percent
+    /// of its own height away. Drawn as the card's *own* silhouette expanded by
+    /// the 18pt `TouchCard` inset, so it reaches the real corner and is clipped
+    /// by it — the same clip-then-expand pair the hero's lamp uses, and for the
+    /// same reason: a gradient that stops at the content's bounds draws the hard
+    /// rectangle it exists to replace.
+    private func bandEdge(_ tone: Color) -> some View {
+        RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous)
+            .fill(LinearGradient(
+                stops: [
+                    .init(color: tone.opacity(0.90), location: 0),
+                    .init(color: tone.opacity(0.30), location: 0.025),
+                    .init(color: tone.opacity(0), location: 0.11),
+                ],
+                startPoint: .top, endPoint: .bottom))
+            .padding(-Self.cardPadding)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: The primer
@@ -409,30 +735,63 @@ struct ChannelShelfContent: View {
     /// It retires once the channel has been solved on, which is the moment the
     /// stats slice arrives to take its place in the layout. A player with times
     /// on the board does not need to be told what a cage is.
+    ///
+    /// **The panel's complaint about it was the measure, not the size.** *"That
+    /// six-line paragraph is set on a ~28-character measure inside a card with
+    /// 850px of unused width beside it."* Both halves of that are one bug: a
+    /// fixed 132pt picture and a `Spacer(minLength: 0)` split a 383pt column
+    /// into a wide picture and a narrow gutter of prose, and on a wider card the
+    /// `Spacer` ate every extra point rather than the text. The `Spacer` is
+    /// gone — the text takes the remaining width — and the picture grows with
+    /// the card instead of holding still on it.
+    ///
+    /// The finding also asked for the prose to drop to `.subheadline`/`.footnote`.
+    /// It stays at `body`, and the comment below is why: this is the only
+    /// paragraph on the page, `label` is the next rung down and it is *semibold*,
+    /// and five semibold lines read as a warning rather than as an explanation.
+    /// Fixing the measure fixes the line count, which is what made it look like
+    /// a wall in the first place.
     @ViewBuilder
     private var channelPrimer: some View {
-        if model.history(on: channel).records.isEmpty {
+        if showsPrimer {
             HStack(alignment: .top, spacing: Space.l) {
-                ChannelPrimerArt(channel: channel, accent: accent, side: 132)
+                ChannelPrimerArt(
+                    channel: channel, accent: accent, side: primerArtSide,
+                    corner: Radius.inner(Self.heroRadius, inset: Self.cardPadding))
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text(Strings.string("tutorial.title"))
-                        .couchText(CouchTypography.label, .secondary)
+                        .couchText(CouchTypography.label, Ink.secondary(on: tones))
                         .accessibilityAddTraits(.isHeader)
                     // Prose at `body`, which is the rung's own definition
                     // ("everything readable") and the only paragraph on the
                     // page. `label` is semibold, and five semibold lines read
                     // as a warning rather than as an explanation.
                     Text(primerRule)
-                        .couchText(CouchTypography.body)
+                        .couchText(CouchTypography.body, Ink.label(on: tones))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
+                // **A ceiling, not a `Spacer`.** The trailing `Spacer(minLength:
+                // 0)` that used to close this row is what put a six-line
+                // paragraph on a 28-character measure: a `Spacer` and a
+                // horizontally-flexible `Text` are both flexible, the stack
+                // splits the slack between them, and the wider the card the more
+                // of it the empty half won. Capping the text column and deleting
+                // the `Spacer` inverts that — the prose takes everything up to
+                // `NineLayout.readable`, and the card never has an unclaimed band in
+                // it at any width this page is drawn at.
+                .frame(maxWidth: NineLayout.readable, alignment: .leading)
             }
             .padding(Self.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .couchGlass(in: cardShape)
+            .modifier(PanelSurface(shape: panelShape, tones: tones))
         }
     }
+
+    /// The excerpt's side. 132pt puts a cell at 44 — very nearly the size a cell
+    /// is on a phone board, which is the whole claim of the picture. On the wide
+    /// composition the card is two-and-a-half times as wide, so the picture goes
+    /// with it and a cell lands at 63.
+    private var primerArtSide: CGFloat { isWide ? 190 : 132 }
 
     /// The sentence under the primer art.
     ///
@@ -576,10 +935,41 @@ private func cageOutline(
 /// (0.30/0.46 for the tube, 0.62 for the cage). A card-sized excerpt has one job
 /// and two seconds to do it, and unlike the board there is nothing else drawn on
 /// top of this that the constraint art has to stay behind.
+///
+/// **Two round-4 corrections, and one finding this file disagrees with.**
+///
+/// The corner was `Radius.tile` — 12 — inside a card drawing a 24pt corner with
+/// 18pt of padding, where the concentric answer is `Radius.inner` of those two.
+/// The panel's phrasing was *"the cell corner radius is also not concentric with
+/// the card's radius"*, and it is right about the outer curve even though it
+/// pointed at the cells: a square picture in a curved frame is the tell that the
+/// art and the frame were drawn by different people, and so is an over-round
+/// one. The caller now passes the frame's own answer.
+///
+/// The washes are `Elevation.fill(.track,…)` rather than a hand-picked
+/// `gridTone` opacity, so a cell in this excerpt is made of the same substance
+/// as every other recess in the app and picks up the theme's hue on Blueprint,
+/// Ember and Camel instead of a neutral grey.
+///
+/// The disagreement: *"the bulb circle around the 2 spills past the left and
+/// bottom edges of its rounded cell, and the cap around the 9 bleeds over the
+/// right cell boundary."* Measured against the code, it does not. The bulb is
+/// `0.30` of a cell in radius plus a 1pt stroke, centred on the cell — 0.31 of a
+/// cell from centre against the wash's own 0.465 half-width — and the tube's
+/// round cap reaches 0.21. What the finding is describing is the tube *crossing
+/// cell boundaries between* its four cells, which is what a thermometer is:
+/// `BoardView.drawThermometer` draws exactly the same figure on the real board.
+/// Clipping it to the cell rects would draw four disconnected stubs. Trusting
+/// the code over the finding, per the order.
 private struct ChannelPrimerArt: View {
     let channel: Channel.Ledgered
     let accent: Color
     var side: CGFloat = 132
+    /// The excerpt's own corner. Defaulted to the concentric answer for the
+    /// card this is drawn in — `Radius.sheet` with `TouchCard`'s 18pt inset —
+    /// so a caller in a differently-curved card passes its own and nobody has
+    /// to.
+    var corner: CGFloat = Radius.inner(Radius.sheet, inset: 18)
 
     @Environment(\.nineTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -610,12 +1000,19 @@ private struct ChannelPrimerArt: View {
 
             // The nine cell washes, so the excerpt reads as a box of a board and
             // not as a diagram floating on the card.
+            //
+            // **Unchanged values, and that is on purpose.** This is a picture of
+            // a *board*, not a control surface: on a dark theme a board's cells
+            // are lighter than the frame around them, which is why the wash is
+            // `gridTone` here and `wellHue` in `MiniBoard`. Two thumbnails, two
+            // subjects — one is a board and one is a well with a board in it.
+            let wash = tones.gridTone.opacity(tones.isLight ? 0.14 : 0.09)
             for index in 0..<9 {
                 let frame = Self.rect(index, cell: cell)
                     .insetBy(dx: cell * BoardArt.cellInset, dy: cell * BoardArt.cellInset)
                 context.fill(
                     Path(roundedRect: frame, cornerRadius: cell * BoardArt.cellCorner),
-                    with: .color(tones.gridTone.opacity(tones.isLight ? 0.14 : 0.09)))
+                    with: .color(wash))
             }
 
             switch channel {
@@ -693,7 +1090,21 @@ private struct ChannelPrimerArt: View {
             }
         }
         .frame(width: side, height: side)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        // Cut into the card rather than laid on it — the same recessed rim
+        // `MiniBoard` wears, lit from below because that is what a groove does
+        // with a light source above it.
+        .overlay {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            .black.opacity(tones.isLight ? 0.12 : 0.34),
+                            .white.opacity(tones.isLight ? 0.55 : 0.10),
+                        ],
+                        startPoint: .top, endPoint: .bottom),
+                    lineWidth: CouchSpecular.width)
+        }
         // One picture, described by the sentence beside it. A Canvas has no
         // accessible children of its own, and a second element saying
         // "thermometer" would be a label VoiceOver reads before the sentence
@@ -825,9 +1236,35 @@ private struct ChannelMotif: View {
 /// The dots are **not** buttons. Three tappable 7pt dots would be three targets
 /// below the 44pt floor sitting next to two that clear it, and the chevrons already
 /// reach every page in at most two taps.
+///
+/// **On a regular width it is not a pager at all, and that is round 4's change.**
+/// The panel measured the iPad header band and wrote: *"title occupies 115px on
+/// the left, buttons 184px on the right, and the Classic pager 490px dead-centre
+/// — leaving roughly 590px of blank lighter grey on each side. On iPad this
+/// should be a segmented control or a sidebar rail aligned to the column grid,
+/// not a centred iPhone pager floating in a slab."* Correct on every count. A
+/// pager is a *phone* control: it exists because there is not room to show three
+/// destinations at once, and on an 834pt bar there plainly is. Two chevrons and
+/// a word, each reachable in up to two taps, replaced by three names each
+/// reachable in one — and the 60%-empty band is filled by the thing the band is
+/// for rather than by decoration.
+///
+/// Resolved from `horizontalSizeClass` rather than from a measured width because
+/// this view is an *inset* of `TouchHomeView`'s bar and never learns its own
+/// span; the size class is the one honest signal available here, and it is
+/// `.compact` on every iPhone, in Slide Over, and in a narrow split view — all
+/// three of which genuinely want the pager. The phone rendering is byte-identical
+/// to what shipped, which is deliberate: `iphone-dark-channel` and
+/// `iphone-light-channel` are confirmed wins and nothing about them is reopened.
 struct ChannelPagerRail: View {
     let model: AppModel
     let accent: Color
+
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var tones: ThemeTones { theme.tones(for: colorScheme) }
 
     private var pages: [Channel] { Channel.allCases }
     private var index: Int { pages.firstIndex(of: model.channel) ?? 0 }
@@ -839,9 +1276,90 @@ struct ChannelPagerRail: View {
     private static let nameSlot: CGFloat = 132
     private static let chevronFont = Font.system(size: 15, weight: .semibold)
 
+    @ViewBuilder
     var body: some View {
+        if sizeClass == .regular {
+            segmented
+        } else {
+            pager
+        }
+    }
+
+    // MARK: The regular-width form — three destinations, one tap each
+
+    /// One glass track with three segments in it, and **one** rim around the
+    /// whole thing.
+    ///
+    /// That is `NineLayout.controlGap`'s second clause stated as a control: *"either
+    /// separate by this much, or commit to a single glass container with one
+    /// continuous rim and an interior divider — never two rims kissing."* The
+    /// selected segment is a `card` on a `track`, so it takes the card fill and
+    /// `couchRim`, and the track itself is `couchInset` — identity glass, no
+    /// second lens — because it is drawn *inside* `shelfBar`'s material and glass
+    /// inside glass reads as one murkier pane.
+    private var segmented: some View {
+        HStack(spacing: 0) {
+            ForEach(pages, id: \.self) { page in
+                segment(page)
+            }
+        }
+        .padding(Space.xs)
+        .couchInset(in: Capsule(), tint: Elevation.fill(.track, on: tones))
+        .couchRim(in: Capsule(), isLight: tones.isLight)
+        // Wide enough to be a control rather than a chip, and capped so it does
+        // not become a band on an external display. `NineLayout.readable` is the
+        // width past which a single run of chrome stops reading as one object.
+        .frame(maxWidth: NineLayout.readable)
+    }
+
+    private func segment(_ page: Channel) -> some View {
+        let selected = page == model.channel
+        return Button {
+            withAnimation(.couchFast) { model.channel = page }
+        } label: {
+            Text(Strings.channel(page))
+                .couchText(CouchTypography.body,
+                           selected ? Ink.label(on: tones) : Ink.secondary(on: tones))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                // **`Hit.min` on the segment, not on the track.** The floor is a
+                // property of the *target*, and a 44pt capsule holding three 36pt
+                // targets is three controls under the floor inside one control
+                // that clears it — which is precisely the arithmetic `Hit.min`'s
+                // own comment calls "a floor that scales is not a floor". The
+                // track's 4pt of padding therefore sits outside this, not inside.
+                .frame(minHeight: Hit.min)
+                .background {
+                    if selected {
+                        Capsule()
+                            .fill(Elevation.fill(.card, on: tones))
+                            .overlay {
+                                Capsule().strokeBorder(
+                                    CouchSpecular.rim(isLight: tones.isLight),
+                                    lineWidth: CouchSpecular.width)
+                            }
+                    }
+                }
+                // The label is a `Text`, so unlike the chevrons its own bounds
+                // already hold the frame open — but the *interaction* shape is
+                // still the tight text bounds without this, which on a 44pt-tall
+                // segment leaves two thirds of the target dead.
+                .contentShape(Capsule())
+                .contentShape(.accessibility, Capsule())
+        }
+        .buttonStyle(.plain)
+        // A segmented control speaks as a set of selectable options, not as a
+        // pager: "Thermo, selected" rather than "Thermo, page 2 of 3", because
+        // there are no pages any more — all three are on screen.
+        .accessibilityLabel(Strings.channel(page))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
+    }
+
+    // MARK: The compact form — unchanged
+
+    private var pager: some View {
         VStack(spacing: Space.s) {
-            HStack(spacing: Space.m) {
+            HStack(spacing: NineLayout.controlGap) {
                 // The two `Spacer`s are what make the row one centred object
                 // rather than two edge-parked buttons with a word between them.
                 Spacer(minLength: 0)
@@ -906,16 +1424,33 @@ struct ChannelPagerRail: View {
 
     /// The glyph, lit or unlit.
     ///
-    /// Two branches rather than a ternary inside `foregroundStyle` because
-    /// `.primary` and `.tertiary` are both leading-dot members resolved against
-    /// the generic `some ShapeStyle`, and a ternary of two of those is a shape
-    /// the type-checker has no reason to solve.
+    /// **Both rungs are `Ink` now, and the enabled one is the reason the token
+    /// exists.** A chevron is a control whose *only* content is a symbol, which
+    /// is exactly the case `Ink.glyph` is written for: the panel sampled a glyph
+    /// at L=146 on a capsule fill at L=91 — **2.15:1**, under WCAG 1.4.11's 3:1
+    /// for a graphical object — and the cause is the habit of giving a symbol
+    /// inside a container the weight a symbol in a list row gets. `Ink.glyph` is
+    /// the theme's own `digitTone` at full strength, which is the same ink the
+    /// board draws a given with and the brightest legal mark on the ground.
+    ///
+    /// The disabled rung moves from SwiftUI's `.tertiary` (~0.25 of the
+    /// foreground) to `Ink.tertiary` (0.52 of `digitTone` on dark, 0.50 on
+    /// paper). This control has already been through one round of exactly this
+    /// bug — it shipped at `.opacity(0.2)`, measured **1.24:1**, and that is not
+    /// a dimmed control but an absent one — and `.tertiary` was a step rather
+    /// than an answer.
+    ///
+    /// Still two branches rather than a ternary, but now for a simpler reason:
+    /// both are plain `Color`s, so a ternary would type-check — it just reads
+    /// worse than the two lines it replaces.
     @ViewBuilder
     private func chevronGlyph(_ symbol: String, enabled: Bool) -> some View {
         if enabled {
-            Image(systemName: symbol).font(Self.chevronFont).foregroundStyle(.primary)
+            Image(systemName: symbol).font(Self.chevronFont)
+                .foregroundStyle(Ink.glyph(on: tones))
         } else {
-            Image(systemName: symbol).font(Self.chevronFont).foregroundStyle(.tertiary)
+            Image(systemName: symbol).font(Self.chevronFont)
+                .foregroundStyle(Ink.tertiary(on: tones))
         }
     }
 

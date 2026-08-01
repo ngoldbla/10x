@@ -416,7 +416,14 @@ private enum GroundLight {
     /// The static peak, before the breath is added. Light grounds get less
     /// because white on paper is an operation with nowhere to go — their plane
     /// is shaped by the diagonal's dark end instead.
-    static func peak(isLight: Bool) -> Double { isLight ? 0.06 : 0.09 }
+    ///
+    /// **0.09 → 0.20 on dark, and the number is not the interesting part** —
+    /// see the round-4 section below. Raising a peak on a linear falloff raises
+    /// the *whole* plane, board included, which is why round 3's version could
+    /// not go past 0.09 without turning Void grey. `keyStops` is what makes 0.20
+    /// affordable: the light is now concentrated near its own anchor and the
+    /// screen's centre sits *lower* than it did at 0.09.
+    static func peak(isLight: Bool) -> Double { isLight ? 0.10 : 0.20 }
 
     // MARK: Round 2 — a second source, a hue split, and a vignette
     //
@@ -465,7 +472,16 @@ private enum GroundLight {
     }
 
     /// Lower than the primary at both leanings: this is the fill, not the key.
-    static func counterPeak(isLight: Bool) -> Double { isLight ? 0.05 : 0.055 }
+    ///
+    /// **The two leanings converged at round 4 and the parameter stays.** They
+    /// were 0.05/0.055, and raising the plane's amplitude pushed both to the
+    /// same 0.13 — which is a coincidence of two different arguments, not one
+    /// argument. On Void this is a cool *glow* and its ceiling is where the
+    /// bottom-leading corner stops being dark; on paper it is a cool *shade*
+    /// (`coolShade`, not `cool`) and its ceiling is where the page stops being
+    /// paper. Collapsing the signature would merge two ceilings that will move
+    /// apart again the moment either ground does.
+    static func counterPeak(isLight: Bool) -> Double { isLight ? 0.13 : 0.13 }
 
     /// The third inflection, mid-plane and off both axes.
     static let mottleAnchor = UnitPoint(x: 0.30, y: 0.46)
@@ -474,12 +490,18 @@ private enum GroundLight {
         max(max(size.width, size.height) * 0.55, 1)
     }
 
-    static func mottlePeak(isLight: Bool) -> Double { isLight ? 0.022 : 0.026 }
+    static func mottlePeak(isLight: Bool) -> Double { isLight ? 0.055 : 0.075 }
 
-    /// How dark the corners fall. Dark grounds can afford four times what paper
-    /// can: on `#0C0C0F` a 13% black corner is still above zero, while on paper
-    /// anything past ~5% starts reading as a photographic effect.
-    static func vignette(isLight: Bool) -> Double { isLight ? 0.05 : 0.13 }
+    /// How dark the corners fall — and, since round 4, **the budget that pays
+    /// for the sources above**. The vignette is the only layer that can take
+    /// luminance back off the plane, so tripling the sources without tripling
+    /// this would simply have made the app grey.
+    ///
+    /// Dark grounds can still afford three times what paper can, for the
+    /// original reason: on `#0C0C0F` a 30% black corner is a fall to ~9/255 and
+    /// is still above zero, while on paper anything past ~12% starts reading as
+    /// a photographic effect rather than as a lit room.
+    static func vignette(isLight: Bool) -> Double { isLight ? 0.10 : 0.30 }
 
     /// The vignette's clear radius. Under the long edge, so the corners sit
     /// past the final stop and hold its colour — a vignette that only reaches
@@ -505,17 +527,146 @@ private enum GroundLight {
     /// `coolShade`, so the mid-plane inflection leans the opposite way from the
     /// corner fill on paper exactly as it does on Void.
     static let warmShade = Color(red: 0.702, green: 0.643, blue: 0.565)
+
+    // MARK: Round 4 — amplitude, shaped falloff, and something to blur
+    //
+    // **The plane was right and far too quiet to matter.** Round 3's ground is
+    // three correctly-placed radials with a vignette under them, and measured
+    // off the shipped pixels it moves Void by about **14 levels across an
+    // entire screen** — brightest ~34, darkest ~20. A pane of glass displacing
+    // a field that flat displaces nothing you can see, so 78 of 301 panel
+    // findings said "nothing refracts / flat opaque fill" *about an app that
+    // calls `couchGlass` at 20 files and 18 sites in `TouchUI` alone*. The glass
+    // was never the problem. There was nothing behind it.
+    //
+    // Three changes, and only the first is a number:
+    //
+    //   1. **Amplitude ×2–3.** Key 0.09→0.20, fill 0.055→0.13, mottle
+    //      0.026→0.075, vignette 0.13→0.30.
+    //
+    //      Solved on a 1024×768 plane, layer by layer, at the two extreme
+    //      points — the key's own anchor and the opposite corner:
+    //
+    //        | Void          | before | after |
+    //        |---------------|--------|-------|
+    //        | key anchor    |     35 |    60 |
+    //        | far corner    |     19 |    14 |
+    //        | **range**     | **16** |**46** |
+    //
+    //      "Roughly 14/255 of modulation across an entire screen" is what the
+    //      brief measured off the shipped build, and the middle column is that
+    //      number reproduced from the constants. The right-hand column is what
+    //      a pane of glass now has to work with.
+    //
+    //   2. **Shaped falloff, which is what makes (1) affordable.** A SwiftUI
+    //      `RadialGradient` with two stops is *linear in the radius*, so half of
+    //      a source's peak is still sitting on the middle of the screen — the
+    //      board's own ground. Raising the peak on a linear falloff raises the
+    //      board with it, and that is the wall round 3 hit. `keyStops` and its
+    //      siblings put a knee in the ramp (0.44 of peak at 28% of the radius,
+    //      0.12 at 58%) so the light collapses toward its anchor. Measured at
+    //      the screen's centre the new key contributes **less** than the old one
+    //      did — **0.033 against 0.042** on a 4:3 plane, 0.042 against 0.046 on
+    //      a 390×844 phone — while its own corner is nearly twice as bright.
+    //      Range up, centre flat or lower: exactly the trade a lens wants, and
+    //      the reason the board's ground does not move with the page's.
+    //
+    //   3. **Something for the blur to erase** — `GroundGrain`. Points 1 and 2
+    //      give the field slope and inflection, which is what *refraction*
+    //      (displacement) reads from. They give **blur** nothing: a Gaussian of
+    //      a smooth ramp is the same ramp, so the blurred region inside a pane
+    //      is pixel-identical to the ground beside it. Blur is only visible
+    //      where there is detail *finer than its radius*, so the ground now
+    //      carries a deterministic speckle at ~1–3pt against a glass blur an
+    //      order of magnitude wider. Outside the pane it is texture at the edge
+    //      of visibility; inside it, it is gone. That difference is the pane.
+    //
+    // None of it is legible as content, which is the standing constraint: the
+    // caustics move the plane by two or three levels and the speckle by five at
+    // its brightest, on features too small to resolve as shapes.
+
+    /// The key's falloff, with a knee. See point 2 above — the reason the peak
+    /// could triple without the board's ground moving.
+    ///
+    /// Stops rather than a `startRadius` trick because `startRadius` produces a
+    /// *plateau* (a visible disc of flat colour) and this wants a curve. The
+    /// zero stop is the source's own colour at zero alpha, never `.clear`, for
+    /// the unpremultiplied-interpolation reason `VoidBackground` records.
+    static func keyStops(_ color: Color, peak: Double) -> Gradient {
+        Gradient(stops: [
+            .init(color: color.opacity(peak), location: 0),
+            .init(color: color.opacity(peak * 0.44), location: 0.28),
+            .init(color: color.opacity(peak * 0.12), location: 0.58),
+            .init(color: color.opacity(0), location: 1),
+        ])
+    }
+
+    /// The fill's falloff. A gentler knee than the key's: this is a bounce, and
+    /// a bounce that collapses as fast as the source it bounced off reads as a
+    /// second lamp — the note on `counterRadius`, restated in the ramp.
+    static func fillStops(_ color: Color, peak: Double) -> Gradient {
+        Gradient(stops: [
+            .init(color: color.opacity(peak), location: 0),
+            .init(color: color.opacity(peak * 0.42), location: 0.30),
+            .init(color: color.opacity(peak * 0.11), location: 0.65),
+            .init(color: color.opacity(0), location: 1),
+        ])
+    }
+
+    /// The mottle's falloff — the tightest of the three, because its whole job
+    /// is to put a *local* inflection mid-plane and a wide one would simply
+    /// raise the middle of the screen.
+    static func mottleStops(_ color: Color, peak: Double) -> Gradient {
+        Gradient(stops: [
+            .init(color: color.opacity(peak), location: 0),
+            .init(color: color.opacity(peak * 0.36), location: 0.35),
+            .init(color: color.opacity(0), location: 1),
+        ])
+    }
+
+    // MARK: The grain
+
+    /// One speckle per this many square points. ~23pt apart, which is chosen
+    /// against the *glass*, not against the eye: a system blur samples a radius
+    /// far wider than this, so every one of these disappears under a pane and
+    /// none of them disappears beside it.
+    static let grainDensity: Double = 520
+
+    /// A ceiling, so a 4K TV plane does not cost 6,000 draw calls for texture
+    /// nobody is close enough to resolve. The `Canvas` renders once per size
+    /// change — `BreathingVoid` is a separate view, so the breath does not
+    /// re-run it.
+    static let grainCap = 1400
+
+    /// Speckle radii. Under `CouchSpecular.width`'s 1pt at the small end and
+    /// under 3pt at the large one: the range where a mark is texture rather
+    /// than a dot.
+    static let grainMin: CGFloat = 0.7
+    static let grainMax: CGFloat = 2.6
+
+    /// The speckle's peak alpha, before its own per-mark jitter. Five levels at
+    /// its brightest on Void, two on paper — where the speckle also inverts to
+    /// shadow, for the reason every other layer here inverts on paper.
+    static func grainAlpha(isLight: Bool) -> Double { isLight ? 0.026 : 0.042 }
+
+    /// The mid-frequency layer under the speckle: nine wide, soft blobs that
+    /// keep the three named sources from being the only inflections on the
+    /// plane. Deliberately few and deliberately huge — this is the scale a lens
+    /// *displaces* visibly, where the speckle is the scale a lens *erases*.
+    static let causticCount = 9
+
+    static func causticPeak(isLight: Bool) -> Double { isLight ? 0.016 : 0.030 }
 }
 
 /// The resting background: each theme's backdrop, **lit**.
 ///
-/// Six layers, and every one of them is a contrast or a refraction fix rather
+/// Seven layers, and every one of them is a contrast or a refraction fix rather
 /// than a decoration:
 ///
 /// 1. The theme's ground (Void is now #0C0C0F rather than #000000 — the lift
 ///    that gives the material something to refract at all).
-/// 2. A diagonal `LinearGradient`: +5.5% white at `.topLeading`, −4% black at
-///    `.bottomTrailing`. On a dark theme that is roughly a 2× luminance range
+/// 2. A diagonal `LinearGradient`: +10% white at `.topLeading`, −11% black at
+///    `.bottomTrailing`. On a dark theme that is roughly a 3× luminance range
 ///    across the plane, which is what makes a card's own edge visible against
 ///    the page *wherever* on the page it happens to sit.
 /// 3. A **vignette**, under the sources rather than over them, so the corners
@@ -524,14 +675,25 @@ private enum GroundLight {
 /// 5. A wider, fainter, **cool counter-light** at the opposite corner.
 /// 6. A mid-plane **mottle** so the two slopes do not meet along a straight
 ///    line.
+/// 7. `GroundGrain` — caustics and a fine deterministic speckle, the only layer
+///    a *blur* can see.
 ///
 /// Layers 3–6 are round 2's answer to the one blocker ten of fourteen critics
 /// wrote independently — "the glass refracts nothing". `GroundLight`'s comment
 /// carries the argument: a lens displaces the field behind it, so a field with
 /// a single slope refracts to a field with a single slope and the material
 /// disappears. What survives displacement is an *inflection*, and layers 5 and
-/// 6 exist to put two of them on the plane. Nothing here is visible as content;
-/// the whole stack moves the ground by a handful of levels.
+/// 6 exist to put two of them on the plane.
+///
+/// **Round 4 is why that argument was right and did not work.** Round 2's
+/// inflections were correct and roughly 14 levels tall, which is under the
+/// threshold at which a displacement is a thing anyone can see; and *all* of
+/// layers 2–6 are smooth, so the blur half of the material had nothing to act
+/// on at any amplitude. So: the sources roughly tripled (paid for by the
+/// vignette, and made affordable by the falloff knee in `GroundLight.keyStops`,
+/// which drops the *centre* while raising the corner), and layer 7 adds the
+/// high-frequency term. Still nothing visible as content — the biggest single
+/// mark on the plane is about five levels, on a feature 2pt wide.
 ///
 /// Every gradient passes through explicit zero-alpha stops of its own colour
 /// rather than through `.clear`. `Color.clear` is black at zero alpha, and
@@ -560,10 +722,25 @@ struct VoidBackground: View {
                         // go — paper is already 240/255 — so a light theme's
                         // gradient is carried by its dark end instead, and the
                         // two stops are deliberately asymmetric.
-                        .init(color: .white.opacity(isLight ? 0.06 : 0.055), location: 0),
+                        //
+                        // Round 4 roughly doubled both ends. The diagonal is the
+                        // one layer with no falloff knee available to it — a
+                        // linear ramp has nowhere to put a knee — so it is also
+                        // the one layer that unavoidably lifts the middle of the
+                        // screen, which is why its raise is the smallest here
+                        // and the key light's is the largest.
+                        //
+                        // The dark end is the same on both leanings now. Paper
+                        // still has less room at the top (0.085 against 0.10)
+                        // and the asymmetry the original note describes is still
+                        // there; it is simply carried by the bright end alone,
+                        // because a 0.11 black is the point on *either* ground
+                        // where the corner stops reading as shade and starts
+                        // reading as dirt.
+                        .init(color: .white.opacity(isLight ? 0.085 : 0.10), location: 0),
                         .init(color: .white.opacity(0), location: 0.45),
                         .init(color: .black.opacity(0), location: 0.55),
-                        .init(color: .black.opacity(isLight ? 0.07 : 0.040), location: 1),
+                        .init(color: .black.opacity(0.11), location: 1),
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -584,45 +761,242 @@ struct VoidBackground: View {
                 )
                 // 4 — the key.
                 RadialGradient(
-                    stops: [
-                        .init(
-                            color: GroundLight.warm
-                                .opacity(GroundLight.peak(isLight: isLight)),
-                            location: 0),
-                        .init(color: GroundLight.warm.opacity(0), location: 1),
-                    ],
+                    gradient: GroundLight.keyStops(
+                        GroundLight.warm,
+                        peak: GroundLight.peak(isLight: isLight)),
                     center: GroundLight.anchor,
                     startRadius: 0,
                     endRadius: GroundLight.radius(for: geo.size)
                 )
                 // 5 — the fill, opposite and cool.
                 RadialGradient(
-                    stops: [
-                        .init(
-                            color: fill.opacity(GroundLight.counterPeak(isLight: isLight)),
-                            location: 0),
-                        .init(color: fill.opacity(0), location: 1),
-                    ],
+                    gradient: GroundLight.fillStops(
+                        fill,
+                        peak: GroundLight.counterPeak(isLight: isLight)),
                     center: GroundLight.counterAnchor,
                     startRadius: 0,
                     endRadius: GroundLight.counterRadius(for: geo.size)
                 )
                 // 6 — the mottle.
                 RadialGradient(
-                    stops: [
-                        .init(
-                            color: mottle.opacity(GroundLight.mottlePeak(isLight: isLight)),
-                            location: 0),
-                        .init(color: mottle.opacity(0), location: 1),
-                    ],
+                    gradient: GroundLight.mottleStops(
+                        mottle,
+                        peak: GroundLight.mottlePeak(isLight: isLight)),
                     center: GroundLight.mottleAnchor,
                     startRadius: 0,
                     endRadius: GroundLight.mottleRadius(for: geo.size)
                 )
+                // 7 — the caustics and the grain, on top of everything so the
+                // texture survives the vignette's own corners. This is the only
+                // layer a *blur* can see; layers 2–6 are all smooth enough that
+                // a Gaussian returns them unchanged.
+                GroundGrain(isLight: isLight, warm: mottle, cool: fill)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+}
+
+/// A deterministic 64-bit generator, so the ground is the same ground on every
+/// launch and in every screenshot.
+///
+/// SplitMix64: three multiply-xorshift rounds off a counter. Written out rather
+/// than reached for because `SystemRandomNumberGenerator` would re-scatter the
+/// speckle on every relaunch — which would make the app's own background
+/// unreviewable by a frame-by-frame panel, and would make
+/// `Tests/ContrastBaselines` sample a different plane every time it is
+/// re-recorded. `&+` and `&*` throughout: the algorithm is *defined* on
+/// wrapping arithmetic and a trap here would be a crash in a background view.
+private struct GroundNoise {
+    private var state: UInt64
+
+    init(seed: UInt64) { state = seed }
+
+    mutating func next() -> UInt64 {
+        state = state &+ 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+
+    /// 0…1. The top 53 bits, which is the whole mantissa of a `Double` and the
+    /// standard way of doing this without a modulo bias.
+    mutating func unit() -> Double { Double(next() >> 11) * 0x1p-53 }
+}
+
+/// **The layer that makes the blur visible.**
+///
+/// Everything else in `VoidBackground` is smooth, and smoothness is invisible
+/// to a Gaussian: blur a linear ramp and you get the linear ramp back, so the
+/// region behind a pane of glass renders pixel-for-pixel identical to the
+/// ground beside it and the pane has no edge. That is the mechanism behind 78
+/// separate "nothing refracts" findings — not a missing `.glassEffect`, a
+/// missing *high-frequency term*.
+///
+/// Two scales, because refraction and blur read different ones:
+///
+/// * **Caustics** — nine blobs at 10–32% of the short edge, alternating warm and
+///   cool. Wide enough to survive a blur, so what they give the glass is
+///   *displacement*: the field inside the pane is visibly not the field outside
+///   it, and it shifts hue at the rim, which is the single most legible
+///   refraction cue there is.
+/// * **Speckle** — up to 1,400 marks at 0.7–2.6pt. Far finer than any system
+///   blur radius, so every one of them is erased under glass and none of them
+///   is erased beside it. It is also the fix for the banding a critic counted
+///   on the shipped frame ("10 discrete luminance steps between y=20 and
+///   y=330"): a dither is what a smooth 8-bit ramp needs, and this is a dither
+///   that happens to also be doing the work above.
+///
+/// Drawn in one `Canvas` rather than as stacked views: ~1,409 fill operations
+/// in a single pass that re-runs only when the size or the leaning changes.
+/// `BreathingVoid` is a sibling view, so the 60-second breath does not
+/// invalidate this.
+private struct GroundGrain: View {
+    let isLight: Bool
+    /// The warm source's colour at this leaning — `GroundLight.warm` on a dark
+    /// ground and `warmShade` on paper, resolved by the caller so the two
+    /// layers cannot disagree about which way the light goes.
+    let warm: Color
+    /// The cool one, likewise.
+    let cool: Color
+
+    var body: some View {
+        Canvas { context, size in
+            guard size.width > 1, size.height > 1 else { return }
+            // A fixed seed: the same ground every launch. See `GroundNoise`.
+            var rng = GroundNoise(seed: 0x4E69_6E65_0004_0000)
+
+            let short = min(size.width, size.height)
+            let causticPeak = GroundLight.causticPeak(isLight: isLight)
+            for index in 0..<GroundLight.causticCount {
+                let centre = CGPoint(
+                    x: CGFloat(rng.unit()) * size.width,
+                    y: CGFloat(rng.unit()) * size.height)
+                let radius = CGFloat(0.10 + 0.22 * rng.unit()) * short
+                // Alternating rather than random, so nine blobs cannot land
+                // eight-warm by chance and become a tint.
+                let tint = index.isMultiple(of: 2) ? warm : cool
+                let peak = causticPeak * (0.55 + 0.45 * rng.unit())
+                // Through the tint's own zero-alpha stop, never through
+                // `.clear` — `VoidBackground`'s recorded trap, and at these
+                // opacities the grey haze would be the same size as the blob.
+                let blob = Gradient(stops: [
+                    .init(color: tint.opacity(peak), location: 0),
+                    .init(color: tint.opacity(peak * 0.34), location: 0.45),
+                    .init(color: tint.opacity(0), location: 1),
+                ])
+                context.fill(
+                    Path(
+                        ellipseIn: CGRect(
+                            x: centre.x - radius,
+                            y: centre.y - radius,
+                            width: radius * 2,
+                            height: radius * 2)),
+                    with: .radialGradient(
+                        blob,
+                        center: centre,
+                        startRadius: 0,
+                        endRadius: radius))
+            }
+
+            let area = Double(size.width * size.height)
+            let count = min(
+                GroundLight.grainCap,
+                max(180, Int(area / GroundLight.grainDensity)))
+            // On paper an added light is an operation with nowhere to go — the
+            // inversion every layer in this file makes — so the speckle is
+            // shadow there and the warm key's own colour on a dark ground.
+            let speck = isLight ? Color.black : GroundLight.warm
+            let alpha = GroundLight.grainAlpha(isLight: isLight)
+            let span = GroundLight.grainMax - GroundLight.grainMin
+            for _ in 0..<count {
+                let x = CGFloat(rng.unit()) * size.width
+                let y = CGFloat(rng.unit()) * size.height
+                let radius = GroundLight.grainMin + span * CGFloat(rng.unit())
+                // Jittered per mark: a field of identically-weighted dots reads
+                // as a printed halftone rather than as grain.
+                let weight = alpha * (0.3 + 0.7 * rng.unit())
+                context.fill(
+                    Path(
+                        ellipseIn: CGRect(
+                            x: x - radius,
+                            y: y - radius,
+                            width: radius * 2,
+                            height: radius * 2)),
+                    with: .color(speck.opacity(weight)))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// **What the boundary of a bar is allowed to be.**
+///
+/// Nine surfaces in round 4 were failed for the same mark: a full-width 1pt
+/// hairline under a header, "a hard 52→24 luminance cliff in a single row",
+/// "the flat-cut blur region guillotines the Nocturne card". A hairline running
+/// edge to edge is not the edge of a slab of glass — it is a *rule*, and it is
+/// the tell of chrome that was drawn rather than lit.
+///
+/// The system's own answer is a scroll-edge effect, and the part of it a view
+/// can build without private API is this: a **falloff** rather than a
+/// terminator. The ground's own colour, full-strength where the bar sits and
+/// gone 32pt later, so content passing under the bar dissolves instead of being
+/// cut. It composes with CouchKit's `couchGlassBar` — that rung supplies the
+/// material and the specular top arc, this supplies the boundary — and with a
+/// scroll offset, which is what `strength` is for: an edge that is *always* on
+/// is chrome for a state that never happens (the panel's exact complaint about
+/// a home screen that does not scroll).
+///
+/// The stops pass through the ground at zero alpha rather than through
+/// `.clear`, for the reason `VoidBackground` records: `Color.clear` is black at
+/// zero alpha and SwiftUI interpolates unpremultiplied, so a `ground → .clear`
+/// ramp travels through a grey haze — and a grey haze at the bottom of a veil
+/// is a soft version of the hairline this exists to delete.
+struct ScrollEdgeVeil: View {
+    @Environment(\.nineTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Which edge of the scrolling region this veils.
+    let edge: VerticalEdge
+    /// How deep the falloff runs. 32 is the shallowest depth that still reads
+    /// as a fade rather than as a soft line at typical scroll speeds.
+    var depth: CGFloat = 32
+    /// 0…1, normally driven from how far the content has scrolled under the
+    /// bar. At 0 the veil is not there at all.
+    var strength: Double = 1
+
+    var body: some View {
+        let ground = theme.tones(for: colorScheme).background
+        let weight = max(0, min(1, strength))
+        LinearGradient(
+            stops: [
+                .init(color: ground.opacity(0.92 * weight), location: 0),
+                .init(color: ground.opacity(0.55 * weight), location: 0.34),
+                .init(color: ground.opacity(0.18 * weight), location: 0.68),
+                .init(color: ground.opacity(0), location: 1),
+            ],
+            startPoint: edge == .top ? .top : .bottom,
+            endPoint: edge == .top ? .bottom : .top
+        )
+        .frame(height: depth)
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// Overlay a `ScrollEdgeVeil` on one edge of this view. The common case:
+    /// `content.nineScrollEdge(.top, strength: scrolledUnder ? 1 : 0)`.
+    func nineScrollEdge(
+        _ edge: VerticalEdge,
+        depth: CGFloat = 32,
+        strength: Double = 1
+    ) -> some View {
+        overlay(alignment: edge == .top ? .top : .bottom) {
+            ScrollEdgeVeil(edge: edge, depth: depth, strength: strength)
+        }
     }
 }
 
@@ -635,8 +1009,8 @@ struct VoidBackground: View {
 /// on any display, animating every half-second for the life of the session.
 ///
 /// Two changes, and the second is the design one. Its amplitude is now large
-/// enough to read (0 → 0.045 *on top of* the ground's static 0.09, so the
-/// source swings between 9% and 13.5%), and it modulates
+/// enough to read (0 → 0.075 *on top of* the ground's static 0.20, so the
+/// source swings between 20% and 27.5%), and it modulates
 /// `GroundLight` — the same anchor, the same falloff — instead of being a second
 /// light in the middle of the screen. A room does not have two suns. What
 /// breathes is the one light the ground already has.
@@ -661,16 +1035,19 @@ struct BreathingVoid: View {
                 // On light-leaning themes the breath inverts: a whisper of
                 // shadow rather than of light, because adding white to paper is
                 // an operation with nowhere to go.
-                let tip = isLight ? 0.030 : 0.045
+                //
+                // Round 4 raised the tip with the key it modulates (0.045 →
+                // 0.075 on dark), and — more importantly — put it on the key's
+                // own **shaped** falloff via `GroundLight.keyStops`. It used to
+                // be a two-stop linear ramp while the light underneath it was
+                // not, which meant the breath was quietly widest exactly where
+                // the key was weakest: a source that pulsed the middle of the
+                // screen while claiming to modulate a corner. Now the thing
+                // that breathes is, in shape as well as in position, the one
+                // light the ground already has.
+                let tip = isLight ? 0.045 : 0.075
                 RadialGradient(
-                    stops: [
-                        .init(
-                            color: breathColor.opacity(breath * tip),
-                            location: 0),
-                        .init(
-                            color: breathColor.opacity(0),
-                            location: 1),
-                    ],
+                    gradient: GroundLight.keyStops(breathColor, peak: breath * tip),
                     center: GroundLight.anchor,
                     startRadius: 0,
                     endRadius: GroundLight.radius(for: geo.size)
