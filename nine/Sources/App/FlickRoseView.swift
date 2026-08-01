@@ -98,6 +98,79 @@
 // cell the same shader has digits and grid rules to bend, which is the round-3
 // thesis everywhere else on this screen too: a lens has nothing to show over a
 // void.
+//
+// ============================================================================
+// ROUND 4 — the plate lost the surface it was made of, and the picker never
+// said which cell it was for.
+// ============================================================================
+//
+// `ipad-dark-rose` scored **2.5 against the previous round's 5.5** — the single
+// largest confirmed regression a blind panel measured this round, filed from the
+// panel's own *favoured* slot. Round 3 is what moved it. Three blockers, and
+// each one has a cause you can point at in this file rather than a taste
+// argument:
+//
+//   1. **"An opaque slab — the glass refracts nothing."** The plate is
+//      `.regular` glass and always was; what erased it is what sits *on* the
+//      plate. Nine 116pt petals on a 126pt pitch cover
+//      `9·π·58² / 405² ≈ **58% of the plate's area**`, and each of them was a
+//      near-opaque wash — `.white.opacity(0.60)` on paper, which over glass that
+//      has already composited near-white is simply white paint — carrying a
+//      full-disc dome gradient (up to a further 0.50 white) on top of it.
+//      The material was left doing its job through the 42% of the plate nobody
+//      looks at. **The fix is not more material, it is less paint**: the petals
+//      are now the ladder's `Elevation.track` rung — *"a region marked out
+//      inside a panel … the dish under a keycap"* — at the ladder's own alphas,
+//      so the plate's glass (and the board bending through it) reads across all
+//      nine rather than around them.
+//   2. **"The wells read as smudge vignettes"**, and, on the phone frame,
+//      *"disc 6 carries a smeared internal artifact from whatever gradient is
+//      being drawn"*. Both are one arithmetic slip, and it is measurable rather
+//      than aesthetic: `glyphWell`'s own comment says it "fades out by 58% of
+//      the radius" and its `endRadius` read `petalSize * 0.58`. `petalSize` is a
+//      **diameter**. The well therefore reached 116% of the radius — it covered
+//      the whole disc and ran off the edge of it, at a 0.30 peak. That is the
+//      smudge, in one number. It is now 0.42 of the *radius* at a 0.12 peak: a
+//      bed under the numeral, not a vignette over the petal.
+//   3. **"No visible anchor to the cell it edits — no tail, no connector and no
+//      scaled-from-origin geometry."** `RoseLens.anchorOffset` has carried
+//      exactly that vector since round 3 ("the popover's tail: the direction the
+//      picker is pointing") and **nothing has ever drawn it**. It now arrives as
+//      `anchorOffset` and buys three marks: the plate's silhouette grows a real
+//      popover **tail** on the edge facing the cell (`RosePlateShape` — one
+//      path, so the glass, the rim and the shadow all follow it and there is no
+//      seam to explain), the ring gains **mark 5, a reticle** over the cursor
+//      cell itself, and the growth transition's anchor moves from `.center` to
+//      the cell, so the ring scales out of the cell it was opened on and
+//      collapses back into it. The tail belongs to the plate and the reticle to
+//      the rose; the four marks below stay the petal's own.
+//
+// **Why the plate survives a regression that was the plate's fault.** Going back
+// to nine free discs restores the two blockers round 3 was written to answer —
+// "unbacked circles that occlude the board and clip off its top edge" — and the
+// panel's own remedy for both plated frames is *"rebuild the rose backplate on a
+// real material"*, not "remove it". What regressed is the plate's **occlusion**
+// and its **anonymity**, and both of those are drawn here.
+//
+// **And why the 3×3 lattice survives the "that is a keypad in disguise" note.**
+// It is a keypad, deliberately and everywhere: `RoseGeometry.digit(for:)` maps
+// the eight flick directions plus centre onto exactly these nine positions, so
+// the lattice *is* the gesture — a radial ring would put digit 2 up-and-right of
+// digit 1 while an up flick still placed 2, on every platform at once. It is
+// also `RoseLens.petalCentre`, which the board's own lens shader bends at, and
+// which `RoseLensTests` pins across all 81 cells. What the panel actually
+// measured under that heading is the second half of its own sentence — *"give
+// the discs a real material … so the grid reads through all nine"* — and that is
+// what changed.
+//
+// Everything below is still one design at both leanings, and the polarity rule
+// is `Elevation`'s rule 2, restated for a disc: on paper you may lift until you
+// hit white and then you must recess, so a key on a near-white plate is **cut
+// into** it (ink at 0.05) and a key on a near-black plate is **lifted out of**
+// it (ink at 0.10). That is why the petal's interior lighting is now concave —
+// a dish is lit on its *far* wall — while the rim keeps the app's one lamp at
+// `.topLeading`. A rim lit from above around an interior lit from below is what
+// a keycap is; the previous pass had both lit from above, which is a pillow.
 import SwiftUI
 import CouchKit
 
@@ -228,6 +301,31 @@ struct FlickRoseView: View {
     /// material inside the first), and mark 4 — the per-petal contact shadow —
     /// goes away, because the plate is now the thing that is floating.
     var plated: Bool = false
+    /// **The vector from the rose's own centre to the cursor cell's centre**, in
+    /// points, in this view's own (unmirrored) space — i.e.
+    /// `RoseLens.anchorOffset`, which has computed it since round 3 and had no
+    /// reader.
+    ///
+    /// Everything that ties the picker to the cell it fills hangs off this one
+    /// value: the plate's tail, the reticle over the cell, and the anchor the
+    /// growth transition scales about. `nil` — the default, and what every
+    /// unanchored caller passes — draws none of them and leaves the ring
+    /// byte-identical to what tvOS ships, which is the same contract `plated`
+    /// has. Only a *clamped* `RoseLens` can promise the cell is outside the
+    /// plate, so only a clamped caller should pass this.
+    var anchorOffset: CGSize? = nil
+    /// One board cell's side, for the reticle and for the tail's headroom —
+    /// `RoseLens.cellSide`, which stores it for exactly this ("any gesture
+    /// surface that wants to span from the cell to the picker").
+    ///
+    /// Defaulted rather than required: `RoseLens.scale(forSide:)` is
+    /// `min(0.62, cell × 1.15 / 116)`, so below the cap a cell is the
+    /// placement-mode petal diameter over 1.15 and the fallback is exact. Above
+    /// the cap — a board wide enough that a cell-sized petal would be a dinner
+    /// plate — it under-estimates, which is the safe direction: a reticle a
+    /// little inside its cell is a reticle, and one a little outside it is a
+    /// mistake.
+    var cellSide: CGFloat? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -268,45 +366,145 @@ struct FlickRoseView: View {
     /// Concentric with the four corner petals by construction: a petal's radius
     /// plus the surround. Two rounded shapes nested with the *same* radius read
     /// as a mistake; this is the one radius that reads as a nest.
-    private var plateShape: RoundedRectangle {
-        RoundedRectangle(
-            cornerRadius: CGFloat(
-                RoseLens.plateCornerRadius(pencil: state.pencil, scale: Double(scale))),
-            style: .continuous)
+    private var plateCornerRadius: CGFloat {
+        CGFloat(RoseLens.plateCornerRadius(pencil: state.pencil, scale: Double(scale)))
+    }
+
+    /// The plate's silhouette — the rounded square, plus the tail when the
+    /// caller has told us where the cell is.
+    private var plateShape: RosePlateShape {
+        RosePlateShape(cornerRadius: plateCornerRadius, tail: plateTail)
+    }
+
+    // MARK: The anchor (round 4, mark 3)
+
+    /// `anchorOffset`, once it has passed the two guards that make it drawable:
+    /// there is a plate to hang a tail off, and the cell is somewhere other than
+    /// under our own centre.
+    ///
+    /// The second guard is not defensive tidiness. `RoseLens`' fallback branch —
+    /// a board too small to place the plate beside the cell at all — puts the
+    /// ring back *on* the cell and reports `clearsAnchor == false`; a tail and a
+    /// reticle drawn there would point at the thing they are standing on.
+    private var anchorVector: CGSize? {
+        guard plated, let offset = anchorOffset else { return nil }
+        guard hypot(offset.width, offset.height) > 1 else { return nil }
+        return offset
+    }
+
+    /// One cell's side — see `cellSide` for why the fallback is what it is.
+    private var anchorCellSide: CGFloat {
+        cellSide
+            ?? CGFloat(RoseLens.petalDiameter(pencil: false, scale: Double(scale))) / 1.15
+    }
+
+    /// The popover tail, or nil where there is no room to draw one.
+    ///
+    /// Three facts decide it, in this order:
+    ///
+    ///   * **Which edge.** `RoseLens` places the plate *below* the cursor cell
+    ///     and flips *above* it near the frame's bottom — never left or right —
+    ///     so the tail is on the top or the bottom edge and a vector that is
+    ///     mostly horizontal means something has gone wrong upstream and is
+    ///     declined rather than guessed at.
+    ///   * **How much room.** The gap is the centre-to-centre distance minus
+    ///     half the plate and half the cell, which is `RoseLens.anchorGap` (8pt)
+    ///     when the frame can afford it and **as little as zero** when it cannot
+    ///     — the placement spends the gap before it spends the clearance. The
+    ///     tail takes that gap less two points of air, so it can never reach
+    ///     into the cell it is pointing at, and it declines below 3pt where a
+    ///     tail would be a nick in the rim rather than a direction.
+    ///   * **How wide.** Base is 1.5× the height. A tail taller than it is wide
+    ///     reads as a spike; the flatter triangle is what every popover in the
+    ///     system draws, and at the phone's scale it is about 6 × 18pt.
+    private var plateTail: RoseTail? {
+        guard let vector = anchorVector else { return nil }
+        guard abs(vector.height) > abs(vector.width) else { return nil }
+        let gap = abs(vector.height) - plateSpan / 2 - anchorCellSide / 2
+        let height = min(petalSize * 0.22, gap - 2)
+        guard height >= 3 else { return nil }
+        return RoseTail(
+            edge: vector.height > 0 ? .bottom : .top,
+            offset: vector.width,
+            height: height,
+            halfBase: height * 1.5)
+    }
+
+    /// The plate square is centred on the ring; the tail's band is extra height
+    /// on one side of the drawn frame, so the whole plate view slides half a
+    /// tail to keep the square where the petals are.
+    private var plateTailShift: CGFloat {
+        guard let tail = plateTail else { return 0 }
+        return tail.edge == .bottom ? tail.height / 2 : -tail.height / 2
+    }
+
+    /// Where the rose grows from and collapses back into: the cursor cell,
+    /// expressed as a `UnitPoint` in the plate's own frame. Outside 0…1 by
+    /// construction — the cell is beside the plate, never inside it — which
+    /// `.scale(scale:anchor:)` accepts and is exactly the "scaled-from-origin
+    /// geometry" the panel could not find.
+    private var growthAnchor: UnitPoint {
+        guard let vector = anchorVector, plateSpan > 1 else { return .center }
+        return UnitPoint(
+            x: 0.5 + vector.width / plateSpan,
+            y: 0.5 + vector.height / plateSpan)
     }
 
     /// The petal's tint on the plate — its **only** material contribution,
     /// because `couchInset` deliberately adds none.
     ///
-    /// Polarity, not symmetry. On a light theme a card inside a surface has to
-    /// be **lighter** than the surface it sits on, never darker, so the petal is
-    /// a strong white wash over the plate's own glass; on dark the same
-    /// relationship needs a tenth of the alpha, because a 10% white lift over a
-    /// near-black plate is already about twenty levels — the step the sampled
-    /// 1.026:1 petal never had. Under Reduce Transparency both go up, for the
-    /// reason `petalRim` gives below: that setting is a request for edges and
-    /// fills instead of lighting.
-    /// The wash that separates a petal from the plate it sits on.
+    /// **Round 4 took this from paint back to a token.** It shipped as
+    /// `.white.opacity(0.60)` on paper, and a 60% white wash over glass that has
+    /// already composited to near-white is not a tint, it is white paint: nine
+    /// opaque discs covering 58% of the plate, which is the whole of the "opaque
+    /// slab / the glass refracts nothing" blocker. `Elevation`'s ladder already
+    /// names what a petal is — **`track`**, *"a region marked out inside a panel
+    /// … the dish under a keycap"* — and gives it an alpha at each leaning:
+    /// `wellHue × 0.05` on paper, `surfaceHue × 0.10` on a dark ground.
+    ///
+    /// Those are the two numbers below, expressed against `digitTone` because
+    /// this view is handed the theme's *ink* and not a whole `ThemeTones`. The
+    /// substitution is close to exact by construction: on a dark theme
+    /// `surfaceHue` **is** `gridTone`, the theme's own light tone, which is
+    /// `digitTone`'s own family (cream on Ember, pale blue on Blueprint); on a
+    /// light theme `wellHue` is `gridTone`, the theme's deep tone, and
+    /// `digitTone` is that tone at reading weight. Either way the key is made of
+    /// the theme rather than of white, which is the other half of the panel's
+    /// complaint — *"the named palette does not render"*.
+    ///
+    /// Polarity is `Elevation`'s rule 2 and not a symmetry: *on paper you may
+    /// lift until you hit white, and then you must recess*. A key on a near-white
+    /// plate has nowhere left to go up, so it is **cut into** the plate; a key on
+    /// a near-black plate is **lifted out of** it.
     ///
     /// **Opaque toward the *ground*, never toward the ink.** Reduce
     /// Transparency has to make this fill more opaque — that is the whole point
-    /// of the setting — but the first version did it by adding white on both
+    /// of the setting — but an early version did it by adding white on both
     /// leanings (0.10 → 0.18 on dark, 0.60 → 0.85 on light), and on a dark theme
     /// white *is* the ink. `contrast-harness.py` caught it: the numeral against
     /// its petal fell from 14.18:1 to 13.08:1 on Void and from 15.38:1 to
     /// 10.33:1 on Tide, and the harness's `gate_increased` exists for exactly
     /// this shape of mistake — an accessibility setting that measures worse than
-    /// the default. Its own docstring records the first time the board did it,
-    /// with box washes, for the same reason: a wash toward `gridTone` moves the
-    /// ground toward the ink whichever way the theme leans.
-    ///
-    /// So the dark branch now deepens instead. Separation from the plate is the
-    /// *rim's* job — it already strengthens under the same flag — and a rim can
-    /// do that without ever walking the ground toward the glyph.
+    /// the default. So the two Reduce Transparency branches are unchanged, and
+    /// they are the one place the petal is still allowed to be paint: that
+    /// setting is a player asking for fills and edges instead of lensing, and
+    /// under it `couchInset` has already dropped its material anyway.
     private var petalTint: Color {
-        if isLight { return .white.opacity(reduceTransparency ? 0.92 : 0.60) }
-        return reduceTransparency ? .black.opacity(0.55) : .white.opacity(0.10)
+        if reduceTransparency {
+            return isLight ? .white.opacity(0.92) : .black.opacity(0.55)
+        }
+        return digitTone.opacity(isLight ? 0.05 : 0.10)
     }
+
+    /// The key under the finger, one rung up the same ladder: `Elevation.card`
+    /// over `Elevation.track`, in the accent rather than in the theme's ink
+    /// because this is *state* and state is allowed to be coloured.
+    ///
+    /// It is the panel's "shadow ramp so the disc under the thumb elevates",
+    /// done as a fill and a glow rather than as a shadow — nine petals sitting
+    /// on one plate are flush by construction (see mark 4), and a shadow under a
+    /// flush key is the "pile of stickers" `couchRim` was written against.
+    private var focusTint: Color { accent.opacity(isLight ? 0.22 : 0.28) }
 
     /// The petal numeral. Was `(pencil ? 38 : 52) * scale` — 20.8pt at phone
     /// scale, *smaller* than the board digit it types (22.6pt), which is
@@ -335,16 +533,35 @@ struct FlickRoseView: View {
     /// the four rungs added with it all branch, and the two original ones do
     /// not — so until it does, the compensation happens here, where the rose
     /// can at least guarantee itself a visible boundary.
+    /// **Round 4 kept this untouched, and that is the deliberate half of the
+    /// change.** Everything else about the petal got quieter — the fill went from
+    /// paint to a `track` wash, the specular came down to `CouchSpecular`'s — and
+    /// with a *translucent* key on a plate of nearly its own tone, this ink arc
+    /// is no longer one of several things separating the two. It is the only one.
     private var petalRim: Color {
         if reduceTransparency { return digitTone.opacity(isLight ? 0.75 : 0.62) }
         return digitTone.opacity(isLight ? 0.45 : 0.32)
     }
 
-    /// Not a hairline any more. 0.75pt was a *hair* — at 3× it is two device
-    /// pixels of 32%-alpha ink, which is what the round-2 panel described as
-    /// "a flat fill with a hairline stroke, not a material". A 46pt phone petal
-    /// carries a 1pt edge comfortably, and the couch's 116pt petal wants 2.
-    private var rimWidth: CGFloat { max(1, 2 * scale) }
+    /// **A hairline again on the plate, and this time on purpose.**
+    /// `CouchSpecular.width` is one point *"on every platform and at every scale
+    /// — a rim is a lighting artifact, not a border, and a 2pt version of it
+    /// stops reading as light and starts reading as a frame"*, and the panel
+    /// measured the frame: *"make them actual concave keys with a specular top
+    /// edge and a **1pt hairline rim**"*. Round 2's `max(1, 2 * scale)` was
+    /// answering a different complaint — a 0.75pt hair — by overshooting past the
+    /// doctrine, and at the phone's 0.40 it made no difference anyway (both floor
+    /// at 1pt). Where it made a difference is the couch.
+    ///
+    /// So the split is by *plate*, not by platform, and it is the same split the
+    /// whole rim treatment now makes: a key on a lit plate takes the hairline,
+    /// because the plate's own `couchElevated` edge is already framing the group;
+    /// a free disc — tvOS, where the ring is the outermost glass in the rose and
+    /// there is nothing under it but a near-black board — keeps the 2pt edge that
+    /// is the only boundary it has.
+    private var rimWidth: CGFloat {
+        plated ? max(CouchSpecular.width, 1.5 * scale) : max(1, 2 * scale)
+    }
 
     /// The bevel: a second stroke immediately inside the rim, lit only along the
     /// top arc. A single stroke describes a *cut-out*; two concentric strokes
@@ -365,55 +582,86 @@ struct FlickRoseView: View {
 
     // MARK: The four marks (see the file header)
 
-    /// Mark 1 — the rim, as one stroke that changes what it is doing as it goes
-    /// round: near-white where the light hits, the theme's ink at the equator,
-    /// near-black on the shaded side. `.topLeading → .bottomTrailing` is
+    /// Mark 1 — the rim: one stroke that changes what it is doing as it goes
+    /// round. Near-white where the light lands, the theme's ink at the equator,
+    /// a shaded lip at `.bottomTrailing`. `.topLeading → .bottomTrailing` is
     /// `couchElevated`'s axis, so every lit edge in the app agrees about where
     /// the lamp is.
+    ///
+    /// **On a plate the extremes are `CouchSpecular.rimStops`' now** — 0.95/0.34
+    /// → 0.16 on paper, 0.45/0.15 → 0.24 on a dark ground — rather than the
+    /// hand-raised 0.80/0.58 pair round 2 shipped. Those were solved against a
+    /// petal that was itself opaque paint, where the only way to describe an edge
+    /// is to draw one; a 0.58 black at the bottom of a 46pt disc is not a lip, it
+    /// is the drop shadow of a pillow, and two panels read it exactly that way
+    /// (*"pillowed inner-shadow wells … 2019 skeuomorphism"*, *"smudge
+    /// vignettes"*). A free disc keeps the raised pair, for the reason
+    /// `rimWidth` gives one property up: it is the outermost glass in the rose
+    /// and there is nothing under it to finish its edge.
+    ///
+    /// One thing is kept at both rungs, and it is the reason this is not simply
+    /// `couchRim`: `CouchSpecular` passes through **zero** alpha at the equator,
+    /// which is right for a card whose fill already separates it from the page
+    /// and wrong for a translucent key on a plate of nearly its own tone. The
+    /// ink equator is what keeps nine of them countable.
     private func rimGradient(dimmed: Bool) -> LinearGradient {
         let k = dimmed ? Self.completedSpecular : 1
+        let crest = plated ? (isLight ? 0.95 : 0.45) : (isLight ? 0.95 : 0.80)
+        let shoulder = plated ? (isLight ? 0.34 : 0.15) : (isLight ? 0.34 : 0.26)
+        let lip = plated ? (isLight ? 0.16 : 0.24) : (isLight ? 0.26 : 0.58)
         return LinearGradient(
             stops: [
-                .init(color: .white.opacity((isLight ? 0.95 : 0.80) * k), location: 0.00),
-                .init(color: .white.opacity((isLight ? 0.34 : 0.26) * k), location: 0.28),
+                .init(color: .white.opacity(crest * k), location: 0.00),
+                .init(color: .white.opacity(shoulder * k), location: 0.30),
                 .init(color: petalRim.opacity(k), location: 0.58),
-                .init(color: .black.opacity((isLight ? 0.26 : 0.58) * k), location: 1.00),
+                .init(color: .black.opacity(lip * k), location: 1.00),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 
-    /// Mark 2 — the inner highlight. Gone by 42% of the diagonal, so it is an
-    /// *arc* along the top rather than a second full ring; a trimmed stroke
-    /// would have given the same arc plus two end caps to explain.
+    /// Mark 2 — the inner highlight, and it is now **CouchKit's**, stop for
+    /// stop: `CouchSpecular.innerHighlightStops` read `.top → .bottom` rather
+    /// than along the diagonal.
+    ///
+    /// Vertical is the correction. That gradient's own note says why — the outer
+    /// bevel has already described the light's *direction*, so this line is
+    /// describing the pane's *thickness*, and thickness is uniform across the
+    /// top arc. Run diagonally (as it was) it thins toward the leading edge and
+    /// piles up in one corner, which is a glint, not an edge. It dies by 34% of
+    /// the height, so the sides and the bottom of the stroke draw nothing at all.
     private func innerRim(dimmed: Bool) -> LinearGradient {
         let k = dimmed ? Self.completedSpecular : 1
+        let stops = CouchSpecular.innerHighlightStops(isLight: isLight).stops
+            .map { Gradient.Stop(color: $0.color.opacity(k), location: $0.location) }
         return LinearGradient(
-            stops: [
-                .init(color: .white.opacity((isLight ? 0.85 : 0.55) * k), location: 0.00),
-                .init(color: .white.opacity((isLight ? 0.22 : 0.14) * k), location: 0.22),
-                .init(color: .clear, location: 0.42),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            gradient: Gradient(stops: stops),
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
 
-    /// Mark 3a — body. A dome takes the light on its upper shoulder and loses it
-    /// on the lower one; without this the disc between the two rims is perfectly
-    /// even, which is the read of a sticker, not of a solid.
+    /// Mark 3a — **the dish, and it is concave now.** A keycap is not a dome:
+    /// its floor is scooped, so with the lamp at `.topLeading` the *near* wall
+    /// falls into shadow and the *far* wall catches the light. Which is the
+    /// exact inverse of what shipped, where the interior and the rim were both
+    /// lit from the top-leading corner — and two coincident highlights on a
+    /// small disc is the definition of a pillow.
     ///
-    /// Alphas are small on purpose. On dark the numeral is near-white and the
-    /// petal near-black, so this layer must not spend the 15:1 that relationship
-    /// already has — and it does not, because it lives *below* the numeral.
-    private var bodyShading: LinearGradient {
+    /// The amplitude comes down with it: the old dome ran a 0.50 white against a
+    /// 0.08 black on paper, which is a quarter of the way to white *on top of* a
+    /// 0.60 white tint. Nothing here now exceeds 0.10 except the far wall on
+    /// paper, where a white-on-white surface has no other way to show a scoop.
+    /// It is still drawn *below* the numeral, so none of it is spent on the one
+    /// relationship the petal is measured by.
+    private var dishShading: LinearGradient {
         LinearGradient(
             stops: [
-                .init(color: .white.opacity(isLight ? 0.50 : 0.10), location: 0.00),
-                .init(color: .white.opacity(isLight ? 0.18 : 0.02), location: 0.34),
-                .init(color: .clear, location: 0.58),
-                .init(color: .black.opacity(isLight ? 0.08 : 0.16), location: 1.00),
+                .init(color: .black.opacity(isLight ? 0.06 : 0.10), location: 0.00),
+                .init(color: .black.opacity(0), location: 0.42),
+                .init(color: .white.opacity(0), location: 0.56),
+                .init(color: .white.opacity(isLight ? 0.30 : 0.09), location: 1.00),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -421,28 +669,37 @@ struct FlickRoseView: View {
     }
 
     /// Mark 3b — the glyph well: the ground's own tone, densest under the
-    /// numeral and gone by 58% of the radius.
+    /// numeral and gone by 42% of the **radius**.
     ///
     /// This is the answer to PRD-22's lens. The board's digits are magnified up
     /// through the petals, which is the effect that sells the glass — but at the
     /// centre of the petal, where its own numeral sits, a magnified board digit
-    /// is a second glyph in the same 20pt box. The critique read that as "the
-    /// petals are blurred blobs". Bedding the numeral on the ground's tone
-    /// resolves both halves at once: the numeral gains contrast, the competing
-    /// glyph loses it, and the ring of the petal where a real lens actually
-    /// shows its magnification is untouched.
+    /// is a second glyph in the same 20pt box. Bedding the numeral on the
+    /// ground's tone resolves both halves at once: the numeral gains contrast,
+    /// the competing glyph loses it, and the ring of the petal where a real lens
+    /// actually shows its magnification is untouched.
+    ///
+    /// **The unit was wrong and that is the whole of the "smudge vignette"
+    /// finding.** `endRadius` read `petalSize * 0.58`, and `petalSize` is a
+    /// *diameter* — so a gradient documented as fading out at 58% of the radius
+    /// actually reached **116%** of it: it covered the entire disc, ran past the
+    /// rim, and did it at a 0.30 peak. Two panels described the result
+    /// independently, as "smudge vignettes" and as "a smeared internal artifact"
+    /// on one disc. Half the radius times 0.42 is the number the comment always
+    /// claimed, and the peak comes down to 0.12 to match a petal that is now
+    /// translucent rather than paint.
     private var glyphWell: RadialGradient {
         let tone: Color = isLight ? .white : .black
-        let peak = reduceTransparency ? 0.46 : 0.30
+        let peak = reduceTransparency ? 0.30 : 0.12
         return RadialGradient(
             stops: [
                 .init(color: tone.opacity(peak), location: 0.00),
                 .init(color: tone.opacity(peak * 0.55), location: 0.55),
-                .init(color: .clear, location: 1.00),
+                .init(color: tone.opacity(0), location: 1.00),
             ],
             center: .center,
             startRadius: 0,
-            endRadius: petalSize * 0.58
+            endRadius: petalSize * 0.5 * 0.42
         )
     }
 
@@ -463,11 +720,26 @@ struct FlickRoseView: View {
                 // shadow: `CouchSpecular.ambient` plus `CouchSpecular.contact`
                 // are two *layers* of one occlusion, and the double shadow the
                 // panel saw was nine of mark 4 in a frame that wanted one.
+                //
+                // **Round 4: the plate has a tail.** `RosePlateShape` is one
+                // path — square and tail together — so the material, the rim and
+                // the shadow all follow the popover silhouette and there is no
+                // seam at the base to explain away. Drawing the tail as a second
+                // shape behind the plate would have been four lines shorter and
+                // would have printed a rim across its own base, because the
+                // plate above it is glass and glass is not a mask.
+                //
+                // The drawn frame carries the tail's band as extra height and
+                // `plateTailShift` slides it back, so the square stays
+                // concentric with the ring and the nine tap targets `TouchRose`
+                // overlays keep sitting exactly on the nine petals.
                 if plated {
                     Color.clear
-                        .frame(width: plateSpan, height: plateSpan)
+                        .frame(width: plateSpan,
+                               height: plateSpan + (plateTail?.height ?? 0))
                         .couchGlass(in: plateShape)
                         .couchElevated(in: plateShape, isLight: isLight)
+                        .offset(y: plateTailShift)
                         .allowsHitTesting(false)
                 }
                 ForEach(1...9, id: \.self) { digit in
@@ -480,6 +752,10 @@ struct FlickRoseView: View {
         // surround keeps them concentric with the petals they cover.
         .frame(width: plated ? plateSpan : ringSpan,
                height: plated ? plateSpan : ringSpan)
+        // Mark 5 — the reticle over the cursor cell. Outside the frame by
+        // construction and `allowsHitTesting(false)` throughout, so the scrim
+        // behind it keeps its tap-to-dismiss and the nine targets keep theirs.
+        .overlay { anchorMark }
         // The ring is spatial, not textual, and must not follow the writing
         // direction (PRD-20 decision 3). `.offset(x:)` *is* direction-aware, so
         // under `-NSForceRightToLeftWritingDirection` the petals laid out
@@ -497,9 +773,18 @@ struct FlickRoseView: View {
         // `bloomed` back, so the ring bloomed open from the cell and then, on
         // dismissal, a full-size rose simply evaporated in place. A transition
         // is symmetric by construction — the same 0.35 scale about the same
-        // centre, played backwards — so the rose now collapses toward the
+        // point, played backwards — so the rose now collapses toward the
         // cursor cell it grew out of.
-        .transition(.scale(scale: 0.35, anchor: .center).combined(with: .opacity))
+        //
+        // **And in round 4 it genuinely does.** The anchor was `.center`, so
+        // "collapses toward the cursor cell" was true only while the ring was
+        // still centred *on* the cell; once round 3 made it a popover the
+        // sentence stopped being true and the picker started blooming out of its
+        // own middle, several rows from the thing it edits — which is the
+        // panel's *"no scaled-from-origin geometry"*, in one argument.
+        // `growthAnchor` is the cursor cell in the plate's own unit space, and
+        // `.center` for every caller that does not pass one.
+        .transition(.scale(scale: 0.35, anchor: growthAnchor).combined(with: .opacity))
         // The transition only plays if the *parent* removes us inside a
         // transaction that carries an animation. `TouchUI`, `MacUI`, `FirstRun`
         // and `TutorialView` all wrap their `rose = …` in `withAnimation`, but
@@ -508,6 +793,43 @@ struct FlickRoseView: View {
         // was what animated it. Supplying a default rather than overriding one
         // keeps every animated caller exactly as it was.
         .transaction { $0.animation = $0.animation ?? .couchFast }
+    }
+
+    /// **Mark 5 — the reticle: "these nine digits go *there*."**
+    ///
+    /// The tail says which direction; this says which of the nine cells in that
+    /// direction, which is the half a tail alone cannot carry across a 200pt
+    /// board. Three layers, and the first two exist because of what is between
+    /// the player and that cell: `TouchUI` scrims the whole board card while the
+    /// rose is open (0.34 black / 0.38 white — its own comment explains why: an
+    /// undimmed board refracts the cursor ring and the coral error mark up
+    /// through petals 2 and 3 and fabricates states the rose never rendered), so
+    /// the cell being edited is dimmed along with everything else. The glow and
+    /// the wash put that one cell back **above** the scrim, which is the panel's
+    /// "keep the target cell punched out of the scrim" done from the only side
+    /// of the scrim this file is on.
+    ///
+    /// The accent rather than the theme's ink, because this is the same claim
+    /// the board's own cursor makes and it should be the same colour making it.
+    /// Inset by a point so the ring sits *inside* its cell rather than on the
+    /// grid rule it shares with the neighbouring one.
+    @ViewBuilder
+    private var anchorMark: some View {
+        if let vector = anchorVector {
+            let side = anchorCellSide
+            let shape = RoundedRectangle(cornerRadius: side * 0.20, style: .continuous)
+            ZStack {
+                shape
+                    .fill(accent.opacity(0.34))
+                    .blur(radius: side * 0.20)
+                shape.fill(accent.opacity(isLight ? 0.14 : 0.18))
+                shape.strokeBorder(accent.opacity(0.92),
+                                   lineWidth: max(1.5, 2.5 * scale))
+            }
+            .frame(width: max(0, side - 2), height: max(0, side - 2))
+            .offset(x: vector.width, y: vector.height)
+            .allowsHitTesting(false)
+        }
     }
 
     private func petal(for digit: Int) -> some View {
@@ -552,7 +874,12 @@ struct FlickRoseView: View {
             // disc, so the text's centre and the disc's centre are one point.
             .background {
                 ZStack {
-                    Circle().fill(bodyShading)
+                    // The key under the thumb, one rung up: `Elevation.card`
+                    // over `Elevation.track`, in the accent because it is state.
+                    // Drawn under the dish rather than over it so the scoop
+                    // still reads while the key is armed.
+                    Circle().fill(focusTint.opacity(focused ? 1 : 0))
+                    Circle().fill(dishShading)
                     Circle().fill(glyphWell)
                 }
                 .frame(width: petalSize, height: petalSize)
@@ -560,6 +887,19 @@ struct FlickRoseView: View {
             }
             .frame(width: petalSize, height: petalSize)
             .modifier(PetalMaterial(plated: plated, tint: petalTint))
+            // The elevation ramp the panel asked for — *"a shadow ramp so the
+            // disc under the thumb elevates"* — as a glow rather than a shadow.
+            // Behind the material, so the key is lit from under its own edge
+            // rather than outlined a second time, and gone entirely at rest, so
+            // nothing about the resting ring changes.
+            .background {
+                if focused {
+                    Circle()
+                        .fill(accent.opacity(isLight ? 0.30 : 0.45))
+                        .blur(radius: petalSize * 0.16)
+                        .allowsHitTesting(false)
+                }
+            }
             // Mark 4 — the contact shadow, *behind* the glass so the material
             // has one real thing to sample. A ring rather than a disc: see the
             // file header. The offset is what makes it read as elevation and not
@@ -611,6 +951,139 @@ struct FlickRoseView: View {
     }
 }
 
+// MARK: - The plate's silhouette
+
+/// The popover tail: which edge it leaves from, where along that edge, and how
+/// big. Computed by `FlickRoseView.plateTail` from `anchorOffset`; consumed by
+/// `RosePlateShape`, which is the only thing that knows how to draw it.
+private struct RoseTail: Equatable {
+    /// Only the two edges `RoseLens` can place against. It puts the plate below
+    /// the cursor cell and flips above it near the frame's bottom — never
+    /// beside it — so a left/right tail would be describing a placement that
+    /// cannot happen, and `plateTail` declines rather than inventing one.
+    enum Edge { case top, bottom }
+
+    let edge: Edge
+    /// Signed distance of the apex from the plate's own vertical midline. The
+    /// cursor cell is x-aligned with the plate until the clamp runs the plate
+    /// into a board edge, and then it is not — which is exactly when a tail
+    /// stops being decorative and starts being the only thing saying which
+    /// column is being filled.
+    let offset: CGFloat
+    /// How far the apex stands off the plate's edge.
+    let height: CGFloat
+    /// Half the base. `plateTail` sets it at 1.5 × `height`: a tail taller than
+    /// it is wide reads as a spike, and every popover the system draws is the
+    /// flatter triangle.
+    let halfBase: CGFloat
+}
+
+/// **The plate, as one path.** A continuous rounded square with a tail on the
+/// edge that faces the cursor cell.
+///
+/// One shape rather than a rounded rectangle plus a triangle behind it, and the
+/// reason is what the plate is made of: the tail has to carry the same glass,
+/// the same `CouchSpecular` rim and the same two-layer shadow as the square, and
+/// a second shape tucked behind a *translucent* one is not hidden — it prints
+/// its own rim straight across the base, which is a seam where a popover has a
+/// continuous edge. `InsettableShape` for the same reason: `couchElevated`
+/// strokes an inset copy of whatever it is given, and a tail that does not inset
+/// with the rim loses its outline at exactly the tip.
+///
+/// The tail's band is reserved *inside* the drawn rect (`body` is the rect minus
+/// `height` on the tail's side) rather than allowed to overhang it. A shape that
+/// leaves its own bounds is a shape `glassEffect` may clip, and a clipped tail
+/// is a nick rather than a point.
+private struct RosePlateShape: InsettableShape {
+    let cornerRadius: CGFloat
+    let tail: RoseTail?
+    var insetAmount: CGFloat = 0
+
+    func inset(by amount: CGFloat) -> RosePlateShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let outer = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        guard outer.width > 0, outer.height > 0 else { return Path() }
+        guard let tail, tail.height > 0 else {
+            return Path(
+                roundedRect: outer,
+                cornerRadius: max(2, cornerRadius - insetAmount),
+                style: .continuous)
+        }
+
+        // The square, which is the drawn rect minus the tail's band. The band's
+        // height is *not* reduced by the inset: the inset has already moved the
+        // whole rect in, so keeping the protrusion constant slides the apex in
+        // with everything else, which is what an inset tail does.
+        let height = tail.height
+        let body = CGRect(
+            x: outer.minX,
+            y: tail.edge == .top ? outer.minY + height : outer.minY,
+            width: outer.width,
+            height: max(0, outer.height - height))
+        guard body.width > 0, body.height > 0 else { return Path() }
+
+        let radius = min(
+            max(2, cornerRadius - insetAmount),
+            min(body.width, body.height) / 2)
+        let half = max(1, tail.halfBase - insetAmount)
+        // Clamped so the base always lands on the straight run of its edge —
+        // a tail growing out of a corner arc has no base to grow out of.
+        let apexX = min(
+            max(body.midX + tail.offset, body.minX + radius + half),
+            body.maxX - radius - half)
+
+        var path = Path()
+        path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
+        // Top edge, leading → trailing.
+        if tail.edge == .top {
+            path.addLine(to: CGPoint(x: apexX - half, y: body.minY))
+            path.addQuadCurve(
+                to: CGPoint(x: apexX, y: body.minY - height),
+                control: CGPoint(x: apexX - half * 0.42, y: body.minY - height * 0.62))
+            path.addQuadCurve(
+                to: CGPoint(x: apexX + half, y: body.minY),
+                control: CGPoint(x: apexX + half * 0.42, y: body.minY - height * 0.62))
+        }
+        path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
+        path.addArc(
+            tangent1End: CGPoint(x: body.maxX, y: body.minY),
+            tangent2End: CGPoint(x: body.maxX, y: body.minY + radius),
+            radius: radius)
+        path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
+        path.addArc(
+            tangent1End: CGPoint(x: body.maxX, y: body.maxY),
+            tangent2End: CGPoint(x: body.maxX - radius, y: body.maxY),
+            radius: radius)
+        // Bottom edge, trailing → leading.
+        if tail.edge == .bottom {
+            path.addLine(to: CGPoint(x: apexX + half, y: body.maxY))
+            path.addQuadCurve(
+                to: CGPoint(x: apexX, y: body.maxY + height),
+                control: CGPoint(x: apexX + half * 0.42, y: body.maxY + height * 0.62))
+            path.addQuadCurve(
+                to: CGPoint(x: apexX - half, y: body.maxY),
+                control: CGPoint(x: apexX - half * 0.42, y: body.maxY + height * 0.62))
+        }
+        path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
+        path.addArc(
+            tangent1End: CGPoint(x: body.minX, y: body.maxY),
+            tangent2End: CGPoint(x: body.minX, y: body.maxY - radius),
+            radius: radius)
+        path.addLine(to: CGPoint(x: body.minX, y: body.minY + radius))
+        path.addArc(
+            tangent1End: CGPoint(x: body.minX, y: body.minY),
+            tangent2End: CGPoint(x: body.minX + radius, y: body.minY),
+            radius: radius)
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// Which rung of the material ladder a petal stands on, which depends entirely
 /// on whether there is a plate under it.
 ///
@@ -625,7 +1098,10 @@ struct FlickRoseView: View {
 /// registered with the enclosing `GlassEffectContainer` — so the ring still
 /// morphs and the shared backdrop sample is still shared — while contributing no
 /// second material, and the petal's own four marks then carry all of its
-/// articulation. They are why this does not simply become `.couchRim`:
+/// articulation — which, since round 4, is a *hairline* rim, a `CouchSpecular`
+/// bevel, a shallow concave dish and a tight well, over a tint that is the
+/// ladder's `track` rung rather than paint. They are why this does not simply
+/// become `.couchRim`:
 /// `CouchSpecular.rim` passes through zero alpha at the equator, which is
 /// correct for a card whose fill already separates it from the page, and wrong
 /// for a disc sitting on a plate of nearly its own tone. `petalRim`'s ink
@@ -817,6 +1293,20 @@ struct TouchRose: View {
     /// so a *host* can too — the free band under the board is where a ghost of
     /// the digit belongs, and that band is not the rose's to draw.
     var onLiveFocus: (@MainActor (Int?) -> Void)? = nil
+    /// See `FlickRoseView.anchorOffset` — the vector to the cursor cell, which
+    /// is what draws the plate's tail, the reticle over the cell, and the point
+    /// the ring grows out of.
+    ///
+    /// It is `RoseLens.anchorOffset` as a `CGSize`, and every host of this view
+    /// already holds that lens: `TouchUI` and `MacUI` position this very view
+    /// from `lens.viewCentre` one line away. Defaulted so a host that has not
+    /// passed it yet compiles and renders exactly as before, and so the one
+    /// caller that must never draw a tail — a rose whose lens is unclamped, where
+    /// nothing guarantees the cell is outside the plate — gets that by saying
+    /// nothing.
+    var anchorOffset: CGSize? = nil
+    /// See `FlickRoseView.cellSide` — `RoseLens.cellSide`.
+    var cellSide: CGFloat? = nil
 
     /// Petal index 0…8 the current drag points at; nil when there is no
     /// classifiable stroke in flight.
@@ -863,7 +1353,14 @@ struct TouchRose: View {
             // are the same decision, so they travel together: this is the only
             // place `plated` is turned on, and there is no call site that can
             // get a plate without the placement that makes it safe.
-            plated: true
+            plated: true,
+            // The same guarantee, one round on: a tail and a reticle are claims
+            // about where the cell is *relative to the plate*, and only a clamped
+            // lens has placed the plate anywhere in particular. Both are nil
+            // until the host hands the vector over, and both then draw
+            // themselves from it.
+            anchorOffset: anchorOffset,
+            cellSide: cellSide
         )
         .accessibilityHidden(true) // the drawn petals; the targets below speak
         .overlay {
