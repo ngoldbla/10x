@@ -1,8 +1,9 @@
-# Couch Suite → TestFlight on every merge to main, via Fastlane + match.
-# All five apps ship for tvOS; universal apps (Nine) also ship an iOS build.
-# beta_all covers both platforms for every app; per-app dispatch uses beta_app,
-# which ships tvOS plus iOS when the app is universal. A dispatch with a
-# `platform` input targets a single platform of a single app via the beta lane.
+# Nine → TestFlight on every merge to main, via Fastlane + match.
+# Nine is universal: beta_all covers tvOS, iOS and macOS from the one target.
+# A dispatch with a `platform` input targets a single platform via the beta lane.
+#
+# This shipped all five Couch Suite apps until the four tvOS-only siblings moved
+# to their own repositories, each with a testflight.yml of its own.
 #
 # Replaces the legacy scripts/testflight.sh + ephemeral-keychain cert import.
 # match(readonly) fetches the shared Apple Distribution cert + per-app tvOS App
@@ -16,18 +17,16 @@
 # Secrets required (see TESTFLIGHT.md):
 #   COUCH_TEAM_ID, ASC_API_KEY_ID, ASC_API_ISSUER_ID, ASC_API_KEY_P8 (base64 .p8),
 #   MATCH_PASSWORD, MATCH_DEPLOY_KEY (read-only SSH deploy key for the certs repo).
+# The certs repo is still shared with the four spun-out apps; the Matchfile here
+# is scoped to Nine's three bundle ids so this lane cannot touch their profiles.
 # scripts/testflight.sh is retained as a manual fallback but no longer used by CI.
-name: TestFlight (Couch Suite)
+name: TestFlight (Nine)
 
 on:
   push:
     branches: [main]
     paths:
-      - 'rabbit-ears/**'
-      - 'darkroom/**'
       - 'nine/**'
-      - 'blockhead/**'
-      - 'cartridge/**'
       - 'couchkit/**'
       - 'fastlane/**'
       - 'Gemfile'
@@ -39,7 +38,7 @@ on:
         type: string
         default: all
       platform:
-        description: 'Platform to ship (needs a specific app; "ios" only for universal apps)'
+        description: 'Platform to ship (needs a specific app)'
         type: choice
         options: [all, tvos, ios]
         default: all
@@ -125,7 +124,7 @@ jobs:
           APP="${INPUT_APP:-all}"
           [ -z "$APP" ] && APP=all
           case "$APP" in
-            all|rabbit-ears|darkroom|nine|blockhead|cartridge) ;;
+            all|nine) ;;
             *) echo "Refusing unknown app target: $APP"; exit 1 ;;
           esac
           PLATFORM="${INPUT_PLATFORM:-all}"

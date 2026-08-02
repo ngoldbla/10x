@@ -1,12 +1,13 @@
 git_url("https://github.com/ngoldbla/couch-suite-certificates.git")
 storage_mode("git")
 type("appstore")
+# Nine's three bundle ids — the app plus its two embedded targets. The certs
+# repo is still shared with the four apps that moved to their own repositories
+# (rabbit-ears, darkroom, blockhead, cartridge), so this list must stay scoped
+# to Nine: a bare `fastlane match` here must not be able to touch a profile
+# this repo no longer ships.
 app_identifier([
-  "com.couchsuite.rabbitears",
-  "com.couchsuite.darkroom",
   "com.couchsuite.nine",
   "com.couchsuite.nine.widgets",
-  "com.couchsuite.nine.watchkitapp",
-  "com.couchsuite.blockhead",
-  "com.couchsuite.cartridge"
+  "com.couchsuite.nine.watchkitapp"
 ])

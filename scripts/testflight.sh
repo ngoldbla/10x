@@ -1,10 +1,13 @@
 #!/bin/bash
-# testflight.sh — archive a Couch Suite app for tvOS and (optionally) upload to TestFlight.
+# testflight.sh — archive Nine for tvOS and (optionally) upload to TestFlight.
+#
+# This is the legacy fallback; CI and normal use go through fastlane/Fastfile,
+# which also covers Nine's iOS and macOS legs. This script is tvOS-only.
 #
 #   scripts/testflight.sh <app-folder> [--upload]
-#   scripts/testflight.sh rabbit-ears              # archive + export signed .ipa
-#   scripts/testflight.sh rabbit-ears --upload     # archive + upload to App Store Connect
-#   scripts/testflight.sh all --upload             # all five apps
+#   scripts/testflight.sh nine                     # archive + export signed .ipa
+#   scripts/testflight.sh nine --upload            # archive + upload to App Store Connect
+#   scripts/testflight.sh all --upload             # same thing; one app in this repo
 #
 # Signing configuration (either source):
 #   - environment: COUCH_TEAM_ID=ABCDE12345
@@ -19,11 +22,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APPS=(rabbit-ears darkroom nine blockhead cartridge)
+APPS=(nine)
 
 [[ -f "$ROOT_DIR/signing.env" ]] && source "$ROOT_DIR/signing.env"
 
-usage() { sed -n '2,17p' "$0"; exit 1; }
+usage() { sed -n '2,21p' "$0"; exit 1; }
 [[ $# -ge 1 ]] || usage
 
 TARGET="$1"; shift
@@ -77,9 +80,10 @@ archive_one() {
   [[ -d "$archive" ]] || { echo "Archive failed for $scheme"; exit 1; }
 
   # An unsigned archive carries no entitlements, and export derives the final
-  # entitlements from the archived binary — so apps that need iCloud KVS
-  # (Darkroom/Nine/Blockhead) would silently lose it. Ad-hoc re-sign the
-  # archived app with its entitlements file so export preserves them.
+  # entitlements from the archived binary — so Nine's iCloud KVS, CloudKit and
+  # Game Center entitlements would silently vanish. Ad-hoc re-sign the archived
+  # app with its entitlements file so export preserves them. (The fastlane path
+  # does not need this: gym signs at archive time, so entitlements bake in.)
   local ents="$dir/$scheme.entitlements"
   if [[ -f "$ents" ]]; then
     local archived_app="$archive/Products/Applications/$scheme.app"
