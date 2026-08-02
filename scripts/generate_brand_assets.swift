@@ -1,12 +1,16 @@
 #!/usr/bin/env swift
-// generate_brand_assets.swift — deterministic tvOS brand assets for the Couch Suite.
+// generate_brand_assets.swift — deterministic brand assets for Nine.
 //
-// Renders each app's "App Icon & Top Shelf Image" brand asset (layered parallax
-// icon stacks, Top Shelf banners) plus a Launch Image into
-// <app>/Assets.xcassets. Pure CoreGraphics; run on macOS:
+// Renders the "App Icon & Top Shelf Image" brand asset (layered parallax icon
+// stacks, Top Shelf banners) plus a Launch Image into nine/Assets.xcassets,
+// and — because Nine is universal — its flat iOS/macOS/watchOS app icons and
+// alternate iOS icons. Pure CoreGraphics; run on macOS:
 //
-//   swift scripts/generate_brand_assets.swift            # all five apps
+//   swift scripts/generate_brand_assets.swift            # every app in `specs`
 //   swift scripts/generate_brand_assets.swift nine       # one app
+//
+// This held all five Couch Suite apps' specs until the four tvOS-only siblings
+// moved to their own repositories, each taking its own spec with it.
 //
 // Art direction ("pixels under glass"): Back = deep color field, Middle = faint
 // pixel grid, Front = a chunky pixel glyph in the app's in-app accent color.
@@ -63,42 +67,6 @@ struct AppSpec {
 }
 
 let specs: [AppSpec] = [
-    // Rabbit Ears — TV set with antennae, phosphor green on green-black.
-    AppSpec(
-        folder: "rabbit-ears",
-        backTop: RGB(r: 0.010, g: 0.030, b: 0.016), backBottom: RGB(r: 0.016, g: 0.078, b: 0.039),
-        grid: RGB(r: 0.24, g: 0.94, b: 0.42),
-        accent: RGB(r: 0.24, g: 0.94, b: 0.42), secondary: RGB(r: 0.08, g: 0.30, b: 0.14),
-        glyph: [
-            "..#.........#..",
-            "...#.......#...",
-            "....#.....#....",
-            ".....#...#.....",
-            "......#.#......",
-            "..###########..",
-            "..#+++++++++#..",
-            "..#+++++++++#..",
-            "..#+++++++++#..",
-            "..#+++++++++#..",
-            "..###########..",
-        ]),
-    // Darkroom — a picross grid mid-development, signal red under safelight.
-    AppSpec(
-        folder: "darkroom",
-        backTop: RGB(r: 0.040, g: 0.014, b: 0.020), backBottom: RGB(r: 0.100, g: 0.026, b: 0.045),
-        grid: RGB(r: 0.84, g: 0.22, b: 0.28),
-        accent: RGB(r: 0.84, g: 0.22, b: 0.28), secondary: RGB(r: 0.26, g: 0.08, b: 0.11),
-        glyph: [
-            "#+#+#+#+#",
-            "+#+#..#.+",
-            "#.###.##+",
-            "+####.#.#",
-            "#.###..#+",
-            "+..###..#",
-            "#+.+#+.+#",
-            "+#+#+#+#+",
-        ]),
-    // Nine — the 3×3 flick rose, lilac with a coral center.
     AppSpec(
         folder: "nine",
         backTop: RGB(r: 0.030, g: 0.030, b: 0.090), backBottom: RGB(r: 0.080, g: 0.070, b: 0.180),
@@ -140,42 +108,6 @@ let specs: [AppSpec] = [
             "............",
             "##...##...##",
             "##...##...##",
-        ]),
-    // Blockhead — four swipe-direction arrows around the podium dot, stage gold.
-    AppSpec(
-        folder: "blockhead",
-        backTop: RGB(r: 0.040, g: 0.050, b: 0.110), backBottom: RGB(r: 0.100, g: 0.150, b: 0.300),
-        grid: RGB(r: 1.0, g: 0.72, b: 0.25),
-        accent: RGB(r: 1.0, g: 0.72, b: 0.25), secondary: RGB(r: 0.55, g: 0.65, b: 0.95),
-        glyph: [
-            "......#......",
-            ".....###.....",
-            "....#####....",
-            ".............",
-            "..#.......#..",
-            ".##...+...##.",
-            "..#.......#..",
-            ".............",
-            "....#####....",
-            ".....###.....",
-            "......#......",
-        ]),
-    // Cartridge — a game cart with a label window, arcade mint.
-    AppSpec(
-        folder: "cartridge",
-        backTop: RGB(r: 0.012, g: 0.045, b: 0.042), backBottom: RGB(r: 0.030, g: 0.110, b: 0.100),
-        grid: RGB(r: 0.30, g: 0.90, b: 0.75),
-        accent: RGB(r: 0.30, g: 0.90, b: 0.75), secondary: RGB(r: 0.08, g: 0.30, b: 0.26),
-        glyph: [
-            ".###########.",
-            ".###########.",
-            ".##+++++++##.",
-            ".##+++++++##.",
-            ".##+++++++##.",
-            ".##+++++++##.",
-            ".###########.",
-            "..#########..",
-            "..#########..",
         ]),
 ]
 

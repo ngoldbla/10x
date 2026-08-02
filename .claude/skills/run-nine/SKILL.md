@@ -1,22 +1,23 @@
 ---
-name: run-couch-suite
-description: Build, install, and drive any of the five Couch Suite tvOS apps (Rabbit Ears, Darkroom, Nine, Blockhead, Cartridge) on an Apple TV simulator. Use when asked to run, launch, screenshot, or verify a Couch Suite app on a simulator.
+name: run-nine
+description: Build, install, and drive Nine on an Apple TV simulator. Use when asked to run, launch, screenshot, or verify Nine on a tvOS simulator. For Nine's iPhone/iPad/Mac/watch surfaces, use the ios-simulator-skill instead.
 ---
 
-# Running the Couch Suite on an Apple TV simulator
+# Running Nine on an Apple TV simulator
 
-Five tvOS apps in `<app>/` (repo root) share the local `couchkit` package. Each app
-has a `project.yml` (XcodeGen) — the `.xcodeproj` is generated, never committed.
+`nine/` consumes the local `couchkit` package. `nine/project.yml` (XcodeGen)
+generates `Nine.xcodeproj` — never committed.
 
-## App → scheme → bundle id
+## Folder → scheme → bundle id
 
 | Folder | Scheme | Bundle id |
 |---|---|---|
-| `rabbit-ears` | `RabbitEars` | `com.couchsuite.rabbitears` |
-| `darkroom` | `Darkroom` | `com.couchsuite.darkroom` |
 | `nine` | `Nine` | `com.couchsuite.nine` |
-| `blockhead` | `Blockhead` | `com.couchsuite.blockhead` |
-| `cartridge` | `Cartridge` | `com.couchsuite.cartridge` |
+
+Nine is universal — the same target builds for tvOS, iOS and macOS, and embeds
+`NineWidgets` (iOS) and `NineWatch` (watchOS). This skill covers the tvOS
+destination; for the touch and desk surfaces use `ios-simulator-skill`, which
+this repo vendors for exactly that reason.
 
 ## Prerequisites (one-time)
 
@@ -27,7 +28,7 @@ xcrun simctl list runtimes | grep -i tvos   # need a tvOS runtime
 # run in background and poll `xcrun simctl list runtimes`)
 ```
 
-Create + boot a simulator once (reuse it across apps):
+Create + boot a simulator once (reuse it across runs):
 
 ```bash
 xcrun simctl create "CouchTV" "Apple TV 4K (3rd generation)" \
@@ -36,24 +37,22 @@ xcrun simctl boot CouchTV
 open -a Simulator
 ```
 
-## Build, install, launch (per app)
+## Build, install, launch
 
 ```bash
-cd <folder>
+cd nine
 xcodegen generate
-xcodebuild -scheme <Scheme> \
+xcodebuild -scheme Nine \
   -destination 'platform=tvOS Simulator,name=CouchTV' \
   -derivedDataPath build build          # expect ** BUILD SUCCEEDED **
 
 APP=$(find build/Build/Products -name "*.app" -maxdepth 2 | head -1)
 xcrun simctl install CouchTV "$APP"
-# Rabbit Ears / Darkroom / Cartridge read Photos; pre-grant to skip the prompt:
-xcrun simctl privacy CouchTV grant photos <bundle-id>
-xcrun simctl launch CouchTV <bundle-id>
+xcrun simctl launch CouchTV com.couchsuite.nine
 ```
 
-All apps run fully featured with **zero permissions** — procedural DemoArt stands
-in until Photos is granted. Granting photos just swaps demo art for the library.
+Nine needs no system permissions — it reads no Photos and runs fully featured
+offline.
 
 ## Drive it and look
 
@@ -70,23 +69,26 @@ osascript -e 'tell application "Simulator" to activate' -e 'delay 0.5' \
   -e 'tell application "System Events" to key code 124'   # 124=→ 123=← 126=↑ 125=↓ 36=Return 53=Esc
 ```
 
-Example — Rabbit Ears: `→` cycles render style (and crossfades to a new photo),
-`↑/↓` switch photo lanes, Return freezes the frame, Space/PlayPause pauses drift.
+Nine's grammar: arrows walk the board, Return opens the flick rose on the
+selected cell, a swipe toward a petal previews that digit and Return places it,
+Esc goes back, and a long press on play/pause opens the prefs sheet.
+`nine/PRD.md` and `nine/docs/EXECUTING-A-PRD.md` are the full references.
 
 **sim-use caveat:** `sim-use screenshot`/`describe-ui` connect but the tvOS AX tree
 reports only the host `PineBoard` shell (no app-level elements), and `sim-use tap
 --label` therefore can't find in-app buttons. Use `simctl io ... screenshot` for
-capture and AppleScript `key code` for input. `xcrun simctl privacy` handles the
-one system permission dialog without needing to tap it.
+capture and AppleScript `key code` for input. (Nine's own AX lane —
+`nine/scripts/ax-snapshot.py` — reads the *iOS* tree, where the board's 81
+synthetic children are visible; that is why it is an iOS-simulator harness.)
 
 ## Verify engines without Xcode
 
 ```bash
-cd <folder> && swift test        # pure CouchCore logic; runs on any host
-cd couchkit  && swift test        # 35 tests
+cd nine     && swift test        # pure engine logic; runs on any host
+cd couchkit && swift test        # 35 tests
 ```
 
-## Gotchas already fixed on this branch (don't reintroduce)
+## Gotchas already fixed (don't reintroduce)
 
 - CouchKit's SwiftUI layer is gated `#if os(tvOS)`, **not** `#if canImport(SwiftUI)`.
   macOS can import SwiftUI but lacks `onPlayPauseCommand`, `glassEffect`, absolute

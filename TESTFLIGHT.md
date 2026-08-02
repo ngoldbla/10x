@@ -1,42 +1,49 @@
-# Shipping the Couch Suite to TestFlight
+# Shipping Nine to TestFlight
 
 Everything binary-side is already prepared in this repo. What remains is
-account-side setup in App Store Connect (one-time per app) and running one
-script.
+account-side setup in App Store Connect (one-time) and running one lane.
+
+Nine is **universal**: one target, one bundle ID (`com.couchsuite.nine`), with a
+remote UI on tvOS, a touch UI on iPhone/iPad and a keyboard UI on the Mac. It
+embeds two more bundles — `NineWidgets` (iOS) and `NineWatch` (watchOS). Its ASC
+app record carries all three platforms, and each uploads to its own TestFlight
+build train under the same app.
 
 ## What the repo already provides
 
 | Requirement | Where it lives |
 |---|---|
-| Layered tvOS app icon (400×240 @1x/@2x) + App Store icon (1280×768) | `<app>/Assets.xcassets/App Icon & Top Shelf Image.brandassets` |
+| Layered tvOS app icon (400×240 @1x/@2x) + App Store icon (1280×768) | `nine/Assets.xcassets/App Icon & Top Shelf Image.brandassets` |
 | Top Shelf image (1920×720) + wide (2320×720), @1x/@2x | same brand asset |
-| Launch image (1920×1080 @1x/@2x) | `<app>/Assets.xcassets/Launch Image.launchimage` |
-| Versioning (`CFBundleShortVersionString` 1.0, `CFBundleVersion` from git commit count) | `project.yml` + `scripts/testflight.sh` |
-| Export-compliance answer (no non-exempt encryption) | `ITSAppUsesNonExemptEncryption: false` in each `project.yml` |
-| Privacy manifest (no tracking, no data collection, no required-reason APIs) | `<app>/PrivacyInfo.xcprivacy` |
-| iCloud key-value entitlement (Darkroom, Nine, Blockhead sync streaks) | generated `<App>.entitlements` via `project.yml` |
-| Photos usage strings (Rabbit Ears, Darkroom, Cartridge) | `project.yml` |
-| Archive → export/upload pipeline | `scripts/testflight.sh` |
+| Launch image (1920×1080 @1x/@2x) | `nine/Assets.xcassets/Launch Image.launchimage` |
+| Flat iOS / macOS / watchOS app icons + alternate iOS icons (PRD-16) | `nine/Assets.xcassets/AppIcon*.appiconset` |
+| Versioning (`CFBundleShortVersionString` 1.0, `CFBundleVersion` from git commit count) | `nine/project.yml` + `fastlane/Fastfile` |
+| Export-compliance answer (no non-exempt encryption) | `ITSAppUsesNonExemptEncryption: false` in `nine/project.yml` |
+| Privacy manifest (no tracking, no data collection, no required-reason APIs) | `nine/PrivacyInfo.xcprivacy` |
+| iCloud KVS, CloudKit and Game Center entitlements | the four checked-in `nine/*.entitlements` files |
+| Archive → sign → upload pipeline | `fastlane/Fastfile` (`scripts/testflight.sh` is the manual tvOS-only fallback) |
 
 Icons are deterministic pixel art rendered by `scripts/generate_brand_assets.swift`
-(edit the glyph maps / palettes there and re-run to restyle; the committed
-`Assets.xcassets` are its output).
+(edit the glyph map / palette there and re-run to restyle; the committed
+`Assets.xcassets` is its output).
 
-## Current status (2026-07-10)
+## Build numbers
 
-Everything below is **done** for the Aquilops LLC team (`XC6FN96MA8`):
-`signing.env` is configured, all five bundle IDs are registered, all five
-ASC app records exist (named "Rabbit Ears: Ambient Pixel TV", "Darkroom: Photo
-Picross", "Nine: Couch Sudoku", "Blockhead: Nightly Quiz", "Cartridge: Photo
-Micro-Games"), and first builds were uploaded. The sections below document the
-setup for a fresh team/account.
+`CFBundleVersion` is `git rev-list --count HEAD × 10`, plus a per-platform offset
+— tvOS +0, iOS +1, macOS +2. App Store Connect enforces uniqueness per app
+record, **not** per platform, so a universal app's three builds must never share
+a number; the disjoint trains are what keep them apart (commit 23 → tvOS 230,
+iOS 231, mac 232).
 
-Note on signing mechanics: the archive is built unsigned (no registered Apple TV
-device exists on the team, which automatic development signing would require),
-then re-signed ad-hoc with resolved entitlements so the export step — which does
-the real App Store distribution signing via `-allowProvisioningUpdates` —
-preserves iCloud KVS for Darkroom/Nine/Blockhead. This is all inside
-`scripts/testflight.sh`; no manual steps.
+It is computed in CI and never committed back, so there is no self-trigger loop.
+The workflow checks out at `fetch-depth: 0` for this reason — a shallow clone
+would make the count 1 every run.
+
+**This is why this repo's history was reduced by plain deletion rather than
+`git filter-repo` when the four sibling apps were split out.** Rewriting history
+can drop commits, and a lower commit count means a lower build number, which ASC
+rejects. If you ever do rewrite this repo's history, check the resulting count
+against the last build in ASC before shipping.
 
 ## One-time setup (per Apple Developer account)
 
@@ -59,115 +66,50 @@ preserves iCloud KVS for Darkroom/Nine/Blockhead. This is all inside
 
 ## One-time setup (per app)
 
+Already **done** for the Aquilops LLC team (`XC6FN96MA8`): `signing.env` is
+configured, the bundle IDs are registered, the ASC app record exists ("Nine:
+Couch Sudoku"), and builds have shipped on all three platforms. The section
+below documents the setup for a fresh team or account.
+
 In [App Store Connect](https://appstoreconnect.apple.com) → Apps → **+ New App**:
 
-| App | Platform | Bundle ID | Name suggestion |
+| App | Platforms | Bundle ID | Name suggestion |
 |---|---|---|---|
-| Rabbit Ears | tvOS | `com.couchsuite.rabbitears` | Rabbit Ears — Ambient Pixel TV |
-| Darkroom | tvOS | `com.couchsuite.darkroom` | Darkroom — Photo Picross |
-| Nine | tvOS + iOS | `com.couchsuite.nine` | Nine — Couch Sudoku |
-| Blockhead | tvOS | `com.couchsuite.blockhead` | Blockhead — Nightly Quiz |
-| Cartridge | tvOS | `com.couchsuite.cartridge` | Cartridge — Photo Micro-Games |
-
-Nine is a **universal app**: one target, one bundle ID, a remote UI on tvOS and
-a touch UI on iPhone/iPad. Its ASC app record carries both platforms (the iOS
-platform was added 2026-07-13); iOS and tvOS builds upload to separate
-TestFlight build trains under the same app.
+| Nine | tvOS + iOS + macOS | `com.couchsuite.nine` | Nine — Couch Sudoku |
 
 Notes:
 
 - The bundle IDs register automatically the first time you archive with
   `-allowProvisioningUpdates` (or add them under Certificates, Identifiers &
-  Profiles → Identifiers). For **Darkroom, Nine, and Blockhead**, make sure the
-  identifier has the **iCloud** capability (key-value storage) checked — the
-  entitlement is already in the binary; automatic signing will request it.
+  Profiles → Identifiers). The identifier needs **iCloud** (key-value storage
+  *and* CloudKit), **Game Center**, and **App Groups** — see the widget and
+  watch sections below for the exact order.
 - App name on ASC must be globally unique; the "Name suggestion" column adds a
   descriptor for that reason. `CFBundleDisplayName` (what shows under the icon)
-  stays the short name.
+  stays "Nine".
 
 ## Ship a build
 
 ```bash
-scripts/testflight.sh rabbit-ears --upload   # one app
-scripts/testflight.sh all --upload           # the whole suite
-```
-
-The script regenerates the Xcode project, archives for `generic/platform=tvOS`
-with `CFBundleVersion = git commit count` (monotonic, no manual bumping),
-exports with `method: app-store-connect`, and uploads. Processing on Apple's
-side takes 5–15 minutes; the build then appears under TestFlight in ASC.
-
-Without `--upload` the script exports a signed `.ipa` into `<app>/dist/` that
-you can hand to Transporter.
-
-First-build review notes:
-
-- **Internal testing** (your team, up to 100 testers) needs no review — the
-  build is testable the moment processing finishes.
-- **External testing** requires a brief Beta App Review. All five apps run fully
-  featured with zero permissions (procedural demo art until Photos is granted),
-  so no demo account or reviewer notes are needed. A one-liner like "All content
-  is generated on-device; grant Photos to see personal art" is plenty.
-
-## Verify before shipping
-
-```bash
-cd <app> && xcodegen generate
-xcodebuild -scheme <Scheme> -destination 'platform=tvOS Simulator,name=CouchTV' build
-```
-
-See `BUILD.md` for the full simulator run/screenshot loop, and
-`.claude/skills/run-couch-suite` for the agent-driven variant.
-
-## Known deferrals (fine for TestFlight)
-
-- **Top Shelf extensions** (the dynamic content row when an app sits in the top
-  row of the home screen) are a v1.1 item suite-wide; the static Top Shelf
-  images shipped here are the correct fallback and satisfy App Store validation.
-- App Store **screenshots/metadata** are only needed for external TestFlight
-  groups and App Store release, not for internal TestFlight builds.
-
-## Fastlane (all five apps)
-
-Every Couch Suite app now ships via Fastlane with `match`-managed signing:
-
-```bash
 set -a && source signing.env && set +a
-fastlane ios beta app:darkroom upload:false   # dry run: signed .ipa in darkroom/dist/
-fastlane ios beta app:darkroom                # build, sign, upload one app to TestFlight
-fastlane ios beta app:nine platform:ios       # the iOS (iPhone/iPad) build of a universal app
-fastlane ios beta_app app:nine                # every platform build for one app (tvOS + iOS)
-fastlane ios beta_all                         # build + upload everything (tvOS ×5, iOS for Nine)
+bundle install
+bundle exec fastlane ios beta app:nine platform:tvos upload:false  # dry run
+bundle exec fastlane ios beta_app app:nine                         # tvOS + iOS + macOS
 ```
 
-`app:` accepts `rabbit-ears` (default), `darkroom`, `nine`, `blockhead`, or
-`cartridge`; `platform:` accepts `tvos` (default) or `ios` (universal apps only —
-see the `APPS` map in `fastlane/Fastfile`).
+The lane runs `match(readonly: true)` → `xcodegen generate` → `gym` (manual App
+Store distribution signing, so entitlements bake in at archive time — no ad-hoc
+re-sign) → `pilot`. Processing on Apple's side takes 5–15 minutes.
 
-Signing assets live encrypted in the private repo `couch-suite-certificates`.
-Per-platform profiles are match-named `match AppStore <bundle> tvos` (tvOS) and
-`match AppStore <bundle>` (iOS). Local-run gotcha: this Mac carries stale copies
-of the distribution cert in other keychains that trigger password prompts — put
-fastlane's temp keychain first (`CI=true` + `security list-keychains -d user -s
-fastlane_tmp_keychain login.keychain`) so codesign resolves the match-managed key.
-The **team distribution certificate was imported** into `match` (the account was
-at Apple's cert limit, so no new cert was minted); `match` created a **tvOS** App
-Store profile per app, named `match AppStore <bundle-id> tvos`. Each app signs its
-archive directly with that distribution profile — tvOS App Store profiles need no
-registered devices, so the unsigned-archive + ad-hoc re-sign dance in
-`scripts/testflight.sh` is **not** needed on this path. The iCloud key-value
-entitlement for Darkroom/Nine/Blockhead is baked in at archive time and verified
-present in the signed binaries.
-
-The `beta` lane always runs `match(readonly: true)` — only the one-time bootstrap
-mints/imports. Local runs use the Homebrew `fastlane` (no `bundle exec`); the
-committed `Gemfile` pins the version for the future CI migration. Notes for that
-migration: `MATCH_PASSWORD` is already a GitHub secret on the repo; certs-repo
-commits must use a GitHub **noreply** email (private-email push protection); and
-`match` needs the tvOS platform (`platform: "tvos"`) and the `…tvos` profile name.
+`platform:` accepts `tvos` (default), `ios` or `mac`. `upload:false` exports a
+signed artifact into `nine/dist/` instead of uploading. On the mac leg gym
+produces a `.pkg` rather than an `.ipa`, and the lane points pilot at it
+explicitly — pilot defaults to "ipa preferred" and would otherwise re-upload the
+leftover `Nine-iOS.ipa` from the iOS leg, colliding on a build number that had
+just shipped.
 
 **CI:** `.github/workflows/testflight-tvos.yml` runs `bundle exec fastlane ios
-beta_all` on merge to `main` (or one app via `workflow_dispatch` with `app:`;
+beta_all` on merge to `main` (or one platform via `workflow_dispatch`;
 `validate_only: true` = dry run, no upload). It installs a **read-only SSH deploy
 key** (`MATCH_DEPLOY_KEY` secret) to clone the certs repo, then `match(readonly)`
 + `gym` + `pilot`. `setup_ci` manages a temp keychain — no manual cert import.
@@ -175,11 +117,56 @@ key** (`MATCH_DEPLOY_KEY` secret) to clone the certs repo, then `match(readonly)
 Required GitHub secrets on `ngoldbla/10x`: `COUCH_TEAM_ID`, `ASC_API_KEY_ID`,
 `ASC_API_ISSUER_ID`, `ASC_API_KEY_P8` (base64 .p8), `MATCH_PASSWORD`,
 `MATCH_DEPLOY_KEY` (private half of a read-only deploy key added to
-`couch-suite-certificates`). The legacy `APPLE_DISTRIBUTION_CERT_P12` /
-`APPLE_CERT_PASSWORD` / `KEYCHAIN_PASSWORD` secrets are no longer used and can be
-removed. `scripts/testflight.sh` is retained as a manual fallback but CI no
-longer calls it.
+`couch-suite-certificates`).
 
+## Signing assets
+
+Signing assets live encrypted in the private repo `couch-suite-certificates`,
+which is **still shared with the four spun-out Couch Suite apps** —
+`ngoldbla/{rabbit-ears,darkroom,blockhead,cartridge}` each hold a read-only
+deploy key to the same store. `fastlane/Matchfile` here is scoped to Nine's
+three bundle ids so a bare `fastlane match` cannot reach a sibling's profiles,
+and theirs are scoped the same way in the other direction.
+
+Per-platform profiles are match-named `match AppStore <bundle> tvos` (tvOS),
+`match AppStore <bundle>` (iOS) and `match AppStore <bundle> macos` (macOS). The
+team distribution certificate was **imported** into match rather than minted —
+the account was at Apple's certificate limit. The `beta` lane always runs
+`match(readonly: true)`; only a one-time bootstrap mints or imports.
+
+Local-run gotcha: a Mac holding stale copies of the distribution cert in other
+keychains triggers password prompts. Put fastlane's temp keychain first —
+`CI=true` plus `security list-keychains -d user -s fastlane_tmp_keychain
+login.keychain` — so codesign resolves the match-managed key. Certs-repo commits
+must use a GitHub **noreply** email (private-email push protection).
+
+## First-build review notes
+
+- **Internal testing** (your team, up to 100 testers) needs no review — the
+  build is testable the moment processing finishes.
+- **External testing** requires a brief Beta App Review. Nine runs fully
+  featured with zero permissions and no account, so no demo account or reviewer
+  notes are needed. Testers who want Game Center leaderboards must be signed
+  into Game Center in Settings.
+
+## Verify before shipping
+
+```bash
+cd nine && swift test && python3 scripts/strings.py --audit
+cd nine && xcodegen generate
+xcodebuild -scheme Nine -destination 'platform=tvOS Simulator,name=CouchTV' build
+```
+
+See [BUILD.md](BUILD.md) for the full simulator loop and the measured gates, and
+`.claude/skills/run-nine` for the agent-driven variant.
+
+## Known deferrals (fine for TestFlight)
+
+- **Top Shelf extensions** (the dynamic content row when the app sits in the top
+  row of the home screen) are a v1.1 item; the static Top Shelf images shipped
+  here are the correct fallback and satisfy App Store validation.
+- App Store **screenshots and metadata** are only needed for external TestFlight
+  groups and App Store release, not for internal TestFlight builds.
 
 ## Game Center (Nine, one-time — done 2026-07-16)
 
@@ -227,7 +214,7 @@ entitlement is iCloud key-value storage pinned to the *app's* identifier. Same
 hazard as the widget, and the same order — **embedding a new bundle changes the
 iOS archive's profile set, so the existing `com.couchsuite.nine` profile must be
 re-minted before the next CI run or the nine/iOS leg fails signing, which takes
-`beta_all` and the other four apps with it.**
+`beta_all` with it.**
 
 1. **Portal (manual):** register App ID `com.couchsuite.nine.watchkitapp` and
    enable **iCloud** on it (key-value store). No app group, no CloudKit, no

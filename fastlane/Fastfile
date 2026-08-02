@@ -19,13 +19,16 @@ def asc_api_key
   end
 end
 
-# The five Couch Suite apps: folder => Xcode scheme + bundle identifier.
-# All five ship for tvOS; apps flagged `ios: true` are universal and also ship
-# an iOS (iPhone/iPad) build from the same target. Match profile naming:
+# The app this repo ships: folder => Xcode scheme + bundle identifier.
+# Match profile naming:
 #   tvOS: "match AppStore <bundle> tvos"   ·   iOS: "match AppStore <bundle>"
+#
+# This was a five-entry map until the four sibling Couch Suite apps moved to
+# repositories of their own (ngoldbla/{rabbit-ears,darkroom,blockhead,cartridge}).
+# The map, and the per-app lane machinery below, survive the reduction unchanged
+# because Nine is the one app that actually needs them: it is universal, so
+# `beta` still takes a `platform:` and `beta_app` still loops over three.
 APPS = {
-  "rabbit-ears" => { scheme: "RabbitEars", bundle: "com.couchsuite.rabbitears" },
-  "darkroom"    => { scheme: "Darkroom",   bundle: "com.couchsuite.darkroom" },
   # `extensions` are iOS-only embedded targets: each needs its own match
   # profile fetched and its own entry in gym's provisioningProfiles.
   # `mac: true` apps also ship a native macOS build (PRD-4) from the same
@@ -38,15 +41,13 @@ APPS = {
   # *inside* the iOS ipa, so `beta app:nine platform:ios` already carries it.
   "nine"        => { scheme: "Nine",       bundle: "com.couchsuite.nine", ios: true, mac: true,
                      extensions: ["com.couchsuite.nine.widgets",
-                                  "com.couchsuite.nine.watchkitapp"] },
-  "blockhead"   => { scheme: "Blockhead",  bundle: "com.couchsuite.blockhead" },
-  "cartridge"   => { scheme: "Cartridge",  bundle: "com.couchsuite.cartridge" }
+                                  "com.couchsuite.nine.watchkitapp"] }
 }.freeze
 
 platform :ios do
-  desc "Build one Couch Suite app and upload to TestFlight (app:<folder>, platform:tvos|ios|mac, upload:false = dry run)"
+  desc "Build Nine for one platform and upload to TestFlight (platform:tvos|ios|mac, upload:false = dry run)"
   lane :beta do |options|
-    app_key = options.fetch(:app, "rabbit-ears")
+    app_key = options.fetch(:app, "nine")
     cfg = APPS[app_key] || UI.user_error!("Unknown app '#{app_key}'. One of: #{APPS.keys.join(', ')}")
     plat = options.fetch(:platform, "tvos").to_s
     UI.user_error!("platform must be 'tvos', 'ios' or 'mac'") unless %w[tvos ios mac].include?(plat)
@@ -146,7 +147,7 @@ platform :ios do
     end
   end
 
-  desc "Ship every platform build for one app: tvOS, plus iOS/macOS when universal (app:<folder>, upload:false = dry run)"
+  desc "Ship every platform build for one app: tvOS, plus iOS/macOS when universal (upload:false = dry run)"
   lane :beta_app do |options|
     app_key = options.fetch(:app)
     cfg = APPS[app_key] || UI.user_error!("Unknown app '#{app_key}'. One of: #{APPS.keys.join(', ')}")
@@ -159,7 +160,10 @@ platform :ios do
     beta(options.merge(platform: "mac")) if cfg[:mac] && ENV["COUCH_SHIP_MAC"] == "1"
   end
 
-  desc "Build + upload ALL Couch Suite builds to TestFlight: tvOS for all five, plus iOS for universal apps (upload:false = dry run)"
+  # Retained as the name CI and muscle memory both reach for. With one app in
+  # APPS it is beta_app; it stays a loop so nothing has to change if a second
+  # app ever lands here again.
+  desc "Build + upload every platform of every app in APPS (upload:false = dry run)"
   lane :beta_all do |options|
     APPS.each_key { |app_key| beta_app(options.merge(app: app_key)) }
   end

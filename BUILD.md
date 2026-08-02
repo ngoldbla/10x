@@ -1,74 +1,89 @@
-# Building the Couch Suite
+# Building Nine
 
-Five independent tvOS apps + one shared Swift package. Everything below was
-verified on this branch; engine logic is additionally verified by tests that run
-on any platform (CI'd on Linux with Swift 6.0.3).
+One universal app plus the CouchKit Swift package it is built on. Engine and
+catalog logic is verified by tests that run on any platform, with no Xcode.
 
-## Prerequisites (to run the apps)
+## Prerequisites
 
-- macOS with **Xcode 26+** (tvOS 26 SDK for Liquid Glass; apps deploy back to tvOS 18
-  with an automatic material fallback via CouchKit's `CouchGlass` shim)
-- **XcodeGen** (`brew install xcodegen`) — project files are generated, never committed
+- macOS with **Xcode 26+** (tvOS 26 / iOS 26 SDKs for Liquid Glass; the app
+  deploys back to tvOS 18 / iOS 18 with an automatic material fallback via
+  CouchKit's `CouchGlass` shim)
+- **XcodeGen** (`brew install xcodegen`) — project files are generated, never
+  committed
+- Python 3 for the harnesses in `nine/scripts/`
 
-## Build & run an app
+## Build & run
 
 ```bash
-cd rabbit-ears             # or darkroom / nine / blockhead / cartridge
+cd nine
 xcodegen generate
-open RabbitEars.xcodeproj  # select an Apple TV 4K simulator, Cmd+R
+open Nine.xcodeproj      # pick a destination, Cmd+R
 ```
 
-**Nine is universal (tvOS + iOS).** The same target also builds for iPhone/iPad
-simulators — pick one as the run destination and you get the touch UI (tap a
-cell → flick rose; same engine, same saves format). Everything else is tvOS-only.
+`xcodegen generate` produces three targets:
 
-Each app depends on `../couchkit` as a local SwiftPM package — no other dependencies,
-no accounts, no network. All five run fully featured with zero permissions
-(procedural demo art stands in until Photos access is granted where relevant).
+| Target | Destinations |
+|---|---|
+| `Nine` | tvOS, iOS (iPhone + iPad), macOS — one universal target |
+| `NineWidgets` | iOS app extension (WidgetKit); filtered out of the tvOS and macOS graphs |
+| `NineWatch` | watchOS, embedded in the iOS app |
+
+Nine depends on `../couchkit` as a local SwiftPM package. There are no other
+dependencies and no remote packages anywhere in the repo.
+
+## Verify without Xcode (any platform)
+
+```bash
+cd nine     && swift test    # engine + shared, including the golden corpus
+cd couchkit && swift test    # CouchCore + the pure half of PadKit
+
+cd nine && python3 scripts/strings.py --selftest-catalog
+cd nine && python3 scripts/strings.py --audit
+```
+
+These four commands are exactly what `.github/workflows/nine-engine.yml` runs on
+every pull request, so a green run locally is a green run in CI.
+
+## The measured gates
+
+`.github/workflows/nine-accessibility.yml` runs the expensive lane on every PR.
+It is deliberately separate from the TestFlight workflow: that one ships and must
+never be blocked by a slow simulator; this one gates review and is free to be
+slow.
+
+| Harness | What it measures |
+|---|---|
+| `nine/scripts/ax-snapshot.py` | the accessibility tree per screen, diffed against committed baselines |
+| `nine/scripts/contrast-harness.py` | contrast sampled from screenshots of the composited glass, not computed from theme constants |
+| `nine/scripts/loc-harness.py` | pseudo-localization and RTL, five screens × five locale modes |
+| `nine/scripts/shotlist.py` | photographs every surface across iPhone/iPad × light/dark × portrait/landscape. No baselines and no gate by design — a pixel diff of a live-blur material is noise — so it produces evidence and leaves judgement to the reader. |
+
+All four sit on `nine/scripts/simrig.py`: the dedicated simulator, the erase, the
+bridge warm-up, the seeded container, the settle-before-you-read discipline.
+Every one of those exists because of a specific way the naive version was flaky.
+
+Baselines live beside the harnesses in `nine/Tests/{AXBaselines,ContrastBaselines,LocBaselines}`.
+The committed files are the contract; the `.captured/` directories next to them
+are what a comparison run actually saw and are gitignored.
 
 ## Ship to TestFlight
 
-Each app carries its full TestFlight kit: layered brand-asset icons + Top Shelf
-images (committed, regenerable via `scripts/generate_brand_assets.swift`),
-versioning, privacy manifest, export-compliance flag, and — for Darkroom, Nine,
-and Blockhead — the iCloud key-value entitlement their streak sync needs.
-
 ```bash
 echo 'COUCH_TEAM_ID=<your team id>' > signing.env   # gitignored, one-time
-scripts/testflight.sh <app> --upload                 # or: all --upload
+bundle install
+bundle exec fastlane ios beta_app app:nine upload:false   # dry run, all platforms
 ```
 
-See [TESTFLIGHT.md](TESTFLIGHT.md) for the App Store Connect one-time setup.
-
-## Verify the engines (any platform, no Xcode needed)
-
-```bash
-cd <folder> && swift test
-```
-
-## Verification matrix (as of this branch)
-
-| Package | Tests | Status |
-|---|---|---|
-| couchkit | 35 | ✅ 0 failures |
-| rabbit-ears | 24 | ✅ 0 failures |
-| darkroom | 41 | ✅ 0 failures (incl. 27/27 compiled puzzles re-verified human-solvable) |
-| nine | 28 | ✅ 0 failures (incl. 25-puzzle generation soak: unique + technique-bounded) |
-| blockhead | 55 | ✅ 0 failures (incl. full 188-question pack lint) |
-| cartridge | 36 | ✅ 0 failures (incl. bot-winnability proofs for all 4 games) |
-| **Total** | **219** | **all green** |
-
-Audits enforced suite-wide: no `.glassEffect` outside CouchKit's shim; no
-SwiftUI/UIKit/Photos imports inside any `Sources/Engine`; every app's SwiftUI layer
-hand-audited against CouchKit's real source signatures (no Xcode on the build
-container, so UI code compiles first on your Mac — any breakage should be minor
-and localized; engines are proven).
+See [TESTFLIGHT.md](TESTFLIGHT.md) for App Store Connect setup and the required
+GitHub secrets.
 
 ## Known caveats
 
-- The SwiftUI layers have not been compiled against the tvOS SDK yet (built on
-  Linux). Expect possible small fixups on first `xcodegen generate` + build.
-- Top Shelf extensions and sound are deferred suite-wide (v1.1) — see each app's
-  `DEVIATIONS.md`.
-- Each app filed CouchKit improvement requests in `COUCHKIT-ASKS.md`; none are
-  blockers, all have documented workarounds in place.
+- Top Shelf extensions and sound are deferred (v1.1) — see `nine/DEVIATIONS.md`.
+- The localization lane is knowingly stale: its symbol anchors no longer match
+  the redesigned sheets, and its baselines are uniformly old rather than partly
+  re-recorded.
+- `ja-home` AX baselines still rot when the rendered date changes *width* (a
+  single-to-double-digit day, or a longer month name). Daily rot is masked;
+  monthly rot is not. Fixing it means pinning the clock in the seeded state,
+  which is simrig's territory and a change all three lanes would inherit.
