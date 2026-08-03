@@ -1,5 +1,5 @@
 # nine board contrast — measured on the composited glass (PRD-22)
-# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: v0.12.0
 # floors: givens 7.0  entries 4.5  coral 3.0  petal 4.5
 #
 # Regenerate: nine/scripts/contrast-harness.py --record
@@ -7,7 +7,7 @@
 # 80 standard cells over 8 themes; 8 Increase Contrast cells (one accent per theme — the mode moves grounds, not ink); 8 petal readings (one per theme). `auto` is not a cell: ThemeChoice.tones(for:) delegates it to Void or Paper.
 
 theme      accent    contrast   givens  entries    coral    petal
-dark       glacier   standard    13.60     7.08     6.38    13.44
+dark       glacier   standard    13.60     7.08     6.38    13.47
 dark       ember     standard    13.74     7.56     6.45        —
 dark       meadow    standard    13.74     9.30     6.45        —
 dark       lilac     standard    13.73     5.84     6.45        —
@@ -17,7 +17,7 @@ dark       teal      standard    13.73     8.59     6.45        —
 dark       magenta   standard    13.73     6.06     6.45        —
 dark       moss      standard    13.74    10.23     6.45        —
 dark       orchid    standard    13.73     5.74     6.45        —
-light      glacier   standard    11.58     5.67     5.13    11.73
+light      glacier   standard    11.57     5.66     5.13    11.65
 light      ember     standard    10.61     5.22     4.70        —
 light      meadow    standard    10.59     5.14     4.69        —
 light      lilac     standard    10.52     5.13     4.66        —
@@ -28,14 +28,14 @@ light      magenta   standard    10.54     5.07     4.67        —
 light      moss      standard    10.61     5.17     4.70        —
 light      orchid    standard    10.61     5.21     4.70        —
 camel      glacier   standard    10.84     5.40     4.89    11.40
-camel      ember     standard    10.84     5.43     4.89        —
-camel      meadow    standard    10.84     5.36     4.89        —
-camel      lilac     standard    10.84     5.39     4.89        —
+camel      ember     standard    10.92     5.47     4.92        —
+camel      meadow    standard    10.92     5.39     4.92        —
+camel      lilac     standard    10.92     5.43     4.92        —
 camel      crimson   standard    10.92     5.38     4.92        —
 camel      gold      standard    10.84     5.38     4.89        —
 camel      teal      standard    10.84     5.40     4.89        —
-camel      magenta   standard    10.92     5.35     4.92        —
-camel      moss      standard    10.92     5.41     4.92        —
+camel      magenta   standard    10.84     5.31     4.89        —
+camel      moss      standard    10.84     5.38     4.89        —
 camel      orchid    standard    10.84     5.42     4.89        —
 blueprint  glacier   standard    13.82     6.96     6.28    13.77
 blueprint  ember     standard    13.82     7.35     6.28        —
@@ -57,7 +57,7 @@ forest     teal      standard    12.92     7.62     5.72        —
 forest     magenta   standard    12.92     5.37     5.72        —
 forest     moss      standard    12.92     9.06     5.72        —
 forest     orchid    standard    12.92     5.09     5.72        —
-ember      glacier   standard    14.00     6.90     6.22    14.15
+ember      glacier   standard    14.00     6.90     6.22    14.00
 ember      ember     standard    14.01     7.30     6.23        —
 ember      meadow    standard    14.01     8.98     6.23        —
 ember      lilac     standard    14.00     5.64     6.22        —
@@ -67,7 +67,7 @@ ember      teal      standard    14.00     8.29     6.22        —
 ember      magenta   standard    14.01     5.85     6.23        —
 ember      moss      standard    14.01     9.87     6.23        —
 ember      orchid    standard    14.00     5.55     6.22        —
-tide       glacier   standard    13.45     6.39     5.76    14.35
+tide       glacier   standard    13.45     6.39     5.76    14.47
 tide       ember     standard    13.46     6.76     5.77        —
 tide       meadow    standard    13.46     8.31     5.77        —
 tide       lilac     standard    13.46     5.22     5.77        —

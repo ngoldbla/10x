@@ -1,4 +1,4 @@
-# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button       24,229 354x101 "1$#@filled@ filled. %1$#@filled@ filled.,  , Continue Continue,  , 1$@ \u00b7 2$@ Steady Steady \u00b7 7%"
 Button       24,380 110x231 "Gentle Gentle,  , Singles & scans Singles & scans"

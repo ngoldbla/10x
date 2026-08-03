@@ -1,5 +1,5 @@
 # nine accessibility tree — screen: game-quiet
-# device: iPhone 17 Pro   runtime: 26.5   sim-use: 0.11.0
+# device: iPhone 17 Pro   runtime: 26.5   sim-use: v0.12.0
 #
 # Regenerate: nine/scripts/ax-snapshot.py --record
 

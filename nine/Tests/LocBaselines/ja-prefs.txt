@@ -1,4 +1,4 @@
-# mode: ja   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: ja   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button       44,793  42x42  "\u81ea\u52d5"
 Button       44,845  42x42  "\u6b8b\u308a\u706b"

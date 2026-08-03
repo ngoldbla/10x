@@ -1,4 +1,4 @@
-# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button       24,229 354x101 "4 of 53 filled., Continue, Steady \u00b7 7%"
 Button       24,380 110x177 "Sharp, X-wings & deep logic"

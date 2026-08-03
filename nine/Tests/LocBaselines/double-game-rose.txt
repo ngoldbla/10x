@@ -1,4 +1,4 @@
-# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: double   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button      167,219  47x47  "Place 1$lld Place 1"
 Button      167,270  47x47  "Place 1$lld Place 4"

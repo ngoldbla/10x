@@ -1,4 +1,4 @@
-# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: rtl   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button       56,793  42x42  "Forest"
 Button      108,793  42x42  "Blueprint"

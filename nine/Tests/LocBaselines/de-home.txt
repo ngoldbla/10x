@@ -1,4 +1,4 @@
-# mode: de   runtime: 26.5   device: iPhone 17 Pro   sim-use: 0.11.0
+# mode: de   runtime: 26.5   device: iPhone 17 Pro   sim-use: v0.12.0
 # role        x,y     w x h   label
 Button       24,229 354x101 "4 von 53 gef\u00fcllt., Fortsetzen, Stetig \u00b7 7\u00a0%"
 Button       24,380 110x177 "Sanft, Singles & Scannen"
