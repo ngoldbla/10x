@@ -5,11 +5,12 @@
 // shelf is a phone layout shrunk until it breaks — the exact failure PRD-6 §1
 // says has killed every watch sudoku so far.
 //
-// Three rows at most, and often two. There is no difficulty picker: the watch
-// may only compose one band (`WatchComposePolicy.ceiling`), so offering the
-// others would be offering something it cannot do. There is no timer — PRD-6
-// §3 rules it out even as a preference, on the grounds that calm × glance = no
-// clock anxiety on a device that is already a clock.
+// Two rows at most. There is no difficulty picker: the watch may only compose
+// one band (`WatchComposePolicy.ceiling`), so offering the others would be
+// offering something it cannot do. There is no timer — PRD-6 §3 rules it out
+// even as a preference, on the grounds that calm × glance = no clock anxiety
+// on a device that is already a clock. The daily row and the streak row left
+// with the daily system (2026-08-02): the watch is free play, standalone.
 #if os(watchOS)
 import SwiftUI
 import CouchKit
@@ -19,7 +20,6 @@ struct WatchHomeView: View {
 
     var body: some View {
         List {
-            todayRow
             if model.game != nil, model.solvedAt == nil {
                 Button(action: { model.screen = .board }) {
                     Label {
@@ -48,59 +48,6 @@ struct WatchHomeView: View {
         .overlay { if model.composing { composingChip } }
     }
 
-    /// Today's daily, in whichever of its four honest states it is in.
-    ///
-    /// The one that matters is `waiting`: the watch cannot compose a steady
-    /// board, so when the phone has not been in range since midnight there is
-    /// no daily, and the row says exactly that rather than spinning forever or
-    /// quietly showing yesterday's.
-    @ViewBuilder
-    private var todayRow: some View {
-        if model.todayIsSolved {
-            Label {
-                VStack(alignment: .leading) {
-                    Text(Strings.string("shelf.today.title"))
-                    Text(Strings.string("status.solved"))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } icon: {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(model.accentChoice.color)
-            }
-        } else if model.dailyIsAvailable {
-            Button(action: { model.openDaily() }) {
-                Label {
-                    Text(Strings.string("shelf.today.title"))
-                } icon: {
-                    Image(systemName: "sun.max")
-                }
-            }
-        } else {
-            Label {
-                VStack(alignment: .leading) {
-                    Text(Strings.string("shelf.today.title"))
-                    Text(Strings.string("watch.today.waiting"))
-                        .font(CouchTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } icon: {
-                Image(systemName: "iphone")
-            }
-            .accessibilityHint(Text(Strings.string("watch.today.waitingHint")))
-        }
-
-        if model.displayedStreak > 0 {
-            Label {
-                Text(BoardSpeech.streakChip(days: model.displayedStreak, held: model.streakHeld))
-            } icon: {
-                Image(systemName: model.streakHeld ? "shield" : "flame")
-            }
-            .font(CouchTypography.caption)
-            .foregroundStyle(.secondary)
-        }
-    }
-
     private var composingChip: some View {
         Text(Strings.string("status.composing"))
             .font(CouchTypography.caption)
@@ -108,13 +55,5 @@ struct WatchHomeView: View {
             .padding(.vertical, 5 * CouchScale.chrome)
             .couchGlass()
     }
-}
-
-extension WatchModel {
-    var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
-    /// The chip wears a shield rather than a flame while it stands on PRD-13's
-    /// one-day bridge. Same rule as every other surface, read from the same
-    /// cloud-synced `StreakState`.
-    var streakHeld: Bool { displayedStreak > 0 && streak.standsOnGrace }
 }
 #endif

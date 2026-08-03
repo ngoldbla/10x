@@ -95,7 +95,8 @@ final class IntentCatalogTests: XCTestCase {
     func testEveryIntentKeyInSourceHasARowAndEveryRowIsUsed() throws {
         let catalog = try Catalog("Sources/Shortcuts/Intents.xcstrings")
         let used = try intentKeysInSource()
-        XCTAssertGreaterThan(used.count, 20,
+        // 15 keys since the daily/streak/focus intents left (2026-08-02).
+        XCTAssertGreaterThan(used.count, 10,
                              "found \(used.count) intent keys in Sources — the literal "
                              + "shape changed and this test is reading nothing")
         XCTAssertEqual(
@@ -128,25 +129,11 @@ final class IntentCatalogTests: XCTestCase {
         }
     }
 
-    /// `CatalogTests.testCoinedBandNamesAreIdenticalInEveryLocale`, applied to the
-    /// intents catalog. Nocturne, Tempest and Abyss are coined names; a Shortcuts
-    /// picker offering "Nocturne" in the app and a translated word in Siri would be
-    /// two names for one band.
-    func testCoinedBandNamesAreIdenticalHereToo() throws {
+    /// The bands the intents offer are all descriptions and must translate.
+    /// (The coined deep-end names left the intent catalog with the deep bands
+    /// themselves, 2026-08-02.)
+    func testOfferedBandNamesAreTranslated() throws {
         let catalog = try Catalog("Sources/Shortcuts/Intents.xcstrings")
-        for band in ["nocturne", "tempest", "abyss"] {
-            let key = "intent.band.\(band)"
-            let english = try XCTUnwrap(catalog.value(key, "en"), key)
-            for locale in Self.launchLocales {
-                XCTAssertEqual(catalog.value(key, locale), english,
-                               "\(key) [\(locale)] must not be translated")
-            }
-            let comment = (catalog.strings[key]?["comment"] as? String ?? "").lowercased()
-            XCTAssertTrue(comment.contains("do not translate"),
-                          "\(key)'s comment must tell the translator to leave it alone")
-        }
-        // And the three that *are* translated must actually differ, or a "coined"
-        // list of three has quietly become a list of six.
         for band in ["gentle", "steady", "sharp"] {
             let key = "intent.band.\(band)"
             let english = try XCTUnwrap(catalog.value(key, "en"), key)
@@ -157,25 +144,34 @@ final class IntentCatalogTests: XCTestCase {
         }
     }
 
-    /// Every band in the Engine needs a case in `NineBand` and a row in the
+    /// Every *offered* band needs a case in `NineBand` and a row in the
     /// catalog. `NineBand` is a parallel enum by necessity — `Difficulty` lives in
     /// `Sources/Engine`, which may not import AppIntents — and a parallel enum is a
-    /// thing that drifts.
-    func testEveryEngineBandHasAnIntentCaseAndARow() throws {
+    /// thing that drifts. Since 2026-08-02 the offer is exactly three
+    /// (gentle/steady/sharp): the engine keeps six cases for persistence
+    /// identity, and this test pins the intent surface to the offered three.
+    func testEveryOfferedBandHasAnIntentCaseAndARow() throws {
+        let bands = ["gentle", "steady", "sharp"]
+
+        // The engine must still carry all six cases — the raw values are
+        // frozen persistence identity, and the offered three must be among
+        // them. Parsed from the source so this cannot drift silently.
         let generator = try source("Sources/Engine/Generator.swift")
-        var bands: [String] = []
+        var engineBands: [String] = []
         for line in generator.split(separator: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard trimmed.hasPrefix("case ") else { continue }
             guard trimmed.contains("gentle") || trimmed.contains("tempest") else { continue }
-            bands += trimmed.dropFirst("case ".count)
+            engineBands += trimmed.dropFirst("case ".count)
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
-            if bands.count >= 6 { break }
+            if engineBands.count >= 6 { break }
         }
-        XCTAssertEqual(bands.count, 6,
-                       "parsed \(bands) from `Difficulty` — the case list moved and "
+        XCTAssertEqual(engineBands.count, 6,
+                       "parsed \(engineBands) from `Difficulty` — the case list moved and "
                        + "this test is reading nothing")
+        XCTAssertTrue(Set(engineBands).isSuperset(of: bands),
+                      "an offered band is not an engine band")
 
         // `NineBand`'s cases, parsed rather than substring-matched. The first draft
         // of this asked `intents.contains("case \(band)")`, which is false for every
@@ -200,10 +196,10 @@ final class IntentCatalogTests: XCTestCase {
         XCTAssertEqual(
             intentBands, Set(bands),
             """
-            `NineBand` and `Difficulty` have drifted. A band the Engine can generate \
-            and `NineBand` does not name is a band Shortcuts cannot start; the \
-            reverse is a Shortcuts entry that starts Steady instead, silently, \
-            because `NineBand.difficulty` falls back.
+            `NineBand` and the offered-band list have drifted. A band the UI \
+            offers and `NineBand` does not name is a band Shortcuts cannot \
+            start; the reverse is a Shortcuts entry offering a band no other \
+            surface does.
             """
         )
         for band in bands {
@@ -238,7 +234,8 @@ final class IntentCatalogTests: XCTestCase {
             rest = after[after.index(after: close)...]
         }
 
-        XCTAssertGreaterThanOrEqual(inSource.count, 8,
+        // Four phrases across the two shortcuts since 2026-08-02.
+        XCTAssertGreaterThanOrEqual(inSource.count, 4,
                                     "found \(inSource.count) phrases in NineIntents — "
                                     + "the literal shape changed")
         XCTAssertEqual(

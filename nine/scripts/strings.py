@@ -1546,6 +1546,7 @@ COMMENTS = {
     "history.title": "Title of the sheet, window and shelf card holding every solved board. A noun — the record, not the academic subject.",
     "history.close": "VoiceOver label of the ✕ that leaves the History sheet on Apple TV.",
     "history.empty": "What the History sheet says before there is enough history to chart. Explains what will appear, without urging the player to go and play.",
+    "history.stat.bestTime": "Caption under the fastest-solve time. Lowercase — the three totals read as a row.",
     "history.stat.points": "Caption under the lifetime points total. Lowercase — the three totals read as a row.",
     "history.stat.solved": "Caption under the count of boards finished. Lowercase, and a past participle used as a noun — \"how many solved\".",
     "history.stat.bestStreak": "Caption under the longest run of consecutive daily solves ever reached. Lowercase.",
@@ -1624,7 +1625,7 @@ COMMENTS = {
     #     survivable; the captions under it simply clip.
     "widget.daily.name": "Widget gallery: the name of the glanceable daily widget, shown under its preview when a player is choosing a widget to add. One word if this language has one. \"Daily\" is a noun here — the day's shared puzzle — not an adverb.",
     "widget.daily.description": "Widget gallery: the one-line description under `widget.daily.name`, saying what the widget shows. \"Streak\" is the run of consecutive days solved; \"points\" is the lifetime score. A sentence, with a full stop.",
-    "widget.board.name": "Widget gallery: the name of the large widget the player can actually tap digits into without opening the app. \"Playable\" is what separates it from `widget.daily.name`, so keep that contrast visible.",
+    "widget.board.name": "Widget gallery: the name of the widget the player can actually tap digits into without opening the app.",
     "widget.board.description": "Widget gallery: the one-line description under `widget.board.name`. \"Home Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
     "widget.streak.name": "Widget gallery: the name of the Lock Screen accessory showing the run of consecutive days solved. A noun, one word if possible — the gallery sets it tight.",
     "widget.streak.description": "Widget gallery: the one-line description under `widget.streak.name`. \"Lock Screen\" is Apple's term — use the name this language's iOS uses. A sentence, with a full stop.",
@@ -1643,7 +1644,7 @@ COMMENTS = {
     "widget.caption.waiting": "The quiet second line under `widget.status.ready`. \"New\" means today's, as opposed to yesterday's.",
     "widget.caption.inProgress": "The quiet second line under a percentage: this board is started and unfinished. A fragment, lowercase after the first word, no full stop.",
     "widget.caption.done": "The quiet second line shown when today's board is finished but no time was recorded. \"Daily\" is the day's shared puzzle. A fragment, no full stop.",
-    "widget.board.cta": "The whole content of the playable widget before the app has published a board for today: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
+    "widget.board.cta": "The whole content of the playable widget before the app has published a board: tapping it opens Nine, which composes one. A sentence-shaped instruction with no full stop, set at headline size across a large widget.",
     "widget.streak.ready": "The Lock Screen INLINE accessory when the run is at zero and today's board is untouched. Shares one short line with the system clock, so it is the tightest string in the app — about 20 characters. \"Nine\" is the app's name and stays untranslated; the separator is a middle dot.",
     "widget.streak.inline": "The Lock Screen INLINE accessory when a run is going. %1$lld is a number of consecutive days, always 1 or more. The same one-line budget as `widget.streak.ready`. PLURAL: the two English forms are identical because English does not inflect here; give your language whatever forms it needs.",
 

@@ -25,9 +25,12 @@ final class GameCenter: NSObject {
     private(set) var isAuthenticated = false
 
     /// Leaderboard / achievement IDs (must match App Store Connect).
+    ///
+    /// The streak boards, the streak achievements and the weekly table were
+    /// removed with the daily system (2026-08-02). Their App Store Connect
+    /// records, where they exist, simply stop receiving submissions.
     enum ID {
         static let pointsBoard = "com.couchsuite.nine.points"
-        static let streakBoard = "com.couchsuite.nine.streak"
 
         /// A channel's own two boards (PRD-24). Built by interpolation off the
         /// frozen `Channel` raw value, for `Strings.channel(_:)`'s reason: a
@@ -46,36 +49,11 @@ final class GameCenter: NSObject {
         static func channelPoints(_ channel: Channel.Ledgered) -> String {
             "com.couchsuite.nine.points.\(channel.rawValue)"
         }
-        static func channelStreak(_ channel: Channel.Ledgered) -> String {
-            "com.couchsuite.nine.streak.\(channel.rawValue)"
-        }
-
-        /// PRD-29's weekly table — a **recurring** leaderboard, which is the
-        /// only kind that resets on its own and therefore the only kind a week
-        /// can live in.
-        ///
-        /// Its own board rather than a time scope on `pointsBoard`, because
-        /// `GKLeaderboardTimeScope` is documented in the SDK header as "Only
-        /// applicable to classic leaderboards" and because the score submitted
-        /// here is a different quantity entirely: `DailyTable.score` packs
-        /// days-then-time, and points are points.
-        ///
-        /// **This needs an App Store Connect record that does not exist yet**,
-        /// the same human gate as the per-channel boards above, with two extra
-        /// requirements the portal has to satisfy and code cannot check:
-        /// the recurrence must be **7 days starting on a Monday** so the
-        /// occurrence and `DailyTable.weekStart` agree, and the score format must
-        /// keep the **best** submission in an occurrence rather than the most
-        /// recent — which is safe precisely because a week's score only ever
-        /// grows (`testAWeeksScoreOnlyEverGrows`).
-        static let tableBoard = "com.couchsuite.nine.table.weekly"
 
         static let firstSolve = "com.couchsuite.nine.solve.first"
         static let tenSolves = "com.couchsuite.nine.solve.ten"
         static let fiftySolves = "com.couchsuite.nine.solve.fifty"
         static let firstSharp = "com.couchsuite.nine.sharp.first"
-        static let weekStreak = "com.couchsuite.nine.streak.seven"
-        static let monthStreak = "com.couchsuite.nine.streak.thirty"
         static let speedSolve = "com.couchsuite.nine.swift"
 
         /// PRD-28 §7 — the App Store Connect **game activity definition** a
@@ -168,8 +146,8 @@ final class GameCenter: NSObject {
     /// Mirror one finished board into leaderboards + achievements.
     ///
     /// `channel` is the board's channel, non-nil only for a variant board
-    /// (PRD-24). When it is set, `history` and `streak` are **that channel's**, and
-    /// the scores go to that channel's own two boards — so a killer solve never
+    /// (PRD-24). When it is set, `history` is **that channel's**, and the
+    /// score goes to that channel's own board — so a killer solve never
     /// lands on the classic leaderboard, which is the same separation
     /// `ChannelLedger` enforces one layer down.
     ///
@@ -179,7 +157,7 @@ final class GameCenter: NSObject {
     /// what it tolerates, and "first killer solve" is a badge — which
     /// `EXECUTING-A-PRD` §1 rules out by name.
     func reportSolve(
-        record: SolveRecord, history: SolveHistory, streak: StreakState,
+        record: SolveRecord, history: SolveHistory,
         channel: Channel.Ledgered? = nil
     ) {
         guard isAuthenticated else { return }
@@ -188,10 +166,6 @@ final class GameCenter: NSObject {
                 history.totalPoints, context: 0, player: GKLocalPlayer.local,
                 leaderboardIDs: [channel.map(ID.channelPoints) ?? ID.pointsBoard]
             )
-            try? await GKLeaderboard.submitScore(
-                streak.best, context: 0, player: GKLocalPlayer.local,
-                leaderboardIDs: [channel.map(ID.channelStreak) ?? ID.streakBoard]
-            )
             // A channel solve stops here. Everything below counts classic solves.
             guard channel == nil else { return }
             let solves = history.records.count
@@ -199,8 +173,6 @@ final class GameCenter: NSObject {
                 progress(ID.firstSolve, fraction: Double(solves)),
                 progress(ID.tenSolves, fraction: Double(solves) / 10),
                 progress(ID.fiftySolves, fraction: Double(solves) / 50),
-                progress(ID.weekStreak, fraction: Double(streak.best) / 7),
-                progress(ID.monthStreak, fraction: Double(streak.best) / 30),
             ]
             // Nocturne counts toward the Sharp badge. It is Sharp's chain with a
             // clue floor, so a player who cleared one has demonstrably done the
@@ -216,88 +188,6 @@ final class GameCenter: NSObject {
             }
             try? await GKAchievement.report(achievements)
         }
-    }
-
-    // MARK: - The table (PRD-29)
-
-    /// Submit this week's packed score to the recurring board.
-    ///
-    /// Fire-and-forget like every other submission in this file, and the failure
-    /// mode is the reason this PRD can ship ahead of its App Store Connect
-    /// record: until the record exists a submission goes into silence, and
-    /// `loadTable` returns nothing, so the section is *absent* rather than broken.
-    ///
-    /// `context: 0`, deliberately. The 64-bit context payload would carry the day
-    /// count happily and is refused for `Strings.channel(_:)`'s reason — a second
-    /// source for a number `DailyTable.score` already determines is a second
-    /// thing that can disagree, and the one that disagrees will be the one drawn.
-    func submitTable(week: DailyTable.Week) {
-        guard isAuthenticated, !week.isEmpty else { return }
-        let score = DailyTable.score(of: week)
-        Task {
-            try? await GKLeaderboard.submitScore(
-                score, context: 0, player: GKLocalPlayer.local,
-                leaderboardIDs: [ID.tableBoard])
-        }
-    }
-
-    /// The twenty seats around the local player, or an empty array.
-    ///
-    /// **Two loads, because GameKit cannot partition players** (PRD-29 §2). There
-    /// is no API that assigns you to a cohort of twenty; what there is, is a range
-    /// of *absolute rank positions* and a local-player entry that comes back with
-    /// every request. So the first load asks for one seat and is really asking
-    /// "where am I, and how many of us are there"; the second asks for the twenty
-    /// centred on the answer.
-    ///
-    /// `timeScope: .allTime` is not a choice — the SDK header says the parameter
-    /// is "Only applicable to classic leaderboards", so a recurring board ignores
-    /// it and its own occurrence is the window. Passing `.week` would read as
-    /// meaningful and mean nothing.
-    ///
-    /// Empty on every failure, and there is no error surface: a table that could
-    /// not be loaded is a section that is not drawn, which is the honest-absence
-    /// idiom the rest of the History sheet already uses.
-    func loadTable() async -> [DailyTable.Seat] {
-        guard isAuthenticated else { return [] }
-        guard let board = try? await GKLeaderboard.loadLeaderboards(IDs: [ID.tableBoard]),
-              let table = board.first else { return [] }
-
-        guard let probe = try? await table.loadEntries(
-            for: .global, timeScope: .allTime, range: NSRange(location: 1, length: 1)),
-              let mine = probe.0 else { return [] }
-
-        let window = DailyTable.window(around: mine.rank, total: probe.2)
-        guard let seats = try? await table.loadEntries(
-            for: .global, timeScope: .allTime,
-            range: NSRange(location: window.lowerBound, length: window.count))
-        else { return [] }
-
-        let localID = GKLocalPlayer.local.gamePlayerID
-        return seats.1.map { entry in
-            DailyTable.Seat(
-                id: entry.player.gamePlayerID,
-                name: entry.player.displayName,
-                week: DailyTable.week(fromScore: entry.score),
-                isMe: entry.player.gamePlayerID == localID)
-        }
-    }
-
-    /// The occurrence's own week, when GameKit will say — asking is better than
-    /// assuming, and here the answer exists.
-    ///
-    /// `DailyTable.weekStart` computes the same Monday from first principles and
-    /// is what every pure test uses; this is the reconciliation for the case
-    /// where the App Store Connect recurrence was configured to something else.
-    /// Nil for a classic board, for a board that has not loaded, and for one with
-    /// no start date — in which case the local computation stands.
-    func tableOccurrence() async -> (start: Date, duration: TimeInterval)? {
-        guard isAuthenticated,
-              let boards = try? await GKLeaderboard.loadLeaderboards(IDs: [ID.tableBoard]),
-              let table = boards.first, table.type == .recurring,
-              let start = table.startDate, table.duration > 0
-        else { return nil }
-        return (start, table.duration)
     }
 
     /// The full Game Center dashboard (leaderboards + achievements). On iOS

@@ -1,6 +1,8 @@
 // NineWidgetBundle.swift — entry point of the NineWidgets extension
-// (PRD-3). Three widgets: glanceable daily state, the streak accessory,
-// and the playable large board.
+// (PRD-3). One widget since the daily's removal (2026-08-02): the playable
+// board, mirroring the app's most recent in-progress classic board. The
+// glanceable daily widget, the streak accessory and the daily-presence Live
+// Activity were all built around the daily and went with it.
 import SwiftUI
 import WidgetKit
 
@@ -19,20 +21,9 @@ struct NineWidgetBundle: WidgetBundle {
     ///
     /// A stored property rather than an `init` for symmetry with `NineApp`,
     /// where the position is load-bearing (see the comment there).
-    /// `WidgetBundle` has no other stored property to be ordered against today;
-    /// the symmetry is so that adding one cannot quietly reintroduce that
-    /// problem here.
     private let phrasebook: Void = Strings.install()
 
     var body: some Widget {
-        NineDailyWidget()
-        NineStreakWidget()
         NineBoardWidget()
-        // The Live Activity (PRD-30). A bundle member like any other, with no
-        // `#if` and no entitlement behind it — Live Activities are gated by the
-        // app's `NSSupportsLiveActivities` Info.plist key alone, which is why
-        // this is the first new surface in three PRDs that needs no `match`
-        // re-mint (EXECUTING-A-PRD §6).
-        NineDailyPresenceActivity()
     }
 }

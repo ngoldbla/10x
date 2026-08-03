@@ -131,15 +131,21 @@ def screens():
         # cells and its whole control bar used to stay in the VoiceOver tree
         # behind it — and the consequence is that the gear that opened it is no
         # longer reachable once it is open. Anchoring on the control you pressed
-        # only works while pressing it changes nothing. `clock` is the first row
-        # inside the sheet, so it says the sheet arrived rather than that the
-        # button still exists.
+        # only works while pressing it changes nothing. The sheet's rows expose
+        # no SF Symbol either — each toggle merges its icon into the switch, so
+        # nothing in the sheet carries a `uniqueId` — which is why this screen
+        # is the one `anchor_label`: the wordmark, which is verbatim "Nine" in
+        # every mode. (The system grabber is localized — "Aufzeichnungsblatt" in
+        # German — so it cannot anchor a lane that speaks five languages.)
         dict(name="prefs", prefs=ninestate.PREFS_ERRORS_ON, taps=["gearshape"],
-             anchor="clock"),
-        # `chevron.left` gets us there; `calendar` — the Today card — is what
-        # says we have arrived. The back button does not exist on the shelf.
+             anchor=None, anchor_label="Nine"),
+        # `chevron.left` gets us there, and `chevron.right` — the shelf's Next
+        # channel control, which the game screen never carries — is what says we
+        # have arrived. (The old `calendar` anchor left with the Today card on
+        # 2026-08-02; the back button does not exist on the shelf, and the learn
+        # trio's tiles expose no symbols either.)
         dict(name="home", prefs=ninestate.PREFS_ERRORS_ON, taps=["chevron.left"],
-             anchor="calendar"),
+             anchor="chevron.right"),
     ]
 
 
@@ -222,9 +228,14 @@ def capture(udid, screen, mode, args, first_empty):
             tap_symbol(udid, data, step)
         time.sleep(1.2)
         # The symbol that says we have *arrived* is not the one we tapped: the
-        # back chevron takes us to the shelf, which has no back chevron.
-        data = (settled(udid, screen["anchor"], where) if screen["anchor"]
-                else settled_plain(udid, where))
+        # back chevron takes us to the shelf, which has no back chevron. A
+        # screen whose elements expose no symbols arrives on a `anchor_label`
+        # (a stable, non-localized label) instead.
+        if screen.get("anchor_label"):
+            data = settled_label(udid, screen["anchor_label"], where)
+        else:
+            data = (settled(udid, screen["anchor"], where) if screen["anchor"]
+                    else settled_plain(udid, where))
     return data
 
 
@@ -239,6 +250,24 @@ def settled_plain(udid, where, attempts=8):
             return data
         previous = current
     sys.exit("%s never stopped moving: %d reads, no two alike." % (where, attempts))
+
+
+def settled_label(udid, label, where, attempts=6):
+    """Settle on a *label* rather than a symbol, for screens whose elements
+    expose no SF Symbol. The prefs sheet is one: its toggle rows merge their
+    icons into the switch, so nothing in the sheet carries a `uniqueId`, and
+    `anchor_label` is the only signal that says the sheet arrived. The label
+    must be verbatim in every mode (the wordmark, not a system element — the
+    sheet grabber is localized and changes name per language)."""
+    previous = comparable(simrig.wait_for(udid, label))
+    for _ in range(attempts):
+        time.sleep(0.7)
+        data = describe(udid)
+        current = comparable(data)
+        if current == previous:
+            return data
+        previous = current
+    sys.exit("%s never stopped moving: six reads, no two alike." % where)
 
 
 # -------------------------------------------------------------- the readings
@@ -317,10 +346,20 @@ TODAY = re.compile(
     r"|\d{4}\u5e74\d{1,2}\u6708\d{1,2}\u65e5"                # 2026年7月27日
 )
 
+# The status-bar clock leaks into the prefs baselines. A modal `.sheet` makes
+# `describe-ui` stop filing the status bar under region `Top`, so `is_status_bar`
+# cannot drop it and the live clock lands in the capture — a baseline that
+# carries "2:34 AM" is a baseline that rots the next minute. Every launch locale
+# renders it in the same system format (the locale args localize the app's
+# strings, not the status bar): "h:mm AM", with the narrow no-break space
+# U+202F before the period.
+CLOCK = re.compile(r"\d{1,2}:\d{2}\u202f(?:AM|PM)")
+
 
 def mask(text):
-    """Replace today's date, in whichever locale rendered it, with `<today>`."""
-    return TODAY.sub("<today>", text or "")
+    """Replace today's date and the live clock with `<today>` / `<time>`."""
+    text = TODAY.sub("<today>", text or "")
+    return CLOCK.sub("<time>", text)
 
 
 def element_line(entry):

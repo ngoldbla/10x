@@ -512,10 +512,7 @@ struct GameScreen: View {
     }
 
     private var completionText: String {
-        if case .daily? = model.kind, model.displayedStreak > 0 {
-            return Strings.string("game.completion.streak", .int(model.displayedStreak))
-        }
-        return Strings.string("status.solved")
+        Strings.string("status.solved")
     }
 
     // MARK: - Remote grammar

@@ -9,12 +9,14 @@
   Button "Next channel"  (279,134 44x44)
   GenericElement ""  (182,186 39x7)
   GenericElement ""  (0,205 402x28)
-  Button "Nocturne, Fewer clues, deeper logic"  (24,186 354x110)
-  Button "Tempest, Wings & swordfish"  (24,302 354x110)
-  Button "Abyss, One digit, two colours"  (24,418 354x110)
+  Button "4 of 53 filled., Continue, Steady · 7%"  (24,201 354x101)
+  StaticText "Play"  (28,319 39x24)
+  Button "Gentle, Singles & scans"  (24,351 110x177)
+  Button "Steady, Pairs & box lines"  (146,351 110x177)
+  Button "Sharp, X-wings & deep logic"  (268,351 110x177)
   Button "Play together, On a FaceTime call, everyone gets this board"  (42,564 318x64)
   Button "How to play"  (24,674 110x112)
   Button "History"  (146,674 110x112)
   Button "Technique School"  (268,674 110x112)
 
-# 12 elements in 1 container
+# 14 elements in 1 container

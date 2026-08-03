@@ -43,9 +43,10 @@ final class DuelSealTests: XCTestCase {
         // history guard was deleted, because the Game Center one still matched.
         // A seal that greps for a string appearing more than once cannot detect
         // one of them going missing. Falsified against both deletions.
+        // The daily/streak guard left with the daily system (2026-08-02); the
+        // three remaining ledgers keep their anchored guards.
         for (ledger, guarded) in [
-            ("the classic streak and archive", "if !isDuel, case .daily(let day)? = kind"),
-            ("the channel ledger", "if !isDuel, case .channel(let c, _, let day)? = kind"),
+            ("the channel ledger", "if !isDuel, case .channel(let c, _, _)? = kind"),
             ("the classic history", "} else if !isDuel {\n            history.record(record)"),
             ("Game Center", "} else if !isDuel {\n            // A duel reports nothing."),
         ] {

@@ -22,7 +22,6 @@ struct TouchHomeView: View {
     @State private var showTutorial = false
     @State private var showSchool = false
     @State private var showBoards = false
-    @State private var showArchive = false
     /// Preferences, from the shelf. Until now the *only* door to them was the
     /// gear in the game screen's control bar, so a player who had not started a
     /// board could not reach their own theme, accent or timer pref at all.
@@ -127,15 +126,9 @@ struct TouchHomeView: View {
         }
         .animation(.couchFast, value: model.welcomeSeen)
         .animation(.couchFast, value: model.helpSeen)
-        .animation(.couchFast, value: model.pendingGraceDay)
         .overlay { GlassSheet(isPresented: $showHistory) { HistorySheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showPrefs) { PrefsSheetContent(model: model) } }
         .overlay { GlassSheet(isPresented: $showBoards) { BoardsSheetContent(model: model, onClose: { showBoards = false }) } }
-        .overlay {
-            GlassSheet(isPresented: $showArchive) {
-                ArchiveSheetContent(model: model, onClose: { showArchive = false })
-            }
-        }
         .overlay {
             if showTutorial {
                 TutorialView(accent: accent) {
@@ -173,11 +166,7 @@ struct TouchHomeView: View {
             if let ledgered = model.channel.ledgered {
                 ChannelShelfContent(model: model, channel: ledgered, accent: accent)
             } else {
-                VStack(spacing: Space.l) {
-                    graceCard
-                    todayCard
-                    continueCard
-                }
+                continueCard
                 boardsSection
                 freePlaySection
                 parlorCard
@@ -348,26 +337,15 @@ struct TouchHomeView: View {
             } else {
                 HStack(alignment: .top, spacing: gutter) {
                     VStack(spacing: Space.xxl) {
-                        VStack(spacing: Space.l) {
-                            graceCard
-                            todayCard
-                            continueCard
-                        }
+                        continueCard
                         boardsSection
-                        // **The utilities move here, and a measurement asked for
-                        // it.** *"Leading column dies after two cards — ~790pt
-                        // of empty canvas dominates the iPad frame. `shelfPair`
-                        // splits by kind, not by mass. Move the footer trio
-                        // (How to play / History / Technique School) … into the
-                        // leading column."* On a fresh install the left column
-                        // is Today plus nothing — `graceCard`, `continueCard`
-                        // and `boardsSection` are all conditional — while the
-                        // right one carries six difficulty tiles, the parlor and
-                        // the trio. Splitting by kind is still the right
-                        // *reading* order (left: where was I, right: what now);
-                        // the trio belongs to neither question, so it is free to
-                        // go wherever the mass is missing, and it is the one
-                        // group on the shelf that is a footer in both.
+                        // **The utilities live here, and a measurement asked
+                        // for it** (round 2): on a fresh install the left
+                        // column is nearly empty — `continueCard` and
+                        // `boardsSection` are both conditional — while the
+                        // right one carries the difficulty tiles and the
+                        // parlor. The learn trio belongs to neither question,
+                        // so it goes wherever the mass is missing.
                         learnRow
                     }
                     .fixedSize(horizontal: false, vertical: true)
@@ -394,22 +372,6 @@ struct TouchHomeView: View {
             if model.totalPoints > 0 {
                 GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
-            // The streak belongs to the page you are on (PRD-24). Classic reads
-            // `nine.streak`; a channel reads its own slot in `nine.channels`, and
-            // there is no argument that would make either read the other.
-            if let ledgered = model.channel.ledgered {
-                if model.displayedStreak(on: ledgered) > 0, !model.focus.hidesStreak {
-                    StreakChip(days: model.displayedStreak(on: ledgered),
-                               held: model.streakHeld(on: ledgered))
-                }
-            } else if model.displayedStreak > 0 {
-                // A Focus filter can take the count away entirely (PRD-33).
-                // `if` rather than `.opacity(0)`: an invisible chip still holds
-                // its space and still speaks to VoiceOver.
-                if !model.focus.hidesStreak {
-                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
-                }
-            }
             // The utilities. Every other door to these was inside something
             // else: the archive hid behind a 20pt glyph in the Today card's
             // corner, and Preferences existed only in the *game* screen's
@@ -433,14 +395,6 @@ struct TouchHomeView: View {
             // groups toolbar glass.
             CouchGlassContainer(spacing: Space.m) {
                 HStack(spacing: Space.m) {
-                    GlassIconButton(symbol: "calendar",
-                                    label: Strings.string("archive.title"),
-                                    inBar: true) {
-                        showArchive = true
-                    }
-                    // The hint travels with the label — the archive's AX
-                    // identity moved off the Today card, it did not evaporate.
-                    .accessibilityHint(Strings.string("shelf.archive.hint"))
                     GlassIconButton(symbol: "gearshape",
                                     label: Strings.string("game.control.settings"),
                                     inBar: true) {
@@ -503,245 +457,6 @@ struct TouchHomeView: View {
         }
     }
 
-    // MARK: Streak grace
-
-    /// PRD-13 §3. The morning after a bridged miss: one sentence, once ever per
-    /// bridge, and then gone forever.
-    ///
-    /// It sits directly under the header on purpose — the shield it is
-    /// explaining is one row above it, and the adjacency *is* the explanation.
-    ///
-    /// Deliberately not a card that starts a board. An action here would turn
-    /// the missed day into a prompt to play, which is the nagging PRD-13 exists
-    /// so the app never has to do; PRD-30 cites this feature by name as the
-    /// reason Live Activities will never carry a streak-endangered warning.
-    /// Tapping it only makes it go away.
-    @ViewBuilder
-    private var graceCard: some View {
-        if model.pendingGraceDay != nil {
-            Button {
-                withAnimation(.couchFast) { model.acknowledgeGrace() }
-            } label: {
-                HStack(alignment: .top, spacing: 14) {
-                    Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(accent)
-                        .accessibilityHidden(true) // decoration; the sentence says it
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(Phrase.graceTitle)
-                            .font(CouchTypography.body)
-                        Text(Phrase.graceBody)
-                            .font(CouchTypography.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // `Radius.sheet`, the same rung as the full-width cards it sits
-                // above — this card is one of them in every way but its type.
-                .couchGlass(in: RoundedRectangle(cornerRadius: Radius.sheet,
-                                                 style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Phrase.graceLabel)
-            .accessibilityHint(Phrase.graceHint)
-            .transition(.opacity)
-        }
-    }
-
-    // MARK: Today
-
-    /// The front door's one primary action, and now visibly one.
-    ///
-    /// Three things made it a peer of the seven slabs under it rather than the
-    /// thing you came here to press:
-    ///
-    ///  * **It was the same glass as everything else.** It is `.regular` **with
-    ///    the player's accent in it** now — CouchKit's L3 rung exists for "the
-    ///    one surface on screen that outranks the others", and if the daily is
-    ///    not that surface then nothing is.
-    ///  * **It stated a status where a button states a verb.** `todayStatus` was
-    ///    inert grey text — "One a day", "Continue · 64%" — so the card said
-    ///    what it *is* and never what pressing it *does*. The verb now rides a
-    ///    filled accent capsule, which is also the only filled shape on the
-    ///    shelf: Begin, Continue, Solved, Composing.
-    ///  * **It had a hole in the middle.** Title 36 + 8 + date 16 + status 20 is
-    ///    80pt of content inside a `minHeight: 130`, so `Spacer(minLength: 12)`
-    ///    resolved to a **50pt void** down the centre of the primary call to
-    ///    action. The minimum is gone and the card is the height of what is in
-    ///    it. The `.padding(.trailing, 44)` went with it — it reserved a 62pt
-    ///    dead gutter down 166pt of card for a 20pt glyph that has moved to the
-    ///    permanent bar, where the archive is reachable from every page instead
-    ///    of only from this card's corner.
-    /// How much accent goes *into* Today's glass.
-    ///
-    /// Not 1.0, and the first build at 1.0 is the argument: `.regular.tint()`
-    /// takes the colour's own alpha, so a full-strength accent stops being a
-    /// tinted material and becomes a flat opaque slab — the card lost every
-    /// trace of glass, became the loudest thing on the screen by a wide margin,
-    /// and swallowed the filled accent capsule sitting on it, so the one verb
-    /// on the shelf read as plain text on blue. A tint is supposed to say
-    /// "this one is primary", not "this one is a system alert".
-    ///
-    /// At this weight the glass still refracts the ground behind it, the hue is
-    /// unmistakable next to seven untinted siblings, and the capsule — the only
-    /// *filled* accent shape on the shelf — reads as a step above the card it
-    /// sits on rather than as a hole in it.
-    private static let todayTint = 0.28
-
-    /// Where the light on the hero card is coming from.
-    ///
-    /// **The card was reported as "a flat, desaturated navy ramp fenced by a
-    /// hard 1px blue stroke" — a bordered web panel, not lit glass.** A tint is
-    /// a filter, and a filter applied evenly across 300×130pt has no gradient in
-    /// it at all, so the one primary surface on the shelf had less luminance
-    /// structure than the untinted cards beside it. This is the lamp: a radial
-    /// anchored near the verb capsule (the thing the eye is going to), bright
-    /// where the action is and gone by the opposite corner.
-    ///
-    /// Deliberately **not** `.blendMode(.plusLighter)`, which is what a lamp
-    /// like this wants and what a `.background` cannot safely have: a blend mode
-    /// composites against the whole backdrop group, so on a glass card it
-    /// reaches past the card and lights the page behind it. A plain white
-    /// radial inside the card's own clip is the version that stays where it is
-    /// put.
-    private var todayHighlight: some View {
-        RadialGradient(
-            colors: [.white.opacity(tones.isLight ? 0.28 : 0.16), .white.opacity(0)],
-            center: UnitPoint(x: 0.84, y: 0.12),
-            startRadius: 0,
-            endRadius: 260
-        )
-        .allowsHitTesting(false)
-    }
-
-    private var todayCard: some View {
-        TouchCard(action: { model.openToday() },
-                  radius: Radius.sheet,
-                  tint: accent.opacity(Self.todayTint)) {
-            HStack(alignment: .top, spacing: Space.l) {
-                VStack(alignment: .leading, spacing: Space.s) {
-                    Text(Strings.string("shelf.today.title"))
-                        .couchText(CouchTypography.title)
-                    Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                        .couchText(CouchTypography.caption, .secondary)
-                    todayStatus
-                }
-                Spacer(minLength: Space.s)
-                todayVerb
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            // `padding(-18)` cancels `TouchCard`'s own 18pt inset so the lamp
-            // reaches the card's edges, and the clip is the card's own corner —
-            // without both, the gradient is still bright where its frame stops
-            // and draws the hard rectangle it exists to replace.
-            //
-            // **Clip first, then expand.** The other order clips at the
-            // *content's* bounds and throws the 36pt the negative padding just
-            // bought away, which is the whole point of the pair; a modifier's
-            // frame is its child's, and here the child has to be the expanded
-            // one.
-            .background {
-                todayHighlight
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.sheet,
-                                                style: .continuous))
-                    .padding(-18)
-            }
-        }
-        // Composing the daily is its own state on this card, so only a *foreign*
-        // compose disables it.
-        .disabled(composeInFlight && !isComposingDaily)
-    }
-
-    /// The filled capsule: what pressing this card will do, in a word.
-    ///
-    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
-    /// and a Button nested in `TouchCard`'s Button is merged by SwiftUI, which
-    /// takes the inner frame with it (PRD-14 measured the Today card's own
-    /// accessibility element collapsing from 89×129 to a 44×44 glyph). It is
-    /// hidden from VoiceOver because the card's own label already carries the
-    /// same words.
-    ///
-    /// **It was blue on blue and it was the weakest contrast on the screen.**
-    /// The pill filled with `accent` while the card behind it is `accent` at
-    /// 0.28 through glass — the same hue a few steps apart — so the shelf's only
-    /// primary action had less separation from its own background than any
-    /// caption on the page. The pill is now the ground's *opposite*: paper-white
-    /// on a dark theme with the accent as ink, and the deepened accent with
-    /// white ink on a light one, which is the direction that has a 4.5:1 answer
-    /// on both.
-    ///
-    /// The silhouette changed with it. A `Capsule` inside a `Radius.sheet` card
-    /// with 18pt of inset is a 15pt curve where the concentric answer is 10, so
-    /// the pill read as pasted on rather than as nested. `Radius.inner` is that
-    /// arithmetic, and it is the same call the mini-boards two cards down make.
-    @ViewBuilder
-    private var todayVerb: some View {
-        if let text = todayVerbText {
-            let shape = RoundedRectangle(
-                cornerRadius: Radius.inner(Radius.sheet, inset: 18), style: .continuous)
-            Text(text)
-                .font(CouchTypography.label)
-                .foregroundStyle(verbInk)
-                .lineLimit(1)
-                .padding(.horizontal, Space.l)
-                .padding(.vertical, Space.s)
-                .background(verbFill, in: shape)
-                .accessibilityHidden(true)
-        }
-    }
-
-    /// The pill's fill: the loudest legible shape the ground allows.
-    private var verbFill: Color { tones.isLight ? accent : .white }
-
-    /// …and its ink, which is the fill's opposite rather than `.primary` —
-    /// `.primary` is white on a dark theme, and this pill is white there.
-    private var verbInk: Color { tones.isLight ? .white : accent }
-
-    /// Nil in the two states that are not an action. A capsule reading "Solved"
-    /// beside a status line reading "Solved" is not emphasis, it is an echo —
-    /// and a filled accent shape is the loudest thing on the shelf, which it
-    /// should not spend on a board there is nothing left to do to.
-    private var todayVerbText: String? {
-        if isComposingDaily || model.todaySolved { return nil }
-        if model.savedDaily != nil { return Strings.string("shelf.continue.title") }
-        return Strings.string("firstrun.begin")
-    }
-
-    @ViewBuilder
-    private var todayStatus: some View {
-        if isComposingDaily {
-            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
-        } else if model.todaySolved {
-            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
-        } else if let daily = model.savedDaily {
-            HStack(spacing: 12) {
-                BoardFingerprint(game: daily, accent: accent, side: 34)
-                // The constellation stays and the number goes (PRD-33). What
-                // `hidesDaily` is for is the *urgency* of an unfinished board,
-                // and "64%" is where the urgency lives — the fingerprint says
-                // "there is a board here" without saying how much you owe it.
-                if !model.focus.hidesDaily {
-                    // The bare progress, not `shelf.today.continueProgress`'s
-                    // "Continue · 64%": the verb capsule two inches to the right
-                    // now says Continue, and a card that says it twice reads as
-                    // a template that was filled in by two different people.
-                    Text(BoardProgressCaption.text(for: daily))
-                        .couchText(CouchTypography.caption, .secondary)
-                        // A percentage that ticks while you watch it, in
-                        // proportional figures, re-measures its own line on
-                        // every change.
-                        .monospacedDigit()
-                }
-            }
-        } else {
-            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
-        }
-    }
-
     // MARK: Continue (free play in progress)
 
     @ViewBuilder
@@ -782,15 +497,12 @@ struct TouchHomeView: View {
 
     // MARK: Boards tracker
 
-    /// Partials not already surfaced by the Today card (in-progress daily) or
-    /// the Continue card (newest free partial) — the "extra" boards.
+    /// Partials not already surfaced by the Continue card (newest free
+    /// partial) — the "extra" boards.
     private var extraPartials: [LibraryEntry] {
-        let today = model.todayOrdinal
         let continueID = model.freePartials.first?.id
         return model.partials.filter { entry in
-            if entry.id == continueID { return false }
-            if case .daily(let day) = entry.kind, day == today { return false }
-            return true
+            entry.id != continueID
         }
     }
 
@@ -901,20 +613,11 @@ struct TouchHomeView: View {
     }
 
     private var freePlayRow: some View {
-        // Three across, then the deep end on its own lines (PRD-17 §3, widened
-        // by PRD-25). Not a hierarchy — a fourth column on a 393pt iPhone
-        // leaves each card ~90pt for a title plus a two-line blurb, which
-        // truncates all four rather than just the new one. Full width is what
-        // lets a deep band keep the same blurb the three above it get, and it
-        // is why three of them stack rather than becoming a second row.
-        VStack(spacing: Space.l) {
-            HStack(spacing: Space.m) {
-                ForEach(Difficulty.rowBands, id: \.self) { difficulty in
-                    difficultyCard(difficulty)
-                }
-            }
-            ForEach(Difficulty.deepBands, id: \.self) { difficulty in
-                deepEndCard(difficulty)
+        // Three across — the whole offer since 2026-08-02. The engine keeps
+        // its six bands for persistence identity; the shelf offers three.
+        HStack(spacing: Space.m) {
+            ForEach(Difficulty.rowBands, id: \.self) { difficulty in
+                difficultyCard(difficulty)
             }
         }
     }
@@ -930,7 +633,7 @@ struct TouchHomeView: View {
     private var parlorCard: some View {
         let pending = model.parlor.pendingInvite
         return TouchCard(action: {
-            let invite = pending ?? model.todayInvite
+            let invite = pending ?? model.freshParlorInvite
             model.parlor.takePendingInvite()
             Task {
                 // The board opens either way. On success the session loop in
@@ -995,41 +698,6 @@ struct TouchHomeView: View {
             .text(pending == nil ? ParlorPhrase.startCaption : ParlorPhrase.inviteAccepted)))
     }
 
-    /// The full-width Nocturne card: same tap target, same MiniBoard, laid out
-    /// along the row instead of down a column. No lock, no badge, no price —
-    /// it is a peer of the three above it and reads like one.
-    private func deepEndCard(_ difficulty: Difficulty) -> some View {
-        TouchCard(action: { model.startFree(difficulty) }, radius: Radius.sheet) {
-            HStack(spacing: Space.m) {
-                MiniBoard(difficulty: difficulty, accent: accent,
-                          corner: Radius.inner(Radius.sheet, inset: 18))
-                    .frame(width: 64, height: 64)
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Label {
-                        Text(Strings.difficulty(difficulty))
-                    } icon: {
-                        if let glyph = difficulty.glyph { Image(systemName: glyph) }
-                    }
-                    .couchText(CouchTypography.body)
-                    // The composing caption replaces the blurb rather than
-                    // stacking under it: a card that grows a line mid-compose
-                    // shoves the rest of the shelf down while the player watches.
-                    Text(model.composing == .free(difficulty)
-                         ? (difficulty.composeCaption ?? Strings.string("status.composing"))
-                         : difficulty.blurb)
-                        .couchText(CouchTypography.caption, .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, minHeight: 64)
-        }
-        .disabled(composeInFlight && model.composing != .free(difficulty))
-        .accessibilityLabel(Strings.string("shelf.difficulty.label",
-                                           .text(Strings.difficulty(difficulty)),
-                                           .text(difficulty.blurb)))
-    }
-
     private func difficultyCard(_ difficulty: Difficulty) -> some View {
         TouchCard(action: { model.startFree(difficulty) }, radius: Radius.card) {
             VStack(spacing: Space.s) {
@@ -1067,14 +735,6 @@ struct TouchHomeView: View {
         .foregroundStyle(.secondary)
     }
 
-    /// **Today's** daily, not any daily. Since PRD-14 a `.daily(day:)` compose
-    /// may be for 12 July, and matching the case alone made the Today card
-    /// announce "Composing…" for a board that is not its own — then hand the
-    /// player a different day when it landed.
-    private var isComposingDaily: Bool {
-        if case .daily(let day)? = model.composing { return day == model.todayOrdinal }
-        return false
-    }
 }
 
 /// A tappable glass slab: the touch counterpart of the TV shelf card.
@@ -2484,13 +2144,13 @@ struct TouchGameScreen: View {
         }
     }
 
-    /// What this board is: its difficulty, or its channel and tier, or the fact
-    /// that it is a daily. Assembled from the same keys the shelf's own
-    /// `boardTitle` uses, minus the date — the archive chip already says which
-    /// day an archive board is.
+    /// What this board is: its difficulty, or its channel and tier. Assembled
+    /// from the same keys the shelf's own `boardTitle` uses. A legacy `.daily`
+    /// entry is titled by its band — the daily framing is gone (2026-08-02).
     private var boardKindTitle: String? {
         switch model.kind {
-        case .daily: return Strings.string("shelf.today.title")
+        case .daily:
+            return Strings.difficulty(model.game?.puzzle.difficulty ?? .steady)
         case .free(let difficulty): return Strings.difficulty(difficulty)
         case .channel(let channel, let tier, _):
             return Strings.string("shelf.channel.free",
@@ -2648,11 +2308,6 @@ struct TouchGameScreen: View {
         guard model.prefs.ambientSlot != .none, model.composing == nil,
               coachAdvice == nil else { return false }
         guard edge == chromeEdge else { return false }
-        // PRD-14: the archive chip takes the same `.top` overlay slot, and
-        // unlike a compose — which lasts seconds — it is up for the whole
-        // board. It only stands the ambient chip down when the two would
-        // actually share the top band, rather than for every archive session.
-        if model.archiveDay != nil, chromeEdge == .top { return false }
         // Centered boards split the free space between both bands.
         let bandHeight = model.prefs.boardAnchor == .center ? freeSpace / 2 : freeSpace
         // **`Hit.min`, and it was 100.** The threshold was measured against a
@@ -2685,21 +2340,6 @@ struct TouchGameScreen: View {
     private var composingChip: some View {
         if model.composing != nil, model.game != nil {
             GlassChip(Strings.string("status.composing"), systemImage: "sparkles")
-                .transition(.opacity)
-        } else if let day = model.archiveDay, model.game != nil, coachAdvice == nil {
-            // PRD-14. A past day is pixel-identical to today's board, so this
-            // is the only thing on screen telling the player which one they are
-            // on — and, by saying "Archive" rather than a bare date, that this
-            // one is not the daily their streak depends on.
-            //
-            // `coachAdvice == nil` for the same reason the timer chip carries
-            // it: the coach card parks in the band directly under this overlay,
-            // and driving the app caught the chip printed straight across the
-            // card's title. A persistent chip has to yield to a card the player
-            // just asked for.
-            GlassChip(Strings.string("game.chip.archive",
-                                     .text(ArchiveCalendar.shortLabel(forDayOrdinal: day))),
-                      systemImage: "calendar")
                 .transition(.opacity)
         }
     }
@@ -2805,10 +2445,7 @@ struct TouchGameScreen: View {
     private static let afterglowHold: TimeInterval = 2.4
 
     private var completionText: String {
-        if case .daily? = model.kind, model.displayedStreak > 0 {
-            return Strings.string("game.completion.streak", .int(model.displayedStreak))
-        }
-        return Strings.string("status.solved")
+        Strings.string("status.solved")
     }
 
     // MARK: Send this board (PRD-28 §7)
@@ -2877,14 +2514,11 @@ struct TouchGameScreen: View {
     /// read of a clock that has moved on since.
     private var shareFacts: SolveCardFacts? {
         guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
-        let isDaily: Bool
         let difficulty: Difficulty
         switch model.kind {
         case .daily?:
-            isDaily = true
-            difficulty = .steady   // the daily composes at steady
+            difficulty = .steady   // legacy entries composed at steady
         case .free(let d)?:
-            isDaily = false
             difficulty = d
         // A channel solve shares as the tier it was, which is honest as far as it
         // goes and no further: the card says "Steady" where it should say "Killer ·
@@ -2892,8 +2526,7 @@ struct TouchGameScreen: View {
         // single band caption and widening them is a share-card change rather than
         // a channel one. Recorded in DEVIATIONS; the alternative was shipping a
         // card that claims a classic solve.
-        case .channel(_, let tier, let day)?:
-            isDaily = day != nil
+        case .channel(_, let tier, _)?:
             difficulty = tier.wireDifficulty
         case nil:
             return nil
@@ -2901,11 +2534,6 @@ struct TouchGameScreen: View {
         return SolveCardFacts(
             game: game,
             difficulty: difficulty,
-            isDaily: isDaily,
-            // An archive board is a real solve and shares like one, but PRD-14
-            // is explicit that it never touched the streak — so it must not
-            // print one either, or the card claims credit the ledger refused.
-            streak: model.archiveDay == nil ? model.displayedStreak : 0,
             at: solvedAt
         )
     }
@@ -3892,8 +3520,9 @@ struct TouchGameScreen: View {
 
 /// The one optional ambient element (PRD-2): a dim, non-interactive chip
 /// centered in the free band. Deliberately inert — no transitions, taps pass
-/// through to whatever is behind; the minute tick is a plain text swap and
-/// the streak text only changes on solve, so nothing moves during play.
+/// through to whatever is behind; the minute tick is a plain text swap, so
+/// nothing moves during play. (The streak option left with the daily system,
+/// 2026-08-02 — the clock is the one occupant left.)
 private struct AmbientSlotView: View {
     let model: AppModel
 
@@ -3909,30 +3538,10 @@ private struct AmbientSlotView: View {
                         systemImage: "clock"
                     )
                 }
-            case .streak where model.focus.hidesStreak:
-                // The ambient slot is opt-in already; a Focus filter still
-                // outranks it, because the player asked the *system* and the
-                // system asked us (PRD-33).
-                EmptyView()
-            case .streak:
-                // Its own capsule (points ride along here), so it takes the
-                // symbol rule from `StreakChip` rather than the whole view.
-                GlassChip(streakText, systemImage: StreakChip.symbol(held: model.streakHeld))
             }
         }
         .opacity(0.5)
         .allowsHitTesting(false)
-    }
-
-    /// Mirrors the home header: each part appears once it's nonzero.
-    private var streakText: String {
-        var parts: [String] = []
-        if model.totalPoints > 0 { parts.append(Phrase.points(model.totalPoints)) }
-        if model.displayedStreak > 0 {
-            parts.append(BoardSpeech.streakChip(days: model.displayedStreak, held: model.streakHeld))
-        }
-        return parts.isEmpty ? Strings.string("shelf.ambient.empty")
-                             : parts.joined(separator: " · ")
     }
 }
 

@@ -20,9 +20,12 @@ final class SharedDailyBoardTests: XCTestCase {
         super.tearDown()
     }
 
+    private static let entryID = UUID(uuidString: "0BADF00D-0000-4000-8000-000000000001")!
+
     private func makeBoard(day: Int, revision: Int = 1) -> SharedDailyBoard {
         let puzzle = PuzzleGenerator.generate(seed: 7, difficulty: .gentle)
         return SharedDailyBoard(
+            entryID: Self.entryID,
             dayOrdinal: day,
             game: NineGame(puzzle: puzzle),
             revision: revision,
@@ -48,10 +51,17 @@ final class SharedDailyBoardTests: XCTestCase {
         XCTAssertEqual(adopted.entry(at: hole), 0)
     }
 
-    func testStaleDayGuard() {
-        let board = makeBoard(day: 9_200)
-        XCTAssertTrue(board.isCurrent(today: 9_200))
-        XCTAssertFalse(board.isCurrent(today: 9_201), "yesterday's board refuses post-midnight play")
+    /// A file written by a pre-removal build has no `entryID`; it must decode
+    /// (never discard a player's board bytes) and read back as unadoptable.
+    func testALegacyFileDecodesWithNoEntryID() throws {
+        var board = makeBoard(day: 9_200)
+        board.entryID = nil
+        let encoder = JSONEncoder()
+        // A legacy writer simply never wrote the key; encoding nil omits it.
+        let data = try encoder.encode(board)
+        let decoded = try JSONDecoder().decode(SharedDailyBoard.self, from: data)
+        XCTAssertNil(decoded.entryID)
+        XCTAssertEqual(decoded.game, board.game)
     }
 
     func testPendingSolveRoundTrip() throws {

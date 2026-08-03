@@ -1,21 +1,22 @@
-// SharedDailyBoard.swift — the second shared file (PRD-3 §4): today's daily
-// board, readable and writable from BOTH the app and the widget extension.
-// This file — not CouchStored — is the single source of truth for the daily:
-// the app writes on every daily persist (revision++), the widget's
-// PlaceDigitIntent does the same, and whoever reads adopts the higher
-// revision (last-writer-wins; both sides only ever append moves to the same
-// day's board, so a lost race costs a move, never corruption).
+// SharedBoard.swift — the app↔widget board file (PRD-3 §4, repointed
+// 2026-08-02). The app mirrors the most recent in-progress classic board here
+// on every persist (revision++), the widget's PlaceDigitIntent does the same,
+// and whoever reads adopts the higher revision (last-writer-wins; both sides
+// only ever append moves to the same board, so a lost race costs a move,
+// never corruption).
+//
+// The daily is gone; the join key back to the app's library is `entryID`
+// rather than a day ordinal, so the ingest cannot misfile a widget's moves.
 //
 // Unlike WidgetSnapshot this type carries the Engine's NineGame, so it only
-// compiles where the Engine does: the app target, the widget target (which
-// gains Sources/Engine in Phase 3b), and SwiftPM (NineShared depends on
-// NineEngine there).
+// compiles where the Engine does: the app target, the widget target and
+// SwiftPM (NineShared depends on NineEngine there).
 import Foundation
 #if canImport(NineEngine)
 import NineEngine
 #endif
 
-/// A daily solve completed inside the widget. The widget has no CouchStored,
+/// A solve completed inside the widget. The widget has no CouchStored,
 /// no Game Center and no history — it parks the fact here and the app
 /// ingests it (exactly once) on next activation.
 public struct PendingSolve: Codable, Equatable, Sendable {
@@ -28,27 +29,37 @@ public struct PendingSolve: Codable, Equatable, Sendable {
     }
 }
 
+/// The shared board. The type keeps its wire name (`SharedDailyBoard`) and
+/// its file name so an update over an old install reads the old file cleanly;
+/// a blob written by a pre-removal build carries no `entryID` and decodes
+/// with it nil, which every reader treats as "no board".
 public struct SharedDailyBoard: Codable, Equatable, Sendable {
-    /// Which daily this board belongs to. Anything ≠ today is stale: the
-    /// widget refuses to play it and renders "new puzzle" instead.
+    /// The library entry this board mirrors — the app's join key. Nil when
+    /// the file was written by an older build; such a board is never adopted.
+    public var entryID: UUID?
+    /// The day the board was last written on. Kept for wire compatibility
+    /// (older builds keyed their stale-day guard on it) and still what the
+    /// widget's ephemeral cell selection is keyed against.
     public var dayOrdinal: Int
     /// The Engine's full play state — entries, pencil, undo stack, timer —
     /// Codable end-to-end, so widget moves flow into the app's autosave
     /// with the undo stack intact.
     public var game: NineGame
-    /// Monotonic per day; the higher revision wins on read.
+    /// Monotonic; the higher revision wins on read.
     public var revision: Int
     public var updatedAt: Date
     /// Set by the widget on solve; cleared by the app after ingesting.
     public var pendingSolve: PendingSolve?
 
     public init(
+        entryID: UUID?,
         dayOrdinal: Int,
         game: NineGame,
         revision: Int,
         updatedAt: Date,
         pendingSolve: PendingSolve? = nil
     ) {
+        self.entryID = entryID
         self.dayOrdinal = dayOrdinal
         self.game = game
         self.revision = revision
@@ -56,8 +67,21 @@ public struct SharedDailyBoard: Codable, Equatable, Sendable {
         self.pendingSolve = pendingSolve
     }
 
-    /// The stale-day guard (PRD-3 §4).
-    public func isCurrent(today: Int) -> Bool { dayOrdinal == today }
+    /// Tolerant on `entryID` alone: a pre-removal file has no such key and
+    /// must still decode (as an unadoptable board) rather than throw.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        entryID = ((try? c.decodeIfPresent(UUID.self, forKey: .entryID)) ?? nil) ?? nil
+        dayOrdinal = try c.decode(Int.self, forKey: .dayOrdinal)
+        game = try c.decode(NineGame.self, forKey: .game)
+        revision = try c.decode(Int.self, forKey: .revision)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        pendingSolve = try c.decodeIfPresent(PendingSolve.self, forKey: .pendingSolve)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case entryID, dayOrdinal, game, revision, updatedAt, pendingSolve
+    }
 }
 
 /// Reads/writes the board in the app group, same conventions as
@@ -94,7 +118,7 @@ public enum SharedDailyBoardStore {
     static let selectionDayKey = "nine.widget.selection.day"
 
     /// The selected cell for `today`, or nil. Selection is keyed to the day
-    /// so a leftover selection can't point into tomorrow's board.
+    /// so a leftover selection can't point into a board adopted later.
     public static func selectedCell(today: Int, defaults: UserDefaults? = groupDefaults) -> Int? {
         guard let defaults,
               defaults.object(forKey: selectionCellKey) != nil,

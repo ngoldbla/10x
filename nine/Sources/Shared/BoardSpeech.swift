@@ -647,16 +647,6 @@ public enum BoardSpeech {
 
     private static func isValidBox(_ box: Int) -> Bool { (0..<9).contains(box) }
 
-    /// The streak chip's spoken label (PRD-13 §3).
-    ///
-    /// "Held" rather than "shielded", and no count anywhere: the shield is a
-    /// glyph, not a currency, and speech is the one surface where a mechanic
-    /// the covenant says does not exist could announce itself by accident.
-    /// Without this, VoiceOver reads the SF Symbol's own name — "shield, left
-    /// half filled, 12 day streak".
-    public static func streakChip(days: Int, held: Bool) -> String {
-        held ? Phrase.streakHeld(days) : Phrase.streak(days)
-    }
 }
 
 // MARK: - Units
@@ -708,12 +698,6 @@ private enum Phrase {
     }
 
     // Streak chip (PRD-13). Values, not sentences: no trailing period.
-    static func streak(_ days: Int) -> String {
-        Phrasebook.current.string("board.streak.plain", .int(days))
-    }
-    static func streakHeld(_ days: Int) -> String {
-        Phrasebook.current.string("board.streak.held", .int(days))
-    }
 
     // Group scan. A value, so no trailing period.
     static var boxFilled: String { Phrasebook.current.string("board.box.filled") }

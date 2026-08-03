@@ -3,6 +3,10 @@
 // and asks WidgetKit to reload — but only when a coarse digest changed,
 // because `place()` publishes on every move and the system reload budget
 // is finite. iOS only: tvOS has no widgets and no app group.
+//
+// Repointed 2026-08-02 with the daily's removal: the shared board file now
+// mirrors the most recent in-progress classic board (the same board the
+// Continue card resumes), keyed by its library entry id.
 #if os(iOS)
 import Foundation
 import OSLog
@@ -11,12 +15,12 @@ import WidgetKit
 @MainActor
 enum WidgetBridge {
     /// Digest of the last snapshot that triggered a reload; nil forces the
-    /// first publish of the process to reload (cheap, covers midnight
-    /// rollovers that happened while the app was dead).
+    /// first publish of the process to reload (cheap, covers changes that
+    /// happened while the app was dead).
     private static var lastReloadDigest: String?
     /// Highest SharedDailyBoard revision the app has written or ingested. A
     /// file revision above this means un-ingested widget moves — the app must
-    /// never overwrite those (PRD-3 §4). Now persisted in the app group: an
+    /// never overwrite those (PRD-3 §4). Persisted in the app group: an
     /// in-memory counter reset to 0 every process, so a cold launch re-ingested
     /// the same widget moves over a fresh free-play game (the launch clobber).
     static var knownBoardRevision: Int {
@@ -24,16 +28,9 @@ enum WidgetBridge {
         set { SharedDailyBoardStore.setKnownRevision(newValue) }
     }
 
-    /// - Parameter foreground: whether the app is on screen, forwarded to
-    ///   `PresenceBridge` (PRD-30). Defaults to true because every publish site
-    ///   in `AppModel` is a move, a solve or a navigation — all of which happen
-    ///   with the app in front of someone. The one caller that is not is the
-    ///   `scenePhase` handler in `NineApp`, which says so explicitly, and that
-    ///   transition is the entire trigger for a Live Activity.
-    static func publish(from model: AppModel, foreground: Bool = true) {
+    static func publish(from model: AppModel) {
         let now = Date()
-        publishDailyBoard(from: model, at: now)
-        PresenceBridge.sync(from: model, foreground: foreground, at: now)
+        publishSharedBoard(from: model, at: now)
         let snapshot = snapshot(from: model, at: now)
         do {
             try WidgetSnapshotStore.save(snapshot)
@@ -41,58 +38,56 @@ enum WidgetBridge {
             Logger(subsystem: "com.couchsuite.nine", category: "widget-bridge")
                 .error("snapshot save failed: \(error, privacy: .public)")
         }
-        // Fold in the exact daily revision: a within-decile daily move now
-        // reloads the playable BoardWidget (foreground reloads are budget-exempt),
-        // where the decile bucket alone used to lag it.
-        let digest = snapshot.reloadDigest(
-            today: WidgetSnapshotStore.dayOrdinal(for: now),
-            boardRevision: knownBoardRevision
-        )
+        let digest = snapshot.reloadDigest(boardRevision: knownBoardRevision)
         guard digest != lastReloadDigest else { return }
         lastReloadDigest = digest
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Which board "the daily" means right now: the on-screen daily when there is
-    /// one, otherwise the library's in-progress daily. nil when there is no daily
-    /// for today at all.
-    ///
-    /// Extracted from `publishDailyBoard` when `PresenceBridge` (PRD-30) became a
-    /// second bookmark of the same board. Two surfaces pointing at the daily have
-    /// to agree about which board that is, and the cheapest guarantee is that
-    /// there is one answer rather than two implementations of it.
-    static func currentDaily(from model: AppModel, today: Int) -> (game: NineGame, day: Int)? {
-        var current: (game: NineGame, day: Int)?
-        if model.screen == .game, case .daily(let day)? = model.kind, let game = model.game {
-            // On-screen daily (covers the just-solved board). Off the game
+    /// Which board the widget shows: the on-screen classic board when there is
+    /// one, otherwise the library's most recent in-progress classic partial.
+    /// nil when there is nothing in progress (the widget offers "tap to
+    /// start"). Channel boards are structurally excluded — the widget cannot
+    /// draw cages or tubes.
+    static func currentBoard(from model: AppModel) -> (game: NineGame, id: UUID)? {
+        if model.screen == .game, let id = model.currentEntryID,
+           let entry = model.library.entry(id: id), isClassic(entry.kind),
+           let game = model.game {
+            // On-screen board (covers the just-solved board). Off the game
             // screen, `kind`/`game` linger only for the crossfade.
-            current = (game, day)
-        } else if let daily = model.library.inProgressDaily(day: today) {
-            // Even while a free-play board is on screen, keep the widget current
-            // with the library's in-progress daily.
-            current = (daily.game, today)
+            return (game, id)
         }
-        guard let current, current.day == today else { return nil }
-        return current
+        if let entry = model.library.mostRecentInProgress, isClassic(entry.kind) {
+            return (entry.game, entry.id)
+        }
+        return nil
     }
 
-    /// Mirror the current daily (on-screen or autosaved) into the shared
-    /// board file, revision++. No daily today → leave the file alone (the
-    /// widget's stale-day guard handles yesterday's leftovers).
-    private static func publishDailyBoard(from model: AppModel, at now: Date) {
-        let today = WidgetSnapshotStore.dayOrdinal(for: now)
-        guard let (game, day) = currentDaily(from: model, today: today) else { return }
+    private static func isClassic(_ kind: GameKind) -> Bool {
+        switch kind {
+        case .daily, .free: return true
+        case .channel: return false
+        }
+    }
+
+    /// Mirror the current board into the shared file, revision++. No board in
+    /// progress → clear the file so the widget offers "tap to start".
+    private static func publishSharedBoard(from model: AppModel, at now: Date) {
+        guard let (game, id) = currentBoard(from: model) else {
+            if SharedDailyBoardStore.load() != nil { SharedDailyBoardStore.delete() }
+            return
+        }
         let existing = SharedDailyBoardStore.load()
-        if let existing, existing.isCurrent(today: today) {
+        if let existing, existing.entryID == id {
             if existing.revision > knownBoardRevision {
                 // The widget wrote moves the app hasn't ingested yet; writing
-                // now would drop them. ingestSharedDailyBoard runs first on
-                // every activation, so this is a rare mid-flight race.
+                // now would drop them. ingestSharedBoard runs first on every
+                // activation, so this is a rare mid-flight race.
                 return
             }
             if existing.game == game, existing.pendingSolve == nil {
-                // Board content unchanged (e.g. a free-play move just published):
-                // don't bump the revision, so free-play moves cost no reload.
+                // Board content unchanged: don't bump the revision, so an
+                // unrelated publish costs no reload.
                 return
             }
         }
@@ -100,7 +95,9 @@ enum WidgetBridge {
         knownBoardRevision = revision
         do {
             try SharedDailyBoardStore.save(SharedDailyBoard(
-                dayOrdinal: day, game: game, revision: revision, updatedAt: now
+                entryID: id,
+                dayOrdinal: WidgetSnapshotStore.dayOrdinal(for: now),
+                game: game, revision: revision, updatedAt: now
             ))
         } catch {
             Logger(subsystem: "com.couchsuite.nine", category: "widget-bridge")
@@ -108,51 +105,29 @@ enum WidgetBridge {
         }
     }
 
-    /// The app dropped today's board (discard control): clear the shared
+    /// The app dropped the shared board (discard/delete control): clear the
     /// file so the widget offers "tap to start" instead of resurrecting it.
-    static func clearDailyBoard(today: Int) {
-        if let existing = SharedDailyBoardStore.load(), existing.isCurrent(today: today) {
-            SharedDailyBoardStore.delete()
-        }
+    static func clearSharedBoard() {
+        SharedDailyBoardStore.delete()
         knownBoardRevision = 0
     }
 
     /// Raw facts only — display state is re-derived per timeline entry.
     static func snapshot(from model: AppModel, at now: Date) -> WidgetSnapshot {
-        let today = WidgetSnapshotStore.dayOrdinal(for: now)
-        var dailyDay: Int?
         var fill: Double?
-        var solvedSeconds: TimeInterval?
-        if let daily = model.library.inProgressDaily(day: today) {
-            // The one in-progress daily entry (persistProgress upserts it on
-            // every accepted move).
-            dailyDay = today
-            fill = daily.game.fillFraction
-        } else if let last = model.streak.lastCompletedDay {
-            dailyDay = last
-            fill = 1
-            solvedSeconds = model.history.records.first {
-                $0.isDaily && WidgetSnapshotStore.dayOrdinal(for: $0.date) == last
-            }?.seconds
+        if let (game, _) = currentBoard(from: model), !game.isSolved {
+            fill = game.fillFraction
         }
         return WidgetSnapshot(
-            dailyDayOrdinal: dailyDay,
-            dailyFillFraction: fill,
-            dailySolvedSeconds: solvedSeconds,
-            streakCurrent: model.streak.current,
-            streakBest: model.streak.best,
-            lastCompletedDay: model.streak.lastCompletedDay,
-            lastGraceDay: model.streak.lastGraceDay,
+            boardFillFraction: fill,
+            boardSolvedSeconds: nil,
             totalPoints: model.totalPoints,
             generatedAt: now,
-            // The look (PRD-30) and the quiet (PRD-33). Both are facts about how
-            // to draw rather than about the board, and both are in the reload
-            // digest, so changing a theme or turning on a Focus refreshes the
-            // Home Screen instead of waiting for an unrelated move.
+            // The look (PRD-30): a fact about how to draw rather than about
+            // the board, and in the reload digest, so changing a theme
+            // refreshes the Home Screen instead of waiting for a move.
             themeRaw: model.prefs.theme.rawValue,
-            accentRaw: model.prefs.accent.rawValue,
-            focusHidesDaily: model.focus.hidesDaily,
-            focusHidesStreak: model.focus.hidesStreak
+            accentRaw: model.prefs.accent.rawValue
         )
     }
 }

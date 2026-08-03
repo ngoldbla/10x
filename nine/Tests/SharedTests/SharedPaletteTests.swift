@@ -313,7 +313,6 @@ final class SharedPaletteTests: XCTestCase {
     func testAnOlderSnapshotResolvesToTheDefaultLook() {
         let old = WidgetSnapshot()
         XCTAssertEqual(old.appearance, SharedAppearance())
-        XCTAssertEqual(old.focus, .none)
         let (ground, accent) = SharedPalette.resolve(old.appearance, systemIsLight: false)
         XCTAssertEqual(ground.background, SharedPalette.themes["dark"]?.background)
         XCTAssertEqual(accent, SharedPalette.accentsOnDark["glacier"])

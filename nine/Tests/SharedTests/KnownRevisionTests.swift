@@ -32,31 +32,24 @@ final class KnownRevisionTests: XCTestCase {
     }
 
     func testDigestChangesOnRevisionBumpStableOtherwise() {
-        let today = 19_000
         let snapshot = WidgetSnapshot(
-            dailyDayOrdinal: today,
-            dailyFillFraction: 0.42,
-            streakCurrent: 3,
-            lastCompletedDay: today - 1,
+            boardFillFraction: 0.42,
             totalPoints: 1234
         )
-        let r1 = snapshot.reloadDigest(today: today, boardRevision: 1)
-        let r1again = snapshot.reloadDigest(today: today, boardRevision: 1)
-        let r2 = snapshot.reloadDigest(today: today, boardRevision: 2)
+        let r1 = snapshot.reloadDigest(boardRevision: 1)
+        let r1again = snapshot.reloadDigest(boardRevision: 1)
+        let r2 = snapshot.reloadDigest(boardRevision: 2)
         XCTAssertEqual(r1, r1again, "same revision + facts → stable digest (no wasted reload)")
-        XCTAssertNotEqual(r1, r2, "a daily move (revision bump) must change the digest")
+        XCTAssertNotEqual(r1, r2, "a board move (revision bump) must change the digest")
         // A within-decile move used to be invisible to the glanceable digest;
         // now the revision carries it even though the decile is unchanged.
         let sameDecile = WidgetSnapshot(
-            dailyDayOrdinal: today,
-            dailyFillFraction: 0.48, // still decile 4
-            streakCurrent: 3,
-            lastCompletedDay: today - 1,
+            boardFillFraction: 0.48, // still decile 4
             totalPoints: 1234
         )
         XCTAssertNotEqual(
-            snapshot.reloadDigest(today: today, boardRevision: 1),
-            sameDecile.reloadDigest(today: today, boardRevision: 2)
+            snapshot.reloadDigest(boardRevision: 1),
+            sameDecile.reloadDigest(boardRevision: 2)
         )
     }
 }

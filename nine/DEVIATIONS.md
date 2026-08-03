@@ -4800,3 +4800,89 @@ failing, and restored.
 - **The nine languages are machine-drafted and no human has read them** — the
   headline deferral standing since PRD-20. 81 new drafts, every one
   `needs_review`.
+
+## 2026-08-02 — The daily and the streak are removed; three difficulties per mode
+
+**Product owner decision (2026-08-02): "users just want to play boards as much
+as they feel like it; the counting one board per day system doesn't benefit
+anyone."** This entry records the removal of the entire daily/streak system and
+the narrowing of the classic difficulty offer to three bands.
+
+What was removed, on every surface it touched:
+
+- **The Today card and the streak chip** on the tvOS shelf, the iOS shelf and
+  the Mac home; the Continue card is the hero when a board is in progress.
+- **The channel Today cards** on the Thermo and Killer pages, and their
+  per-channel streaks. Tier cards, the primer and the records stay.
+- **The daily archive** (`ArchiveSheet`, its Mac window, `ArchiveLedger`,
+  the calendar grid of `ArchiveCalendar` — the ordinal arithmetic and the
+  weekday-initials rail survive because the boards tracker and the History
+  heat figure still lean on them).
+- **The weekly table** (PRD-29): `DailyTable`, `TableView`, the Game Center
+  recurring board, `nine.table`. The App Store Connect records it was waiting
+  on were never created, so nothing external is orphaned.
+- **The streak Game Center surfaces**: the streak leaderboards (classic and
+  per-channel) and the week/month streak achievements stop receiving
+  submissions; their ASC records, where they exist, simply go quiet — GameKit
+  submission has always been fire-and-forget.
+- **The daily/streak widgets** (`NineDailyWidget`, `NineStreakWidget`) and the
+  daily-presence Live Activity (PRD-30, `DailyPresenceActivity`,
+  `PresenceBridge`, `QuietPresence`). The playable board widget stays and is
+  repointed at the most recent in-progress classic board, keyed by library
+  entry id (`SharedDailyBoard.entryID`) rather than by day ordinal.
+- **The Focus filter** (PRD-33, `QuietShelfFilter`/`QuietFocus`): both of its
+  switches hid daily/streak surfaces that no longer exist.
+- **The phone→watch daily link** (PRD-6's `WatchDailyHandoff` /
+  `WatchSolveReport` / `WatchLinkWire`, `PhoneWatchLink`, `WatchLinkSession`).
+  The watch is standalone free play at `WatchComposePolicy.ceiling`; a watch
+  solve is no longer reported anywhere.
+- **The daily/streak intents** ("start today's board", "how's my streak") and
+  their catalog rows; Continue and Start-a-board remain.
+- **The share card's streak clause and daily line**; the completion chips say
+  "Solved" without a day count.
+
+What deliberately stays:
+
+- **Every persisted blob and enum case.** `StreakState`, `ArchiveLedger`'s
+  decode, `GameKind.daily`, `LibraryEntry` kinds, `nine.streak` /
+  `nine.archive` / `nine.graceSeen` / `nine.table` on disk and KVS — nothing
+  reads them for UI any more, and nothing deletes them, so a downgrade or a
+  future change loses no data. `.daily` library entries still decode, open and
+  play as ordinary boards (titled by date in the tracker).
+- **`DailySeed` in the engine.** The golden corpus and the parlor's
+  seed-is-the-message design still lean on deterministic `(seed, difficulty)`;
+  the day→seed mapping stays frozen even though nothing routes through "the
+  day's board".
+- **The engine's six `Difficulty` cases.** Raw values are frozen persistence
+  identity; boards saved at nocturne/tempest/abyss still decode and open, and
+  history rows for them still render. What changed is the *offer*:
+  `Difficulty.rowBands` ([.gentle, .steady, .sharp]) is now the only list any
+  choice surface iterates — shelves, the boards sheet, the tvOS prefs
+  new-game row, the Mac menu, the tutorial guide and `NineBand` (Shortcuts).
+  Deep-end-only UI helpers (`isDeepEnd`, `deepBands`, `glyph`,
+  `composeCaption`, the deep-band blurbs/explainers) were deleted with their
+  strings. An old shortcut that saved a deep band's raw value fails to decode
+  and Shortcuts asks again — the honest outcome for a band no surface offers.
+- **Thermo and killer keep exactly their three tiers** (`VariantTier` has
+  always had three cases; verified, nothing offers more).
+
+Consequences recorded rather than hidden:
+
+- **Scoring**: `SolveScore.points` still takes `isDaily:`/`streak:` (frozen
+  engine identity, golden-corpus adjacent); every caller now passes
+  `isDaily: false, streak: 0`, so the daily/streak bonuses are simply never
+  earned. Historical records keep the points they were scored with.
+- **The History sheet** lost its weekly-table section and its best-streak
+  stat; a best-time stat (`history.stat.bestTime`, nine machine drafts,
+  `needs_review`) takes the third column. The heat figure keeps its own local
+  `daysInWeek = 7` in place of `DailyTable`'s.
+- **68 catalog keys** (daily, streak, archive, table, presence, focus, deep
+  band copy) were removed with their translations by `--build-catalog`;
+  pinned counts in `CatalogTests` moved 22→14 plurals and 55→52 multi-arg
+  keys, and `IntentCatalogTests` now pins `NineBand` to the offered three.
+- **Tests deleted with their features** (ArchiveLedger, DailyTable, TableSeal,
+  QuietPresence + its seal, WatchLink, the streak speech and streak-mirror
+  widget tests); `DuelSealTests` keeps its anchored guards minus the two
+  ledgers that no longer exist. `SharedDailyBoardTests` became
+  `SharedBoardTests` and pins the new `entryID` join key plus legacy-file
+  tolerance.

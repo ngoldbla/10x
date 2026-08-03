@@ -4,14 +4,14 @@
 # Regenerate: nine/scripts/ax-snapshot.py --record
 
 Group "Digit rose"
-    Button "Place 1"  (167,167 47x47)
-    Button "Place 2"  (218,167 47x47)
-    Button "Place 3"  (270,167 47x47)
-    Button "Place 4"  (167,218 47x47)
-    Button "Place 5"  (218,218 47x47)
-    Button "Place 6"  (270,218 47x47)
-    Button "Place 7"  (167,269 47x47)
-    Button "Place 8"  (218,269 47x47)
-    Button "Place 9"  (270,269 47x47)
+    Button "Place 1"  (167,219 47x47)
+    Button "Place 2"  (218,219 47x47)
+    Button "Place 3"  (270,219 47x47)
+    Button "Place 4"  (167,270 47x47)
+    Button "Place 5"  (218,270 47x47)
+    Button "Place 6"  (270,270 47x47)
+    Button "Place 7"  (167,321 47x47)
+    Button "Place 8"  (218,321 47x47)
+    Button "Place 9"  (270,321 47x47)
 
 # 9 elements in 1 container

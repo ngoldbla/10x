@@ -1,8 +1,8 @@
 // WatchApp.swift — Nine on the wrist (PRD-6), entry point.
 //
-// Two screens and one link. Everything the watch persists is a top-level
-// `CouchStored` key; everything it decides about the link is in
-// `Sources/Shared/WatchLink.swift` where it is tested without a device.
+// Two screens, no link: the phone↔watch wire went with the daily system
+// (2026-08-02). Everything the watch persists is a top-level `CouchStored`
+// key.
 #if os(watchOS)
 import SwiftUI
 import CouchKit
@@ -19,25 +19,11 @@ struct NineWatchApp: App {
     private let phrasebook: Void = Strings.install()
 
     @State private var model = WatchModel()
-    @State private var link: WatchLinkSession?
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             WatchRootView()
                 .environment(model)
-                .task {
-                    let session = link ?? WatchLinkSession(model: model)
-                    link = session
-                    session.activate()
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    // A solve made out of range is parked in the ledger; every
-                    // return to the foreground is another chance to hand it
-                    // over. Re-sending is free — the phone's ingest is
-                    // idempotent per day.
-                    if phase == .active { link?.flushPendingSolve() }
-                }
         }
     }
 }
