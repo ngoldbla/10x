@@ -104,7 +104,6 @@ private struct WelcomeCard: View {
     /// belongs to the release that ships the thing.
     private var ledger: [(symbol: String, text: String)] {
         [
-            ("sun.max", Phrase.ledgerDaily),
             ("checkmark.seal", Phrase.ledgerProof),
             ("chart.line.uptrend.xyaxis", Phrase.ledgerStats),
             ("paintpalette", Phrase.ledgerThemes(
@@ -442,7 +441,6 @@ private enum Phrase {
     static let welcomeTitle = Strings.string("firstrun.welcome.title")
     static let welcomeTagline = Strings.string("firstrun.welcome.tagline")
 
-    static let ledgerDaily = Strings.string("firstrun.ledger.daily")
     static let ledgerProof = Strings.string("firstrun.ledger.proof")
     static let ledgerStats = Strings.string("firstrun.ledger.stats")
     static func ledgerThemes(themes: Int, accents: Int) -> String {

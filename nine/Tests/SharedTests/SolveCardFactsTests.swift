@@ -22,12 +22,12 @@ final class SolveCardFactsTests: XCTestCase {
     }
 
     private func facts(
-        difficulty: Difficulty = .steady, isDaily: Bool = false, streak: Int = 0,
+        difficulty: Difficulty = .steady,
         seconds: TimeInterval = 220
     ) -> SolveCardFacts {
         SolveCardFacts(
             game: solvedGame(seconds: seconds),
-            difficulty: difficulty, isDaily: isDaily, streak: streak,
+            difficulty: difficulty,
             at: Date(timeIntervalSinceReferenceDate: seconds)
         )
     }
@@ -47,7 +47,7 @@ final class SolveCardFactsTests: XCTestCase {
     func testTimeLineComesFromTheGameTimerNotTheWallClock() {
         let game = solvedGame(seconds: 220)
         let late = SolveCardFacts(
-            game: game, difficulty: .steady, isDaily: false, streak: 0,
+            game: game, difficulty: .steady,
             at: Date(timeIntervalSinceReferenceDate: 99_999)
         )
         XCTAssertEqual(late.timeLine, "Solved in 3:40")
@@ -55,24 +55,11 @@ final class SolveCardFactsTests: XCTestCase {
 
     // MARK: - The credit line
 
-    func testCreditLineCarriesTheStreakOnlyWhenThereIsOne() {
-        XCTAssertEqual(
-            facts(difficulty: .steady, isDaily: true, streak: 12).creditLine,
-            "Steady · 12 day streak"
-        )
-        XCTAssertEqual(
-            facts(difficulty: .steady, isDaily: true, streak: 0).creditLine,
-            "Steady", "PRD-12 §2: the streak line appears only above zero"
-        )
-    }
-
-    /// PRD-12 §2 scopes the streak line to dailies. A free-play board solved in
-    /// the middle of a 30-day run has not advanced it, and the card must not
-    /// imply it did.
-    func testFreePlayNeverBorrowsTheStreak() {
-        let free = facts(difficulty: .gentle, isDaily: false, streak: 30)
-        XCTAssertEqual(free.creditLine, "Gentle")
-        XCTAssertNil(free.dailyLine)
+    /// The credit line is the band's name — the streak clause left with the
+    /// daily system (2026-08-02).
+    func testCreditLineIsTheBandsName() {
+        XCTAssertEqual(facts(difficulty: .steady).creditLine, "Steady")
+        XCTAssertEqual(facts(difficulty: .gentle).creditLine, "Gentle")
     }
 
     /// Every band names itself, and names itself in *words*.
@@ -98,12 +85,11 @@ final class SolveCardFactsTests: XCTestCase {
         }
     }
 
-    // MARK: - The daily line and the hook
+    // MARK: - The hook
 
-    func testDailyGetsItsSecondLineAndNoURLAnywhere() {
-        let daily = facts(isDaily: true, streak: 1)
-        XCTAssertEqual(daily.dailyLine, "Nine · daily puzzle")
-        for text in [daily.shareTitle, daily.creditLine, daily.dailyLine ?? ""] {
+    func testNoURLAnywhere() {
+        let card = facts()
+        for text in [card.shareTitle, card.creditLine, card.timeLine] {
             XCTAssertFalse(text.contains("http"), "no URL spam (PRD-12 §2): \(text)")
             XCTAssertFalse(text.lowercased().contains("app store"), text)
             XCTAssertFalse(text.lowercased().contains("download"), text)
@@ -119,7 +105,7 @@ final class SolveCardFactsTests: XCTestCase {
     func testGridCarriesEveryDigitAndKnowsTheGivens() {
         let game = solvedGame()
         let card = SolveCardFacts(
-            game: game, difficulty: .steady, isDaily: false, streak: 0,
+            game: game, difficulty: .steady,
             at: Date(timeIntervalSinceReferenceDate: 220)
         )
         XCTAssertEqual(card.digits.count, 81)
@@ -140,7 +126,7 @@ final class SolveCardFactsTests: XCTestCase {
     func testGridMatchesTheSolvedBoardCellForCell() {
         let game = solvedGame()
         let card = SolveCardFacts(
-            game: game, difficulty: .steady, isDaily: false, streak: 0,
+            game: game, difficulty: .steady,
             at: Date(timeIntervalSinceReferenceDate: 220)
         )
         for cell in 0..<81 {

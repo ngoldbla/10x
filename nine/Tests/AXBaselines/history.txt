@@ -12,12 +12,11 @@ Group "dismiss popup"
   StaticText "LAST 12 WEEKS"  (29,441 101x14)
   StaticText "0"  (77,698 14x25)
   StaticText "0"  (194,698 14x25)
-  StaticText "0"  (311,698 14x25)
+  StaticText "0:00"  (294,698 48x25)
   StaticText "points"  (68,728 32x13)
   StaticText "solved"  (184,728 33x13)
-  StaticText "best streak"  (290,728 56x13)
+  StaticText "best time"  (295,728 47x13)
 [Bottom]
   Button "Game Center, Sign in via Settings to compete"  (29,777 344x71)
-  StaticText "THE TABLE"  (29,865 70x14)
 
-# 13 elements in 3 containers
+# 12 elements in 3 containers

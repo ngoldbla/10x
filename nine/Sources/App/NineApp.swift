@@ -109,19 +109,6 @@ struct NineApp: App {
         }
         .defaultSize(width: 440, height: 660)
 
-        // ⌥⌘A — the daily archive (PRD-33). **A window, not a sheet**, which is
-        // the sentence PRD-26 and PRD-31 both deferred to this PRD: "the Mac's
-        // answer to a second pane is a window". A calendar is the case that proves
-        // it — you consult it *while* looking at a board, and a sheet would cover
-        // the thing you are deciding about.
-        //
-        // `ArchiveSheetContent` needed no change to appear here; it was simply
-        // fenced `#if os(iOS)` and did not compile for the Mac at all.
-        Window(Strings.string("archive.title"), id: "archive") {
-            MacArchiveWindow(model: model)
-        }
-        .defaultSize(width: 420, height: 520)
-
         // ⇧⌘E — the Technique School (PRD-25). It has compiled for macOS since it
         // shipped and nothing has ever presented it.
         Window(Strings.string("school.title"), id: "school") {
@@ -234,17 +221,21 @@ struct RootView: View {
         #endif
         // `nine://` is registered on the **shared** Info.plist (project.yml), so
         // macOS has advertised the scheme since PRD-3 and, until PRD-33, silently
-        // dropped every open of it — the handler was inside `#if os(iOS)`. That
-        // also blocked App Shortcuts' `OpenIntent`-shaped routing on the Mac. The
-        // fence is gone; the body is unchanged.
+        // dropped every open of it — the handler was inside `#if os(iOS)`.
         //
-        // Widget taps land on today's daily. openToday() is already safe
-        // mid-composition (compose() guards on `composing`).
+        // Widget taps land on the board in progress, or start a fresh Steady
+        // board when there is none. `startFree` is safe mid-composition
+        // (`compose()` guards on `composing`); "daily" is accepted as a legacy
+        // target so a stale widget's deep link still opens something sensible.
         .onOpenURL { url in
             guard url.scheme == "nine" else { return }
             let target = url.host() ?? url.pathComponents.dropFirst().first
-            if target == "daily" {
-                model.openToday()
+            if target == "board" || target == "daily" {
+                if let entry = model.library.mostRecentInProgress {
+                    model.resumeEntry(id: entry.id)
+                } else {
+                    model.startFree(.steady)
+                }
             }
         }
         #if os(iOS)
@@ -288,23 +279,16 @@ struct RootView: View {
             switch phase {
             case .active:
                 model.releaseClock(.scene)
-                model.ingestSharedDailyBoard()
-                // The watch coming back into range is not an event the phone
-                // can hear, so today's daily is re-offered on every activation.
-                model.publishDailyToWatch()
+                model.ingestSharedBoard()
                 model.syncOnForeground()
             case .inactive, .background:
                 model.holdClock(.scene)
-                // `foreground: false` is the "and leave" half of PRD-30's
-                // start-and-leave: this is the only publish site in the app that
-                // is not a move, a solve or a navigation, and it is the one
-                // transition that may start a Live Activity.
-                //
-                // `.background` only, matching the existing publish: `.inactive`
+                // Belt-and-braces publish so the Home Screen is fresh the
+                // moment the app leaves it. `.background` only: `.inactive`
                 // is the app switcher and an incoming call, and a phone that
                 // returns from either never left.
                 if phase == .background {
-                    WidgetBridge.publish(from: model, foreground: false)
+                    WidgetBridge.publish(from: model)
                 }
             default:
                 break

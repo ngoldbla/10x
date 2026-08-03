@@ -423,9 +423,11 @@ final class CatalogTests: XCTestCase {
         // string naming two counts cannot carry a plural at all, since
         // `xcstringstool` infers which argument the count is and can only do
         // that when the string names exactly one.
-        XCTAssertEqual(pluralised, 22,
+        // 22 → 14 on 2026-08-02: the eight streak/daily plurals left with the
+        // daily system.
+        XCTAssertEqual(pluralised, 14,
                        "English carries a different number of whole-string plurals than "
-                       + "the 22 this catalog was built with — if that is deliberate, "
+                       + "the 14 this catalog was built with — if that is deliberate, "
                        + "move the number; if it is not, a plural has been flattened at "
                        + "the source and every locale followed it")
         XCTAssertEqual(substituted, 3,
@@ -850,14 +852,16 @@ final class CatalogTests: XCTestCase {
         // comet captions, which take a formatted time and nothing else.
         //
         // 53 → 55 for PRD-29, and it is the two halves of one utterance:
+        // 55 → 52 on 2026-08-02: three daily/table keys left with the daily
+        // system.
         // `table.seat.label` (a display name, a day count and a formatted time —
         // the PRD's only three-argument key) and `table.seat.mine`, which is the
         // same sentence with the name replaced by a word meaning "you" and so
         // carries two. The seven others the PRD added take no argument at all:
         // a heading, an invitation, two verbs, two notes and one pronoun.
-        XCTAssertEqual(keysCarryingTwoOrMore, 55, """
+        XCTAssertEqual(keysCarryingTwoOrMore, 52, """
             \(keysCarryingTwoOrMore) keys carry two or more positional arguments, \
-            not the 55 this test was calibrated against. That is fine and the \
+            not the 52 this test was calibrated against. That is fine and the \
             number should move with the catalog — update it deliberately, in a \
             diff, having checked that `renderings` still reads all three shapes. \
             It is pinned because it dropping to 0 is what a silently-broken \

@@ -15,15 +15,17 @@ Group "dismiss popup"
   CheckBox "Resume on launch" = "1" [selected]  (29,555 344x50)
   Heading "FEEL"  (29,628 32x15)
   CheckBox "Haptics" = "1" [selected]  (29,649 344x50)
-  CheckBox "Lock Screen board" = "1" [selected]  (29,699 344x50)
+  Heading "APPEARANCE"  (29,722 90x15)
 [Bottom]
-  Heading "APPEARANCE"  (29,772 90x15)
-  StaticText "Theme, Auto"  (44,805 313x27)
-  Button "Auto"  (44,843 42x42)
-  Button "Void"  (96,843 42x42)
-  Button "Paper"  (148,843 42x42)
-  Button "Camel"  (200,843 42x42)
-  Button "Blueprint"  (252,843 42x42)
-  Button "Forest"  (304,843 42x42)
+  StaticText "Theme, Auto"  (44,754 313x27)
+  Button "Auto"  (44,793 42x42)
+  Button "Void"  (96,793 42x42)
+  Button "Paper"  (148,793 42x42)
+  Button "Camel"  (200,793 42x42)
+  Button "Blueprint"  (252,793 42x42)
+  Button "Forest"  (304,793 42x42)
+  Button "Ember"  (44,845 42x42)
+  Button "Tide"  (96,845 42x42)
+  Button "Mono"  (148,845 42x42)
 
-# 19 elements in 3 containers
+# 21 elements in 3 containers

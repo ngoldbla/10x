@@ -126,13 +126,8 @@ struct BoardsSheetContent: View {
             // the row sat at mixed heights. Iterating the band helpers instead
             // of `allCases` also puts this row back behind `isDeepEnd`'s
             // exhaustive switch, which exists to stop exactly that.
-            VStack(spacing: 10 * s) {
-                HStack(spacing: 10 * s) {
-                    ForEach(Difficulty.rowBands, id: \.self) { freshPill($0) }
-                }
-                HStack(spacing: 10 * s) {
-                    ForEach(Difficulty.deepBands, id: \.self) { freshPill($0) }
-                }
+            HStack(spacing: 10 * s) {
+                ForEach(Difficulty.rowBands, id: \.self) { freshPill($0) }
             }
             // The board you are on is never destroyed by this: it stays in
             // the library, one row below, exactly where you left it.

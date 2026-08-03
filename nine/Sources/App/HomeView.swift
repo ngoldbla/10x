@@ -1,7 +1,8 @@
 // HomeView.swift — the shelf (PRD §4.1). Full-bleed void, floating glass
-// cards: Today, Continue (only when a free-play board is in progress), and
+// cards: Continue (the hero, only when a free-play board is in progress) and
 // three Free Play difficulty slabs rendered as increasingly dense
-// mini-boards. A GlassChip shows the daily streak. Nothing else.
+// mini-boards. Nothing else. The Today card and the streak chip left with the
+// daily system (product decision, 2026-08-02).
 import SwiftUI
 import CouchKit
 
@@ -99,11 +100,8 @@ struct HomeView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 64) {
                 header
-                HStack(alignment: .top, spacing: 56) {
-                    todayCard
-                    if model.savedFree != nil {
-                        continueCard
-                    }
+                if model.savedFree != nil {
+                    continueCard
                 }
                 freePlayRow
                 extrasRow
@@ -118,59 +116,18 @@ struct HomeView: View {
             Text(verbatim: Phrase.wordmark)
                 .couchText(CouchTypography.title)
             Spacer()
-            if model.displayedStreak > 0 {
-                // A Focus filter can take the count away entirely (PRD-33).
-                // `if` rather than `.opacity(0)`: an invisible chip still holds
-                // its space and still speaks to VoiceOver.
-                if !model.focus.hidesStreak {
-                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
-                }
-            }
-        }
-    }
-
-    // MARK: - Today
-
-    private var todayCard: some View {
-        ShelfCard(width: 620, height: 360, isPrimary: true, action: { model.openToday() }) {
-            VStack(alignment: .leading, spacing: 18) {
-                Text(Strings.string("shelf.today.title"))
-                    .couchText(CouchTypography.title)
-                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                todayStatus
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-    }
-
-    @ViewBuilder
-    private var todayStatus: some View {
-        if isComposingDaily {
-            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
-        } else if model.todaySolved {
-            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
-        } else if let daily = model.savedDaily {
-            HStack(spacing: 20) {
-                GlassRing(progress: daily.fillFraction)
-                    .frame(width: 64, height: 64)
-                Text(Strings.string("shelf.continue.title"))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } else {
-            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
         }
     }
 
     // MARK: - Continue (free play in progress)
 
+    /// The hero when present: with the Today card gone this is the shelf's one
+    /// board-in-hand card, so it takes the primary width and default focus.
     @ViewBuilder
     private var continueCard: some View {
         if let (game, difficulty) = model.savedFree {
-            ShelfCard(width: 460, height: 360, action: { model.continueSaved() }) {
+            ShelfCard(width: 620, height: 300, isPrimary: true,
+                      action: { model.continueSaved() }) {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(Strings.string("shelf.continue.title"))
                         .couchText(CouchTypography.title)
@@ -196,33 +153,15 @@ struct HomeView: View {
 
     // MARK: - Free play
 
-    /// **Two rows of three, not one row of six — and it had run off the
-    /// screen.**
-    ///
-    /// `difficultyCard`'s own comment still says "four cards at 360 + three
-    /// 44pt gaps is 1572pt inside a 1920pt shelf's 1800pt safe area", which was
-    /// true when there were four bands. PRD-25 added Tempest and Abyss to
-    /// `Difficulty.allCases` and this row iterated all of them: **six** cards is
-    /// 6·360 + 5·44 = **2380pt** in an 1800pt safe area, so the last two bands
-    /// were off the right edge of every television with no way to focus them.
-    ///
-    /// The split is not a new idea — it is `Difficulty.isDeepEnd`, which lives
-    /// forty lines below this and already states the rule for touch ("PRD-17 §3
-    /// put Nocturne on its own line… PRD-25 added two more bands and that
-    /// arithmetic did not change"). The row is the three that share a row; the
-    /// deep end is its own row beneath. 3·360 + 2·44 = 1168pt, twice over,
-    /// which fits with room and keeps focus travel a plain grid.
+    /// One row of three. Three cards at 360 + two 44pt gaps is 1168pt inside a
+    /// 1920pt shelf's 1800pt safe area, so the row fits and stays centred.
+    /// The deep-end row (Nocturne/Tempest/Abyss) was removed on 2026-08-02:
+    /// the shelf offers exactly three difficulties. The engine keeps all six
+    /// bands — boards already saved at the deep bands still decode and open.
     private var freePlayRow: some View {
-        VStack(spacing: 44) {
-            HStack(spacing: 44) {
-                ForEach(Difficulty.rowBands, id: \.self) { difficulty in
-                    difficultyCard(difficulty)
-                }
-            }
-            HStack(spacing: 44) {
-                ForEach(Difficulty.deepBands, id: \.self) { difficulty in
-                    difficultyCard(difficulty)
-                }
+        HStack(spacing: 44) {
+            ForEach(Difficulty.rowBands, id: \.self) { difficulty in
+                difficultyCard(difficulty)
             }
         }
     }
@@ -304,17 +243,11 @@ struct HomeView: View {
                           corner: Radius.inner(40, inset: 36))
                     .frame(width: 132, height: 132)
                 if model.composing == .free(difficulty) {
-                    statusLabel(difficulty.composeCaption ?? Strings.string("status.composing"),
-                                symbol: "sparkles")
+                    statusLabel(Strings.string("status.composing"), symbol: "sparkles")
                 } else {
-                    Label {
-                        Text(Strings.difficulty(difficulty))
-                    } icon: {
-                        if let glyph = difficulty.glyph { Image(systemName: glyph) }
-                    }
-                    .font(CouchTypography.body)
-                    .foregroundStyle(.primary)
-                    .labelStyle(.titleAndIcon)
+                    Text(Strings.difficulty(difficulty))
+                        .font(CouchTypography.body)
+                        .foregroundStyle(.primary)
                 }
             }
         }
@@ -332,10 +265,6 @@ struct HomeView: View {
         .foregroundStyle(.secondary)
     }
 
-    private var isComposingDaily: Bool {
-        if case .daily? = model.composing { return true }
-        return false
-    }
 }
 
 /// The one string on this screen that is never translated.
@@ -349,26 +278,22 @@ private enum Phrase {
 
 /// What each difficulty demands, in player language — shown on the home
 /// cards and in the tutorial's difficulty guide (both platforms share it).
+///
+/// Only the three offered bands carry copy now (2026-08-02: the UI offers
+/// exactly Gentle/Steady/Sharp). The deep-end cases stay in the engine — raw
+/// values are frozen persistence identity — and a stats row may still *name*
+/// them through `Strings.difficulty`, but no choice surface describes them.
 extension Difficulty {
     var blurb: String {
         switch self {
         case .gentle: return Strings.string("difficulty.gentle.blurb")
         case .steady: return Strings.string("difficulty.steady.blurb")
         case .sharp: return Strings.string("difficulty.sharp.blurb")
-        // PRD-17 §3's blurb was "X-wings, chains — the deep end", and chains are
-        // exactly what Nocturne does not have: §1 of the same PRD rules new
-        // solver techniques out of scope. A band that advertises a technique the
-        // verifier cannot prove is a claim the engine would have to break, so
-        // the catalog entry says the two things that *are* true of every
-        // Nocturne board: it is dug to 26 clues or fewer, and its proof needs at
-        // least three deductions at box-line or above.
-        case .nocturne: return Strings.string("difficulty.nocturne.blurb")
-        // PRD-25's two. Both name the pattern the band is *defined* by, which
-        // is the rule Nocturne's blurb had to break — Nocturne has no technique
-        // Sharp lacks, so it advertises its clue floor instead. These two do,
-        // so they can say it.
-        case .tempest: return Strings.string("difficulty.tempest.blurb")
-        case .abyss: return Strings.string("difficulty.abyss.blurb")
+        // Unreachable from any choice surface — `rowBands` is the only list
+        // the UI iterates — but the switch stays total so a stray call cannot
+        // trap. The sharp copy is the honest nearest description.
+        case .nocturne, .tempest, .abyss:
+            return Strings.string("difficulty.sharp.blurb")
         }
     }
 
@@ -378,66 +303,16 @@ extension Difficulty {
         case .gentle: return Strings.string("difficulty.gentle.explainer")
         case .steady: return Strings.string("difficulty.steady.explainer")
         case .sharp: return Strings.string("difficulty.sharp.explainer")
-        // Kept to the length of its three peers on purpose: the tvOS difficulty
-        // guide is a fixed-height beat with no ScrollView, and a fourth row
-        // carrying a three-line explainer is what would push it off the screen.
-        // The length budget is in the translator comment for the same reason.
-        case .nocturne: return Strings.string("difficulty.nocturne.explainer")
-        case .tempest: return Strings.string("difficulty.tempest.explainer")
-        case .abyss: return Strings.string("difficulty.abyss.explainer")
+        case .nocturne, .tempest, .abyss:
+            return Strings.string("difficulty.sharp.explainer")
         }
     }
 
-    /// True for the bands presented apart from the three-across row.
-    ///
-    /// PRD-17 §3 put Nocturne on its own full-width line rather than making it a
-    /// fourth column, because a fourth column on a 393 pt iPhone leaves each
-    /// card ~90 pt and truncates all four rather than just the new one. PRD-25
-    /// added two more bands and that arithmetic did not change, so they join it
-    /// — three stacked full-width cards, each a peer of the row above.
-    ///
-    /// An explicit switch, not a rank comparison: which side a band sits on is
-    /// a layout decision, and appending a case must stop compiling until
-    /// someone makes it.
-    var isDeepEnd: Bool {
-        switch self {
-        case .gentle, .steady, .sharp: return false
-        case .nocturne, .tempest, .abyss: return true
-        }
-    }
-
-    /// The bands that share the free-play row on touch.
-    static var rowBands: [Difficulty] { allCases.filter { !$0.isDeepEnd } }
-    /// The bands below it, each on its own full-width line, in ladder order.
-    static var deepBands: [Difficulty] { allCases.filter(\.isDeepEnd) }
-
-    /// The SF Symbol that stands for the band, where one is wanted.
-    ///
-    /// **Only the deep end has one, and now all three of it do.** Handing the
-    /// three-across row a glyph each would turn a calm row into a badge
-    /// collection; handing *one* of three stacked cards a glyph would make the
-    /// other two look unfinished. The rule that survives both is: the row has
-    /// none, the deep end has one apiece.
-    var glyph: String? {
-        switch self {
-        case .gentle, .steady, .sharp: return nil
-        case .nocturne: return "moon.stars"
-        case .tempest: return "wind"
-        case .abyss: return "water.waves"
-        }
-    }
-
-    /// Composing honesty (PRD-17 §3). A band whose compose is measured in
-    /// seconds rather than milliseconds says so *while* the player waits.
-    /// Driven off `demands`, not off the case, so the next deep band inherits
-    /// the caption by being expensive rather than by being remembered.
-    /// A whole-sentence key with the band's name as an argument, not a name
-    /// glued to a suffix: "Nocturne takes a moment to compose" has a subject,
-    /// and a subject is the part a language may want to move.
-    var composeCaption: String? {
-        demands == nil ? nil
-            : Strings.string("difficulty.composeCaption", .text(Strings.difficulty(self)))
-    }
+    /// The three bands every choice surface offers. An explicit list rather
+    /// than `allCases`: the engine keeps six cases for persistence identity,
+    /// and which of them are *offered* is a product decision this constant
+    /// states once.
+    static var rowBands: [Difficulty] { [.gentle, .steady, .sharp] }
 }
 
 /// The remote grammar, spelled out once. The full set feeds the first-run

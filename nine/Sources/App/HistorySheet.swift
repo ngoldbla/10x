@@ -526,9 +526,8 @@ struct HistorySeam: View {
 ///  * *Every column's row `r` is the same weekday.* Columns step by exactly
 ///    seven ordinals, so `(start + r) mod 7` is invariant in the column index.
 ///    That is what makes a single left rail honest rather than a decoration.
-///  * *Day ordinal 0 is 2001-01-01, a Monday* — `DailyTable.weekStart` derives
-///    the whole league week from that fact, and `weekdayIndex` below is the same
-///    derivation read the other way. No `Calendar`, no branch.
+///  * *Day ordinal 0 is 2001-01-01, a Monday* — `weekdayIndex` below derives
+///    the weekday from that fact. No `Calendar`, no branch.
 ///  * *The caps row and the grid row share a width.* Both are an `HStack` at the
 ///    grid's own `4 * s` spacing, both open with the same fixed rail column, and
 ///    the twelve caps each take `maxWidth: .infinity`. So a cap's column is
@@ -540,6 +539,10 @@ struct HistorySeam: View {
 /// emits unlabelled shapes — and the rail would otherwise add nineteen
 /// single-character elements to a sheet whose tree three harnesses pin.
 struct HeatFigure: View {
+    /// Seven — the one calendar constant this figure leans on. It lived in
+    /// `DailyTable` until the weekly table was removed (2026-08-02).
+    static let daysInWeek = 7
+
     let columns: [[HeatCell]]
     /// The ordinal of the top-left cell. The rail and the caps are both read off
     /// this, so the figure cannot disagree with the cells it is labelling.
@@ -599,7 +602,7 @@ struct HeatFigure: View {
         // here would be rotating the wrong array.
         let symbols = ArchiveCalendar.weekdayInitials(firstWeekday: 1)
         return VStack(spacing: gap) {
-            ForEach(0..<DailyTable.daysInWeek, id: \.self) { row in
+            ForEach(0..<Self.daysInWeek, id: \.self) { row in
                 Text(initial(row, symbols))
                     .font(HistoryMetrics.axisFont(s))
                     .foregroundStyle(.tertiary)
@@ -615,16 +618,15 @@ struct HeatFigure: View {
         // `weekdayInitials` returns seven or nothing — an empty header row is
         // visibly wrong, where a padded one would restore PRD-20's locale bug
         // quietly. Honour that contract rather than second-guessing it.
-        guard symbols.count == DailyTable.daysInWeek else { return "" }
+        guard symbols.count == Self.daysInWeek else { return "" }
         return symbols[Self.weekdayIndex(startOrdinal + row) - 1]
     }
 
     /// `Calendar`'s convention: 1 = Sunday … 7 = Saturday.
     ///
     /// Ordinal 0 is a Monday, so `ordinal mod 7` is 0 for Monday, and Monday is
-    /// 2 in that convention. The double floor-mod is the same defence
-    /// `DailyTable.weekStart` documents: Swift's `%` keeps the sign of the
-    /// dividend and ordinals before 2001 are negative.
+    /// 2 in that convention. The double floor-mod is a defence against Swift's
+    /// `%` keeping the sign of the dividend — ordinals before 2001 are negative.
     static func weekdayIndex(_ ordinal: Int) -> Int {
         let mondayBased = ((ordinal % 7) + 7) % 7
         return (mondayBased + 1) % 7 + 1
@@ -652,7 +654,7 @@ struct HeatFigure: View {
         var out: [String] = []
         var previous: ArchiveMonth?
         for column in columns.indices {
-            let ordinal = startOrdinal + column * DailyTable.daysInWeek
+            let ordinal = startOrdinal + column * HeatFigure.daysInWeek
             let month = ArchiveCalendar.month(ofDayOrdinal: ordinal)
             if month == previous {
                 // A blank string rather than a conditional view: the caps row
@@ -818,14 +820,6 @@ struct HistorySheetContent: View {
 
                 gameCenterRow
 
-                // PRD-29, below the Game Center row because that is the door
-                // the table is behind, and above Recent because a week in
-                // progress outranks a log of finished boards. Always present,
-                // even opted out: the invitation IS the zero-state, and a
-                // feature you can only find in a settings list is a feature
-                // PRD-34 already caught this app hiding once.
-                TableSection(model: model, accent: accent, tones: tones, s: s)
-
                 if !model.history.records.isEmpty {
                     recentSolves
                 }
@@ -969,6 +963,10 @@ struct HistorySheetContent: View {
     /// locale, in the reader's digits.
     private var totalsRow: some View {
         let blank = model.history.records.isEmpty
+        // Best time replaced best streak when the streak left (2026-08-02): a
+        // third column that is a *time* keeps the row three facts wide without
+        // resurrecting a count the covenant no longer keeps.
+        let best = model.history.records.map(\.seconds).min()
         return HStack(spacing: Space.s * s) {
             statBlock(value: model.totalPoints.formatted(.number),
                       label: Strings.string("history.stat.points"),
@@ -976,9 +974,9 @@ struct HistorySheetContent: View {
             statBlock(value: model.history.records.count.formatted(.number),
                       label: Strings.string("history.stat.solved"),
                       blank: blank)
-            statBlock(value: model.streak.best.formatted(.number),
-                      label: Strings.string("history.stat.bestStreak"),
-                      blank: blank)
+            statBlock(value: SolveCardFacts.elapsedText(best ?? 0),
+                      label: Strings.string("history.stat.bestTime"),
+                      blank: best == nil)
         }
     }
 
@@ -1022,15 +1020,15 @@ struct HistorySheetContent: View {
     /// number to label the rows and the columns, and a rail computed off a
     /// second copy of `today - 83` is a rail that goes wrong the first time
     /// somebody edits one of them.
-    private var heatStart: Int { model.todayOrdinal - (12 * DailyTable.daysInWeek - 1) }
+    private var heatStart: Int { model.todayOrdinal - (12 * HeatFigure.daysInWeek - 1) }
 
     private var heatColumns: [[HeatCell]] {
         let today = model.todayOrdinal
         let start = heatStart                       // 84 days incl. today
         let buckets = model.history.solvesByDay(ordinalRange: start...today)
         return (0..<12).map { col in
-            (0..<DailyTable.daysInWeek).map { row in
-                let ord = start + col * DailyTable.daysInWeek + row
+            (0..<HeatFigure.daysInWeek).map { row in
+                let ord = start + col * HeatFigure.daysInWeek + row
                 let day = buckets[ord]
                 return HeatCell(id: ord, count: day?.count ?? 0, hasDaily: day?.hasDaily ?? false)
             }
@@ -1214,20 +1212,15 @@ struct HistorySheetContent: View {
 
     private func recentRow(_ record: SolveRecord) -> some View {
         HStack(spacing: Space.s * s) {
-            Image(systemName: record.isDaily ? "sun.max.fill" : "square.grid.3x3.fill")
+            Image(systemName: "square.grid.3x3.fill")
                 .font(.system(size: 14 * s, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
-                // The daily is the board that grows the streak, so it is the one
-                // row type that earns the accent — the same distinction
-                // `HeatGrid` already draws by lighting a daily cell at full
-                // strength while a free solve gets a wash.
-                .foregroundStyle(record.isDaily ? accent : Color.secondary)
+                .foregroundStyle(Color.secondary)
                 .frame(width: 22 * s)
             VStack(alignment: .leading, spacing: 1 * s) {
-                Text(record.isDaily
-                     ? Strings.string("history.recent.daily",
-                                      .text(Strings.difficulty(record.difficulty)))
-                     : Strings.difficulty(record.difficulty))
+                // One label per row since the daily left (2026-08-02): the
+                // band's name, whatever a legacy record's `isDaily` flag says.
+                Text(Strings.difficulty(record.difficulty))
                     .font(CouchTypography.label)
                 Text(record.date.formatted(date: .abbreviated, time: .omitted))
                     .font(HistoryMetrics.labelFont(s))

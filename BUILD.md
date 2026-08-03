@@ -80,9 +80,12 @@ GitHub secrets.
 ## Known caveats
 
 - Top Shelf extensions and sound are deferred (v1.1) — see `nine/DEVIATIONS.md`.
-- The localization lane is knowingly stale: its symbol anchors no longer match
-  the redesigned sheets, and its baselines are uniformly old rather than partly
-  re-recorded.
+- The localization lane was knowingly stale — its symbol anchors no longer
+  matched the redesigned sheets, so it could not even reach prefs or home. It was
+  repointed in the daily/streak removal PR (2026-08-02): prefs arrives on the
+  verbatim wordmark (the sheet exposes no symbols and the grabber is localized),
+  home arrives on the shelf's Next channel chevron, and the status-bar clock is
+  masked so a modal sheet cannot rot the prefs baselines every minute.
 - `ja-home` AX baselines still rot when the rendered date changes *width* (a
   single-to-double-digit day, or a longer month name). Daily rot is masked;
   monthly rot is not. Fixing it means pinning the clock in the seeded state,

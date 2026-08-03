@@ -1,8 +1,10 @@
-// BoardWidget.swift — the playable systemLarge widget (PRD-3 §4): the real
-// daily board, one tap at a time. 81 cell buttons + 9 digit buttons, all
-// routed through App Intents; givens semibold, entries in glacier, heavier
-// 3×3 strokes, no pencil marks. Pitched as "sneak in a move while waiting
-// for coffee" — the app remains the primary way to play.
+// BoardWidget.swift — the playable widget (PRD-3 §4): the app's most recent
+// in-progress classic board, one tap at a time. 81 cell buttons + 9 digit
+// buttons, all routed through App Intents; givens semibold, entries in
+// glacier, heavier 3×3 strokes, no pencil marks. Pitched as "sneak in a move
+// while waiting for coffee" — the app remains the primary way to play.
+// Repointed off the daily on 2026-08-02: the board is keyed to a library
+// entry, not to the calendar.
 import SwiftUI
 import WidgetKit
 
@@ -73,9 +75,10 @@ struct BoardEntry: TimelineEntry {
 
     var today: Int { WidgetSnapshotStore.dayOrdinal(for: date) }
 
-    /// Yesterday's leftover board is not playable (stale-day guard).
+    /// A board written by an older build carries no `entryID` and cannot be
+    /// joined back to the app's library, so it is not offered for play.
     var currentBoard: SharedDailyBoard? {
-        guard let board, board.isCurrent(today: today) else { return nil }
+        guard let board, board.entryID != nil else { return nil }
         return board
     }
 
@@ -99,16 +102,12 @@ struct BoardProvider: AppIntentTimelineProvider {
     func timeline(
         for configuration: BoardWidgetConfiguration, in context: Context
     ) async -> Timeline<BoardEntry> {
-        let now = Date()
-        let midnight = WidgetSnapshotStore.nextLocalMidnight(after: now)
-        // The midnight entry re-derives against the new day: the same board
-        // renders as "new puzzle waiting" via the stale-day guard.
-        return Timeline(
-            entries: [
-                entry(at: now, configuration: configuration),
-                entry(at: midnight, configuration: configuration),
-            ],
-            policy: .after(midnight)
+        // One entry, no schedule: the board only changes when someone plays
+        // it, and both players (the app's publish and the widget's own
+        // intents) reload the timeline explicitly.
+        Timeline(
+            entries: [entry(at: Date(), configuration: configuration)],
+            policy: .never
         )
     }
 
@@ -145,11 +144,11 @@ struct BoardWidgetView: View {
                 large(board)
             }
         } else {
-            // No board for today: the widget never generates (Sharp takes
-            // seconds; extension budget ~30MB). Deep link; the app composes
-            // and publishes.
+            // No board in progress: the widget never generates (Sharp takes
+            // seconds; extension budget ~30MB). Deep link; the app starts a
+            // board and publishes.
             startCTA
-                .widgetURL(URL(string: "nine://daily"))
+                .widgetURL(URL(string: "nine://board"))
         }
     }
 
@@ -241,9 +240,6 @@ struct BoardWidgetView: View {
                 .foregroundStyle(look.accent)
             Text(Strings.string("widget.board.cta"))
                 .font(.headline)
-            Text(Strings.string("widget.brand.daily"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -33,10 +33,9 @@ public struct SolveCardFacts: Equatable, Sendable {
 
     /// "Solved in 3:40".
     public let timeLine: String
-    /// "Steady · 12 day streak", or just "Steady".
+    /// "Steady" — the band's name. (The streak clause left with the daily
+    /// system, 2026-08-02.)
     public let creditLine: String
-    /// "Nine · daily puzzle" on a daily, nil otherwise.
-    public let dailyLine: String?
     /// The share sheet's subject line.
     ///
     /// Deliberately carries no URL. PRD-12 §2 makes the wordmark the hook, and
@@ -47,24 +46,12 @@ public struct SolveCardFacts: Equatable, Sendable {
     public init(
         game: NineGame,
         difficulty: Difficulty,
-        isDaily: Bool,
-        streak: Int,
         at now: Date
     ) {
         digits = (0..<81).map { game.entry(at: $0) }
         givens = (0..<81).map { game.isGiven($0) }
         timeLine = Phrase.solvedIn(Self.elapsedText(game.timer.elapsed(at: now)))
-
-        // The streak line is daily-only (PRD-12 §2). A free-play board solved in
-        // the middle of a 30-day run has not advanced it, and a card implying
-        // otherwise would be the app's first dishonest pixel — on the one
-        // artifact that outlives the session and cannot be corrected.
-        if isDaily, streak > 0 {
-            creditLine = "\(Phrase.difficulty(difficulty)) · \(Phrase.streak(streak))"
-        } else {
-            creditLine = Phrase.difficulty(difficulty)
-        }
-        dailyLine = isDaily ? Phrase.dailyLine : nil
+        creditLine = Phrase.difficulty(difficulty)
         shareTitle = "\(Phrase.wordmark) · \(timeLine)"
     }
 
@@ -117,12 +104,8 @@ public struct SolveCardFacts: Equatable, Sendable {
         /// never-localize marker (`ShareCardMetrics.wordmark`, `strings.py`),
         /// and a marker you have to type is a marker somebody had to mean.
         static let wordmark = #"NINE"#
-        static var dailyLine: String { Phrasebook.current.string("card.daily") }
         static func solvedIn(_ clock: String) -> String {
             Phrasebook.current.string("card.time", .text(clock))
-        }
-        static func streak(_ days: Int) -> String {
-            Phrasebook.current.string("card.streak", .int(days))
         }
         /// Keyed off the frozen raw value, for the reason
         /// `BoardSpeech.Phrase.techniqueName` gives: the Engine stopped naming

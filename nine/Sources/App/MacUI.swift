@@ -81,7 +81,6 @@ struct MacHomeView: View {
         ScrollView {
             VStack(spacing: 22) {
                 header
-                todayCard
                 if let (game, difficulty) = model.savedFree {
                     continueCard(game: game, difficulty: difficulty)
                 }
@@ -113,50 +112,8 @@ struct MacHomeView: View {
             if model.totalPoints > 0 {
                 GlassChip(Phrase.points(model.totalPoints), systemImage: "star.fill")
             }
-            if model.displayedStreak > 0 {
-                // A Focus filter can take the count away entirely (PRD-33).
-                // `if` rather than `.opacity(0)`: an invisible chip still holds
-                // its space and still speaks to VoiceOver.
-                if !model.focus.hidesStreak {
-                    StreakChip(days: model.displayedStreak, held: model.streakHeld)
-                }
-            }
         }
         .padding(.top, 8)
-    }
-
-    private var todayCard: some View {
-        MacCard(action: { model.openToday() }) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(Strings.string("shelf.today.title"))
-                    .couchText(CouchTypography.title)
-                Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                todayStatus
-            }
-            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
-        }
-    }
-
-    @ViewBuilder
-    private var todayStatus: some View {
-        if isComposingDaily {
-            statusLabel(Strings.string("status.composing"), symbol: "sparkles")
-        } else if model.todaySolved {
-            statusLabel(Strings.string("status.solved"), symbol: "checkmark.circle.fill")
-        } else if let daily = model.savedDaily {
-            HStack(spacing: 12) {
-                GlassRing(progress: daily.fillFraction, lineWidth: 5)
-                    .frame(width: 34, height: 34)
-                Text(Strings.string("shelf.continue.title"))
-                    .font(CouchTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } else {
-            statusLabel(Strings.string("shelf.today.oneADay"), symbol: "sun.max")
-        }
     }
 
     private func continueCard(game: NineGame, difficulty: Difficulty) -> some View {
@@ -191,22 +148,19 @@ struct MacHomeView: View {
     }
 
     private var freePlayRow: some View {
+        // Exactly the three offered bands (2026-08-02) — the engine keeps six
+        // for persistence identity; every choice surface offers three.
         HStack(spacing: 14) {
-            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+            ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                 MacCard(action: { model.startFree(difficulty) }) {
                     VStack(spacing: 10) {
                         MiniBoard(difficulty: difficulty, accent: accent)
                             .frame(width: 64, height: 64)
                         if model.composing == .free(difficulty) {
-                            statusLabel(difficulty.composeCaption
-                                            ?? Strings.string("status.composing"),
+                            statusLabel(Strings.string("status.composing"),
                                         symbol: "sparkles")
                         } else {
-                            Label {
-                                Text(Strings.difficulty(difficulty))
-                            } icon: {
-                                if let glyph = difficulty.glyph { Image(systemName: glyph) }
-                            }
+                            Text(Strings.difficulty(difficulty))
                                 .font(CouchTypography.caption)
                             Text(difficulty.blurb)
                                 .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -218,7 +172,7 @@ struct MacHomeView: View {
                     .frame(maxWidth: .infinity, minHeight: 124)
                 }
                 // A compose in flight makes `AppModel.compose` refuse the next
-                // request. Sub-second that was invisible; at Nocturne's measured
+                // request. Sub-second that was invisible; at Sharp's measured
                 // tail it is a shelf that ignores clicks. Same rule as iOS.
                 .disabled(model.composing != nil && model.composing != .free(difficulty))
             }
@@ -262,10 +216,6 @@ struct MacHomeView: View {
         .foregroundStyle(.secondary)
     }
 
-    private var isComposingDaily: Bool {
-        if case .daily? = model.composing { return true }
-        return false
-    }
 }
 
 /// A clickable glass slab — the Mac counterpart of the TV shelf card and the
@@ -454,10 +404,7 @@ struct MacGameScreen: View {
     }
 
     private var completionText: String {
-        if case .daily? = model.kind, model.displayedStreak > 0 {
-            return Strings.string("game.completion.streak", .int(model.displayedStreak))
-        }
-        return Strings.string("status.solved")
+        Strings.string("status.solved")
     }
 
     // MARK: Share (PRD-12)
@@ -481,28 +428,22 @@ struct MacGameScreen: View {
 
     private var shareTitle: String { shareFacts?.shareTitle ?? ShareCardPhrase.shareLabel }
 
-    /// See `TouchUI.shareFacts` — the same rules, including the archive one:
-    /// an archive board never touched the streak, so its card never prints one.
+    /// See `TouchUI.shareFacts` — the same rules.
     private var shareFacts: SolveCardFacts? {
         guard let game = model.game, let solvedAt = model.solvedAt else { return nil }
-        let isDaily: Bool
         let difficulty: Difficulty
         switch model.kind {
         case .daily?:
-            isDaily = true
-            difficulty = .steady
+            difficulty = .steady   // legacy entries composed at steady
         case .free(let d)?:
-            isDaily = false
             difficulty = d
-        case .channel(_, let tier, let day)?:
-            isDaily = day != nil
+        case .channel(_, let tier, _)?:
             difficulty = tier.wireDifficulty
         case nil:
             return nil
         }
         return SolveCardFacts(
-            game: game, difficulty: difficulty, isDaily: isDaily,
-            streak: model.archiveDay == nil ? model.displayedStreak : 0,
+            game: game, difficulty: difficulty,
             at: solvedAt
         )
     }
@@ -989,26 +930,7 @@ struct MacHistoryWindow: View {
     }
 }
 
-// MARK: - Archive window (⌥⌘A) and School window (⇧⌘E) — PRD-33
-
-/// The daily archive, in a window. Tapping a day routes through the same
-/// `openArchiveDay` the iOS sheet uses and the board appears in the *main*
-/// window — which is the point of it being a second window rather than a sheet.
-struct MacArchiveWindow: View {
-    let model: AppModel
-    @Environment(\.dismissWindow) private var dismissWindow
-
-    var body: some View {
-        ZStack {
-            VoidBackground()
-            ArchiveSheetContent(model: model, onClose: { dismissWindow(id: "archive") })
-                .padding(20)
-        }
-        .frame(minWidth: 380, minHeight: 460)
-        .environment(\.nineTheme, model.prefs.theme)
-        .preferredColorScheme(model.prefs.theme.colorScheme)
-    }
-}
+// MARK: - School window (⇧⌘E) — PRD-33
 
 /// The Technique School (PRD-25), which has compiled for macOS since it shipped
 /// and had no presenter anywhere.
@@ -1056,9 +978,7 @@ struct MacMenuBarBoard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                if let daily = model.savedDaily {
-                    BoardFingerprint(game: daily, accent: accent, side: 64)
-                } else if let (game, _) = model.savedFree {
+                if let (game, _) = model.savedFree {
                     BoardFingerprint(game: game, accent: accent, side: 64)
                 } else {
                     // The honest zero-state (craft charter), not a fake board.
@@ -1077,7 +997,6 @@ struct MacMenuBarBoard: View {
                 }
             }
             Divider()
-            Button(Strings.string("menu.game.today")) { model.openToday() }
             Button(Strings.string("menu.game.continue")) {
                 if let entry = model.library.mostRecentInProgress {
                     model.resumeEntry(id: entry.id)
@@ -1091,18 +1010,13 @@ struct MacMenuBarBoard: View {
         .environment(\.nineTheme, model.prefs.theme)
     }
 
-    /// One line, and never a count of days. The menu bar is the surface a player
-    /// sees most often without choosing to, so a streak here would be the closest
-    /// thing to nagging this app could build — and a Focus filter takes it away
-    /// everywhere else already.
+    /// One line, and never a count of anything. The menu bar is the surface a
+    /// player sees most often without choosing to.
     private var menuBarStatus: String {
-        if model.todaySolved { return Strings.string("status.solved") }
-        if let daily = model.savedDaily, !model.focus.hidesDaily {
-            return Strings.string("shelf.today.continueProgress",
-                                  .text(BoardProgressCaption.text(for: daily)))
+        if let (game, _) = model.savedFree {
+            return BoardProgressCaption.text(for: game)
         }
-        if model.savedDaily != nil { return Strings.string("shelf.today.title") }
-        return Strings.string("shelf.today.oneADay")
+        return Strings.string("widget.board.cta")
     }
 }
 
@@ -1126,7 +1040,9 @@ struct NineCommands: Commands {
             // Nocturne board from the menu bar, because a missing `Button` is
             // not a compile error the way a missing `switch` case is.
             Menu(Strings.string("menu.game.newGame")) {
-                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                // The three offered bands (2026-08-02). `rowBands`, not
+                // `allCases` — the engine keeps six cases for persistence.
+                ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                     // ⌘N stays on Steady — it is the "just give me a board"
                     // default, and moving it would retrain a shipped habit.
                     // `.keyboardShortcut` takes no optional, so the branch is on
@@ -1139,11 +1055,9 @@ struct NineCommands: Commands {
                     }
                 }
             }
-            Button(Strings.string("menu.game.today")) { model.openToday() }
-                .keyboardShortcut("t", modifiers: .command)
-            // PRD-33: "continue" is the one door the Mac never had. ⌘N gives you a
-            // new board and ⌘T gives you today's; the board you were actually on
-            // took a trip through the Boards sheet.
+            // PRD-33: "continue" is the one door the Mac never had. ⌘N gives
+            // you a new board; the board you were actually on took a trip
+            // through the Boards sheet.
             Button(Strings.string("menu.game.continue")) {
                 if let entry = model.library.mostRecentInProgress {
                     model.resumeEntry(id: entry.id)
@@ -1155,7 +1069,6 @@ struct NineCommands: Commands {
             HistoryMenuButton()
             Button(Strings.string("menu.game.boards")) { model.macShowBoards = true }
                 .keyboardShortcut("b", modifiers: .command)
-            ArchiveMenuButton()
             Button(Strings.string("school.title")) { model.macShowSchool = true }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             Divider()
@@ -1274,20 +1187,6 @@ private struct HistoryMenuButton: View {
     var body: some View {
         Button(Strings.string("history.title")) { openWindow(id: "history") }
             .keyboardShortcut("y", modifiers: .command)
-    }
-}
-
-/// The daily archive, which had no Mac surface at all before PRD-33 — and could
-/// not have had one, because `ArchiveSheet.swift` was `#if os(iOS)` and did not
-/// compile for the Mac. A window rather than an overlay, for the reason PRD-26 and
-/// PRD-31 both deferred to this PRD: **the Mac's answer to a second pane is a
-/// window.** A calendar you consult while looking at a board is exactly the case.
-private struct ArchiveMenuButton: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button(Strings.string("archive.title")) { openWindow(id: "archive") }
-            .keyboardShortcut("a", modifiers: [.command, .option])
     }
 }
 

@@ -1,7 +1,7 @@
 // BoardIntents.swift — the two App Intents behind the playable widget
 // (PRD-3 §4). Every tap routes through here (~100-500ms); the real Engine
 // `place()` runs in-process on the shared board value. The widget never
-// generates puzzles and never touches streak/history/Game Center — a solve
+// generates puzzles and never touches history/Game Center — a solve
 // parks a PendingSolve for the app to ingest.
 import AppIntents
 import Foundation
@@ -85,7 +85,7 @@ struct SelectCellIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let today = WidgetSnapshotStore.dayOrdinal(for: Date())
-        guard let board = SharedDailyBoardStore.load(), board.isCurrent(today: today),
+        guard let board = SharedDailyBoardStore.load(), board.entryID != nil,
               (0..<81).contains(cell), !board.game.isGiven(cell)
         else { return .result() }
         let current = SharedDailyBoardStore.selectedCell(today: today)
@@ -112,8 +112,8 @@ struct PlaceDigitIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         let now = Date()
         let today = WidgetSnapshotStore.dayOrdinal(for: now)
-        guard var board = SharedDailyBoardStore.load(), board.isCurrent(today: today) else {
-            // Stale-day guard: refuse; the reload re-renders "new puzzle".
+        guard var board = SharedDailyBoardStore.load(), board.entryID != nil else {
+            // No adoptable board: refuse; the reload re-renders "tap to start".
             SharedDailyBoardStore.setSelectedCell(nil, today: today)
             return .result()
         }
@@ -124,30 +124,26 @@ struct PlaceDigitIntent: AppIntent {
         board.revision += 1
         board.updatedAt = now
 
-        // Keep the glanceable widgets honest about widget-made progress.
+        // Keep the snapshot honest about widget-made progress.
         var snapshot = WidgetSnapshotStore.load() ?? WidgetSnapshot()
-        snapshot.dailyDayOrdinal = today
-        snapshot.dailyFillFraction = board.game.fillFraction
+        snapshot.boardFillFraction = board.game.fillFraction
         snapshot.generatedAt = now
 
         if board.game.isSolved {
             let seconds = board.game.timer.elapsed(at: now)
             board.pendingSolve = PendingSolve(solvedAt: now, seconds: seconds)
-            // Optimistic display only — streak/history/Game Center are
-            // recorded when the app next activates and ingests (honest
-            // caveat: Game Center lags until then).
-            snapshot.dailySolvedSeconds = seconds
-            // The rule lives in `WidgetSnapshot`, cross-checked against the
-            // Engine — a hand-rolled copy here is how this path missed PRD-13's
-            // bridge and would have reset a streak the app then restored.
-            snapshot.recordOptimisticSolve(day: today)
+            // Optimistic display only — history/Game Center are recorded when
+            // the app next activates and ingests (honest caveat: Game Center
+            // lags until then).
+            snapshot.boardSolvedSeconds = seconds
+            snapshot.boardFillFraction = nil
             SharedDailyBoardStore.setSelectedCell(nil, today: today)
         }
 
         try? SharedDailyBoardStore.save(board)
         try? WidgetSnapshotStore.save(snapshot)
-        // The tapped widget reloads automatically; the small/medium/lock
-        // widgets need an explicit nudge to pick up the new fill/solve.
+        // The tapped widget reloads automatically; an explicit nudge keeps
+        // any second placed widget in step.
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }

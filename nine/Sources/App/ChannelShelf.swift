@@ -35,11 +35,13 @@
 import SwiftUI
 import CouchKit
 
-/// One variant channel's page: its Today, its streak, its boards, its tiers.
+/// One variant channel's page: its boards, its tiers, its primer, its records.
 ///
-/// Structurally the same order Classic asks its questions in — what is today, what
-/// was I in the middle of, what could I start — because a player turning the page
+/// Structurally the same order Classic asks its questions in — what was I in
+/// the middle of, what could I start — because a player turning the page
 /// should find the same shelf with different rules on it, not a different app.
+/// (The channel's Today card and streak left with the daily system,
+/// 2026-08-02.)
 struct ChannelShelfContent: View {
     let model: AppModel
     let channel: Channel.Ledgered
@@ -108,22 +110,6 @@ struct ChannelShelfContent: View {
     /// Release p95 is 0.01–0.03 s and killer's 0.02–0.14 s.
     private var composeInFlight: Bool { model.composing != nil }
 
-    /// **This channel's *daily* is composing** — not any board on it.
-    ///
-    /// It used to match `.channel(c, _, _)` and so fired for a free-play compose
-    /// too, which made the Today card announce "Composing…" for a board that is
-    /// not its own and left it tappable while a foreign compose ran. That is the
-    /// exact defect `TouchHomeView.isComposingDaily` carries a comment about
-    /// (PRD-14, "a `.daily(day:)` compose may be for 12 July"); a channel daily
-    /// is the `.channel` case with a non-nil `day`, and a tier card is the same
-    /// case with a nil one — `AppModel.openChannelToday` / `startChannelFree`.
-    private var isComposingThisDaily: Bool {
-        if case .channel(let c, _, let day)? = model.composing {
-            return c == channel.channel && day != nil
-        }
-        return false
-    }
-
     /// One tier card's own compose, for the caption that replaces its blurb.
     private func isComposing(_ tier: VariantTier) -> Bool {
         if case .channel(let c, let t, let day)? = model.composing {
@@ -152,7 +138,6 @@ struct ChannelShelfContent: View {
     /// frame with more air in it.
     var body: some View {
         VStack(spacing: isWide ? Space.xxl : Space.xl) {
-            todayCard
             if isWide {
                 tierRow
                 wideTail
@@ -290,212 +275,6 @@ struct ChannelShelfContent: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .modifier(PanelSurface(shape: panelShape, tones: tones))
         }
-    }
-
-    // MARK: Today
-
-    /// This channel's daily. Four mutually-exclusive states in the same order
-    /// `TouchHomeView.todayStatus` uses, so the two pages behave identically:
-    /// composing, solved, in progress, untouched.
-    ///
-    /// **The title is "Today", not the channel's name** — Classic's word, in
-    /// Classic's slot. The name was here twice at two sizes: 17pt in the pager
-    /// rail and 30pt on this card 40pt below it, which spent the page's largest
-    /// type on information the reader had just been given and left the card with
-    /// no line saying what it was *for*. The ramp now runs
-    /// title / heading / label / caption with a distinct role on each rung.
-    /// **The tint that makes this the page's one primary surface.**
-    ///
-    /// Classic's number (`TouchHomeView.todayTint`), and the channel page had no
-    /// equivalent at all: every card on it was the same untinted glass, which is
-    /// why the panel could write *"nothing on the screen looks tappable and the
-    /// primary action is invisible"* about a screen whose whole top third is one
-    /// enormous button. A shelf where everything is primary has no primary; a
-    /// shelf where *nothing* is has no entrance.
-    private static let heroTint = 0.28
-
-    private var todayCard: some View {
-        TouchCard(action: { model.openChannelToday(channel) },
-                  radius: Self.heroRadius,
-                  tint: accent.opacity(Self.heroTint)) {
-            HStack(alignment: .top, spacing: Space.l) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Text(Strings.string("shelf.today.title"))
-                        .couchText(CouchTypography.title)
-                    // Classic's date line, which this card dropped. Same formatter,
-                    // same rung, same position under the title.
-                    Text(Date.now.formatted(date: .abbreviated, time: .omitted))
-                        .couchText(CouchTypography.caption, Ink.secondary(on: tones))
-                    Text(Strings.channelBlurb(channel.channel))
-                        .couchText(CouchTypography.heading, Ink.secondary(on: tones))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Space.s)
-                    todayStatus
-                }
-                // **What used to be the dead half of the card.** The panel
-                // measured it: *"the hero card runs full width but all four text
-                // rows stop near the 55% mark, leaving a large empty plate to the
-                // right of 'Tubes that only rise'"* — 45% of the one surface on
-                // the page that has to sell it. Classic's Today card has carried
-                // a verb in that slot since PRD-14; this one never did, which is
-                // both the void and the missing affordance in one omission.
-                Spacer(minLength: Space.s)
-                todayVerb
-            }
-            // Matches Classic's Today card exactly. `minHeight` with no maximum is
-            // the shape PRD-31 found inflating to half the screen in a second
-            // column — safe only because the pager's columns carry
-            // `fixedSize(vertical:)`, which is the same fix and the same reason.
-            //
-            // The 54pt void this used to hold between the blurb and the status
-            // line is gone because the card now has enough in it to fill 130:
-            // a date, a subtitle at `heading`, and a 34pt picture in *every*
-            // status — not just the resumable one.
-            .frame(maxWidth: .infinity, minHeight: isWide ? 220 : 130, alignment: .topLeading)
-            // The lamp, and it is `TouchHomeView.todayHighlight`'s: a tint is a
-            // filter and a filter applied evenly across 300×130pt has no
-            // gradient in it, so the tinted card would otherwise have *less*
-            // luminance structure than the plain ones beside it. Anchored near
-            // the verb, because that is where the eye is going.
-            //
-            // Clip first, then expand: the other order clips at the content's
-            // bounds and throws away the 36pt the negative padding just bought.
-            .background {
-                RadialGradient(
-                    colors: [.white.opacity(tones.isLight ? 0.28 : 0.16), .white.opacity(0)],
-                    center: UnitPoint(x: 0.84, y: 0.12),
-                    startRadius: 0,
-                    endRadius: 260
-                )
-                .clipShape(RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous))
-                .padding(-Self.cardPadding)
-                .allowsHitTesting(false)
-            }
-        }
-        .disabled(composeInFlight && !isComposingThisDaily)
-        .accessibilityLabel(Strings.string(
-            "channel.today.label",
-            .text(Strings.channel(channel.channel)),
-            .text(todayStatusText)))
-    }
-
-    /// The filled pill: what pressing this card will do, in a word.
-    ///
-    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
-    /// and a `Button` nested in `TouchCard`'s is merged by SwiftUI, which takes
-    /// the inner frame with it (PRD-14 measured Classic's own Today element
-    /// collapsing from 89×129 to a 44×44 glyph). Hidden from VoiceOver because
-    /// the card's label already carries the same words.
-    ///
-    /// **The one place on this page that deliberately does not adopt a wave-1
-    /// token, and the repo's own measurement is why.**
-    ///
-    /// `AccentChoice.actionFill` is the new token for a filled primary action,
-    /// and on a dark theme it resolves to the vivid accent at full chroma —
-    /// which is the *same value* `accent` already carries here. That token was
-    /// written for a button standing on a neutral card (the tutorial's "Try it",
-    /// measured at `#4A79A8` and read as disabled), and this pill does not:
-    /// it sits on a hero tinted `accent.opacity(0.28)`. `TouchHomeView.verbFill`
-    /// has a paragraph recording exactly what happens then — *"the pill filled
-    /// with `accent` while the card behind it is `accent` at 0.28 — the same hue
-    /// a few steps apart — so the shelf's only primary action had less
-    /// separation from its own background than any caption on the page."*
-    ///
-    /// So the pill is the ground's *opposite*, which is Classic's answer and has
-    /// a 4.5:1 solution on both leanings: paper-white with accent ink on a dark
-    /// theme, deepened accent with white ink on paper. Taking the token here
-    /// would re-ship a defect this app has already found and fixed once, and
-    /// would drift the two Today cards apart on the one page whose thesis is
-    /// that they are the same card.
-    ///
-    /// Deliberately **not** a `Button` — it is the label of the card it sits on,
-    /// and a `Button` nested in `TouchCard`'s is merged by SwiftUI, which takes
-    /// the inner frame with it (PRD-14 measured Classic's own Today element
-    /// collapsing from 89×129 to a 44×44 glyph). Hidden from VoiceOver because
-    /// the card's label already carries the same words.
-    ///
-    /// The silhouette is `Radius.inner` of the hero's corner and `TouchCard`'s
-    /// inset, not a `Capsule`: a capsule inside a 28pt card with 18pt of padding
-    /// is a 15pt curve where the concentric answer is 10, and it reads as pasted
-    /// on rather than as nested.
-    @ViewBuilder
-    private var todayVerb: some View {
-        if let text = todayVerbText {
-            let shape = RoundedRectangle(
-                cornerRadius: Radius.inner(Self.heroRadius, inset: Self.cardPadding),
-                style: .continuous)
-            Text(text)
-                .font(CouchTypography.label)
-                .foregroundStyle(tones.isLight ? Color.white : accent)
-                .lineLimit(1)
-                .padding(.horizontal, Space.l)
-                .frame(minHeight: Hit.min)
-                .background(tones.isLight ? accent : Color.white, in: shape)
-                .accessibilityHidden(true)
-        }
-    }
-
-    /// Nil in the two states that are not an action. A pill reading "Solved"
-    /// beside a status line reading "Solved" is not emphasis, it is an echo —
-    /// and a filled accent shape is the loudest thing on the shelf, which it
-    /// must not spend on a board there is nothing left to do to.
-    ///
-    /// Both keys are Classic's, so the two pages cannot drift and no catalog row
-    /// is owed: `firstrun.begin` ("Begin") and `shelf.continue.title`.
-    private var todayVerbText: String? {
-        if isComposingThisDaily || model.todaySolved(on: channel) { return nil }
-        if model.savedDaily(on: channel) != nil { return Strings.string("shelf.continue.title") }
-        return Strings.string("firstrun.begin")
-    }
-
-    @ViewBuilder
-    private var todayStatus: some View {
-        if isComposingThisDaily {
-            statusLabel("status.composing", symbol: "sparkles")
-        } else if model.todaySolved(on: channel) {
-            statusLabel("status.solved", symbol: "checkmark.circle.fill")
-        } else if let entry = model.savedDaily(on: channel) {
-            HStack(spacing: Space.m) {
-                BoardFingerprint(game: entry.game, accent: accent, side: statusArtSide)
-                Text(Strings.string(
-                    "shelf.today.continueProgress",
-                    .text(BoardProgressCaption.text(for: entry.game))))
-                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
-            }
-        } else {
-            // "One a day, per channel" rather than Classic's "One a day": the
-            // whole point of a channel is that today's Thermo does not use up
-            // today's Classic, and this card is where a player learns it.
-            //
-            // **With the channel's own motif in the fingerprint's slot**, at the
-            // fingerprint's size and on the fingerprint's side. An untouched
-            // channel is the state a new player meets first and it was the one
-            // state of the four with no picture in it at all — a sun glyph that
-            // said nothing about thermometers or cages.
-            HStack(spacing: Space.m) {
-                ChannelMotif(channel: channel, side: statusArtSide)
-                Text(Strings.string("channel.today.oneADay"))
-                    .couchText(CouchTypography.label, Ink.secondary(on: tones))
-            }
-        }
-    }
-
-    /// The picture in the status row. 34pt is the fingerprint's own size on the
-    /// phone and on Classic's card; on a hero that is 220pt tall it is a stamp
-    /// in a field, so it grows with the card rather than floating in it.
-    private var statusArtSide: CGFloat { isWide ? 56 : 34 }
-
-    /// The same sentence the card's accessibility label folds in, so VoiceOver
-    /// hears one utterance rather than a title and an orphaned status.
-    private var todayStatusText: String {
-        if isComposingThisDaily { return Strings.string("status.composing") }
-        if model.todaySolved(on: channel) { return Strings.string("status.solved") }
-        if let entry = model.savedDaily(on: channel) {
-            return Strings.string(
-                "shelf.today.continueProgress",
-                .text(BoardProgressCaption.text(for: entry.game)))
-        }
-        return Strings.string("channel.today.oneADay")
     }
 
     /// A glyph and a sentence, secondary throughout.
@@ -1123,83 +902,6 @@ private struct ChannelPrimerArt: View {
                               weight: BoardType.givenWeight, design: .rounded))
                 .foregroundStyle(tone))
         context.draw(text, at: point)
-    }
-}
-
-/// The channel's constraint at glyph size — a bulb and a tube, or a dashed cage.
-///
-/// **Not an SF Symbol, and that is the point.** The Today card's untouched state
-/// had `sun.max` on it, which is a picture of "daily" on a page whose whole
-/// argument is that this daily is a *different ruleset*. This is the same art
-/// the board draws, at 34pt.
-///
-/// The opacities are higher than the board's and than the primer's, because this
-/// is 34pt: the tube's shipped `0.17` body is invisible at a fifth of a cell's
-/// width. Same colours — `gridTone` for the tube and `digitTone` for the cage,
-/// the way `BoardView` assigns them — and same construction.
-private struct ChannelMotif: View {
-    let channel: Channel.Ledgered
-    var side: CGFloat = 34
-
-    @Environment(\.nineTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var tones: ThemeTones { theme.tones(for: colorScheme) }
-
-    var body: some View {
-        let tones = self.tones
-        let channel = self.channel
-        Canvas { context, size in
-            switch channel {
-            case .thermo:
-                // One straight tube on the diagonal: at 34pt a bend costs more
-                // legibility than it buys meaning.
-                let bulb = CGPoint(x: size.width * 0.27, y: size.height * 0.73)
-                let tip = CGPoint(x: size.width * 0.78, y: size.height * 0.24)
-                var spine = Path()
-                spine.move(to: bulb)
-                spine.addLine(to: tip)
-                context.stroke(
-                    spine, with: .color(tones.gridTone.opacity(0.34)),
-                    style: StrokeStyle(lineWidth: size.width * 0.26, lineCap: .round))
-                context.stroke(
-                    spine, with: .color(tones.gridTone.opacity(0.62)),
-                    style: StrokeStyle(lineWidth: size.width * 0.08, lineCap: .round))
-                let radius = size.width * 0.19
-                let disc = Path(ellipseIn: CGRect(
-                    x: bulb.x - radius, y: bulb.y - radius,
-                    width: radius * 2, height: radius * 2))
-                context.fill(disc, with: .color(tones.gridTone.opacity(0.34)))
-                context.stroke(disc, with: .color(tones.gridTone.opacity(0.62)), lineWidth: 1)
-
-            case .killer:
-                // Three cells of a 2×2, so the outline has an inside corner in
-                // it — a plain square would read as a border, not as a cage.
-                let cell = size.width * 0.34
-                let origin = CGPoint(x: (size.width - cell * 2) / 2,
-                                     y: (size.height - cell * 2) / 2)
-                let members: Set<Int> = [0, 1, 2]
-                context.stroke(
-                    cageOutline(members: members, across: 2, cell: cell,
-                                origin: origin, inset: cell * 0.08),
-                    with: .color(tones.digitTone.opacity(0.78)),
-                    style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [2, 1.6]))
-                for index in members.sorted() {
-                    let centre = CGPoint(
-                        x: origin.x + (CGFloat(index % 2) + 0.5) * cell,
-                        y: origin.y + (CGFloat(index / 2) + 0.5) * cell)
-                    let radius = cell * 0.15
-                    context.fill(
-                        Path(ellipseIn: CGRect(
-                            x: centre.x - radius, y: centre.y - radius,
-                            width: radius * 2, height: radius * 2)),
-                        with: .color(tones.digitTone.opacity(0.62)))
-                }
-            }
-        }
-        .frame(width: side, height: side)
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
     }
 }
 

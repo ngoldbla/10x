@@ -1433,7 +1433,7 @@ struct TutorialView: View {
 
     private var guideRows: some View {
         VStack(alignment: .leading, spacing: Space.l) {
-            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+            ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                 HStack(alignment: .top, spacing: Space.m) {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 40, height: 40)
@@ -1447,27 +1447,6 @@ struct TutorialView: View {
                             .lineSpacing(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                }
-            }
-            HStack(alignment: .top, spacing: Space.m) {
-                Image(systemName: "sun.max")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(quiet)
-                    .frame(width: 40)
-                VStack(alignment: .leading, spacing: Space.hair) {
-                    Text(Strings.string("shelf.today.title"))
-                        .couchText(CouchTypography.body, tones.digitTone)
-                    // The band's name is an argument, not part of the sentence.
-                    // It used to be the hard-coded word "Steady", so the German
-                    // tutorial would have explained a board called "Steady"
-                    // that the German shelf calls something else.
-                    Text(Strings.string("tutorial.today.body",
-                                        .text(Strings.difficulty(.steady))))
-                        .font(CouchTypography.label)
-                        .fontWeight(.regular)
-                        .foregroundStyle(quiet)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -1925,7 +1904,7 @@ private struct PadDifficultyGuide: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            ForEach(Difficulty.allCases, id: \.self) { difficulty in
+            ForEach(Difficulty.rowBands, id: \.self) { difficulty in
                 HStack(alignment: .top, spacing: 20) {
                     MiniBoard(difficulty: difficulty, accent: accent)
                         .frame(width: 64, height: 64)

@@ -949,25 +949,4 @@ final class BoardSpeechTests: XCTestCase {
         ))
     }
 
-    // MARK: - Streak chip (PRD-13 §3)
-
-    func testStreakSpeechNamesTheHoldWithoutNamingTheMiss() {
-        XCTAssertEqual(BoardSpeech.streakChip(days: 12, held: false), "12 day streak")
-        XCTAssertEqual(BoardSpeech.streakChip(days: 12, held: true), "12 day streak, held")
-        XCTAssertEqual(BoardSpeech.streakChip(days: 1, held: false), "1 day streak")
-    }
-
-    /// No count, no currency, no "remaining", and no naming the day the player
-    /// missed — PRD-13 §3 and the covenant forbid all four, and the spoken
-    /// string is the one place they would sneak back in unnoticed.
-    func testStreakSpeechNeverCountsShieldsOrShamesTheMiss() {
-        for days in [1, 2, 30] {
-            for held in [true, false] {
-                let text = BoardSpeech.streakChip(days: days, held: held).lowercased()
-                for banned in ["shield", "remaining", "left", "missed", "lost", "danger"] {
-                    XCTAssertFalse(text.contains(banned), "\(text) must not say \(banned)")
-                }
-            }
-        }
-    }
 }

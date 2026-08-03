@@ -352,8 +352,9 @@ struct PrefsSheetContent: View {
         }
     }
 
-    /// Feel — everything the board does to your hands. Two rows on iOS
-    /// (PRD-21 haptics, PRD-30 presence), one on the TV, none on the Mac.
+    /// Feel — everything the board does to your hands. One row on iOS
+    /// (PRD-21 haptics) and one on the TV, none on the Mac. (The Live Activity
+    /// row left with the daily system, 2026-08-02.)
     @ViewBuilder
     private var feelSection: some View {
         #if os(iOS)
@@ -362,22 +363,6 @@ struct PrefsSheetContent: View {
                 title: Strings.string("prefs.haptics.title"),
                 symbol: "hand.tap.fill",
                 isOn: bind(\.touchHaptics))
-            separator
-            // PRD-30. In Feel rather than Layout because what it decides is not
-            // where something sits but whether the app is present when you are
-            // not looking at it — which is the same kind of question as whether
-            // the board answers your hands.
-            //
-            // `lock.iphone` in both states: it is the only glyph in the SF
-            // catalog that names *this* pref (a board on a locked phone), it has
-            // no filled twin, and the equal-size container plus the fixed
-            // `iconSize` are what normalise its lighter stroke against the
-            // hand — which is the round-2 note about "the hand and phone glyphs
-            // being visibly lighter and off-metric".
-            toggleRow(
-                title: Strings.string("prefs.livePresence.title"),
-                symbol: "lock.iphone",
-                isOn: bind(\.livePresence))
         }
         #elseif os(tvOS)
         prefsSection(Strings.string("prefs.section.feel")) {
@@ -504,7 +489,6 @@ struct PrefsSheetContent: View {
         switch model.prefs.ambientSlot {
         case .none: return "circle.slash"
         case .clock: return "clock.fill"
-        case .streak: return "flame.fill"
         }
     }
     #endif
@@ -517,24 +501,14 @@ struct PrefsSheetContent: View {
         if let onNewGame {
             VStack(alignment: .leading, spacing: 14) {
                 sectionLabel(Strings.string("prefs.newGame.title"))
-                // Three and three, matching the shelf's `rowBands`/`deepBands`
-                // split. This was one six-wide row: authored for the original
-                // three, then PRD-25 appended Nocturne, Tempest and Abyss to
-                // `allCases` and doubled it without the layout being looked at, so
-                // the long titles wrapped and the row sat at mixed heights. The
-                // twin of this row is `BoardsSheet.freshPill` — duplicated on
-                // purpose, so change one and go look at the other. Only the shape
-                // is shared: here the affordance is the focus ring, so
+                // One row of the three offered bands (2026-08-02). The twin of
+                // this row is `BoardsSheet.freshPill` — duplicated on purpose,
+                // so change one and go look at the other. Only the shape is
+                // shared: here the affordance is the focus ring, so
                 // `couchGlassInteractive` stays and there is no filter-chip
-                // reading to fix. Wrapping is safe for focus — tvOS derives it from
-                // geometry (see `SwatchFlow`), so a second row needs no work.
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        ForEach(Difficulty.rowBands, id: \.self) { newGamePill($0, onNewGame) }
-                    }
-                    HStack(spacing: 10) {
-                        ForEach(Difficulty.deepBands, id: \.self) { newGamePill($0, onNewGame) }
-                    }
+                // reading to fix.
+                HStack(spacing: 10) {
+                    ForEach(Difficulty.rowBands, id: \.self) { newGamePill($0, onNewGame) }
                 }
                 .padding(.horizontal, Metrics.margin)
                 // Corrected in PRD-34: `startFree` calls `library.create`, which

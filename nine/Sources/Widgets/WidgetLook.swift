@@ -47,13 +47,18 @@ extension Color {
     }
 }
 
-/// The two tones that are Nine's brand rather than the player's choice.
-enum WidgetPalette {
-    /// The streak flame. Ember-the-hue, not ember-the-accent: the flame is the
-    /// same colour whatever accent you picked, exactly as `StreakChip` is in the
-    /// app, so it does not move when the palette does.
-    static let ember = Color(red: 1.00, green: 0.56, blue: 0.20)
-    /// Kept for the gallery-preview and no-snapshot paths, where there is no
-    /// player and therefore no appearance to honour.
-    static let paper = Color(red: 0.94, green: 0.93, blue: 0.90)
+// MARK: - Shared formatting
+
+/// One formatter, shared by the board widget's solved footer.
+enum WidgetFormat {
+    /// "4:12" — matches the app's completion chip, because it now *is* the
+    /// app's completion chip (`SolveCardFacts.elapsedText`).
+    ///
+    /// `.rounded()` stays here rather than moving into the shared function: the
+    /// widget's seconds come off a `TimelineEntry` minted at a whole second and
+    /// the in-app clocks truncate a live timer. Two different questions,
+    /// one format.
+    static func time(_ seconds: TimeInterval) -> String {
+        SolveCardFacts.elapsedText(seconds.rounded())
+    }
 }

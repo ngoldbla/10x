@@ -2,12 +2,15 @@ import XCTest
 @testable import NineShared
 import NineEngine
 
+/// The calendar shrank with the daily archive's removal (2026-08-02): what
+/// remains is the ordinal arithmetic, the tracker's date label and the heat
+/// figure's weekday rail, and these are their tests.
 final class ArchiveCalendarTests: XCTestCase {
 
     // MARK: - Ordinals
 
-    /// The grid addresses days the same way the streak and the seed do, or a
-    /// checkmark lands on the wrong square.
+    /// The label addresses days the same way the seed does, or a date lands on
+    /// the wrong square of the heat figure.
     func testDayOrdinalAgreesWithDailySeed() {
         let utc = DailySeed.utcCalendar
         for (year, month, day) in [(2026, 7, 12), (2026, 12, 31), (2027, 3, 1)] {
@@ -37,88 +40,6 @@ final class ArchiveCalendarTests: XCTestCase {
         XCTAssertEqual(last - first, 30)
     }
 
-    // MARK: - The grid
-
-    func testGridIsSixRowsOfSeven() {
-        let grid = ArchiveCalendar.grid(for: ArchiveMonth(year: 2026, month: 7), firstWeekday: 1)
-        XCTAssertEqual(grid.count, 6)
-        XCTAssertTrue(grid.allSatisfy { $0.count == 7 })
-    }
-
-    /// 1 July 2026 is a Wednesday, so a Sunday-first grid leads with three
-    /// blanks and a Monday-first grid with two.
-    func testLeadingBlanksFollowTheFirstWeekday() {
-        let july = ArchiveMonth(year: 2026, month: 7)
-        let sundayFirst = ArchiveCalendar.grid(for: july, firstWeekday: 1).flatMap { $0 }
-        let mondayFirst = ArchiveCalendar.grid(for: july, firstWeekday: 2).flatMap { $0 }
-        XCTAssertEqual(sundayFirst.prefix(4).map { $0 == nil }, [true, true, true, false])
-        XCTAssertEqual(mondayFirst.prefix(3).map { $0 == nil }, [true, true, false])
-    }
-
-    func testGridHoldsEveryDayOfTheMonthInOrderAndNothingElse() {
-        for (year, month, days) in [(2026, 7, 31), (2026, 2, 28), (2028, 2, 29), (2026, 4, 30)] {
-            let filled = ArchiveCalendar
-                .grid(for: ArchiveMonth(year: year, month: month), firstWeekday: 1)
-                .flatMap { $0 }
-                .compactMap { $0 }
-            XCTAssertEqual(filled.count, days, "\(year)-\(month)")
-            XCTAssertEqual(filled, filled.sorted(), "\(year)-\(month)")
-            XCTAssertEqual(
-                filled.first, ArchiveCalendar.dayOrdinal(year: year, month: month, day: 1),
-                "\(year)-\(month)"
-            )
-        }
-    }
-
-    /// Six rows always, whatever the shape — a 31-day month starting on the
-    /// last column needs 37 slots, and a fixed height keeps the sheet from
-    /// resizing under the finger as the pager moves.
-    func testASixRowMonthStillFits() {
-        // 1 August 2026 is a Saturday: the last Sunday-first column.
-        let grid = ArchiveCalendar.grid(for: ArchiveMonth(year: 2026, month: 8), firstWeekday: 1)
-        XCTAssertEqual(grid.count, 6)
-        XCTAssertEqual(grid.flatMap { $0 }.compactMap { $0 }.count, 31)
-        XCTAssertNil(grid[0][5], "the 1st sits in the last column")
-        XCTAssertNotNil(grid[0][6])
-    }
-
-    // MARK: - Paging
-
-    func testMonthsRunFromTheFloorToTheMonthContainingToday() {
-        let today = ArchiveCalendar.dayOrdinal(year: 2026, month: 9, day: 15)
-        let months = ArchiveCalendar.months(through: today)
-        XCTAssertEqual(months.first, ArchiveCalendar.floor)
-        XCTAssertEqual(months.last, ArchiveMonth(year: 2026, month: 9))
-        XCTAssertEqual(months.count, 3)
-    }
-
-    /// A device whose clock is set before Nine shipped still gets a usable
-    /// pager rather than an empty one.
-    func testMonthsNeverRunBelowTheFloor() {
-        let beforeLaunch = ArchiveCalendar.dayOrdinal(year: 2026, month: 1, day: 1)
-        XCTAssertEqual(ArchiveCalendar.months(through: beforeLaunch), [ArchiveCalendar.floor])
-    }
-
-    func testMonthsCrossAYearBoundary() {
-        let today = ArchiveCalendar.dayOrdinal(year: 2027, month: 2, day: 3)
-        let months = ArchiveCalendar.months(through: today)
-        XCTAssertEqual(months.count, 8) // Jul 2026 … Feb 2027
-        XCTAssertEqual(months.last, ArchiveMonth(year: 2027, month: 2))
-        XCTAssertEqual(months, months.sorted())
-    }
-
-    func testAdvancingAMonthCrossesTheYearInBothDirections() {
-        XCTAssertEqual(
-            ArchiveMonth(year: 2026, month: 12).advanced(by: 1), ArchiveMonth(year: 2027, month: 1)
-        )
-        XCTAssertEqual(
-            ArchiveMonth(year: 2027, month: 1).advanced(by: -1), ArchiveMonth(year: 2026, month: 12)
-        )
-        XCTAssertEqual(
-            ArchiveMonth(year: 2026, month: 7).advanced(by: -12), ArchiveMonth(year: 2025, month: 7)
-        )
-    }
-
     // MARK: - Labels
 
     /// The highest-value test in this file, and the reason every formatter in
@@ -126,113 +47,29 @@ final class ArchiveCalendarTests: XCTestCase {
     /// formatter left on the device's timezone renders 12 July as "Jul 11"
     /// everywhere west of Greenwich — silently, off by one, with no crash and
     /// no warning, and invisible to anyone developing in UTC+0.
-    ///
-    /// Asserts stability rather than wording, so it holds under any CI locale;
-    /// the wording is pinned separately below.
     func testDayLabelsAreStableAcrossTimezones() {
         let ordinal = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
         let saved = NSTimeZone.default
         defer { NSTimeZone.default = saved }
-        var short: Set<String> = []
-        var long: Set<String> = []
+        var medium: Set<String> = []
         for identifier in ["UTC", "America/Los_Angeles", "Pacific/Kiritimati", "Asia/Tokyo"] {
             NSTimeZone.default = TimeZone(identifier: identifier)!
-            short.insert(ArchiveCalendar.shortLabel(forDayOrdinal: ordinal))
-            long.insert(ArchiveCalendar.longLabel(forDayOrdinal: ordinal))
-            XCTAssertEqual(ArchiveCalendar.dayNumber(forDayOrdinal: ordinal), 12, identifier)
+            medium.insert(ArchiveCalendar.mediumLabel(forDayOrdinal: ordinal))
         }
-        XCTAssertEqual(short.count, 1, "short label moved with the device timezone: \(short)")
-        XCTAssertEqual(long.count, 1, "long label moved with the device timezone: \(long)")
-        XCTAssertTrue(short.first!.contains("12"), short.first!)
-        XCTAssertTrue(long.first!.contains("12"), long.first!)
+        XCTAssertEqual(medium.count, 1, "medium label moved with the device timezone: \(medium)")
+        XCTAssertTrue(medium.first!.contains("12"), medium.first!)
     }
 
     /// The English wording, pinned where the locale makes that meaningful.
-    /// `Locale.current` on a Linux CI container is not the developer's, and a
-    /// red lane over a month name would say nothing true about the code.
     func testLabelWordingInEnglish() throws {
         try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
         let ordinal = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
-        XCTAssertEqual(ArchiveCalendar.title(for: ArchiveMonth(year: 2026, month: 7)), "July 2026")
-        XCTAssertEqual(ArchiveCalendar.shortLabel(forDayOrdinal: ordinal), "Jul 12")
-        XCTAssertEqual(ArchiveCalendar.longLabel(forDayOrdinal: ordinal), "July 12")
+        XCTAssertEqual(ArchiveCalendar.mediumLabel(forDayOrdinal: ordinal), "Jul 12, 2026")
     }
 
-    // MARK: - Accessibility wording
+    // MARK: - Weekday initials
 
-    /// The archive is the only screen that can never have an AX baseline —
-    /// every label in it is derived from today's date and would rot overnight —
-    /// so this test is the wording's only coverage. Same reasoning that put the
-    /// Voice Control input labels in `BoardSpeechTests` (PRD-19).
-    func testAccessibilityLabelSpeaksBothChannels() throws {
-        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
-        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
-        func label(_ progress: ArchiveDayState.Progress,
-                   _ position: ArchiveDayState.Position) -> String {
-            ArchiveCalendar.accessibilityLabel(
-                forDayOrdinal: day, state: ArchiveDayState(progress: progress, position: position)
-            )
-        }
-        XCTAssertEqual(label(.solved, .past), "July 12, solved")
-        XCTAssertEqual(label(.inProgress, .past), "July 12, in progress")
-        XCTAssertEqual(label(.untouched, .past), "July 12, not played")
-        XCTAssertEqual(label(.untouched, .today), "July 12, today, not played")
-        // The combination a flat five-state enum could not represent, and the
-        // one a player sees for most of every evening.
-        XCTAssertEqual(label(.solved, .today), "July 12, today, solved")
-    }
-
-    /// A future day is not "not played" — it is not here yet, and saying
-    /// otherwise invites a player to try to play it.
-    func testFutureDaysAreNamedWithoutAProgressClaim() throws {
-        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
-        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
-        XCTAssertEqual(
-            ArchiveCalendar.accessibilityLabel(
-                forDayOrdinal: day,
-                state: ArchiveDayState(progress: .untouched, position: .future)
-            ),
-            "July 12"
-        )
-    }
-
-    func testOnlyDaysNineActuallyServedArePlayable() {
-        XCTAssertFalse(ArchiveDayState(progress: .untouched, position: .future).isPlayable)
-        XCTAssertFalse(ArchiveDayState(progress: .untouched, position: .beforeLaunch).isPlayable)
-        XCTAssertTrue(ArchiveDayState(progress: .untouched, position: .today).isPlayable)
-        XCTAssertTrue(ArchiveDayState(progress: .solved, position: .past).isPlayable)
-    }
-
-    /// The floor month contains ten days that precede Nine's first daily, and
-    /// they were never anybody's daily. `floor` is where the pager stops;
-    /// `floorDayOrdinal` is what is playable, and the gap between them is the
-    /// whole point.
-    func testTheFloorDayIsNinesFirstDailyNotTheFirstOfTheMonth() {
-        XCTAssertEqual(
-            ArchiveCalendar.floorDayOrdinal,
-            ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 11)
-        )
-        XCTAssertEqual(ArchiveCalendar.month(ofDayOrdinal: ArchiveCalendar.floorDayOrdinal),
-                       ArchiveCalendar.floor)
-        XCTAssertGreaterThan(
-            ArchiveCalendar.floorDayOrdinal,
-            ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 1)
-        )
-    }
-
-    /// A day Nine never served makes no progress claim at all.
-    func testPreLaunchDaysAreNamedWithoutAProgressClaim() throws {
-        try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
-        XCTAssertEqual(
-            ArchiveCalendar.accessibilityLabel(
-                forDayOrdinal: ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 3),
-                state: ArchiveDayState(progress: .untouched, position: .beforeLaunch)
-            ),
-            "July 3"
-        )
-    }
-
-    func testWeekdayInitialsMatchTheGridColumns() throws {
+    func testWeekdayInitialsRotateWithTheFirstWeekday() throws {
         try XCTSkipUnless(Locale.current.identifier.hasPrefix("en"), "non-English locale")
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1),
                        ["S", "M", "T", "W", "T", "F", "S"])
@@ -240,19 +77,14 @@ final class ArchiveCalendarTests: XCTestCase {
                        ["M", "T", "W", "T", "F", "S", "S"])
     }
 
-    /// The column letters come from the locale, not from a spelled-out array.
+    /// The letters come from the locale, not from a spelled-out array.
     ///
     /// This is the one unambiguous live locale bug PRD-20 found. The column
     /// *order* has always respected `firstWeekday`; the letters were
-    /// `["S","M","T","W","T","F","S"]` on every locale on earth. A German
-    /// player reading a Monday-first grid saw English initials over German
-    /// month names, and no test could see it because no test ran in a
-    /// non-English locale — which is why this one takes the locale as an
-    /// argument instead of reading `Locale.current`.
-    ///
-    /// German is the sharpest case available: Dienstag and Donnerstag are both
-    /// "D" and Mittwoch is "M", so `["M","D","M","D","F","S","S"]` is a
-    /// sequence no English array can be mistaken for.
+    /// `["S","M","T","W","T","F","S"]` on every locale on earth. German is the
+    /// sharpest case available: Dienstag and Donnerstag are both "D" and
+    /// Mittwoch is "M", so `["M","D","M","D","F","S","S"]` is a sequence no
+    /// English array can be mistaken for.
     func testWeekdayInitialsComeFromTheLocale() {
         let german = Locale(identifier: "de_DE")
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 2, locale: german),
@@ -267,21 +99,5 @@ final class ArchiveCalendarTests: XCTestCase {
         XCTAssertEqual(ArchiveCalendar.weekdayInitials(firstWeekday: 1,
                                                       locale: Locale(identifier: "ja_JP")),
                        ["日", "月", "火", "水", "木", "金", "土"])
-    }
-
-    /// The spoken list joins the way the language joins lists. Japanese uses
-    /// `、` and Chinese `，`; a literal `", "` is English punctuation shipped
-    /// to nine languages, and a catalog entry would only move the hard-coding
-    /// into a row a translator has to notice.
-    func testTheSpokenListUsesTheLocalesOwnSeparator() {
-        let day = ArchiveCalendar.dayOrdinal(year: 2026, month: 7, day: 12)
-        let label = ArchiveCalendar.accessibilityLabel(
-            forDayOrdinal: day,
-            state: ArchiveDayState(progress: .solved, position: .today),
-            locale: Locale(identifier: "ja_JP")
-        )
-        XCTAssertTrue(label.contains("、"),
-                      "Japanese joins with an ideographic comma; got \(label)")
-        XCTAssertFalse(label.contains(", "), "…and never with \", \"; got \(label)")
     }
 }

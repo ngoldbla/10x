@@ -50,7 +50,6 @@ enum ShareCardMetrics {
     static var bodySide: CGFloat { size.width - margin * 2 }
     static let timeSize: CGFloat = 76
     static let creditSize: CGFloat = 40
-    static let dailySize: CGFloat = 30
     static let wordmarkSize: CGFloat = 64
     /// Not localized, ever: it is the mark, not a word. It lives here rather
     /// than in a `Phrase` block nested in `ShareCard` because that type is
@@ -81,11 +80,6 @@ struct ShareCard<Content: View>: View {
                 Text(facts.creditLine)
                     .font(.system(size: ShareCardMetrics.creditSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(tones.digitTone.opacity(0.62))
-                if let dailyLine = facts.dailyLine {
-                    Text(dailyLine)
-                        .font(.system(size: ShareCardMetrics.dailySize, weight: .medium, design: .rounded))
-                        .foregroundStyle(tones.digitTone.opacity(0.42))
-                }
             }
 
             Spacer(minLength: 40)

@@ -444,20 +444,13 @@ final class PhrasebookTests: XCTestCase {
     /// App's missing-key fallback all read, so this is the one plural rule in
     /// Nine that is not ICU's.
     func testEnglishSelectsThePluralCategoryFromTheRightArgument() {
-        // Identical in both categories, because English uses "day"
-        // attributively and does not inflect it. The entry exists so that
-        // German, French and Spanish can.
-        XCTAssertEqual(Phrasebook.english.string("board.streak.plain", .int(1)), "1 day streak")
-        XCTAssertEqual(Phrasebook.english.string("board.streak.plain", .int(12)), "12 day streak")
-
-        // The three whose English was wrong at n = 1 before this table existed.
+        // The pair whose English was wrong at n = 1 before this table existed.
         XCTAssertEqual(Phrasebook.english.string("game.autoNotes.chip", .int(1)),
                        "Auto notes · filled 1 candidate")
         XCTAssertEqual(Phrasebook.english.string("game.autoNotes.chip", .int(2)),
                        "Auto notes · filled 2 candidates")
         XCTAssertEqual(Phrasebook.english.string("shelf.points.chip", .int(1)), "1 pt")
         XCTAssertEqual(Phrasebook.english.string("shelf.points.chip", .int(2)), "2 pts")
-        XCTAssertEqual(Phrasebook.english.string("widget.daily.points", .int(1)), "1 pt")
 
         // A count that is not argument 1: `shelf.continue.captionMore` counts
         // argument 3, so arguments 1 and 2 must not be able to select `one`.

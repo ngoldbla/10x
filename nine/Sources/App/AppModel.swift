@@ -1,7 +1,13 @@
 // AppModel.swift — the one @MainActor view model behind both screens.
-// Owns the current game, prefs, streaks and the autosave slot; every value
+// Owns the current game, prefs and the board library; every value
 // persists through CouchStored (debounced JSON under Application Support,
-// streaks mirrored to iCloud KVS).
+// the solve history mirrored to iCloud KVS).
+//
+// The daily/streak system was removed on 2026-08-02 (product decision: players
+// just play boards as much as they like; one-board-per-day gating benefited
+// nobody). The persisted blobs it wrote (`nine.streak`, `nine.archive`,
+// `nine.graceSeen`, `nine.table`) are simply no longer read — their types still
+// decode in the Engine so nothing discards a player's data on downgrade.
 //
 // Note: the engine sources compile inside this app target (see project.yml),
 // so engine types are used directly — no `import NineEngine`.
@@ -33,9 +39,13 @@ enum BoardAnchor: String, Codable, Sendable, CaseIterable {
 }
 
 /// The optional ambient chip parked in the band opposite the board (PRD-2):
-/// a clock, or points + streak. Off is the default and the statement.
+/// a clock, or the points total. Off is the default and the statement.
+///
+/// `.streak` was a case here until 2026-08-02; the daily/streak system is
+/// gone, and the tolerant decode below (`try?`-guarded in `NinePrefs`) resets
+/// a stored "streak" value to `.none` rather than discarding the blob.
 enum AmbientSlot: String, Codable, Sendable, CaseIterable {
-    case none, clock, streak
+    case none, clock
 
     var title: String {
         switch self {
@@ -43,7 +53,6 @@ enum AmbientSlot: String, Codable, Sendable, CaseIterable {
         // translator cannot make this row disagree with the toggles above it.
         case .none: return Strings.string("prefs.toggle.off")
         case .clock: return Strings.string("ambientSlot.clock")
-        case .streak: return Strings.string("ambientSlot.streak")
         }
     }
 }
@@ -117,29 +126,17 @@ struct NinePrefs: Codable, Sendable, Equatable {
     /// solve crescendo is deliberately *not* gated by this, being a once-a-
     /// board celebration rather than a per-move texture.
     var touchHaptics = true
-    /// iOS: the Live Activity that bookmarks a daily you started and left
-    /// (PRD-30).
-    ///
-    /// **On by default, and that is a covenant judgement rather than an
-    /// oversight.** The anti-bloat constitution's rule is about *notifications* —
-    /// "a single opt-in silent daily reminder at most, off by default" — and
-    /// three properties keep this on the other side of that line: it exists only
-    /// because the player started a board and walked away, it is never given an
-    /// `AlertConfiguration` so it cannot buzz or ring, and it ends itself on
-    /// solve and at midnight. iOS already owns a global off switch and a
-    /// swipe-to-dismiss, which is the real opt-in gate. Off by default would have
-    /// shipped a feature that effectively does not exist, behind a settings row
-    /// the covenant makes expensive.
-    ///
-    /// macOS and tvOS decode it and ignore it: ActivityKit exists on neither.
-    var livePresence = true
+
+    // `livePresence` (PRD-30's Live Activity toggle) was removed with the
+    // daily on 2026-08-02: the activity bookmarked *the daily*, and there is
+    // no daily. An old blob's `livePresence` key is simply ignored on decode.
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case showTimer, errorHighlight, accent, numberHighlight
         case controlsAtBottom, resumeOnLaunch, boardAnchor, ambientSlot
-        case controllerHaptics, touchHaptics, livePresence
+        case controllerHaptics, touchHaptics
         case theme = "appearance"
     }
 
@@ -176,7 +173,6 @@ struct NinePrefs: Codable, Sendable, Equatable {
         ambientSlot = (try? c.decodeIfPresent(AmbientSlot.self, forKey: .ambientSlot)) ?? .none
         controllerHaptics = try c.decodeIfPresent(Bool.self, forKey: .controllerHaptics) ?? true
         touchHaptics = try c.decodeIfPresent(Bool.self, forKey: .touchHaptics) ?? true
-        livePresence = try c.decodeIfPresent(Bool.self, forKey: .livePresence) ?? true
     }
 }
 
@@ -238,12 +234,6 @@ final class AppModel {
             prefsStore.wrappedValue = prefs
             publishAppearance()
             #if os(iOS)
-            // Turning the Live Activity off should clear the Lock Screen in the
-            // same gesture, not at the next backgrounding (PRD-30). Turning it on
-            // deliberately does *not* start one: an activity is something the
-            // player's own play creates, and starting one from a settings toggle
-            // would make the toggle the trigger.
-            if oldValue.livePresence, !prefs.livePresence { PresenceBridge.endAll() }
             // Theme and accent now reach the widget process, so a palette change
             // has to reload it (PRD-30). `publish` is digest-gated, so a pref
             // change that is not a look change costs nothing.
@@ -252,34 +242,6 @@ final class AppModel {
             }
             #endif
         }
-    }
-
-    /// The quiet a Focus filter is asking for (PRD-33). Written by
-    /// `QuietShelfFilter` when the system activates or deactivates a Focus; read
-    /// by the shelf, the Mac and — through `WidgetSnapshot` — the widget.
-    ///
-    /// A sibling top-level blob rather than a field on `nine.prefs`, and
-    /// **deliberately not cloud-synced**, for two separate reasons. It is machine
-    /// state the system writes rather than a preference the player set, so it does
-    /// not belong beside their settings; and a Focus is a property of the device
-    /// in front of you, so an iPhone entering Work Focus must not quiet an Apple
-    /// TV in another room. (EXECUTING-A-PRD §2 supplies the third reason for the
-    /// sibling key: an older build's next write would erase a new field on
-    /// `nine.prefs`.)
-    private(set) var focus: QuietFocus {
-        didSet { focusStore.wrappedValue = focus }
-    }
-
-    /// Adopt a Focus filter's state. The only writer is `QuietShelfFilter`.
-    func applyFocus(_ next: QuietFocus) {
-        guard focus != next else { return }
-        focus = next
-        try? focusStore.flushNow()
-        #if os(iOS)
-        // The Home Screen has to go quiet in the same breath or the filter is a
-        // lie two inches from the app icon.
-        WidgetBridge.publish(from: self)
-        #endif
     }
 
     /// Mirror theme + accent into the cloud-synced sibling key the watch reads
@@ -363,12 +325,6 @@ final class AppModel {
         guard updated != hand else { return }
         hand = updated
     }
-    /// Which dailies are solved (PRD-14) — the archive grid's checkmarks.
-    /// Written only by `finishSolve` and the launch backfill; the library
-    /// cannot hold this, because `prune()` caps solved boards at 20.
-    private(set) var archive: ArchiveLedger {
-        didSet { archiveStore.wrappedValue = archive }
-    }
     /// A tip has already been shown during this launch. Never persisted: the
     /// "one per session" half of the budget is a property of the launch, and
     /// the lifetime half is what the ledger is for.
@@ -405,158 +361,10 @@ final class AppModel {
         guard !drawerFound else { return }
         drawerFound = true
     }
-    private(set) var streak: StreakState {
-        didSet { streakStore.wrappedValue = streak }
-    }
-    /// The bridged day whose card has been acknowledged (PRD-13 §3).
-    private(set) var graceSeenDay: Int {
-        didSet { graceSeenStore.wrappedValue = graceSeenDay }
-    }
-    // MARK: - The table (PRD-29)
-
-    /// Whether this player has joined the weekly table. **Off by default**, and
-    /// the entire new persisted state this PRD adds.
-    ///
-    /// A bare `Bool` for `graceSeenDay`'s stated reason — the Bool *is* the whole
-    /// state, so a struct would add a tolerant decode with nothing to be tolerant
-    /// about, and `CouchStored` already falls back to the default when the value
-    /// fails to decode. Cloud-synced beside `nine.streak`: joining is a decision
-    /// the person made, not one each of their devices makes again.
-    ///
-    /// Nothing else is stored. No seat, no previous seat, no past week, no
-    /// standing — which is what makes "you dropped four places" a message no code
-    /// path in this app can construct (PRD-29 §2).
-    private(set) var joinsTable: Bool {
-        didSet { tableStore.wrappedValue = joinsTable }
-    }
-
-    /// Join the table, or leave it.
-    ///
-    /// Joining submits the week already played, so the section has something in
-    /// it before the next solve rather than after it. **Leaving submits nothing
-    /// and withdraws nothing**: there is no delete-my-score API in GameKit, the
-    /// occurrence ages out on its own, and the prefs row says so plainly rather
-    /// than implying an erasure this app cannot perform.
-    func setJoinsTable(_ joins: Bool) {
-        guard joins != joinsTable else { return }
-        joinsTable = joins
-        try? tableStore.flushNow()
-        if joins { submitTableWeek() }
-    }
-
-    /// This week's tally off the player's own history, audited.
-    ///
-    /// Derived on every read rather than cached, because it is a fold over at
-    /// most seven records and a cache is a second copy of a number that can go
-    /// stale — the shape `ChannelLedger.record` exists to avoid one layer down.
-    var tableWeek: DailyTable.Week {
-        DailyTable.tally(history, over: DailyTable.week(containing: todayOrdinal),
-                         trusting: { [self] day in trustsDaily(on: day) })
-    }
-
-    /// The twenty seats last loaded, or none.
-    ///
-    /// Held rather than fetched per redraw because a `View` body must not start
-    /// a network call, and empty on every failure because there is no error
-    /// surface: a table that could not be loaded is a section that draws its
-    /// honest nothing, which is the idiom the rest of the History sheet uses.
-    private(set) var tableSeats: [DailyTable.Seat] = []
-
-    /// Ask Game Center for the window. Called from the History sheet's `.task`,
-    /// keyed on the opt-in so joining or leaving re-runs it.
-    func refreshTable() async {
-        #if DEBUG
-        if CommandLine.arguments.contains(Self.tableDemoArgument) {
-            tableSeats = Self.demoTableSeats(mine: tableWeek)
-            return
-        }
-        #endif
-        #if os(iOS) || os(macOS) || os(tvOS)
-        guard joinsTable else { return tableSeats = [] }
-        tableSeats = await GameCenter.shared.loadTable()
-        #else
-        tableSeats = []
-        #endif
-    }
-
-    #if DEBUG
-    /// PRD-29's drawing lane, and the honest caveat this PRD is stuck with: the
-    /// App Store Connect recurring-leaderboard record does not exist, so
-    /// `loadEntries` returns nothing and a real table has never been on a
-    /// screen. Everything below the GameKit call is pure and tested; the drawing
-    /// is driven against this.
-    ///
-    /// The same arrangement as PRD-28's loopback transport and PRD-23's variant
-    /// channel — DEBUG-fenced, reachable only by a launch argument, and sealed
-    /// out of Release by `TableSealTests` — because a demo standing that
-    /// survived into a shipping build would be twenty invented people on a
-    /// leaderboard.
-    static let tableDemoArgument = "-table-demo"
-
-    /// Twenty seats, ordered the way the leaderboard would order them.
-    ///
-    /// **Sorted by `DailyTable.score`, and that is not cosmetic.** The first
-    /// version dropped the local player into the middle of a descending ladder
-    /// regardless of their week, and the result read as a table with one row in
-    /// the wrong place — which is precisely what a real ordering bug would look
-    /// like, so the lane would have hidden one. Sorting here is the demo standing
-    /// in for the server, which is the one thing in this whole feature that is
-    /// allowed to decide an order; `TableView` never re-orders what it is handed,
-    /// and `TableSealTests` fails if it starts.
-    ///
-    /// Deterministic: no `Date()`, no `Int.random`.
-    static func demoTableSeats(mine: DailyTable.Week) -> [DailyTable.Seat] {
-        let names = [
-            "Wren", "Halloran", "Sofia", "Idris", "Marta", "Bo", "Nkechi", "Teodor",
-            "June", "Amara", "Kit", "Rosalind", "Enzo", "Yusuf", "Delphine", "Otto",
-            "Ines", "Cyrus", "Petra",
-        ]
-        var seats = names.indices.map { rung in
-            // A plausible ladder: the day count falls in steps and the time
-            // climbs inside each step, which is exactly what the packed score
-            // orders by.
-            DailyTable.Seat(
-                id: "demo.\(rung)", name: names[rung],
-                week: DailyTable.Week(days: max(0, DailyTable.daysInWeek - rung / 3),
-                                      seconds: 260 + rung * 47),
-                isMe: false)
-        }
-        seats.append(DailyTable.Seat(id: "demo.me", name: "", week: mine, isMe: true))
-        return seats.sorted { DailyTable.score(of: $0.week) > DailyTable.score(of: $1.week) }
-    }
-    #endif
-
-    /// PRD-29 §5's gate, resolved from a day to a board to a replay.
-    ///
-    /// **The absence of a replay is not a finding**, and that is the deliberate
-    /// half. A replay is minted only on this app's own solve path, so every
-    /// widget solve, every watch solve and every board that arrived over CloudKit
-    /// with its log stripped has none; refusing those would make the league a
-    /// feature of one code path rather than of the game. What the audit gates is
-    /// a replay that exists and does not add up.
-    private func trustsDaily(on day: Int) -> Bool {
-        guard let entry = library.dailyEntry(day: day),
-              let replay = replays.replay(for: entry.id) else { return true }
-        return ReplayAudit.audit(replay).isClean
-    }
-
-    /// Send this week up, if the player asked to be on the table at all.
-    ///
-    /// Every guard is on this one line rather than scattered through the solve
-    /// path: opted in, non-empty, and Game Center will do the rest of the
-    /// refusing. An empty week is never submitted — a player who joined and has
-    /// not started is not a row anybody needs to see.
-    private func submitTableWeek() {
-        #if os(iOS) || os(macOS) || os(tvOS)
-        guard joinsTable else { return }
-        GameCenter.shared.submitTable(week: tableWeek)
-        #endif
-    }
-
-    /// The full board library: the daily (one per day) plus unlimited free-play
-    /// partials, solved boards retained for the "previously played" log.
-    /// Local-only — iCloud KVS is 1 MB total and already carries the streak and
-    /// the 200-record solve history; `nine.save` was never synced either.
+    /// The full board library: unlimited free-play partials, solved boards
+    /// retained for the "previously played" log. Local-only — iCloud KVS is
+    /// 1 MB total and already carries the 200-record solve history;
+    /// `nine.save` was never synced either.
     private(set) var library: BoardLibrary {
         didSet { libraryStore.wrappedValue = library }
     }
@@ -613,20 +421,19 @@ final class AppModel {
         didSet { historyStore.wrappedValue = history }
     }
 
-    // Persistence (streaks and the solve log are precious → cloud-synced).
+    // Persistence (the solve log is precious → cloud-synced).
+    //
+    // `nine.streak`, `nine.archive`, `nine.graceSeen` and `nine.table` are no
+    // longer read or written (2026-08-02): the daily system they served is
+    // gone. Old installs keep their blobs on disk/KVS untouched.
     @ObservationIgnored private let prefsStore =
         CouchStored(wrappedValue: NinePrefs(), "nine.prefs")
-    @ObservationIgnored private let streakStore =
-        CouchStored(wrappedValue: StreakState(), "nine.streak", cloudSynced: true)
     /// Theme + accent, mirrored for the watch (PRD-6). A sibling top-level key
     /// rather than a field on `nine.prefs`, because `nine.prefs` ships in every
     /// released build and an older one's next write erases a field it has no
     /// property for (EXECUTING-A-PRD §2).
     @ObservationIgnored private let appearanceStore =
         CouchStored(wrappedValue: SharedAppearance(), SharedAppearance.storeKey, cloudSynced: true)
-    /// The Focus filter (PRD-33). Local, never `cloudSynced` — see `focus`.
-    @ObservationIgnored private let focusStore =
-        CouchStored(wrappedValue: QuietFocus.none, QuietFocus.storeKey)
     @ObservationIgnored private let libraryStore =
         CouchStored(wrappedValue: BoardLibrary(), "nine.library")
     /// Legacy single-slot store — read once for migration, then blanked so a
@@ -691,16 +498,8 @@ final class AppModel {
         CouchStored(wrappedValue: false, "nine.drawerFound")
     @ObservationIgnored private let historyStore =
         CouchStored(wrappedValue: SolveHistory(), "nine.history", cloudSynced: true)
-    /// Which dailies are solved (PRD-14). Its own blob for the reason above,
-    /// and *not* a sibling key of `nine.history`: `SolveHistory` is an ordered
-    /// record array with a capacity prune and a quarantine, and a set of day
-    /// ordinals shares none of that. Cloud-synced unlike `nine.coach` — a
-    /// checkmark is a property of the player, not of the hand that earned it.
-    @ObservationIgnored private let archiveStore =
-        CouchStored(wrappedValue: ArchiveLedger(), "nine.archive", cloudSynced: true)
-    /// PRD-24's per-channel streaks and stats slices. Cloud-synced beside
-    /// `nine.streak` and `nine.history`, for their reason: a streak the player
-    /// earned is a streak on every device.
+    /// PRD-24's per-channel stats slices. Cloud-synced beside `nine.history`,
+    /// for its reason: a record the player earned is a record on every device.
     ///
     /// A **new** blob rather than a widening of `nine.streak` or `nine.history`,
     /// and that placement is the whole safety argument. Those two are already on
@@ -730,22 +529,6 @@ final class AppModel {
     /// under the wrong rules.
     @ObservationIgnored private let channelRulesStore =
         CouchStored(wrappedValue: ChannelRuleStore(), "nine.channelRules")
-    /// The `lastGraceDay` whose "your streak held" card has already been seen,
-    /// or 0 for none (PRD-13 §3).
-    ///
-    /// A bare `Int` rather than a ledger, because PRD-13's non-stacking rule
-    /// guarantees there is exactly one live bridge at a time — so the ordinal
-    /// *is* the whole state, and `CouchStored` already falls back to the
-    /// default when an `Int` fails to decode, which is the tolerance a richer
-    /// type would have had to hand-write. Cloud-synced beside `nine.streak`:
-    /// the card is a thing said to the player once, not once per device.
-    @ObservationIgnored private let graceSeenStore =
-        CouchStored(wrappedValue: 0, "nine.graceSeen", cloudSynced: true)
-    /// PRD-29's opt-in, and the whole of what the table persists — see
-    /// `joinsTable`. A **new** key, so no shipped build has ever written it and
-    /// it needs no wire bridge, exactly as `nine.channels` did not.
-    @ObservationIgnored private let tableStore =
-        CouchStored(wrappedValue: false, "nine.table", cloudSynced: true)
 
     /// The CloudKit boundary (PRD-8). Nil when the store isn't created; when
     /// present but no iCloud account exists the app stays purely local — sync
@@ -913,9 +696,6 @@ final class AppModel {
 
     init() {
         prefs = prefsStore.wrappedValue
-        focus = focusStore.wrappedValue
-        streak = streakStore.wrappedValue
-        graceSeenDay = graceSeenStore.wrappedValue
         library = libraryStore.wrappedValue
         helpSeen = helpSeenStore.wrappedValue
         welcomeSeen = welcomeSeenStore.wrappedValue
@@ -925,11 +705,9 @@ final class AppModel {
         replays = replaysStore.wrappedValue
         duels = duelsStore.wrappedValue
         hand = handStore.wrappedValue
-        archive = archiveStore.wrappedValue
         history = historyStore.wrappedValue
         channels = channelsStore.wrappedValue
         channelRules = channelRulesStore.wrappedValue
-        joinsTable = tableStore.wrappedValue
         drawerFound = drawerFoundStore.wrappedValue
         // Counted here rather than on scene activation: a launch is the unit
         // the affordance is budgeted in, and `AppModel` is built exactly once
@@ -962,9 +740,6 @@ final class AppModel {
             try? legacySaveStore.flushNow()
         }
 
-        // After the migration, so a legacy board's solved daily is seen too.
-        backfillArchiveLedger()
-
         #if os(tvOS)
         startPadReader()
         // Resume straight into a board in progress (PRD-5 §2.3 parity). A fresh
@@ -995,18 +770,16 @@ final class AppModel {
         #if os(iOS)
         // Fewer taps to the board: a launch with a board in progress goes
         // straight back to it. The home chevron is one tap away.
-        // Widget moves made while the app was dead merge into the day entry
-        // before resume reads the library (and before the publish below can
-        // write a stale board over them). Free-play partials are untouched.
-        ingestSharedDailyBoard()
+        // Widget moves made while the app was dead merge into the library
+        // entry before resume reads it (and before the publish below can
+        // write a stale board over them).
+        ingestSharedBoard()
         if prefs.resumeOnLaunch, let entry = library.mostRecentInProgress {
             startEntry(entry.id)
         }
         // Post-load publish covers state that changed without the widget
-        // hearing about it (reinstall, iCloud KVS sync, midnight).
+        // hearing about it (reinstall, iCloud KVS sync).
         WidgetBridge.publish(from: self)
-        PhoneWatchLink.shared.activate(model: self)
-        publishDailyToWatch()
         #endif
 
         // Cloud library (PRD-8). Ambient or absent: no iCloud account →
@@ -1076,48 +849,10 @@ final class AppModel {
 
     // MARK: - Derived
 
+    /// The current day ordinal. The daily system is gone; this survives only
+    /// because `ParlorInvite.opens(today:)` still keys its provenance guard on
+    /// it, and the widget's day-keyed cell selection reads the same math.
     var todayOrdinal: Int { DailySeed.dayOrdinal(for: Date()) }
-
-    var todaySolved: Bool { hasSolved(day: todayOrdinal) }
-
-    /// Whether a given day's daily has been finished.
-    ///
-    /// A thin accessor over `streak`, and it earns its line: *where a solve is
-    /// recorded* is a fact about streak bookkeeping, and a caller that only wants to
-    /// know whether a board is done should not have to know it. `PresenceBridge`
-    /// (PRD-30) is the caller that made this obvious — it asks the question for an
-    /// injected date rather than for "now", so `todaySolved` was not enough, and
-    /// `QuietPresenceSealTests` forbids a quiet surface from naming the streak at
-    /// all. Both wanted the same thing.
-    func hasSolved(day: Int) -> Bool { streak.hasCompleted(day: day) }
-
-    /// The past day the board on screen belongs to — nil for today's daily and
-    /// for free play. Drives the in-game "Archive · Jul 12" chip, which is the
-    /// only thing telling the player they are not on today's board.
-    ///
-    /// Keyed on provenance rather than on the clock, for the same reason the
-    /// streak guard is: `day < todayOrdinal` alone would grow an "Archive ·
-    /// Jul 25" chip on the board a player is *actively finishing* the moment
-    /// local midnight passes under them.
-    var archiveDay: Int? {
-        guard case .daily(let day)? = kind, day < todayOrdinal,
-              openedOn(day: day) > day else { return nil }
-        return day
-    }
-
-    /// The day ordinal the board on screen was created on, which is what tells
-    /// an archive board from an ordinary daily. Falls back to `day` — "not an
-    /// archive board" — when there is no entry to ask, so a missing record can
-    /// never invent one.
-    private func openedOn(day: Int) -> Int {
-        guard let id = currentEntryID, let entry = library.entry(id: id) else { return day }
-        return DailySeed.dayOrdinal(for: entry.createdAt)
-    }
-
-    /// The saved board, when it is today's daily and still in progress.
-    var savedDaily: NineGame? {
-        library.inProgressDaily(day: todayOrdinal)?.game
-    }
 
     /// The most recent free-play partial (drives the Continue card).
     var savedFree: (game: NineGame, difficulty: Difficulty)? {
@@ -1140,86 +875,22 @@ final class AppModel {
     /// Free-play partials beyond the one on the Continue card ("+N more").
     var extraPartialCount: Int { max(0, freePartials.count - 1) }
 
-    var displayedStreak: Int { streak.displayedStreak(today: todayOrdinal) }
-
-    /// The streak on screen is standing on a grace bridge right now (PRD-13
-    /// §3) — which is exactly when the chip wears a shield instead of a flame.
-    ///
-    /// Guarded on `displayedStreak` as well as on the state, so a bridge that
-    /// has since lapsed cannot put a shield on a chip that is no longer drawn.
-    var streakHeld: Bool { displayedStreak > 0 && streak.standsOnGrace }
-
-    /// The bridged day still owed its card, or nil.
-    ///
-    /// One card per bridge, ever: the day ordinal is the identity, so a
-    /// relaunch, a re-solve and a second device all resolve to the same one and
-    /// the player is told once. Nothing here is a count, and nothing renders it
-    /// as one — PRD-13 §3 rules out "shields remaining" everywhere.
-    var pendingGraceDay: Int? {
-        guard streakHeld, let day = streak.lastGraceDay, day != graceSeenDay else { return nil }
-        return day
-    }
-
-    /// Dismiss the card for the current bridge. Idempotent.
-    func acknowledgeGrace() {
-        guard let day = streak.lastGraceDay else { return }
-        graceSeenDay = day
-        try? graceSeenStore.flushNow()
-    }
-
     var totalPoints: Int { history.totalPoints }
 
     // MARK: - Derived, per channel (PRD-24)
 
-    /// Every accessor below is the classic one with a channel argument, reading
-    /// the channel's own `StreakState` and `SolveHistory` instead of the top-level
-    /// ones. None of them re-derives anything: per-channel grace is PRD-13's rule
-    /// and per-channel stats are `SolveHistory`'s aggregation, both inherited.
-    ///
-    /// They take `Channel.Ledgered` rather than `Channel`, so a caller cannot ask
-    /// them about classic — the answers for classic are `displayedStreak`,
-    /// `todaySolved` and `history`, which read the blobs classic has always used.
-
-    func displayedStreak(on channel: Channel.Ledgered) -> Int {
-        channels.displayedStreak(for: channel, today: todayOrdinal)
-    }
-
-    /// A channel streak standing on a grace bridge, so its chip wears a shield.
-    /// Guarded on the displayed value as well as the state, for `streakHeld`'s
-    /// reason: a lapsed bridge must not put a shield on a chip nobody draws.
-    func streakHeld(on channel: Channel.Ledgered) -> Bool {
-        displayedStreak(on: channel) > 0 && channels.state(for: channel).streak.standsOnGrace
-    }
-
-    /// Whether this channel's daily for `day` is done. One per day per channel.
-    func hasSolved(_ channel: Channel.Ledgered, day: Int) -> Bool {
-        channels.hasSolved(channel, day: day)
-    }
-
-    func todaySolved(on channel: Channel.Ledgered) -> Bool {
-        hasSolved(channel, day: todayOrdinal)
-    }
-
-    /// This channel's stats slice.
+    /// This channel's stats slice — `SolveHistory`'s aggregation, inherited.
     func history(on channel: Channel.Ledgered) -> SolveHistory {
         channels.state(for: channel).history
     }
 
-    /// This channel's in-progress daily for today, if there is one.
-    func savedDaily(on channel: Channel.Ledgered) -> LibraryEntry? {
-        library.partials.first {
-            if case .channel(let c, _, let day) = $0.kind {
-                return c == channel.channel && day == todayOrdinal
-            }
-            return false
-        }
-    }
-
-    /// This channel's in-progress free-play boards, newest first.
+    /// This channel's in-progress boards, newest first. A `.channel` entry's
+    /// optional day is a decode-frozen historical fact (it used to mark the
+    /// channel's daily); every board is a plain board now, so all of them list.
     func partials(on channel: Channel.Ledgered) -> [LibraryEntry] {
         library.partials.filter {
-            if case .channel(let c, _, let day) = $0.kind {
-                return c == channel.channel && day == nil
+            if case .channel(let c, _, _) = $0.kind {
+                return c == channel.channel
             }
             return false
         }
@@ -1253,59 +924,6 @@ final class AppModel {
 
     // MARK: - Starting games
 
-    func openToday() {
-        #if os(iOS)
-        // A widget move can be seconds old; merge before resuming.
-        ingestSharedDailyBoard()
-        #endif
-        let day = todayOrdinal
-        if let entry = library.inProgressDaily(day: day) {
-            startEntry(entry.id)
-        } else {
-            // No in-progress daily (fresh, or replay-after-solve): compose one.
-            // adoptDaily replaces the day slot; recordCompletion is idempotent.
-            compose(kind: .daily(day: day), seed: DailySeed.seed(for: Date()), difficulty: .steady)
-        }
-    }
-
-    /// Open any past daily from the archive (PRD-14).
-    ///
-    /// Mirrors `openToday` without its two today-only concerns. No widget
-    /// ingestion: `WidgetBridge.publishDailyBoard` reads
-    /// `inProgressDaily(day: todayOrdinal)`, so an archive board is
-    /// structurally invisible to the widget and needs no guard. And no streak
-    /// write — `finishSolve` passes `today:` to the guarded overload.
-    ///
-    /// Today routes back through `openToday` rather than composing its own
-    /// board, so "today via the archive" and "today via the Today card" are the
-    /// same library entry: one daily a day, no duplicates (PRD-14 §5).
-    ///
-    /// Resume needs nothing new. `inProgressDaily(day:)` is keyed on an
-    /// arbitrary day, so a half-finished 12 July is a partial like any other,
-    /// and it syncs through PRD-8 as an ordinary `.daily` entry.
-    func openArchiveDay(_ day: Int) {
-        guard day <= todayOrdinal else { return }   // the future is not offered
-        // Nine served no daily before it shipped, so the days before the first
-        // one are not "past days you could have played" — they are content
-        // dressed as history. The floor is a day, not a month, because the
-        // first daily landed mid-month.
-        guard day >= ArchiveCalendar.floorDayOrdinal else { return }
-        // A compose already in flight calls `startEntry` when it lands, so
-        // resuming a partial underneath one yanks the player off this board
-        // mid-move seconds later; and `compose` itself refuses a second
-        // request, so the other branch would be a silent dead tap. The sheet
-        // disables its cells for the same window.
-        guard composing == nil else { return }
-        guard day != todayOrdinal else { return openToday() }
-        if let entry = library.inProgressDaily(day: day) {
-            startEntry(entry.id)
-        } else {
-            compose(kind: .daily(day: day),
-                    seed: DailySeed.seed(forDayOrdinal: day),
-                    difficulty: .steady)
-        }
-    }
-
     func continueSaved() {
         guard let entry = library.mostRecentFreePartial else { return }
         startEntry(entry.id)
@@ -1332,13 +950,9 @@ final class AppModel {
     var currentInvite: ParlorInvite? {
         guard let entry = currentEntryID.flatMap({ library.entry(id: $0) }) else { return nil }
         switch entry.kind {
-        case .daily(let day):
-            return ParlorInvite(
-                seed: DailySeed.seed(forDayOrdinal: day),
-                difficulty: entry.game.puzzle.difficulty,
-                day: day
-            )
-        case .free:
+        // `.daily` is a frozen persistence case — old boards still decode and
+        // open — and it travels exactly as a free board does: by its own seed.
+        case .daily, .free:
             return ParlorInvite(
                 seed: entry.game.puzzle.seed, difficulty: entry.game.puzzle.difficulty, day: nil)
         case .channel:
@@ -1346,37 +960,27 @@ final class AppModel {
         }
     }
 
-    /// Today's daily, as an invite. What "play together" offers.
-    ///
-    /// `.steady` because the daily composes at steady — the one place in this
-    /// app where that constant is not read off a board is `finishSolve`'s
-    /// `default:` branch, and this is the second. Both would have to move
-    /// together, and the golden corpus is what would notice.
-    var todayInvite: ParlorInvite {
+    /// A fresh board, as an invite. What "play together" offers when no friend
+    /// has sent one: a random `.steady` seed, composed identically on every
+    /// device that receives it. (This was today's daily until 2026-08-02; the
+    /// one-board-per-day system is gone, so the parlor deals a fresh board.)
+    var freshParlorInvite: ParlorInvite {
         ParlorInvite(
-            seed: DailySeed.seed(forDayOrdinal: todayOrdinal),
+            seed: .random(in: UInt64.min...UInt64.max),
             difficulty: .steady,
-            day: todayOrdinal
+            day: nil
         )
     }
 
-    /// Open the board an invite names, under §3's provenance guard.
+    /// Open the board an invite names.
     ///
-    /// Today's daily routes through `openToday` rather than composing from the
-    /// invite's own seed, and that is the guard doing its second job: the daily
-    /// seed is a function of the day, so an invite claiming today with a
-    /// *different* seed is forged, and this opens the real one. Every other
-    /// invite — a past daily, tomorrow's, a free board — becomes a free board,
-    /// so no arriving message can ever spend a streak.
+    /// Every invite opens as a free board composed from the invite's own seed —
+    /// determinism is what guarantees both devices the same grid. The wire
+    /// still carries an optional `day` (frozen shape; older builds send it),
+    /// and it is ignored here: there is no daily left for it to spend.
     func openParlorInvite(_ invite: ParlorInvite) {
-        switch invite.opens(today: todayOrdinal) {
-        case .daily:
-            openToday()
-        case .free(let difficulty):
-            compose(kind: .free(difficulty), seed: invite.seed, difficulty: difficulty)
-        case .channel:
-            break   // unreachable: `opens(today:)` returns only the two above
-        }
+        compose(kind: .free(invite.difficulty), seed: invite.seed,
+                difficulty: invite.difficulty)
     }
 
     /// How many cells this board has to fill, and how many are filled — the
@@ -1399,7 +1003,7 @@ final class AppModel {
         guard CommandLine.arguments.contains("-parlor-demo"),
               !parlor.isActive, game != nil else { return }
         let transport = LoopbackParlorTransport(fillable: parlorFillable)
-        parlor.join(invite: todayInvite, fillable: parlorFillable, over: transport)
+        parlor.join(invite: freshParlorInvite, fillable: parlorFillable, over: transport)
         transport.start()
         reportParlorPresence()
     }
@@ -1512,29 +1116,10 @@ final class AppModel {
 
     // MARK: - Starting channel games (PRD-24)
 
-    /// Open a channel's daily: resume today's in-progress board, or compose it.
-    ///
-    /// Mirrors `openToday` and drops the two things that are classic-only. No
-    /// widget ingestion — `SharedDailyBoard` is a single slot keyed on the day
-    /// ordinal alone with no channel axis, so a channel daily is structurally
-    /// invisible to the widget and needs no merge. And no `PhoneWatchLink`
-    /// publish: the watch is classic-only, which `VariantInputSealTests` enforces
-    /// from the source side.
-    func openChannelToday(_ channel: Channel.Ledgered) {
-        let day = todayOrdinal
-        if let entry = savedDaily(on: channel) {
-            openChannelBoard(entry.id)
-        } else {
-            composeChannel(
-                channel: channel, tier: VariantChannel.dailyTier, day: day,
-                seed: DailySeed.seed(forDayOrdinal: day))
-        }
-    }
-
-    /// Start a fresh free-play board on a channel at a chosen tier.
+    /// Start a fresh board on a channel at a chosen tier.
     func startChannelFree(_ channel: Channel.Ledgered, tier: VariantTier) {
         composeChannel(
-            channel: channel, tier: tier, day: nil,
+            channel: channel, tier: tier,
             seed: .random(in: UInt64.min...UInt64.max))
     }
 
@@ -1582,10 +1167,10 @@ final class AppModel {
     /// is the branch that should never run — which is exactly why it must not be a
     /// `try!`.
     private func composeChannel(
-        channel: Channel.Ledgered, tier: VariantTier, day: Int?, seed: UInt64
+        channel: Channel.Ledgered, tier: VariantTier, seed: UInt64
     ) {
         guard composing == nil else { return }
-        let kind = GameKind.channel(channel: channel.channel, tier: tier, day: day)
+        let kind = GameKind.channel(channel: channel.channel, tier: tier, day: nil)
         composing = kind
         Task.detached(priority: .userInitiated) {
             // Pure, Sendable, deterministic — safe off the main actor, exactly as
@@ -1639,11 +1224,12 @@ final class AppModel {
         #endif
     }
 
-    /// Delete an entry entirely. Deleting today's daily also clears the shared
-    /// board file so the widget offers "tap to start" instead of resurrecting it.
+    /// Delete an entry entirely. Deleting the widget's board also clears the
+    /// shared board file so the widget offers "tap to start" instead of
+    /// resurrecting it.
     func deleteEntry(id: UUID) {
         #if os(iOS)
-        let wasTodayDaily = isTodayDaily(id)
+        let wasSharedBoard = SharedDailyBoardStore.load()?.entryID == id
         #endif
         library.delete(id: id)
         cloudStore?.delete(id)
@@ -1668,18 +1254,10 @@ final class AppModel {
             try? duelsStore.flushNow()
         }
         #if os(iOS)
-        if wasTodayDaily { WidgetBridge.clearDailyBoard(today: todayOrdinal) }
+        if wasSharedBoard { WidgetBridge.clearSharedBoard() }
         WidgetBridge.publish(from: self)
         #endif
     }
-
-    #if os(iOS)
-    private func isTodayDaily(_ id: UUID) -> Bool {
-        guard let entry = library.entry(id: id) else { return false }
-        if case .daily(let day) = entry.kind { return day == todayOrdinal }
-        return false
-    }
-    #endif
 
     /// Put a library entry on screen and mark it the current persist target.
     private func startEntry(_ id: UUID) {
@@ -1769,19 +1347,10 @@ final class AppModel {
                 let newGame = NineGame(puzzle: puzzle)
                 let id: UUID
                 switch kind {
-                case .daily(let day):
-                    id = self.library.adoptDaily(game: newGame, day: day, now: now)
-                    #if os(iOS)
-                    // The watch may not compose above gentle and the daily is
-                    // steady, so this is the only route today's board has to
-                    // the wrist (PRD-6). Publishing here rather than on every
-                    // move is deliberate: the payload is the immutable puzzle,
-                    // so nothing but midnight can change it.
-                    if day == self.todayOrdinal {
-                        PhoneWatchLink.shared.publishDaily(puzzle, day: day)
-                    }
-                    #endif
-                case .free:
+                case .daily, .free:
+                    // `.daily` is decode-frozen history — nothing composes one
+                    // any more, but a total switch keeps this branch honest if
+                    // one ever arrives. Every fresh board is a plain entry.
                     id = self.library.create(kind: kind, game: newGame, now: now)
                 case .channel:
                     // Unreachable: this is classic composition and its callers all
@@ -1920,37 +1489,6 @@ final class AppModel {
         return (coachProgress.metCount(of: taught), taught.count)
     }
 
-    // MARK: - Archive (PRD-14)
-
-    /// Seed the checkmark ledger from what is still knowable, every launch.
-    ///
-    /// Idempotent (`markSolved` is a set insert), O(library), and self-healing:
-    /// a solved daily that arrives later from CloudKit picks up its check on
-    /// the next launch. It cannot recover days the library pruned before this
-    /// build shipped — nothing can, and the alternative to saying so is holes
-    /// in the grid that look exactly like unplayed days.
-    ///
-    /// `.solved` only, not `status != .inProgress`: `archiveEntry(id:)` archives
-    /// *partials* too, and an abandoned board is not a solved one.
-    private func backfillArchiveLedger() {
-        var ledger = archive
-        var changed = false
-        if let last = streak.lastCompletedDay {
-            changed = ledger.markSolved(day: last) || changed
-        }
-        for entry in library.entries where entry.status == .solved {
-            if case .daily(let day) = entry.kind {
-                changed = ledger.markSolved(day: day) || changed
-            }
-        }
-        guard changed else { return }
-        archive = ledger
-        // Called from `init`, where `didSet` observers are unreliable — the
-        // same reason `sessionCountStore` is written through by hand above.
-        // A redundant write if the observer did fire; a lost backfill if not.
-        archiveStore.wrappedValue = ledger
-    }
-
     /// Every ledger write prunes to the live library, so the blob tracks it
     /// rather than accumulating the ids of boards deleted months ago.
     private func writeCoach(_ mutate: (inout CoachLedger) -> Void) {
@@ -2075,7 +1613,6 @@ final class AppModel {
         // mean the pause never reached disk before the OS could kill us.
         if reason == .scene {
             try? libraryStore.flushNow()
-            try? streakStore.flushNow()
         }
     }
 
@@ -2093,7 +1630,7 @@ final class AppModel {
 
     /// The one gate every resume path funnels through instead of calling
     /// `ElapsedTimer.start` directly. `startEntry`, `refreshOnScreenBoardAfterMerge`
-    /// and `ingestSharedDailyBoard` all land a board on screen and want its
+    /// and `ingestSharedBoard` all land a board on screen and want its
     /// clock ticking — but if a hold is currently up (app backgrounded, a
     /// board-covering overlay showing) starting it here would silently
     /// override that hold; only the matching `releaseClock` may resume play
@@ -2117,7 +1654,6 @@ final class AppModel {
         // NEXT board's clock off before it has even started.
         clockHolds.removeAll()
         try? libraryStore.flushNow()
-        try? streakStore.flushNow()
         // Keep `game`/`solvedAt` untouched so the departing GameScreen stays
         // visually stable through the crossfade; the next start replaces them.
         screen = .home
@@ -2161,88 +1697,42 @@ final class AppModel {
         reportParlorPresence()
         // **A duel solve is nobody's solve** (PRD-27 §7). Two people filled that
         // board in, so every ledger that records *your* progress is skipped: the
-        // classic streak, the classic history, the archive, the channel ledger
-        // and every Game Center submission.
+        // classic history, the channel ledger and every Game Center submission.
         //
         // What still happens is everything that belongs to the *board* rather
         // than to a player — the library marks it solved and the replay is
         // minted, because a duel has a comet and a debrief and that is the whole
         // of §10.
         let isDuel = self.isDuel
-        var isDaily = false
-        if !isDuel, case .daily(let day)? = kind {
-            isDaily = true
-            // A past-day solve must never rewrite streak state (PRD-14 §2).
-            // The guard lives in the Engine because the one-argument form
-            // cannot enforce it: its `day > last` check does nothing while
-            // `lastCompletedDay` is nil, so a fresh install solving yesterday
-            // from the archive would come away with a streak nobody earned.
-            //
-            // `openedOn`, not `todayOrdinal`: a clock read here is wrong on the
-            // ORDINARY path, throwing away the streak of anyone who opens the
-            // daily at 23:55 and finishes it at 00:03.
-            streak.recordCompletion(day: day, openedOn: openedOn(day: day))
-            try? streakStore.flushNow()
-            // Every daily solve, not only archive ones — a day solved from the
-            // Today card has to carry a check in the grid too, or the archive
-            // is right about the past and wrong about the present.
-            var ledger = archive
-            if ledger.markSolved(day: day) {
-                archive = ledger
-                try? archiveStore.flushNow()
-            }
-        }
-        // A channel board's streak and solve log go to `nine.channels` and
-        // nowhere else (PRD-24). Resolved before the record is built because the
-        // channel's own streak is what its points are scored against.
         var channelSlot: Channel.Ledgered?
-        var channelDay: Int?
-        if !isDuel, case .channel(let c, _, let day)? = kind, let slot = c.ledgered {
+        if !isDuel, case .channel(let c, _, _)? = kind, let slot = c.ledgered {
             channelSlot = slot
-            channelDay = day
-            isDaily = day != nil
         }
 
         let difficulty: Difficulty
         switch kind {
         case .free(let d)?: difficulty = d
         case .channel(_, let tier, _)?: difficulty = tier.wireDifficulty
-        default: difficulty = .steady // the daily composes at steady
+        default: difficulty = .steady // legacy `.daily` entries composed at steady
         }
-        // The streak the points are scored against is the *board's* channel's, so
-        // a first-ever killer solve is not paid a bonus earned on classic.
-        let scoringStreak = channelSlot.map { channels.state(for: $0).streak.current }
-            ?? streak.current
+        // No daily and no streak any more (2026-08-02): every solve is scored
+        // as the plain board it is.
         let record = SolveRecord(
             date: now,
             difficulty: difficulty,
-            isDaily: isDaily,
+            isDaily: false,
             seconds: g.timer.elapsed(at: now),
             points: SolveScore.points(
-                difficulty: difficulty, isDaily: isDaily,
-                streak: scoringStreak, seconds: g.timer.elapsed(at: now)
+                difficulty: difficulty, isDaily: false,
+                streak: 0, seconds: g.timer.elapsed(at: now)
             ),
             errors: g.errorCount
         )
         if let channelSlot {
-            // The channel's streak and its history move together or not at all —
-            // `ChannelLedger.record` is the only door, and it takes a type that
-            // cannot name classic. `nine.streak`, `nine.history` and
-            // `nine.archive` are untouched on this path, which is what "the
-            // classic streak is never diluted" means in practice.
+            // A channel board's solve log goes to `nine.channels` and nowhere
+            // else (PRD-24) — the classic history is never diluted.
             var ledger = channels
-            if let channelDay {
-                // `openedOn`-equivalent provenance: a channel board created on an
-                // earlier day must not extend today's streak. There is no channel
-                // archive yet, so the created-on day is the only past a channel
-                // board can have.
-                let opened = currentEntryID
-                    .flatMap { library.entry(id: $0) }
-                    .map { DailySeed.dayOrdinal(for: $0.createdAt) } ?? channelDay
-                ledger.record(record, on: channelSlot, day: channelDay, openedOn: opened)
-            } else {
-                ledger.recordFreePlay(record, on: channelSlot)
-            }
+            ledger.recordFreePlay(record, on: channelSlot)
             channels = ledger
             try? channelsStore.flushNow()
         } else if !isDuel {
@@ -2256,7 +1746,7 @@ final class AppModel {
             // After `markSolved`, so the prune inside sees the library the
             // solve leaves behind rather than the one it arrived in.
             mintReplay(
-                boardID: id, game: g, difficulty: difficulty, isDaily: isDaily,
+                boardID: id, game: g, difficulty: difficulty, isDaily: false,
                 solvedAt: now, seconds: record.seconds
             )
         }
@@ -2264,35 +1754,20 @@ final class AppModel {
         // GameKit is native on iOS, macOS and tvOS (PRD-5 §2.3 parity ledger);
         // widgets are iOS-only.
         #if os(iOS) || os(macOS) || os(tvOS)
-        // A channel solve reports the channel's own history and streak to the
-        // channel's own boards (PRD-24). Reading them off the ledger here rather
-        // than passing the top-level pair keeps the "never diluted" rule true on
-        // this surface too: the classic leaderboard cannot receive a killer score
-        // because the arguments it would need are not the ones in scope.
+        // A channel solve reports the channel's own history to the channel's
+        // own board (PRD-24). Reading it off the ledger here rather than
+        // passing the top-level history keeps the "never diluted" rule true on
+        // this surface too.
         if let channelSlot {
             let state = channels.state(for: channelSlot)
             GameCenter.shared.reportSolve(
-                record: record, history: state.history, streak: state.streak,
-                channel: channelSlot)
+                record: record, history: state.history, channel: channelSlot)
         } else if !isDuel {
             // A duel reports nothing. A leaderboard entry naming one Apple ID
             // for a board two people filled in is the same untruth as a history
             // record, and it is the one that would be public.
-            GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
+            GameCenter.shared.reportSolve(record: record, history: history)
         }
-        // PRD-29. **After** the two branches above and outside both, because the
-        // table is a fold over `nine.history` rather than a mirror of this one
-        // record — the week is what goes up, not the solve. It is therefore also
-        // correct for it to run on a day whose daily was already counted: the
-        // score is idempotent, and re-submitting an unchanged week is a no-op on
-        // a board that keeps the best submission.
-        //
-        // Guarded by `joinsTable` inside `submitTableWeek`, not here, so there is
-        // exactly one place the opt-in is read on the solve path. A channel solve
-        // and a duel solve both reach this line and both contribute nothing:
-        // `DailyTable.tally` reads classic dailies out of `nine.history`, which
-        // neither of them writes.
-        submitTableWeek()
         #endif
         #if os(iOS)
         WidgetBridge.publish(from: self)
@@ -2470,8 +1945,7 @@ final class AppModel {
 
     /// If a merge changed the board on screen, swap it in calmly (keep the
     /// timer running, never yank progress out from under an active hand — only
-    /// adopt a board that is further along). Re-points the persist target if a
-    /// daily merge re-homed the entry's id.
+    /// adopt a board that is further along).
     ///
     /// This fires from `syncOnForeground`/CloudKit delivery, which can land
     /// while a hold is up — the merge itself may be exactly what's happening
@@ -2482,10 +1956,6 @@ final class AppModel {
     /// the surface is actually being looked at again.
     private func refreshOnScreenBoardAfterMerge() {
         guard screen == .game, solvedAt == nil else { return }
-        if let id = currentEntryID, library.entry(id: id) == nil,
-           case .daily(let day)? = kind, let daily = library.dailyEntry(day: day) {
-            currentEntryID = daily.id
-        }
         guard let id = currentEntryID, let entry = library.entry(id: id) else { return }
         if let shown = game, entry.game.fillFraction > shown.fillFraction {
             var g = entry.game
@@ -2495,141 +1965,60 @@ final class AppModel {
     }
 
     #if os(iOS)
-    // MARK: - Solves made somewhere that isn't this app
+    // MARK: - Widget board ingestion (PRD-3 §4, repointed 2026-08-02)
 
-    /// Record a daily solved on another surface — the widget (PRD-3) or the
-    /// watch (PRD-6) — into streak, archive, history and Game Center.
+    /// Adopt the shared board when the widget moved it forward. Runs on
+    /// launch and on scene activation, so the app never plays over widget
+    /// moves. A solve made in the widget is recorded here — exactly once,
+    /// gated by the revision high-water mark — into history/Game Center.
     ///
-    /// **Idempotent per day, and that is the whole design.** `hasCompleted`
-    /// gates every write, so a re-ingested widget board, a re-sent watch
-    /// report and a phone that also solved today all converge on one record.
-    /// Both callers rely on that rather than on delivering exactly once, which
-    /// is not a guarantee either transport can make.
-    ///
-    /// Extracted rather than copied. `BoardIntents.swift` records what a
-    /// second hand-written copy of the streak rule cost the last time: it went
-    /// out of sync with PRD-13's grace bridge and shamed the player.
-    private func recordSolveMadeElsewhere(day: Int, solve: PendingSolve) {
-        guard !streak.hasCompleted(day: day) else { return }
-        // Callers pin `day` to today, so this can never be an archive board —
-        // but say so in the call rather than leaving it to a guard elsewhere.
-        streak.recordCompletion(day: day, openedOn: day)
-        try? streakStore.flushNow()
-        // The archive's checkmark, which `finishSolve` writes for every other
-        // solve. Without it a daily finished entirely off-app shows no check
-        // until the next COLD LAUNCH's backfill — and `BoardLibrary.prune()`'s
-        // 20-entry cap can eat the library entry that backfill reads before
-        // that launch ever happens, losing the day permanently.
-        var ledger = archive
-        if ledger.markSolved(day: day) {
-            archive = ledger
-            try? archiveStore.flushNow()
-        }
-        let record = SolveRecord(
-            date: solve.solvedAt,
-            difficulty: .steady, // the daily composes at steady
-            isDaily: true,
-            seconds: solve.seconds,
-            points: SolveScore.points(
-                difficulty: .steady, isDaily: true,
-                streak: streak.current, seconds: solve.seconds
-            ),
-            // No NineGame in scope here — only a PendingSolve — so there is no
-            // moveLog to read an error count from. Widget and watch solves
-            // both route through this one path, so both record nil.
-            errors: nil
-        )
-        history.record(record)
-        try? historyStore.flushNow()
-        GameCenter.shared.reportSolve(record: record, history: history, streak: streak)
-        // A widget or watch solve is a daily solved on the day, so it counts for
-        // the table exactly like any other (PRD-29 §3.1). It carries no replay —
-        // `mintReplay` runs only on the app's own solve path — and `trustsDaily`
-        // reads that absence as trust rather than as suspicion, which is the
-        // clause that stops the league being a feature of one code path.
-        submitTableWeek()
-    }
-
-    /// Hand today's daily to the watch if this phone already has it composed.
-    ///
-    /// `compose` publishes the board it just made; this covers the far commoner
-    /// case where the daily was composed yesterday's-tomorrow, or on another
-    /// device and synced in, so no compose runs today at all. Called from the
-    /// same two places as widget publication — launch and scene activation —
-    /// because "the watch came into range" is not an event the phone can hear.
-    func publishDailyToWatch() {
-        let day = todayOrdinal
-        guard let entry = library.dailyEntry(day: day) else { return }
-        PhoneWatchLink.shared.publishDaily(entry.game.puzzle, day: day)
-    }
-
-    /// A daily solved on the wrist (PRD-6).
-    ///
-    /// The board itself does not come back — PRD-6 §2.5 keeps play state off
-    /// the link — so unlike a widget solve there is no game to adopt. The
-    /// library's day entry is left alone: it holds whatever this phone last
-    /// played, which is the honest thing to show, and the streak is what the
-    /// player actually cares about having crossed over.
-    func ingestWatchSolve(_ report: WatchSolveReport) {
-        guard report.dayOrdinal == todayOrdinal else { return }
-        recordSolveMadeElsewhere(day: report.dayOrdinal, solve: report.solve)
-        WidgetBridge.publish(from: self)
-    }
-
-    // MARK: - Widget board ingestion (PRD-3 §4)
-
-    /// Adopt the shared daily board when the widget moved it forward. Runs
-    /// on launch, on scene activation and before opening today's daily, so
-    /// the app never plays over widget moves. A solve made in the widget is
-    /// recorded here — exactly once — into streak/history/Game Center.
-    func ingestSharedDailyBoard() {
-        let today = todayOrdinal
-        // Invariant repair: a solved, already-recorded daily should be marked
-        // solved in the library, not sitting as an in-progress entry that
-        // resumeOnLaunch/openToday could land on.
-        if let daily = library.inProgressDaily(day: today), daily.game.isSolved,
-           streak.hasCompleted(day: today) {
-            library.markSolved(id: daily.id, at: Date())
-            try? libraryStore.flushNow()
-        }
+    /// The shared file now bookmarks the most recent in-progress classic
+    /// board rather than "the daily": `entryID` is the join key back to the
+    /// library, and a file written by an older build (no `entryID`) is simply
+    /// ignored rather than misfiled.
+    func ingestSharedBoard() {
         guard let shared = SharedDailyBoardStore.load(),
-              shared.isCurrent(today: today),
+              let entryID = shared.entryID,
               shared.revision > WidgetBridge.knownBoardRevision
         else { return }
         WidgetBridge.knownBoardRevision = shared.revision
+        // The board the widget was playing must still exist here — a deleted
+        // or pruned entry is not resurrected by a widget move.
+        guard var entry = library.entry(id: entryID) else { return }
 
         if let pending = shared.pendingSolve {
-            // Solved entirely in the widget. recordCompletion is idempotent
-            // per day, and pendingSolve is cleared below, so a same-day
-            // re-ingest no-ops.
-            recordSolveMadeElsewhere(day: shared.dayOrdinal, solve: pending)
-            // Close the widget's run at the instant it solved, before ANY of
-            // the three consumers below see this board.
+            // Solved entirely in the widget. The revision guard above plus the
+            // cleared `pendingSolve` below make a re-ingest a no-op.
             //
-            // `BoardIntents` sets `pendingSolve` and saves without ever pausing
-            // the timer, so a widget-solved board reaches us with
-            // `runningSince` still set and keeps accruing wall-clock forever.
-            // `markSolved`/`adoptDaily` don't touch timers (they only move
-            // status/dates), so nothing downstream would have closed it either.
-            //
-            // `pending.solvedAt` is the honest cap and not a write- or
-            // ingest-time stamp: `BoardIntents.swift:53` takes `let now =
-            // Date()` at the top of `perform()`, places the winning digit at
-            // :62, then stamps BOTH `PendingSolve.solvedAt` and its `seconds`
-            // from that same `now` (:74-75). Capping here therefore lands the
-            // timer on exactly `pending.seconds` — the very number
-            // `recordSolveMadeElsewhere` just wrote into history and points —
-            // so the share card, the drawer and the tracker now agree with the
-            // record instead of drifting past it. (Deliberately NOT
-            // `cleared.updatedAt`, which is stamped at ingest time below and
-            // would credit the gap between the widget solve and this launch.)
+            // Close the widget's run at the instant it solved: `BoardIntents`
+            // sets `pendingSolve` and saves without ever pausing the timer, so
+            // a widget-solved board reaches us with `runningSince` still set.
+            // `pending.solvedAt` is the honest cap — `BoardIntents` stamps both
+            // `solvedAt` and `seconds` from the same `Date()`, so the timer
+            // lands on exactly the seconds recorded into history below.
             var solvedGame = shared.game
             solvedGame.timer.closeOpenRun(notLaterThan: pending.solvedAt)
-            // Adopt the finished board into the one day entry and mark it solved
-            // (free-play entries structurally untouched — the clobber fix).
-            let id = library.adoptDaily(game: solvedGame, day: shared.dayOrdinal, now: Date())
-            library.markSolved(id: id, at: pending.solvedAt)
+            entry.game = solvedGame
+            entry.updatedAt = Date()
+            library.upsert(entry)
+            library.markSolved(id: entryID, at: pending.solvedAt)
             try? libraryStore.flushNow()
+            let difficulty = solvedGame.puzzle.difficulty
+            let record = SolveRecord(
+                date: pending.solvedAt,
+                difficulty: difficulty,
+                isDaily: false,
+                seconds: pending.seconds,
+                points: SolveScore.points(
+                    difficulty: difficulty, isDaily: false,
+                    streak: 0, seconds: pending.seconds
+                ),
+                // No moveLog to read an error count from on this path.
+                errors: nil
+            )
+            history.record(record)
+            try? historyStore.flushNow()
+            GameCenter.shared.reportSolve(record: record, history: history)
             var cleared = shared
             // The capped board goes back to the shared file too, so the widget
             // and a later re-ingest read a closed run rather than this one.
@@ -2639,92 +2028,41 @@ final class AppModel {
             cleared.updatedAt = Date()
             WidgetBridge.knownBoardRevision = cleared.revision
             try? SharedDailyBoardStore.save(cleared)
-            // Mid-play on the same daily? Show the finished board calmly.
-            //
-            // `solvedGame`, not `shared.game`. The beneficiary is the stats
-            // drawer's elapsed tile (`StatsDrawer.swift:119`), which is NOT
-            // gated on `solvedAt` the way the three timer chips are and reads
-            // `elapsed(at: timeline.date)` — so an open run there ticks upward
-            // on a finished board. The share card is explicitly *not* a victim:
-            // `shareFacts` builds `SolveCardFacts` `at: model.solvedAt`
-            // (TouchUI.swift:1099, MacUI.swift:513), and `solvedAt` is
-            // `pending.solvedAt` here, so `elapsed(at:)` returned
-            // `pending.seconds` exactly even before this cap. Same for the
-            // library copy above, whose victim is `BoardsSheet.swift:159`/`:287`
-            // (`elapsed(at: Date())`).
-            if screen == .game, case .daily(let day)? = kind, day == shared.dayOrdinal {
+            // Mid-play on the same board? Show the finished board calmly.
+            if screen == .game, currentEntryID == entryID {
                 game = solvedGame
                 solvedAt = pending.solvedAt
             }
         } else if !shared.game.isSolved {
             // Cap the shared board's run BEFORE it reaches the library, not
-            // just before it reaches the screen. This is load-bearing, not
-            // belt-and-braces: the shared file normally carries
-            // `runningSince != nil` mid-play (`WidgetBridge.publishDailyBoard`
-            // writes `model.game` unmodified, and `persistProgress()` publishes
-            // on every move), and `BoardIntents` only ever reads that timer,
-            // never closes it. So a jetsam mid-daily — killed with no
-            // `.background` transition, hence no `holdClock` pause — leaves the
-            // run open, and adopting it verbatim credits the entire dead-app
-            // absence. `startClockIfUnheld` cannot save us either:
-            // `ElapsedTimer.start` is a no-op on an already-running timer, so
-            // without this the hold is bypassed rather than enforced.
-            //
-            // **Above `adoptDaily`, and that placement is the whole fix.**
-            // Capping only inside the `screen == .game` block below covers just
-            // the case where the app is already foreground on this daily.
-            // Launch is the common one and it is not that case: `init` calls
-            // `ingestSharedDailyBoard()` while `screen` is still `.home`, so
-            // the on-screen branch is skipped entirely — then `adoptDaily`
-            // stamps `updatedAt = now` (the INGEST instant), that entry becomes
-            // `mostRecentInProgress` (newest-first), resume-on-launch runs
-            // `startEntry`, and its own cap closes the run against the ingest
-            // instant — crediting the absence it was meant to refuse. With
-            // resume-on-launch off it is merely deferred: `BoardsSheet` renders
-            // `elapsed(at: Date())` on a still-open run as a growing tile.
-            //
-            // `shared.updatedAt` is the right cap: both writers
-            // (`WidgetBridge.swift:83`, `BoardIntents.swift:65`) set it to
-            // `now` at write time, so it is precisely the last instant this
-            // board's state is known to be current — the same reading
-            // `LibraryEntry.updatedAt` gets at the other two seams.
+            // just before it reaches the screen: the shared file normally
+            // carries `runningSince != nil` mid-play, and `BoardIntents` only
+            // ever reads that timer, never closes it. A jetsam mid-board —
+            // killed with no `.background` transition, hence no `holdClock`
+            // pause — leaves the run open, and adopting it verbatim credits
+            // the entire dead-app absence. `shared.updatedAt` is the right
+            // cap: both writers set it to `now` at write time, so it is
+            // precisely the last instant this board's state is known current.
             var capped = shared.game
             capped.timer.closeOpenRun(notLaterThan: shared.updatedAt)
-            // Widget moves flow into the day entry only — free-play untouched.
-            let id = library.adoptDaily(game: capped, day: shared.dayOrdinal, now: Date())
-            try? libraryStore.flushNow()
-            if screen == .game, solvedAt == nil,
-               case .daily(let day)? = kind, day == shared.dayOrdinal {
-                var g = capped
-                // Same reasoning as `refreshOnScreenBoardAfterMerge`: `openToday`
-                // and the URL-open route can call this while the game screen's
-                // own `.sheet` hold is up (a widget board can arrive at any
-                // time, independent of scene activation). Adopt the board, but
-                // only start its clock if nothing is holding it; `releaseClock`
-                // resumes it once the hold actually lifts.
-                startClockIfUnheld(&g)
-                game = g
-                currentEntryID = id // keep the persist target on the day entry
+            // Only adopt a board that is further along — never yank progress
+            // out from under an active hand (same rule as the cloud merge).
+            if capped.fillFraction >= entry.game.fillFraction {
+                entry.game = capped
+                entry.updatedAt = Date()
+                library.upsert(entry)
+                try? libraryStore.flushNow()
+                if screen == .game, solvedAt == nil, currentEntryID == entryID {
+                    var g = capped
+                    // Adopt the board, but only start its clock if nothing is
+                    // holding it; `releaseClock` resumes it once the hold lifts.
+                    startClockIfUnheld(&g)
+                    game = g
+                }
             }
-        } else if library.dailyEntry(day: shared.dayOrdinal)?.status != .solved {
-            // Solved with no pendingSolve → already recorded elsewhere; make
-            // sure the day entry reflects solved (repair; keeps solvedAt if set).
-            //
-            // Capped for the same reason as the two branches above, and it is
-            // not academic here: this entry is `markSolved`, so nothing will
-            // ever resume it and close its run in passing. An open run left
-            // here is permanent — `BoardsSheet.swift:159`/`:287` render
-            // `elapsed(at: Date())` for "previously played", so the board would
-            // show a time that grows forever. `shared.updatedAt` again: there
-            // is no `PendingSolve` on this path to take a solve instant from.
-            var capped = shared.game
-            capped.timer.closeOpenRun(notLaterThan: shared.updatedAt)
-            let id = library.adoptDaily(game: capped, day: shared.dayOrdinal, now: Date())
-            library.markSolved(id: id, at: Date())
-            try? libraryStore.flushNow()
         }
-        // Re-publish so the glanceable widgets swap the widget's optimistic
-        // facts for the recorded truth (points included).
+        // Re-publish so the widget swaps its optimistic facts for the
+        // recorded truth.
         WidgetBridge.publish(from: self)
     }
     #endif
