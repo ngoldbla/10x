@@ -53,6 +53,9 @@ Package.resolved
 # Local signing configuration (team ID, ASC API key) — never committed.
 signing.env
 
+# Playwright MCP browser logs (design-audit web research) — tool artifacts.
+.playwright-mcp/
+
 # macOS
 .DS_Store
 *.swp
